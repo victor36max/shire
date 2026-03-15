@@ -17,7 +17,14 @@ defmodule SpriteAgentsWeb.Router do
   scope "/", SpriteAgentsWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", AgentLive.Index, :index
+    live "/agents/new", AgentLive.Index, :new
+    live "/agents/:id/edit", AgentLive.Index, :edit
+    live "/agents/:id", AgentLive.Show, :show
+
+    live "/secrets", SecretLive.Index, :index
+    live "/secrets/new", SecretLive.Index, :new
+    live "/secrets/:id/edit", SecretLive.Index, :edit
   end
 
   # Other scopes may use custom stacks.
