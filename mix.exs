@@ -49,7 +49,6 @@ defmodule SpriteAgents.MixProject do
       {:phoenix_live_view, "~> 1.1.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons",
@@ -85,11 +84,11 @@ defmodule SpriteAgents.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind sprite_agents", "esbuild sprite_agents"],
+      "assets.setup": ["tailwind.install --if-missing", "cmd --cd assets bun install"],
+      "assets.build": ["compile", "tailwind sprite_agents", "cmd --cd assets bun run build"],
       "assets.deploy": [
         "tailwind sprite_agents --minify",
-        "esbuild sprite_agents --minify",
+        "cmd --cd assets bun run build",
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]

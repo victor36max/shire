@@ -25,9 +25,13 @@ config :sprite_agents, SpriteAgentsWeb.Endpoint,
   debug_errors: true,
   secret_key_base: "nj2bd4KdE0MMSipbspQkMVQMc6vYkO+L0fyTvCWXERD1imLP+ven+wPv2xcpAwc3",
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:sprite_agents, ~w(--sourcemap=inline --watch)]},
+    bun: ["run", "dev", cd: Path.expand("../assets", __DIR__)],
     tailwind: {Tailwind, :install_and_run, [:sprite_agents, ~w(--watch)]}
   ]
+
+config :live_react,
+  vite_host: "http://localhost:5173",
+  ssr: false
 
 # ## SSL Support
 #

@@ -86,6 +86,8 @@ defmodule SpriteAgentsWeb do
       import Phoenix.HTML
       # Core UI components
       import SpriteAgentsWeb.CoreComponents
+      # LiveReact for React components in LiveView
+      import LiveReact
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
