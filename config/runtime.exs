@@ -24,6 +24,18 @@ config :sprite_agents, SpriteAgentsWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
+  cloak_key =
+    System.get_env("CLOAK_KEY") ||
+      raise """
+      environment variable CLOAK_KEY is missing.
+      Generate one with: :crypto.strong_rand_bytes(32) |> Base.encode64()
+      """
+
+  config :sprite_agents, SpriteAgents.Vault,
+    ciphers: [
+      default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Base.decode64!(cloak_key)}
+    ]
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

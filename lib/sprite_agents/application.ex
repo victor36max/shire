@@ -9,6 +9,7 @@ defmodule SpriteAgents.Application do
   def start(_type, _args) do
     children = [
       SpriteAgentsWeb.Telemetry,
+      SpriteAgents.Vault,
       SpriteAgents.Repo,
       {DNSCluster, query: Application.get_env(:sprite_agents, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: SpriteAgents.PubSub},
