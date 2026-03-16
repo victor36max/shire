@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0"
+    "@mariozechner/pi-coding-agent": "latest",
+    "@mariozechner/pi-ai": "latest"
   },
   "devDependencies": {
     "bun-types": "^1.3.10"
