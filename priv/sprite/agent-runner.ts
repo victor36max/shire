@@ -1,13 +1,14 @@
-// agent-runner.ts — Bun daemon that watches the inbox and dispatches to AI backend.
+// agent-runner.ts — Bun daemon that watches the inbox and dispatches to configured harness.
 import { watch } from "fs";
 import { readFile, readdir, unlink } from "fs/promises";
 import { join } from "path";
-import Anthropic from "@anthropic-ai/sdk";
+import { createHarness, type Harness } from "./harness";
 
 const INBOX_DIR = "/workspace/mailbox/inbox";
 const CONFIG_PATH = "/workspace/agent-config.json";
 
 export interface AgentConfig {
+  harness: string;
   model: string;
   system_prompt: string;
   max_tokens?: number;
@@ -32,98 +33,95 @@ export async function loadConfig(path = CONFIG_PATH): Promise<AgentConfig> {
 }
 
 export async function processMessage(
-  client: Anthropic,
+  harness: Harness,
   config: AgentConfig,
-  messages: Anthropic.MessageParam[],
   envelope: MessageEnvelope,
-  loadConfigFn: () => Promise<AgentConfig> = loadConfig
-) {
+  loadConfigFn: () => Promise<AgentConfig> = loadConfig,
+): Promise<{ harness: Harness; config: AgentConfig }> {
   if (envelope.type === "user_message" || envelope.type === "agent_message") {
     const text = envelope.payload.text as string;
-    const prefix =
-      envelope.type === "agent_message"
-        ? `[Message from agent "${envelope.from}"]\n${text}`
-        : text;
-
-    messages.push({ role: "user", content: prefix });
-
-    try {
-      const stream = client.messages.stream({
-        model: config.model,
-        max_tokens: config.max_tokens ?? 4096,
-        system: config.system_prompt,
-        messages,
-      });
-
-      stream.on("text", (delta) => {
-        emit("text_delta", { delta });
-      });
-
-      const finalMessage = await stream.finalMessage();
-      const fullText = finalMessage.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("");
-
-      messages.push({ role: "assistant", content: fullText });
-      emit("text", { text: fullText });
-      emit("turn_complete", {});
-    } catch (err) {
-      emit("error", { message: String(err) });
-    }
+    const from = envelope.type === "agent_message" ? envelope.from : undefined;
+    await harness.sendMessage(text, from);
   } else if (envelope.type === "interrupt") {
-    // TODO: Cancel active streaming request (AbortController) when implemented
-    messages.length = 0; // Clear conversation history
+    await harness.interrupt();
     emit("interrupted", {});
   } else if (envelope.type === "shutdown") {
+    await harness.stop();
     emit("shutdown", {});
     process.exit(0);
   } else if (envelope.type === "configure") {
-    // Hot-reload: re-read config file and apply new settings
+    await harness.stop();
     const newConfig = await loadConfigFn();
     Object.assign(config, newConfig);
+    const newHarness = createHarness(config.harness);
+    newHarness.onEvent((event) => emit(event.type, event.payload));
+    await newHarness.start({
+      model: config.model,
+      systemPrompt: config.system_prompt,
+      cwd: "/workspace",
+      maxTokens: config.max_tokens,
+    });
     emit("configured", { model: config.model });
+    return { harness: newHarness, config };
   }
+
+  return { harness, config };
 }
 
 export async function processInbox(
-  client: Anthropic,
+  harness: Harness,
   config: AgentConfig,
-  messages: Anthropic.MessageParam[]
-) {
+): Promise<{ harness: Harness; config: AgentConfig }> {
   const files = await readdir(INBOX_DIR);
   const sorted = files.filter((f) => f.endsWith(".json")).sort();
+
+  let currentHarness = harness;
+  let currentConfig = config;
 
   for (const file of sorted) {
     const path = join(INBOX_DIR, file);
     try {
       const raw = await readFile(path, "utf-8");
       const envelope: MessageEnvelope = JSON.parse(raw);
-      await processMessage(client, config, messages, envelope);
+      const result = await processMessage(currentHarness, currentConfig, envelope);
+      currentHarness = result.harness;
+      currentConfig = result.config;
       await unlink(path);
     } catch (err) {
       emit("error", { message: `Failed to process ${file}: ${err}` });
     }
   }
+
+  return { harness: currentHarness, config: currentConfig };
 }
 
 async function main() {
   const config = await loadConfig();
-  const client = new Anthropic();
-  const messages: Anthropic.MessageParam[] = [];
+  let harness = createHarness(config.harness);
+
+  harness.onEvent((event) => emit(event.type, event.payload));
+  await harness.start({
+    model: config.model,
+    systemPrompt: config.system_prompt,
+    cwd: "/workspace",
+    maxTokens: config.max_tokens,
+  });
+
+  emit("ready", { model: config.model, harness: config.harness });
+
   let processing = false;
 
-  emit("ready", { model: config.model });
-
   // Process any existing inbox messages
-  await processInbox(client, config, messages);
+  const result = await processInbox(harness, config);
+  harness = result.harness;
 
   // Watch for new messages
   const watcher = watch(INBOX_DIR, async (_eventType: string, filename: string | null) => {
     if (!filename?.endsWith(".json") || processing) return;
     processing = true;
     try {
-      await processInbox(client, config, messages);
+      const result = await processInbox(harness, config);
+      harness = result.harness;
     } finally {
       processing = false;
     }
@@ -131,12 +129,13 @@ async function main() {
 
   // Heartbeat every 30 seconds
   setInterval(() => {
-    emit("heartbeat", { status: "alive", message_count: messages.length });
+    emit("heartbeat", { status: "alive" });
   }, 30_000);
 
   // Keep process alive
   process.on("SIGTERM", () => {
     watcher.close();
+    harness.stop();
     emit("shutdown", {});
     process.exit(0);
   });
