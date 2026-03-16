@@ -2,6 +2,34 @@
 import { describe, test, expect, beforeEach, afterEach, spyOn, mock } from "bun:test";
 import { emit, processMessage, type AgentConfig, type MessageEnvelope } from "./agent-runner";
 import Anthropic from "@anthropic-ai/sdk";
+import { createHarness } from "./harness";
+
+// ---------------------------------------------------------------------------
+// createHarness()
+// ---------------------------------------------------------------------------
+
+describe("createHarness()", () => {
+  test("throws on unknown harness type", () => {
+    expect(() => createHarness("unknown")).toThrow("Unknown harness type: unknown");
+  });
+
+  test("returns a PiHarness for 'pi'", () => {
+    const harness = createHarness("pi");
+    expect(harness).toBeDefined();
+    expect(harness.start).toBeInstanceOf(Function);
+    expect(harness.sendMessage).toBeInstanceOf(Function);
+    expect(harness.interrupt).toBeInstanceOf(Function);
+    expect(harness.stop).toBeInstanceOf(Function);
+    expect(harness.onEvent).toBeInstanceOf(Function);
+    expect(harness.isProcessing).toBeInstanceOf(Function);
+  });
+
+  test("returns a ClaudeCodeHarness for 'claude_code'", () => {
+    const harness = createHarness("claude_code");
+    expect(harness).toBeDefined();
+    expect(harness.start).toBeInstanceOf(Function);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
