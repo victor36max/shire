@@ -36,4 +36,21 @@ describe("AgentShow", () => {
     await userEvent.click(screen.getByText("Edit"));
     expect(pushEvent).toHaveBeenCalledWith("edit", { id: 1 });
   });
+
+  it("shows Start button for created agent", () => {
+    render(<AgentShow agent={{ ...agent, status: "created" }} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Start Agent")).toBeInTheDocument();
+  });
+
+  it("shows Stop button for active agent", () => {
+    render(<AgentShow agent={{ ...agent, status: "active" }} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Stop Agent")).toBeInTheDocument();
+  });
+
+  it("calls pushEvent with start-agent", async () => {
+    const pushEvent = vi.fn();
+    render(<AgentShow agent={{ ...agent, status: "created" }} pushEvent={pushEvent} />);
+    await userEvent.click(screen.getByText("Start Agent"));
+    expect(pushEvent).toHaveBeenCalledWith("start-agent", {});
+  });
 });

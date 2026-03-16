@@ -48,7 +48,16 @@ export default function AgentShow({ agent, pushEvent }: AgentShowProps) {
           <Button variant="outline" onClick={() => (window.location.href = "/")}>
             Back
           </Button>
-          <Button onClick={() => pushEvent("edit", { id: agent.id })}>
+          {agent.status === "created" || agent.status === "sleeping" || agent.status === "failed" ? (
+            <Button onClick={() => pushEvent("start-agent", {})}>
+              Start Agent
+            </Button>
+          ) : agent.status === "active" || agent.status === "starting" ? (
+            <Button variant="destructive" onClick={() => pushEvent("stop-agent", {})}>
+              Stop Agent
+            </Button>
+          ) : null}
+          <Button variant="outline" onClick={() => pushEvent("edit", { id: agent.id })}>
             Edit
           </Button>
         </div>
