@@ -104,10 +104,11 @@ defmodule SpriteAgents.Agent.AgentManager do
       agent = Agents.get_agent!(state.agent_id)
       secrets = Agents.effective_secrets(state.agent_id)
 
-      default_model = case agent.harness do
-        :claude_code -> "claude-sonnet-4-6"
-        _ -> "anthropic/claude-sonnet-4-6"
-      end
+      default_model =
+        case agent.harness do
+          :claude_code -> "claude-sonnet-4-6"
+          _ -> "anthropic/claude-sonnet-4-6"
+        end
 
       config =
         Jason.encode!(%{
@@ -140,6 +141,7 @@ defmodule SpriteAgents.Agent.AgentManager do
           dir = Path.dirname("/workspace/#{file}")
           Sprites.cmd(sprite, "mkdir", ["-p", dir])
         end
+
         Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
       end
 
