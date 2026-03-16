@@ -13,6 +13,8 @@ defmodule SpriteAgents.Application do
       SpriteAgents.Repo,
       {DNSCluster, query: Application.get_env(:sprite_agents, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: SpriteAgents.PubSub},
+      {Registry, keys: :unique, name: SpriteAgents.AgentRegistry},
+      {DynamicSupervisor, name: SpriteAgents.AgentSupervisor, strategy: :one_for_one},
       # Start a worker by calling: SpriteAgents.Worker.start_link(arg)
       # {SpriteAgents.Worker, arg},
       # Start to serve requests, typically the last entry
