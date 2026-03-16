@@ -1,4 +1,7 @@
 import AgentCard from "./AgentCard";
-import AgentList from "./AgentList";
+import AgentForm from "./AgentForm";
+import AgentPage from "./AgentPage";
+import AgentShow from "./AgentShow";
+import SecretList from "./SecretList";
 
-export default { AgentCard, AgentList };
+export default { AgentCard, AgentForm, AgentPage, AgentShow, SecretList };

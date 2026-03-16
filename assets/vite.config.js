@@ -39,5 +39,11 @@ export default defineConfig(({ command }) => {
       origin: "http://localhost:5173",
       cors: true,
     },
+    test: {
+      environment: "jsdom",
+      globals: true,
+      setupFiles: ["./test/setup.ts"],
+      include: ["./test/**/*.test.{ts,tsx}"],
+    },
   };
 });

@@ -35,3 +35,6 @@ sprite_agents-*.tar
 npm-debug.log
 /assets/node_modules/
 
+/screenshots
+
+.playwright-mcp

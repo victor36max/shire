@@ -6,7 +6,7 @@ defmodule SpriteAgentsWeb.AgentLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :agents, Agents.list_agents())}
+    {:ok, assign(socket, agents: Agents.list_agents(), agent: nil)}
   end
 
   @impl true
@@ -36,21 +36,39 @@ defmodule SpriteAgentsWeb.AgentLive.Index do
   def handle_event("delete-agent", %{"id" => id}, socket) do
     agent = Agents.get_agent!(id)
     {:ok, _} = Agents.delete_agent(agent)
-
     {:noreply, assign(socket, :agents, Agents.list_agents())}
   end
 
   def handle_event("edit-agent", %{"id" => id}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/agents/#{id}/edit")}
+    {:noreply, assign(socket, :agent, Agents.get_agent!(id))}
   end
 
-  def handle_event("new-agent", _params, socket) do
-    {:noreply, push_patch(socket, to: ~p"/agents/new")}
+  def handle_event("create-agent", %{"agent" => agent_params}, socket) do
+    case Agents.create_agent(agent_params) do
+      {:ok, _agent} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Agent created successfully")
+         |> assign(:agents, Agents.list_agents())}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Failed to create agent")}
+    end
   end
 
-  @impl true
-  def handle_info({SpriteAgentsWeb.AgentLive.FormComponent, {:saved, _agent}}, socket) do
-    {:noreply, assign(socket, :agents, Agents.list_agents())}
+  def handle_event("update-agent", %{"id" => id, "agent" => agent_params}, socket) do
+    agent = Agents.get_agent!(id)
+
+    case Agents.update_agent(agent, agent_params) do
+      {:ok, _agent} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Agent updated successfully")
+         |> assign(:agents, Agents.list_agents())}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Failed to update agent")}
+    end
   end
 
   defp serialize_agents(agents) do
@@ -63,45 +81,25 @@ defmodule SpriteAgentsWeb.AgentLive.Index do
     end)
   end
 
+  defp serialize_agent(nil), do: nil
+
+  defp serialize_agent(agent) do
+    agent
+    |> Map.from_struct()
+    |> Map.drop([:__meta__, :secrets])
+    |> Map.update(:inserted_at, nil, &to_string/1)
+    |> Map.update(:updated_at, nil, &to_string/1)
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
-    <.header>
-      Agents
-      <:actions>
-        <.button navigate={~p"/secrets"}>Manage Secrets</.button>
-        <.button variant="primary" patch={~p"/agents/new"}>New Agent</.button>
-      </:actions>
-    </.header>
-
-    <.react name="AgentList" agents={serialize_agents(@agents)} socket={@socket} />
-
-    <div
-      :if={@live_action in [:new, :edit]}
-      id="agent-modal"
-      class="modal modal-open"
-      phx-click-away={JS.patch(~p"/")}
-    >
-      <div class="modal-box">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-bold">{@page_title}</h3>
-          <.link patch={~p"/"} class="btn btn-sm btn-circle btn-ghost">
-            <.icon name="hero-x-mark" />
-          </.link>
-        </div>
-        <.live_component
-          module={SpriteAgentsWeb.AgentLive.FormComponent}
-          id={@agent.id || :new}
-          title={@page_title}
-          action={@live_action}
-          agent={@agent}
-          patch={~p"/"}
-        />
-      </div>
-      <form method="dialog" class="modal-backdrop">
-        <.link patch={~p"/"}>close</.link>
-      </form>
-    </div>
+    <.react
+      name="AgentPage"
+      agents={serialize_agents(@agents)}
+      editAgent={serialize_agent(@agent)}
+      socket={@socket}
+    />
     """
   end
 end

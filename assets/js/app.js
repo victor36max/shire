@@ -9,7 +9,7 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {getHooks} from "live_react"
 import components from "../react-components"
-import topbar from "../vendor/topbar"
+import topbar from "topbar"
 import "../css/app.css"
 
 const hooks = {
