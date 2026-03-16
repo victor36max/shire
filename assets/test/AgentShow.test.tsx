@@ -53,4 +53,11 @@ describe("AgentShow", () => {
     await userEvent.click(screen.getByText("Start Agent"));
     expect(pushEvent).toHaveBeenCalledWith("start-agent", {});
   });
+
+  it("calls pushEvent with stop-agent", async () => {
+    const pushEvent = vi.fn();
+    render(<AgentShow agent={{ ...agent, status: "active" }} pushEvent={pushEvent} />);
+    await userEvent.click(screen.getByText("Stop Agent"));
+    expect(pushEvent).toHaveBeenCalledWith("stop-agent", {});
+  });
 });

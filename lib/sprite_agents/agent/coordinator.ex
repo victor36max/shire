@@ -20,15 +20,7 @@ defmodule SpriteAgents.Agent.Coordinator do
   end
 
   def stop_agent(agent_name) do
-    case lookup(agent_name) do
-      {:ok, pid} ->
-        DynamicSupervisor.terminate_child(SpriteAgents.AgentSupervisor, pid)
-        Logger.info("Stopped agent #{agent_name}")
-        :ok
-
-      {:error, :not_found} ->
-        {:error, :not_found}
-    end
+    GenServer.call(__MODULE__, {:stop_agent, agent_name})
   end
 
   def send_message(agent_name, text) do
@@ -87,6 +79,28 @@ defmodule SpriteAgents.Agent.Coordinator do
               {:reply, {:error, reason}, state}
           end
         end
+    end
+  end
+
+  @impl true
+  def handle_call({:stop_agent, agent_name}, _from, state) do
+    case lookup(agent_name) do
+      {:ok, pid} ->
+        DynamicSupervisor.terminate_child(SpriteAgents.AgentSupervisor, pid)
+
+        # Update DB status since terminate_child won't trigger AgentManager callbacks
+        try do
+          agent = Agents.get_agent_by_name!(agent_name)
+          Agents.update_agent(agent, %{status: "created"})
+        rescue
+          _ -> :ok
+        end
+
+        Logger.info("Stopped agent #{agent_name}")
+        {:reply, :ok, state}
+
+      {:error, :not_found} ->
+        {:reply, {:error, :not_found}, state}
     end
   end
 end
