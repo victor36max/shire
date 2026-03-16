@@ -2,6 +2,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   use SpriteAgentsWeb, :live_view
 
   alias SpriteAgents.Agents
+  alias SpriteAgents.Agents.Agent
   alias SpriteAgents.Agent.{AgentManager, TerminalSession}
 
   @impl true
@@ -9,7 +10,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
     agent = Agents.get_agent!(id)
 
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "agent:#{agent.name}")
+      Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "agent:#{agent.id}")
     end
 
     {messages, has_more} = Agents.list_messages_for_agent(agent.id, limit: 50)
@@ -26,7 +27,9 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
 
   @impl true
   def handle_params(_params, _url, socket) do
-    {:noreply, assign(socket, :page_title, "Agent: #{socket.assigns.agent.name}")}
+    agent = socket.assigns.agent
+    name = Agent.recipe_name(agent)
+    {:noreply, assign(socket, :page_title, "Agent: #{name}")}
   end
 
   @impl true
@@ -38,7 +41,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   def handle_event("start-agent", _params, socket) do
     agent = socket.assigns.agent
 
-    case SpriteAgents.Agent.Coordinator.start_agent(agent.name) do
+    case SpriteAgents.Agent.Coordinator.start_agent(agent.id) do
       {:ok, _pid} ->
         agent = Agents.get_agent!(agent.id)
 
@@ -62,7 +65,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   def handle_event("send-message", %{"text" => text}, socket) do
     agent = socket.assigns.agent
 
-    case SpriteAgents.Agent.Coordinator.send_message(agent.name, text) do
+    case SpriteAgents.Agent.Coordinator.send_message(agent.id, text) do
       :ok ->
         {:ok, msg} =
           Agents.create_message(%{agent_id: agent.id, role: "user", content: %{"text" => text}})
@@ -73,6 +76,9 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to send: #{inspect(reason)}")}
     end
+  catch
+    :exit, _ ->
+      {:noreply, put_flash(socket, :error, "Agent is not running. Start it first.")}
   end
 
   @impl true
@@ -105,7 +111,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   def handle_event("stop-agent", _params, socket) do
     agent = socket.assigns.agent
 
-    case SpriteAgents.Agent.Coordinator.stop_agent(agent.name) do
+    case SpriteAgents.Agent.Coordinator.stop_agent(agent.id) do
       :ok ->
         agent = Agents.get_agent!(agent.id)
 
@@ -115,7 +121,22 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
          |> put_flash(:info, "Agent stopped")}
 
       {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Agent is not running")}
+        # Process already dead — ensure DB status reflects reality
+        agent = Agents.get_agent!(agent.id)
+
+        if agent.status in [:active, :starting] do
+          {:ok, agent} = Agents.update_agent(agent, %{status: :created})
+
+          {:noreply,
+           socket
+           |> assign(:agent, agent)
+           |> put_flash(:info, "Agent was not running — status updated")}
+        else
+          {:noreply,
+           socket
+           |> assign(:agent, agent)
+           |> put_flash(:error, "Agent is not running")}
+        end
     end
   end
 
@@ -123,17 +144,17 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   def handle_event("connect-terminal", _params, socket) do
     agent = socket.assigns.agent
 
-    case TerminalSession.find(agent.name) do
+    case TerminalSession.find(agent.id) do
       {:ok, _pid} ->
-        Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "terminal:#{agent.name}")
+        Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "terminal:#{agent.id}")
         {:noreply, socket}
 
       :error ->
-        case AgentManager.get_sprite(agent.name) do
+        case AgentManager.get_sprite(agent.id) do
           {:ok, sprite} when not is_nil(sprite) ->
-            case TerminalSession.start_link(agent_name: agent.name, sprite: sprite) do
+            case TerminalSession.start_link(agent_id: agent.id, sprite: sprite) do
               {:ok, _pid} ->
-                Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "terminal:#{agent.name}")
+                Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "terminal:#{agent.id}")
                 {:noreply, socket}
 
               {:error, reason} ->
@@ -151,7 +172,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   @impl true
   def handle_event("disconnect-terminal", _params, socket) do
     agent = socket.assigns.agent
-    Phoenix.PubSub.unsubscribe(SpriteAgents.PubSub, "terminal:#{agent.name}")
+    Phoenix.PubSub.unsubscribe(SpriteAgents.PubSub, "terminal:#{agent.id}")
     {:noreply, socket}
   end
 
@@ -159,7 +180,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   def handle_event("terminal-input", %{"data" => data}, socket) do
     agent = socket.assigns.agent
 
-    case TerminalSession.find(agent.name) do
+    case TerminalSession.find(agent.id) do
       {:ok, pid} -> TerminalSession.write(pid, data)
       :error -> :ok
     end
@@ -171,7 +192,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   def handle_event("terminal-resize", %{"rows" => rows, "cols" => cols}, socket) do
     agent = socket.assigns.agent
 
-    case TerminalSession.find(agent.name) do
+    case TerminalSession.find(agent.id) do
       {:ok, pid} -> TerminalSession.resize(pid, rows, cols)
       :error -> :ok
     end
@@ -211,7 +232,6 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
           tool_use_id = Map.get(payload, "tool_use_id", "")
           input = Map.get(payload, "input", %{})
 
-          # Flush any accumulated streaming text first
           messages = flush_streaming(messages, streaming_text, agent.id)
 
           {:ok, msg} =
@@ -230,7 +250,6 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
           {messages ++ [serialize_message(msg)], nil}
 
         %{"type" => "tool_use", "payload" => %{"status" => "input_ready"} = payload} ->
-          # Update existing tool_use message with full input (from assistant message)
           tool_use_id = Map.get(payload, "tool_use_id", "")
           input = Map.get(payload, "input", %{})
 
@@ -254,7 +273,6 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
             updated = %{tool_msg | input: input}
             {List.replace_at(messages, real_idx, updated), streaming_text}
           else
-            # Fallback: create if not found (no preceding started event)
             tool = Map.get(payload, "tool", "unknown")
             messages = flush_streaming(messages, streaming_text, agent.id)
 
@@ -288,7 +306,6 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
             real_idx = length(messages) - 1 - idx
             tool_msg = Enum.at(messages, real_idx)
 
-            # Update in DB
             if db_id = tool_msg[:id] do
               db_msg = Agents.get_message!(db_id)
 
@@ -308,7 +325,6 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
           {messages, nil}
 
         %{"type" => "text", "payload" => %{"text" => text}} ->
-          # Final result text — flush streaming and persist result
           messages = flush_streaming(messages, streaming_text, agent.id)
 
           {:ok, msg} =
@@ -324,7 +340,6 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
           {messages, streaming_text}
       end
 
-    # Build the display messages: append streaming indicator if active
     display_messages =
       if streaming_text do
         messages ++
@@ -371,11 +386,27 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   end
 
   defp serialize_agent(agent) do
-    agent
-    |> Map.from_struct()
-    |> Map.drop([:__meta__, :secrets, :messages])
-    |> Map.update(:inserted_at, nil, &to_string/1)
-    |> Map.update(:updated_at, nil, &to_string/1)
+    base =
+      agent
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :secrets, :messages])
+      |> Map.update(:inserted_at, nil, &to_string/1)
+      |> Map.update(:updated_at, nil, &to_string/1)
+
+    case Agent.parse_recipe(agent) do
+      {:ok, parsed} ->
+        Map.merge(base, %{
+          name: parsed["name"],
+          description: parsed["description"],
+          harness: parsed["harness"] || "pi",
+          model: parsed["model"],
+          system_prompt: parsed["system_prompt"],
+          scripts: parsed["scripts"] || []
+        })
+
+      _ ->
+        Map.merge(base, %{name: "invalid recipe", harness: "pi"})
+    end
   end
 
   @impl true

@@ -69,7 +69,8 @@ defmodule SpriteAgents.MixProject do
       {:cloak_ecto, "~> 1.3"},
       {:cloak, "~> 1.1"},
       {:live_react, "~> 1.0.1"},
-      {:dotenv_parser, "~> 2.0", only: [:dev, :test]}
+      {:dotenv_parser, "~> 2.0", only: [:dev, :test]},
+      {:yaml_elixir, "~> 2.11"}
     ]
   end
 

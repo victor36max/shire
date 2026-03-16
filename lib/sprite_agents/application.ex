@@ -15,6 +15,7 @@ defmodule SpriteAgents.Application do
       {Phoenix.PubSub, name: SpriteAgents.PubSub},
       {Registry, keys: :unique, name: SpriteAgents.AgentRegistry},
       {DynamicSupervisor, name: SpriteAgents.AgentSupervisor, strategy: :one_for_one},
+      SpriteAgents.Agent.DriveSync,
       SpriteAgents.Agent.Coordinator,
       # Start a worker by calling: SpriteAgents.Worker.start_link(arg)
       # {SpriteAgents.Worker, arg},

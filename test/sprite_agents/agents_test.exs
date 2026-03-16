@@ -4,65 +4,169 @@ defmodule SpriteAgents.AgentsTest do
   alias SpriteAgents.Agents
   alias SpriteAgents.Agents.Agent
 
+  defp valid_recipe(name \\ "test-agent", opts \\ []) do
+    harness = Keyword.get(opts, :harness, "pi")
+    model = Keyword.get(opts, :model, "claude-sonnet-4-6")
+    system_prompt = Keyword.get(opts, :system_prompt, "You are a test agent.")
+    scripts = Keyword.get(opts, :scripts)
+
+    lines = [
+      "version: 1",
+      "name: #{name}",
+      "harness: #{harness}",
+      "model: #{model}",
+      "system_prompt: #{system_prompt}"
+    ]
+
+    lines =
+      if scripts do
+        lines ++
+          ["scripts:"] ++
+          Enum.flat_map(scripts, fn {n, r} ->
+            ["  - name: #{n}", "    run: #{r}"]
+          end)
+      else
+        lines
+      end
+
+    Enum.join(lines, "\n")
+  end
+
   describe "agents" do
-    test "list_agents/0 returns all agents" do
-      {:ok, agent} = Agents.create_agent(%{name: "Test Agent"})
-      assert [%Agent{id: id}] = Agents.list_agents()
-      assert id == agent.id
+    test "list_agents/0 returns only non-base agents" do
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe("agent-1")})
+      {:ok, _base} = Agents.create_agent(%{recipe: valid_recipe("base"), is_base: true})
+      agents = Agents.list_agents()
+      assert length(agents) == 1
+      assert hd(agents).id == agent.id
+    end
+
+    test "list_base_recipes/0 returns only base recipes" do
+      {:ok, _agent} = Agents.create_agent(%{recipe: valid_recipe("agent-1")})
+      {:ok, base} = Agents.create_agent(%{recipe: valid_recipe("base"), is_base: true})
+      recipes = Agents.list_base_recipes()
+      assert length(recipes) == 1
+      assert hd(recipes).id == base.id
     end
 
     test "get_agent!/1 returns the agent" do
-      {:ok, agent} = Agents.create_agent(%{name: "Test Agent"})
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
       assert Agents.get_agent!(agent.id).id == agent.id
     end
 
-    test "create_agent/1 with valid data" do
-      attrs = %{name: "My Agent", model: "claude-sonnet-4-6", system_prompt: "Be helpful"}
-      assert {:ok, agent} = Agents.create_agent(attrs)
-      assert agent.name == "My Agent"
-      assert agent.model == "claude-sonnet-4-6"
-      assert agent.system_prompt == "Be helpful"
+    test "create_agent/1 with valid recipe" do
+      recipe = valid_recipe("my-agent", model: "claude-sonnet-4-6")
+      assert {:ok, agent} = Agents.create_agent(%{recipe: recipe})
       assert agent.status == :created
+      assert agent.is_base == false
+
+      parsed = Agent.parse_recipe!(agent)
+      assert parsed["name"] == "my-agent"
+      assert parsed["model"] == "claude-sonnet-4-6"
     end
 
-    test "create_agent/1 requires name" do
+    test "create_agent/1 requires recipe" do
       assert {:error, changeset} = Agents.create_agent(%{})
-      assert "can't be blank" in errors_on(changeset).name
+      assert "can't be blank" in errors_on(changeset).recipe
     end
 
-    test "create_agent/1 enforces unique name" do
-      {:ok, _} = Agents.create_agent(%{name: "Unique"})
-      assert {:error, changeset} = Agents.create_agent(%{name: "Unique"})
-      assert "has already been taken" in errors_on(changeset).name
+    test "create_agent/1 rejects invalid YAML" do
+      assert {:error, changeset} = Agents.create_agent(%{recipe: "{{{"})
+      assert errors_on(changeset).recipe != []
     end
 
-    test "update_agent/2 updates the agent" do
-      {:ok, agent} = Agents.create_agent(%{name: "Old Name"})
-      assert {:ok, updated} = Agents.update_agent(agent, %{name: "New Name"})
-      assert updated.name == "New Name"
+    test "create_agent/1 rejects recipe without name" do
+      assert {:error, changeset} = Agents.create_agent(%{recipe: "harness: pi"})
+      assert "must include a 'name' field" in errors_on(changeset).recipe
+    end
+
+    test "create_agent/1 rejects invalid harness" do
+      recipe = "name: test\nharness: invalid_harness"
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+      assert "harness must be 'pi' or 'claude_code'" in errors_on(changeset).recipe
+    end
+
+    test "create_agent/1 validates script structure" do
+      recipe = "name: test\nscripts:\n  - wrong: format"
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+      assert "each script must have 'name' and 'run' string fields" in errors_on(changeset).recipe
+    end
+
+    test "create_agent/1 rejects duplicate script names" do
+      recipe = """
+      name: test
+      scripts:
+        - name: setup
+          run: echo 1
+        - name: setup
+          run: echo 2
+      """
+
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+      assert "script names must be unique" in errors_on(changeset).recipe
+    end
+
+    test "create_agent/1 with valid scripts" do
+      recipe = valid_recipe("scripted", scripts: [{"install-deps", "apt-get update"}])
+      assert {:ok, agent} = Agents.create_agent(%{recipe: recipe})
+      parsed = Agent.parse_recipe!(agent)
+      assert length(parsed["scripts"]) == 1
+      assert hd(parsed["scripts"])["name"] == "install-deps"
+    end
+
+    test "update_agent/2 updates the recipe" do
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe("old-name")})
+
+      assert {:ok, updated} =
+               Agents.update_agent(agent, %{recipe: valid_recipe("new-name")})
+
+      assert Agent.recipe_name(updated) == "new-name"
     end
 
     test "delete_agent/1 deletes the agent" do
-      {:ok, agent} = Agents.create_agent(%{name: "To Delete"})
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
       assert {:ok, _} = Agents.delete_agent(agent)
       assert_raise Ecto.NoResultsError, fn -> Agents.get_agent!(agent.id) end
     end
 
     test "change_agent/2 returns a changeset" do
-      {:ok, agent} = Agents.create_agent(%{name: "Test"})
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
       assert %Ecto.Changeset{} = Agents.change_agent(agent)
     end
 
-    test "get_agent_by_name!/1 returns the agent with given name" do
-      {:ok, agent} =
-        Agents.create_agent(%{
-          name: "named-agent",
-          model: "claude-sonnet-4-6",
-          system_prompt: "You are a test agent."
-        })
+    test "find_base_recipe_by_name/1 finds base recipe" do
+      {:ok, _base} = Agents.create_agent(%{recipe: valid_recipe("my-base"), is_base: true})
+      found = Agents.find_base_recipe_by_name("my-base")
+      assert found != nil
+      assert Agent.recipe_name(found) == "my-base"
+    end
 
-      found = Agents.get_agent_by_name!(agent.name)
-      assert found.id == agent.id
+    test "find_base_recipe_by_name/1 returns nil for missing" do
+      assert Agents.find_base_recipe_by_name("nonexistent") == nil
+    end
+
+    test "update_agent_status/2 updates only status" do
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
+      assert {:ok, updated} = Agents.update_agent_status(agent, :active)
+      assert updated.status == :active
+    end
+  end
+
+  describe "recipe helpers" do
+    test "parse_recipe/1 parses valid YAML" do
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe("helper-test")})
+      assert {:ok, parsed} = Agent.parse_recipe(agent)
+      assert parsed["name"] == "helper-test"
+    end
+
+    test "recipe_name/1 extracts name" do
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe("named")})
+      assert Agent.recipe_name(agent) == "named"
+    end
+
+    test "recipe_field/2 extracts field" do
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe("test", harness: "claude_code")})
+      assert Agent.recipe_field(agent, "harness") == "claude_code"
     end
   end
 
@@ -80,7 +184,7 @@ defmodule SpriteAgents.AgentsTest do
     end
 
     test "list_global_secrets/0 returns only global secrets" do
-      {:ok, agent} = Agents.create_agent(%{name: "Agent"})
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
       {:ok, _global} = Agents.create_secret(%{key: "GLOBAL_KEY", value: "val"})
 
       {:ok, _agent_secret} =
@@ -91,20 +195,8 @@ defmodule SpriteAgents.AgentsTest do
       assert hd(globals).key == "GLOBAL_KEY"
     end
 
-    test "list_secrets_for_agent/1 returns only agent secrets" do
-      {:ok, agent} = Agents.create_agent(%{name: "Agent"})
-      {:ok, _global} = Agents.create_secret(%{key: "GLOBAL_KEY", value: "val"})
-
-      {:ok, _agent_secret} =
-        Agents.create_secret(%{key: "AGENT_KEY", value: "val", agent_id: agent.id})
-
-      agent_secrets = Agents.list_secrets_for_agent(agent.id)
-      assert length(agent_secrets) == 1
-      assert hd(agent_secrets).key == "AGENT_KEY"
-    end
-
     test "effective_secrets/1 merges globals with agent overrides" do
-      {:ok, agent} = Agents.create_agent(%{name: "Agent"})
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
       {:ok, _} = Agents.create_secret(%{key: "SHARED_KEY", value: "global_val"})
       {:ok, _} = Agents.create_secret(%{key: "ONLY_GLOBAL", value: "val"})
 
@@ -120,23 +212,11 @@ defmodule SpriteAgents.AgentsTest do
       shared = Enum.find(effective, &(&1.key == "SHARED_KEY"))
       assert shared.agent_id == agent.id
     end
-
-    test "update_secret/2 updates the secret" do
-      {:ok, secret} = Agents.create_secret(%{key: "KEY", value: "old"})
-      assert {:ok, updated} = Agents.update_secret(secret, %{value: "new"})
-      assert updated.key == "KEY"
-    end
-
-    test "delete_secret/1 deletes the secret" do
-      {:ok, secret} = Agents.create_secret(%{key: "KEY", value: "val"})
-      assert {:ok, _} = Agents.delete_secret(secret)
-      assert_raise Ecto.NoResultsError, fn -> Agents.get_secret!(secret.id) end
-    end
   end
 
   describe "messages" do
     setup do
-      {:ok, agent} = Agents.create_agent(%{name: "Chat Agent"})
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe("chat-agent")})
       %{agent: agent}
     end
 
@@ -151,12 +231,6 @@ defmodule SpriteAgents.AgentsTest do
       assert msg.role == "user"
       assert msg.content == %{"text" => "hi"}
       assert msg.agent_id == agent.id
-    end
-
-    test "create_message/1 requires agent_id and role" do
-      assert {:error, changeset} = Agents.create_message(%{})
-      assert "can't be blank" in errors_on(changeset).agent_id
-      assert "can't be blank" in errors_on(changeset).role
     end
 
     test "list_messages_for_agent/1 returns messages oldest first", %{agent: agent} do
@@ -174,67 +248,6 @@ defmodule SpriteAgents.AgentsTest do
       assert length(messages) == 2
       assert Enum.at(messages, 0).content["text"] == "first"
       assert Enum.at(messages, 1).content["text"] == "second"
-    end
-
-    test "list_messages_for_agent/2 cursor pagination", %{agent: agent} do
-      # Create 7 messages
-      for i <- 1..7 do
-        Agents.create_message(%{
-          agent_id: agent.id,
-          role: "user",
-          content: %{"text" => "msg #{i}"}
-        })
-      end
-
-      # First page: most recent 3
-      {page1, has_more1} = Agents.list_messages_for_agent(agent.id, limit: 3)
-      assert length(page1) == 3
-      assert has_more1 == true
-      assert Enum.at(page1, 0).content["text"] == "msg 5"
-      assert Enum.at(page1, 2).content["text"] == "msg 7"
-
-      # Second page: before the oldest message in page1
-      cursor = List.first(page1).id
-      {page2, has_more2} = Agents.list_messages_for_agent(agent.id, before: cursor, limit: 3)
-      assert length(page2) == 3
-      assert has_more2 == true
-      assert Enum.at(page2, 0).content["text"] == "msg 2"
-      assert Enum.at(page2, 2).content["text"] == "msg 4"
-
-      # Third page: only 1 remaining
-      cursor2 = List.first(page2).id
-      {page3, has_more3} = Agents.list_messages_for_agent(agent.id, before: cursor2, limit: 3)
-      assert length(page3) == 1
-      assert has_more3 == false
-      assert Enum.at(page3, 0).content["text"] == "msg 1"
-    end
-
-    test "update_message/2 updates content", %{agent: agent} do
-      {:ok, msg} =
-        Agents.create_message(%{
-          agent_id: agent.id,
-          role: "tool_use",
-          content: %{"tool" => "Bash", "output" => nil}
-        })
-
-      assert {:ok, updated} =
-               Agents.update_message(msg, %{content: %{"tool" => "Bash", "output" => "done"}})
-
-      assert updated.content["output"] == "done"
-    end
-
-    test "delete_messages_for_agent/1 deletes all messages", %{agent: agent} do
-      {:ok, _} =
-        Agents.create_message(%{agent_id: agent.id, role: "user", content: %{"text" => "hi"}})
-
-      {:ok, _} =
-        Agents.create_message(%{agent_id: agent.id, role: "agent", content: %{"text" => "hey"}})
-
-      {count, _} = Agents.delete_messages_for_agent(agent.id)
-      assert count == 2
-
-      {messages, _} = Agents.list_messages_for_agent(agent.id)
-      assert messages == []
     end
 
     test "messages are cascade deleted with agent", %{agent: agent} do

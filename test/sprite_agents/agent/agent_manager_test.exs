@@ -4,19 +4,23 @@ defmodule SpriteAgents.Agent.AgentManagerTest do
   alias SpriteAgents.Agent.AgentManager
   alias SpriteAgents.Agents
 
-  setup do
-    {:ok, agent} =
-      Agents.create_agent(%{
-        name: "test-agent",
-        model: "claude-sonnet-4-6",
-        system_prompt: "You are a test agent."
-      })
+  defp valid_recipe(name \\ "test-agent") do
+    """
+    version: 1
+    name: #{name}
+    harness: pi
+    model: claude-sonnet-4-6
+    system_prompt: You are a test agent.
+    """
+  end
 
+  setup do
+    {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
     %{agent: agent}
   end
 
   describe "start_link/1" do
-    test "starts the GenServer and registers with the agent name", %{agent: agent} do
+    test "starts the GenServer and registers with the agent id", %{agent: agent} do
       {:ok, pid} =
         start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
 

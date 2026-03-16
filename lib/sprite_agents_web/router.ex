@@ -26,7 +26,15 @@ defmodule SpriteAgentsWeb.Router do
       live "/secrets", SecretLive.Index, :index
       live "/secrets/new", SecretLive.Index, :new
       live "/secrets/:id/edit", SecretLive.Index, :edit
+
+      live "/shared", SharedDriveLive.Index, :index
     end
+  end
+
+  scope "/", SpriteAgentsWeb do
+    pipe_through :browser
+
+    get "/shared/download", SharedDriveController, :download
   end
 
   # Other scopes may use custom stacks.

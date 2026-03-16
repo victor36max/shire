@@ -4,13 +4,27 @@ defmodule SpriteAgents.Agents do
   alias SpriteAgents.Agents.{Agent, Message, Secret}
 
   # Agent CRUD
-  def list_agents, do: Repo.all(Agent)
+  def list_agents, do: Repo.all(from a in Agent, where: a.is_base == false)
+  def list_base_recipes, do: Repo.all(from a in Agent, where: a.is_base == true)
   def get_agent!(id), do: Repo.get!(Agent, id)
-  def get_agent_by_name!(name), do: Repo.get_by!(Agent, name: name)
   def create_agent(attrs), do: %Agent{} |> Agent.changeset(attrs) |> Repo.insert()
   def update_agent(%Agent{} = agent, attrs), do: agent |> Agent.changeset(attrs) |> Repo.update()
   def delete_agent(%Agent{} = agent), do: Repo.delete(agent)
   def change_agent(%Agent{} = agent, attrs \\ %{}), do: Agent.changeset(agent, attrs)
+
+  def update_agent_status(%Agent{} = agent, status) do
+    agent |> Agent.status_changeset(%{status: status}) |> Repo.update()
+  end
+
+  def find_base_recipe_by_name(name) do
+    list_base_recipes()
+    |> Enum.find(fn recipe ->
+      case Agent.parse_recipe(recipe) do
+        {:ok, parsed} -> parsed["name"] == name
+        _ -> false
+      end
+    end)
+  end
 
   # Secret CRUD
   def list_global_secrets, do: Repo.all(from s in Secret, where: is_nil(s.agent_id))

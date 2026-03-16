@@ -2,23 +2,28 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import AgentPage from "../react-components/AgentPage";
+import { type Agent } from "../react-components/types";
 
-const agents = [
+const agents: Agent[] = [
   {
     id: 1,
     name: "Agent One",
-    status: "active" as const,
+    status: "active",
     model: "claude-sonnet-4-6",
     system_prompt: null,
-    harness: "pi" as const,
+    harness: "pi",
+    recipe: "version: 1\nname: Agent One\nharness: pi\nmodel: claude-sonnet-4-6",
+    is_base: false,
   },
   {
     id: 2,
     name: "Agent Two",
-    status: "created" as const,
+    status: "created",
     model: null,
     system_prompt: "Be helpful",
-    harness: "claude_code" as const,
+    harness: "claude_code",
+    recipe: "version: 1\nname: Agent Two\nharness: claude_code\nsystem_prompt: Be helpful",
+    is_base: false,
   },
 ];
 
@@ -40,7 +45,7 @@ describe("AgentPage", () => {
     expect(screen.getByText("Create a new agent to get started.")).toBeInTheDocument();
   });
 
-  it("calls pushEvent with create-agent on new agent save", async () => {
+  it("calls pushEvent with create-agent containing recipe on save", async () => {
     const pushEvent = vi.fn();
     render(<AgentPage agents={[]} editAgent={null} pushEvent={pushEvent} />);
 
@@ -49,28 +54,10 @@ describe("AgentPage", () => {
     await userEvent.type(screen.getByLabelText("Model"), "claude-sonnet-4-6");
     await userEvent.click(screen.getByText("Save Agent"));
 
-    expect(pushEvent).toHaveBeenCalledWith("create-agent", {
-      agent: { name: "My Agent", model: "claude-sonnet-4-6", system_prompt: "", harness: "pi" },
-    });
-  });
-
-  it("calls pushEvent with update-agent when editing", async () => {
-    const pushEvent = vi.fn();
-    render(<AgentPage agents={agents} editAgent={null} pushEvent={pushEvent} />);
-
-    // Click the Edit button on first agent
-    const editButtons = screen.getAllByText("Edit");
-    await userEvent.click(editButtons[0]);
-
-    // Dialog should show with pre-filled name
-    expect(screen.getByDisplayValue("Agent One")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByText("Save Agent"));
-
-    expect(pushEvent).toHaveBeenCalledWith("update-agent", {
-      id: 1,
-      agent: { name: "Agent One", model: "claude-sonnet-4-6", system_prompt: "", harness: "pi" },
-    });
+    expect(pushEvent).toHaveBeenCalledWith(
+      "create-agent",
+      expect.objectContaining({ recipe: expect.stringContaining("My Agent") }),
+    );
   });
 
   it("shows delete confirmation dialog", async () => {

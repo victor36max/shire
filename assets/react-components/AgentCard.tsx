@@ -4,6 +4,8 @@ import { Badge } from "./components/ui/badge";
 import { type Agent, statusVariant, harnessLabel } from "./types";
 
 export default function AgentCard({ agent, onClick }: { agent: Agent; onClick?: () => void }) {
+  const scriptCount = agent.scripts?.length || 0;
+
   return (
     <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={onClick}>
       <CardHeader className="pb-2">
@@ -13,13 +15,16 @@ export default function AgentCard({ agent, onClick }: { agent: Agent; onClick?: 
         </div>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">
-          {harnessLabel(agent.harness)}
-          {agent.model ? ` · ${agent.model}` : ""}
-        </p>
-        {agent.system_prompt && (
-          <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{agent.system_prompt}</p>
-        )}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>{harnessLabel(agent.harness)}</span>
+          {agent.model && <span>· {agent.model}</span>}
+          {scriptCount > 0 && (
+            <Badge variant="outline" className="text-xs">
+              {scriptCount} {scriptCount === 1 ? "script" : "scripts"}
+            </Badge>
+          )}
+        </div>
+        {agent.description && <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{agent.description}</p>}
       </CardContent>
     </Card>
   );

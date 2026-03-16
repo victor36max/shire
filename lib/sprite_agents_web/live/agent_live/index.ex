@@ -6,7 +6,12 @@ defmodule SpriteAgentsWeb.AgentLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, agents: Agents.list_agents(), agent: nil)}
+    {:ok,
+     assign(socket,
+       agents: Agents.list_agents(),
+       base_recipes: Agents.list_base_recipes(),
+       agent: nil
+     )}
   end
 
   @impl true
@@ -43,52 +48,80 @@ defmodule SpriteAgentsWeb.AgentLive.Index do
     {:noreply, assign(socket, :agent, Agents.get_agent!(id))}
   end
 
-  def handle_event("create-agent", %{"agent" => agent_params}, socket) do
-    case Agents.create_agent(agent_params) do
+  def handle_event("create-agent", %{"recipe" => recipe}, socket) do
+    case Agents.create_agent(%{recipe: recipe}) do
       {:ok, _agent} ->
         {:noreply,
          socket
          |> put_flash(:info, "Agent created successfully")
          |> assign(:agents, Agents.list_agents())}
 
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Failed to create agent")}
+      {:error, changeset} ->
+        error_msg = format_errors(changeset)
+        {:noreply, put_flash(socket, :error, error_msg)}
     end
   end
 
-  def handle_event("update-agent", %{"id" => id, "agent" => agent_params}, socket) do
+  def handle_event("update-agent", %{"id" => id, "recipe" => recipe}, socket) do
     agent = Agents.get_agent!(id)
 
-    case Agents.update_agent(agent, agent_params) do
+    case Agents.update_agent(agent, %{recipe: recipe}) do
       {:ok, _agent} ->
         {:noreply,
          socket
          |> put_flash(:info, "Agent updated successfully")
          |> assign(:agents, Agents.list_agents())}
 
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Failed to update agent")}
+      {:error, changeset} ->
+        error_msg = format_errors(changeset)
+        {:noreply, put_flash(socket, :error, error_msg)}
     end
   end
 
-  defp serialize_agents(agents) do
-    Enum.map(agents, fn agent ->
+  defp format_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, _opts} -> msg end)
+    |> Enum.map_join(", ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
+  end
+
+  defp serialize_agents(agents), do: Enum.map(agents, &serialize_agent/1)
+
+  defp serialize_agent(nil), do: nil
+
+  defp serialize_agent(agent) do
+    base =
       agent
       |> Map.from_struct()
       |> Map.drop([:__meta__, :secrets, :messages])
       |> Map.update(:inserted_at, nil, &to_string/1)
       |> Map.update(:updated_at, nil, &to_string/1)
-    end)
+
+    # Extract display fields from recipe
+    case Agent.parse_recipe(agent) do
+      {:ok, parsed} ->
+        Map.merge(base, %{
+          name: parsed["name"],
+          description: parsed["description"],
+          harness: parsed["harness"] || "pi",
+          model: parsed["model"],
+          system_prompt: parsed["system_prompt"],
+          scripts: parsed["scripts"] || []
+        })
+
+      _ ->
+        Map.merge(base, %{name: "invalid recipe", harness: "pi"})
+    end
   end
 
-  defp serialize_agent(nil), do: nil
+  defp serialize_base_recipes(recipes) do
+    Enum.map(recipes, fn recipe ->
+      case Agent.parse_recipe(recipe) do
+        {:ok, parsed} ->
+          %{id: recipe.id, name: parsed["name"], description: parsed["description"]}
 
-  defp serialize_agent(agent) do
-    agent
-    |> Map.from_struct()
-    |> Map.drop([:__meta__, :secrets, :messages])
-    |> Map.update(:inserted_at, nil, &to_string/1)
-    |> Map.update(:updated_at, nil, &to_string/1)
+        _ ->
+          %{id: recipe.id, name: "invalid", description: nil}
+      end
+    end)
   end
 
   @impl true
@@ -98,6 +131,7 @@ defmodule SpriteAgentsWeb.AgentLive.Index do
       name="AgentPage"
       agents={serialize_agents(@agents)}
       editAgent={serialize_agent(@agent)}
+      baseRecipes={serialize_base_recipes(@base_recipes)}
       socket={@socket}
     />
     """

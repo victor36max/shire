@@ -5,7 +5,7 @@ defmodule SpriteAgents.Agent.TerminalSessionTest do
 
   describe "find/1" do
     test "returns :error when no session exists" do
-      assert :error = TerminalSession.find("nonexistent-agent")
+      assert :error = TerminalSession.find(999_999)
     end
   end
 
@@ -18,10 +18,10 @@ defmodule SpriteAgents.Agent.TerminalSessionTest do
   end
 
   describe "registry" do
-    test "uses {:terminal, agent_name} as registry key" do
+    test "uses {:terminal, agent_id} as registry key" do
       # Verify the registry key pattern is distinct from AgentManager's key
-      # AgentManager uses agent_name directly, TerminalSession uses {:terminal, agent_name}
-      assert [] = Registry.lookup(SpriteAgents.AgentRegistry, {:terminal, "test-agent"})
+      # AgentManager uses agent_id directly, TerminalSession uses {:terminal, agent_id}
+      assert [] = Registry.lookup(SpriteAgents.AgentRegistry, {:terminal, 12345})
     end
   end
 end

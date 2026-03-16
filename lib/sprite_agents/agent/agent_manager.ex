@@ -6,6 +6,7 @@ defmodule SpriteAgents.Agent.AgentManager do
   use GenServer
   require Logger
 
+  alias SpriteAgents.Agent.{DriveSync, SpriteHelpers}
   alias SpriteAgents.{Agents, Mailbox}
 
   @comms_prompt """
@@ -45,6 +46,18 @@ defmodule SpriteAgents.Agent.AgentManager do
   - Check peers.json before messaging to confirm the agent exists
   - Be specific about what you need from the other agent
   - Don't send messages unnecessarily — only when collaboration genuinely helps the task
+
+  ## Shared Drive
+
+  All agents share a drive mounted at `/workspace/shared/`. Files you write here are automatically synced to all other running agents, and their writes appear here too.
+
+  ### Usage
+  - Read/write files normally in `/workspace/shared/`
+  - Changes sync automatically — no special protocol needed
+  - Use it for project files, documentation, research, build artifacts, or any shared data
+  - Avoid rapid sequential writes to the same file — batch your changes when possible
+  - If a file changed unexpectedly, another agent may have updated it — re-read before overwriting
+  - Maximum file size: 1MB per file
   """
 
   defstruct [
@@ -62,29 +75,31 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   # --- Public API ---
 
+  alias SpriteAgents.Agents.Agent
+
   def start_link(opts) do
     agent = Keyword.fetch!(opts, :agent)
-    GenServer.start_link(__MODULE__, opts, name: via(agent.name))
+    GenServer.start_link(__MODULE__, opts, name: via(agent.id))
   end
 
-  def send_message(name, text, from \\ :user) do
-    GenServer.call(via(name), {:send_message, text, from})
+  def send_message(agent_id, text, from \\ :user) do
+    GenServer.call(via(agent_id), {:send_message, text, from})
   end
 
   def get_state(server) do
     GenServer.call(server, :get_state)
   end
 
-  def get_sprite(name) do
-    GenServer.call(via(name), :get_sprite)
+  def get_sprite(agent_id) do
+    GenServer.call(via(agent_id), :get_sprite)
   end
 
-  def stop(name) do
-    GenServer.stop(via(name))
+  def stop(agent_id) do
+    GenServer.stop(via(agent_id))
   end
 
-  defp via(name) do
-    {:via, Registry, {SpriteAgents.AgentRegistry, name}}
+  defp via(agent_id) do
+    {:via, Registry, {SpriteAgents.AgentRegistry, agent_id}}
   end
 
   # --- Callbacks ---
@@ -95,11 +110,14 @@ defmodule SpriteAgents.Agent.AgentManager do
     client = Keyword.get(opts, :sprites_client)
     skip_sprite = Keyword.get(opts, :skip_sprite, false)
 
+    recipe = Agent.parse_recipe!(agent)
+    agent_name = recipe["name"] || "agent-#{agent.id}"
+
     state = %__MODULE__{
       agent_id: agent.id,
-      agent_name: agent.name,
+      agent_name: agent_name,
       sprites_client: client,
-      pubsub_topic: "agent:#{agent.name}",
+      pubsub_topic: "agent:#{agent.id}",
       phase: :idle
     }
 
@@ -146,28 +164,35 @@ defmodule SpriteAgents.Agent.AgentManager do
 
       # Write agent config
       agent = Agents.get_agent!(state.agent_id)
+      recipe = Agent.parse_recipe!(agent)
       secrets = Agents.effective_secrets(state.agent_id)
 
+      harness = recipe["harness"] || "pi"
+
       default_model =
-        case agent.harness do
-          :claude_code -> "claude-sonnet-4-6"
+        case harness do
+          "claude_code" -> "claude-sonnet-4-6"
           _ -> "anthropic/claude-sonnet-4-6"
         end
 
       system_prompt =
-        (agent.system_prompt || "You are a helpful assistant.") <> "\n\n" <> @comms_prompt
+        (recipe["system_prompt"] || "You are a helpful assistant.") <> "\n\n" <> @comms_prompt
 
       config =
         Jason.encode!(%{
-          harness: agent.harness || "pi",
-          model: agent.model || default_model,
+          harness: harness,
+          model: recipe["model"] || default_model,
           system_prompt: system_prompt,
           max_tokens: 4096
         })
 
-      fs = filesystem(sprite)
+      fs = SpriteHelpers.filesystem(sprite)
       :ok = Sprites.Filesystem.write(fs, "/workspace/agent-config.json", config)
       :ok = Sprites.Filesystem.write(fs, "/workspace/peers.json", "[]")
+
+      # Write recipe JSON for recipe-runner
+      recipe_json = Jason.encode!(recipe)
+      :ok = Sprites.Filesystem.write(fs, "/workspace/recipe.json", recipe_json)
 
       # Write secrets as environment variables file
       env_content = Enum.map_join(secrets, "\n", fn s -> "#{s.key}=#{s.value}" end)
@@ -187,12 +212,25 @@ defmodule SpriteAgents.Agent.AgentManager do
         :ok = Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
       end
 
+      # Deploy recipe-runner
+      recipe_runner = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/recipe-runner.ts"))
+      :ok = Sprites.Filesystem.write(fs, "/workspace/recipe-runner.ts", recipe_runner)
+
       pkg_json = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/package.json"))
       :ok = Sprites.Filesystem.write(fs, "/workspace/package.json", pkg_json)
+
+      # Run recipe scripts
+      if recipe["scripts"] && recipe["scripts"] != [] do
+        Sprites.cmd(sprite, "bun", ["run", "/workspace/recipe-runner.ts"], timeout: 300_000)
+      end
 
       # Install deps
       {_, 0} =
         Sprites.cmd(sprite, "bash", ["-c", "cd /workspace && bun install"], timeout: 60_000)
+
+      # Sync shared drive files to agent
+      DriveSync.ensure_started()
+      DriveSync.sync_to_agent(state.agent_id, sprite)
 
       {:noreply, state, {:continue, :spawn_runner}}
     rescue
@@ -280,6 +318,12 @@ defmodule SpriteAgents.Agent.AgentManager do
           # Route inter-agent message via Coordinator
           SpriteAgents.Agent.Coordinator.route_agent_message(state.agent_name, to, text)
 
+        {:ok, %{"type" => "drive_write", "payload" => %{"path" => path, "content" => content}}} ->
+          DriveSync.file_changed(state.agent_id, path, Base.decode64!(content))
+
+        {:ok, %{"type" => "drive_delete", "payload" => %{"path" => path}}} ->
+          DriveSync.file_deleted(state.agent_id, path)
+
         {:ok, event} ->
           broadcast(state, {:agent_event, event})
 
@@ -318,7 +362,7 @@ defmodule SpriteAgents.Agent.AgentManager do
   def handle_cast({:update_peers, peers}, %{phase: :active, sprite: sprite} = state)
       when not is_nil(sprite) do
     try do
-      fs = filesystem(sprite)
+      fs = SpriteHelpers.filesystem(sprite)
       :ok = Sprites.Filesystem.write(fs, "/workspace/peers.json", Jason.encode!(peers))
     rescue
       e ->
@@ -329,6 +373,95 @@ defmodule SpriteAgents.Agent.AgentManager do
   end
 
   def handle_cast({:update_peers, _peers}, state) do
+    {:noreply, state}
+  end
+
+  # Incoming shared drive file sync from DriveSync
+  def handle_cast({:drive_sync, path, content}, %{sprite: sprite} = state)
+      when not is_nil(sprite) do
+    try do
+      # Atomic write: marker + file in single cmd to prevent echo loop
+      safe_path = String.replace(path, "'", "'\\''")
+
+      Sprites.cmd(
+        sprite,
+        "bash",
+        [
+          "-c",
+          "mkdir -p /workspace/.drive-sync/$(dirname '#{safe_path}') && " <>
+            "touch '/workspace/.drive-sync/#{safe_path}' && " <>
+            "mkdir -p $(dirname '/workspace/shared/#{safe_path}') && " <>
+            "cat > '/workspace/shared/#{safe_path}'"
+        ],
+        stdin: content
+      )
+    rescue
+      e ->
+        Logger.warning("Failed to sync drive file #{path} to #{state.agent_name}: #{inspect(e)}")
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:drive_delete, path}, %{sprite: sprite} = state)
+      when not is_nil(sprite) do
+    try do
+      safe_path = String.replace(path, "'", "'\\''")
+
+      Sprites.cmd(sprite, "bash", [
+        "-c",
+        "mkdir -p /workspace/.drive-sync/$(dirname '#{safe_path}') && " <>
+          "touch '/workspace/.drive-sync/#{safe_path}' && " <>
+          "rm -f '/workspace/shared/#{safe_path}'"
+      ])
+    rescue
+      e ->
+        Logger.warning(
+          "Failed to delete drive file #{path} from #{state.agent_name}: #{inspect(e)}"
+        )
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:drive_create_dir, path}, %{sprite: sprite} = state)
+      when not is_nil(sprite) do
+    try do
+      safe_path = String.replace(path, "'", "'\\''")
+      Sprites.cmd(sprite, "mkdir", ["-p", "/workspace/shared/#{safe_path}"])
+    rescue
+      e ->
+        Logger.warning(
+          "Failed to create drive dir #{path} on #{state.agent_name}: #{inspect(e)}"
+        )
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:drive_delete_dir, path}, %{sprite: sprite} = state)
+      when not is_nil(sprite) do
+    try do
+      safe_path = String.replace(path, "'", "'\\''")
+      Sprites.cmd(sprite, "rm", ["-rf", "/workspace/shared/#{safe_path}"])
+    rescue
+      e ->
+        Logger.warning(
+          "Failed to delete drive dir #{path} on #{state.agent_name}: #{inspect(e)}"
+        )
+    end
+
+    {:noreply, state}
+  end
+
+  # Catch-all for casts when sprite is nil
+  def handle_cast({drive_op, _args}, state)
+      when drive_op in [:drive_sync, :drive_delete, :drive_create_dir, :drive_delete_dir] do
+    {:noreply, state}
+  end
+
+  def handle_cast({drive_op, _path, _content}, state)
+      when drive_op in [:drive_sync] do
     {:noreply, state}
   end
 
@@ -355,16 +488,6 @@ defmodule SpriteAgents.Agent.AgentManager do
       {:error, {:not_found, _}} -> Sprites.create(client, name)
       {:error, reason} -> {:error, reason}
     end
-  end
-
-  # Work around SDK bug: filesystem ops miss /v1/sprites/{name} prefix.
-  # Patch the Req client's base_url to include the sprite path prefix.
-  defp filesystem(sprite) do
-    prefix = "/v1/sprites/#{URI.encode(sprite.name)}"
-    patched_req = Req.merge(sprite.client.req, base_url: sprite.client.base_url <> prefix)
-    patched_client = %{sprite.client | req: patched_req}
-    patched_sprite = %{sprite | client: patched_client}
-    Sprites.filesystem(patched_sprite)
   end
 
   defp load_env_vars(sprite) do

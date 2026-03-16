@@ -5,8 +5,18 @@ defmodule SpriteAgentsWeb.AgentLiveTest do
 
   alias SpriteAgents.Agents
 
+  defp valid_recipe(name) do
+    """
+    version: 1
+    name: #{name}
+    harness: pi
+    model: claude-sonnet-4-6
+    system_prompt: You are a test agent.
+    """
+  end
+
   defp create_agent(_) do
-    {:ok, agent} = Agents.create_agent(%{name: "Test Agent", model: "claude-sonnet-4-6"})
+    {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe("Test Agent")})
     %{agent: agent}
   end
 
@@ -18,16 +28,16 @@ defmodule SpriteAgentsWeb.AgentLiveTest do
 
     setup [:create_agent]
 
-    test "displays agents in serialized props", %{conn: conn, agent: agent} do
+    test "displays agents in serialized props", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/")
-      assert html =~ agent.name
+      assert html =~ "Test Agent"
     end
 
     test "creates a new agent via event", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
       render_hook(view, "create-agent", %{
-        "agent" => %{"name" => "New Agent", "model" => "claude-sonnet-4-6"}
+        "recipe" => valid_recipe("New Agent")
       })
 
       html = render(view)
@@ -39,7 +49,7 @@ defmodule SpriteAgentsWeb.AgentLiveTest do
 
       render_hook(view, "update-agent", %{
         "id" => agent.id,
-        "agent" => %{"name" => "Updated Agent"}
+        "recipe" => valid_recipe("Updated Agent")
       })
 
       html = render(view)

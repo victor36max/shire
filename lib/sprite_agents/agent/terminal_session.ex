@@ -6,13 +6,13 @@ defmodule SpriteAgents.Agent.TerminalSession do
   use GenServer
   require Logger
 
-  defstruct [:agent_name, :sprite, :command, :command_ref, :pubsub_topic]
+  defstruct [:agent_id, :sprite, :command, :command_ref, :pubsub_topic]
 
   # --- Public API ---
 
   def start_link(opts) do
-    agent_name = Keyword.fetch!(opts, :agent_name)
-    GenServer.start_link(__MODULE__, opts, name: via(agent_name))
+    agent_id = Keyword.fetch!(opts, :agent_id)
+    GenServer.start_link(__MODULE__, opts, name: via(agent_id))
   end
 
   def write(pid, data) do
@@ -27,28 +27,28 @@ defmodule SpriteAgents.Agent.TerminalSession do
     GenServer.stop(pid)
   end
 
-  def find(agent_name) do
-    case Registry.lookup(SpriteAgents.AgentRegistry, {:terminal, agent_name}) do
+  def find(agent_id) do
+    case Registry.lookup(SpriteAgents.AgentRegistry, {:terminal, agent_id}) do
       [{pid, _}] -> {:ok, pid}
       [] -> :error
     end
   end
 
-  defp via(agent_name) do
-    {:via, Registry, {SpriteAgents.AgentRegistry, {:terminal, agent_name}}}
+  defp via(agent_id) do
+    {:via, Registry, {SpriteAgents.AgentRegistry, {:terminal, agent_id}}}
   end
 
   # --- Callbacks ---
 
   @impl true
   def init(opts) do
-    agent_name = Keyword.fetch!(opts, :agent_name)
+    agent_id = Keyword.fetch!(opts, :agent_id)
     sprite = Keyword.fetch!(opts, :sprite)
 
     state = %__MODULE__{
-      agent_name: agent_name,
+      agent_id: agent_id,
       sprite: sprite,
-      pubsub_topic: "terminal:#{agent_name}"
+      pubsub_topic: "terminal:#{agent_id}"
     }
 
     case Sprites.spawn(sprite, "bash", ["-i"],
@@ -71,7 +71,7 @@ defmodule SpriteAgents.Agent.TerminalSession do
       Sprites.write(state.command, data)
     catch
       :exit, _ ->
-        Logger.warning("Terminal write failed for #{state.agent_name}: command process dead")
+        Logger.warning("Terminal write failed for agent #{state.agent_id}: command process dead")
     end
 
     {:noreply, state}
@@ -96,14 +96,14 @@ defmodule SpriteAgents.Agent.TerminalSession do
 
   @impl true
   def handle_info({:exit, %{ref: ref}, code}, %{command_ref: ref} = state) do
-    Logger.info("Terminal session for #{state.agent_name} exited with code #{code}")
+    Logger.info("Terminal session for agent #{state.agent_id} exited with code #{code}")
     broadcast(state, {:terminal_exit, code})
     {:stop, :normal, state}
   end
 
   @impl true
   def handle_info({:error, %{ref: ref}, reason}, %{command_ref: ref} = state) do
-    Logger.error("Terminal session error for #{state.agent_name}: #{inspect(reason)}")
+    Logger.error("Terminal session error for agent #{state.agent_id}: #{inspect(reason)}")
     broadcast(state, {:terminal_exit, 1})
     {:stop, :normal, state}
   end

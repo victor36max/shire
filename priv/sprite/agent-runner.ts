@@ -1,12 +1,15 @@
 // agent-runner.ts — Bun daemon that watches the inbox and dispatches to configured harness.
 import { watch } from "fs";
-import { readFile, readdir, unlink } from "fs/promises";
+import { readFile, readdir, stat, unlink } from "fs/promises";
 import { join } from "path";
 import { createHarness, type Harness, type HarnessType } from "./harness";
 
 const INBOX_DIR = "/workspace/mailbox/inbox";
 const OUTBOX_DIR = "/workspace/mailbox/outbox";
 const CONFIG_PATH = "/workspace/agent-config.json";
+const SHARED_DIR = "/workspace/shared";
+const SYNC_MARKER_DIR = "/workspace/.drive-sync";
+const MAX_SHARED_FILE_SIZE = 1_000_000; // 1MB limit
 
 export interface AgentConfig {
   harness: HarnessType;
@@ -96,9 +99,7 @@ export async function processInbox(
   return { harness: currentHarness, config: currentConfig };
 }
 
-export async function processOutbox(
-  outboxDir = OUTBOX_DIR,
-): Promise<number> {
+export async function processOutbox(outboxDir = OUTBOX_DIR): Promise<number> {
   const files = await readdir(outboxDir);
   const sorted = files.filter((f) => f.endsWith(".json")).sort();
 
@@ -164,21 +165,64 @@ async function main() {
 
   // Watch for outbox messages (agent-to-agent)
   let outboxProcessing = false;
-  const outboxWatcher = watch(
-    OUTBOX_DIR,
-    async (_eventType: string, filename: string | null) => {
-      if (!filename?.endsWith(".json") || outboxProcessing) return;
-      outboxProcessing = true;
-      try {
-        let count: number;
-        do {
-          count = await processOutbox();
-        } while (count > 0);
-      } finally {
-        outboxProcessing = false;
-      }
-    },
-  );
+  const outboxWatcher = watch(OUTBOX_DIR, async (_eventType: string, filename: string | null) => {
+    if (!filename?.endsWith(".json") || outboxProcessing) return;
+    outboxProcessing = true;
+    try {
+      let count: number;
+      do {
+        count = await processOutbox();
+      } while (count > 0);
+    } finally {
+      outboxProcessing = false;
+    }
+  });
+
+  // Watch shared drive for file changes (agent -> drive sync)
+  const pendingSharedWrites = new Map<string, Timer>();
+
+  const sharedWatcher = watch(SHARED_DIR, { recursive: true }, (_event: string, filename: string | null) => {
+    if (!filename) return;
+
+    // Check for sync marker (incoming sync from another agent, not a local write)
+    const markerPath = join(SYNC_MARKER_DIR, filename);
+    readFile(markerPath)
+      .then(() => {
+        // Marker exists — this is an incoming sync, consume marker and skip
+        return unlink(markerPath);
+      })
+      .catch(() => {
+        // No marker — this is a local agent write, debounce and emit
+        const existing = pendingSharedWrites.get(filename);
+        if (existing) clearTimeout(existing);
+
+        pendingSharedWrites.set(
+          filename,
+          setTimeout(async () => {
+            pendingSharedWrites.delete(filename);
+            const filePath = join(SHARED_DIR, filename);
+            try {
+              const fileStat = await stat(filePath);
+              if (fileStat.size > MAX_SHARED_FILE_SIZE) {
+                emit("drive_error", {
+                  path: filename,
+                  message: `File exceeds ${MAX_SHARED_FILE_SIZE} byte limit`,
+                });
+                return;
+              }
+              const content = await readFile(filePath);
+              emit("drive_write", {
+                path: filename,
+                content: content.toString("base64"),
+              });
+            } catch {
+              // File was deleted or unreadable
+              emit("drive_delete", { path: filename });
+            }
+          }, 300),
+        );
+      });
+  });
 
   // Heartbeat every 30 seconds
   setInterval(() => {
@@ -189,6 +233,7 @@ async function main() {
   process.on("SIGTERM", () => {
     watcher.close();
     outboxWatcher.close();
+    sharedWatcher.close();
     harness.stop();
     emit("shutdown", {});
     process.exit(0);

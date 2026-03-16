@@ -14,22 +14,22 @@ import {
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
 
-import { type Agent, type HarnessType } from "./types";
+import { type Agent, type BaseRecipe } from "./types";
 
 interface AgentPageProps {
   agents: Agent[];
-  editAgent: { id?: number; name?: string; model?: string; system_prompt?: string; harness?: HarnessType } | null;
+  editAgent: Agent | null;
+  baseRecipes?: BaseRecipe[];
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }
 
-export default function AgentPage({ agents, editAgent, pushEvent }: AgentPageProps) {
+export default function AgentPage({ agents, editAgent, baseRecipes = [], pushEvent }: AgentPageProps) {
   const [formOpen, setFormOpen] = React.useState(false);
   const [formTitle, setFormTitle] = React.useState("New Agent");
   const [editingId, setEditingId] = React.useState<number | null>(null);
-  const [currentAgent, setCurrentAgent] = React.useState<AgentPageProps["editAgent"]>(null);
+  const [currentAgent, setCurrentAgent] = React.useState<Agent | null>(null);
   const [deleteAgent, setDeleteAgent] = React.useState<Agent | null>(null);
 
-  // Sync edit state from server (e.g. when navigating to /agents/:id/edit)
   React.useEffect(() => {
     if (editAgent) {
       setCurrentAgent(editAgent);
@@ -48,12 +48,7 @@ export default function AgentPage({ agents, editAgent, pushEvent }: AgentPagePro
 
   const handleEdit = (e: React.MouseEvent, agent: Agent) => {
     e.stopPropagation();
-    setCurrentAgent({
-      name: agent.name,
-      model: agent.model ?? "",
-      system_prompt: agent.system_prompt ?? "",
-      harness: agent.harness,
-    });
+    setCurrentAgent(agent);
     setEditingId(agent.id);
     setFormTitle("Edit Agent");
     setFormOpen(true);
@@ -133,6 +128,7 @@ export default function AgentPage({ agents, editAgent, pushEvent }: AgentPagePro
           open={formOpen}
           title={formTitle}
           agent={currentAgent}
+          baseRecipes={baseRecipes}
           pushEvent={handleFormSave}
           onClose={handleFormClose}
         />

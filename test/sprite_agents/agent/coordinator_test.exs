@@ -4,14 +4,18 @@ defmodule SpriteAgents.Agent.CoordinatorTest do
   alias SpriteAgents.Agent.Coordinator
   alias SpriteAgents.Agents
 
-  setup do
-    {:ok, agent} =
-      Agents.create_agent(%{
-        name: "coord-test-agent",
-        model: "claude-sonnet-4-6",
-        system_prompt: "Test"
-      })
+  defp valid_recipe(name \\ "coord-test-agent") do
+    """
+    version: 1
+    name: #{name}
+    harness: pi
+    model: claude-sonnet-4-6
+    system_prompt: Test
+    """
+  end
 
+  setup do
+    {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
     %{agent: agent}
   end
 

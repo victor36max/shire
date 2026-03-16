@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
+import { type Agent } from "../react-components/types";
 
 // Mock Terminal component to avoid xterm/canvas dependencies
 vi.mock("../react-components/Terminal", () => ({
@@ -11,13 +12,15 @@ vi.mock("../react-components/Terminal", () => ({
 
 import AgentShow from "../react-components/AgentShow";
 
-const agent = {
+const agent: Agent = {
   id: 1,
   name: "Test Agent",
-  status: "active" as const,
+  status: "active",
   model: "claude-sonnet-4-6",
   system_prompt: "You are a helpful assistant.",
-  harness: "pi" as const,
+  harness: "pi",
+  recipe: "version: 1\nname: Test Agent\nharness: pi\nmodel: claude-sonnet-4-6\nsystem_prompt: You are a helpful assistant.",
+  is_base: false,
 };
 
 describe("AgentShow", () => {
@@ -73,6 +76,14 @@ describe("AgentShow", () => {
   it("displays Claude Code harness", () => {
     render(<AgentShow agent={{ ...agent, harness: "claude_code" }} pushEvent={vi.fn()} />);
     expect(screen.getByText("Claude Code")).toBeInTheDocument();
+  });
+
+  it("renders scripts section when scripts present", () => {
+    const withScripts = { ...agent, scripts: [{ name: "setup", run: "apt-get update" }] };
+    render(<AgentShow agent={withScripts} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Scripts")).toBeInTheDocument();
+    expect(screen.getByText("setup")).toBeInTheDocument();
+    expect(screen.getByText("apt-get update")).toBeInTheDocument();
   });
 
   it("renders tool call messages with running state", () => {
@@ -139,9 +150,7 @@ describe("AgentShow", () => {
       },
     ];
     render(<AgentShow agent={agent} messages={messages} pushEvent={vi.fn()} />);
-    // Input/output should be hidden initially
     expect(screen.queryByText("Input")).not.toBeInTheDocument();
-    // Click to expand
     await userEvent.click(screen.getByText("Bash"));
     expect(screen.getByText("Input")).toBeInTheDocument();
     expect(screen.getByText("Output")).toBeInTheDocument();
@@ -156,7 +165,6 @@ describe("AgentShow", () => {
     render(<AgentShow agent={{ ...agent, status: "created" }} messages={messages} pushEvent={vi.fn()} />);
     expect(screen.getByText("hello")).toBeInTheDocument();
     expect(screen.getByText("hi there")).toBeInTheDocument();
-    // Input should not be shown for non-active agents
     expect(screen.queryByPlaceholderText("Type a message...")).not.toBeInTheDocument();
   });
 

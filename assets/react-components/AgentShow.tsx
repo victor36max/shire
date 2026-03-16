@@ -168,6 +168,12 @@ export default function AgentShow({
                 <dt className="text-sm font-medium text-muted-foreground">Name</dt>
                 <dd className="text-sm col-span-2">{agent.name}</dd>
               </div>
+              {agent.description && (
+                <div className="py-3 grid grid-cols-3 gap-4">
+                  <dt className="text-sm font-medium text-muted-foreground">Description</dt>
+                  <dd className="text-sm col-span-2">{agent.description}</dd>
+                </div>
+              )}
               <div className="py-3 grid grid-cols-3 gap-4">
                 <dt className="text-sm font-medium text-muted-foreground">Model</dt>
                 <dd className="text-sm col-span-2">{agent.model || "Not set"}</dd>
@@ -190,6 +196,19 @@ export default function AgentShow({
                   <pre className="whitespace-pre-wrap font-sans">{agent.system_prompt || "Not set"}</pre>
                 </dd>
               </div>
+              {agent.scripts && agent.scripts.length > 0 && (
+                <div className="py-3 grid grid-cols-3 gap-4">
+                  <dt className="text-sm font-medium text-muted-foreground">Scripts</dt>
+                  <dd className="text-sm col-span-2 space-y-1">
+                    {agent.scripts.map((s) => (
+                      <div key={s.name} className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono text-xs">{s.name}</Badge>
+                        <span className="text-xs text-muted-foreground font-mono truncate">{s.run}</span>
+                      </div>
+                    ))}
+                  </dd>
+                </div>
+              )}
             </dl>
           </CardContent>
         </Card>
@@ -251,7 +270,7 @@ export default function AgentShow({
                               : "bg-muted mr-12"
                           }`}
                         >
-                          <Markdown>{msg.text ?? ""}</Markdown>
+                          <Markdown className={msg.role === "user" ? "prose-invert" : ""}>{msg.text ?? ""}</Markdown>
                         </div>
                       ),
                     )}
