@@ -6,6 +6,7 @@ defmodule SpriteAgents.Agents do
   # Agent CRUD
   def list_agents, do: Repo.all(Agent)
   def get_agent!(id), do: Repo.get!(Agent, id)
+  def get_agent_by_name!(name), do: Repo.get_by!(Agent, name: name)
   def create_agent(attrs), do: %Agent{} |> Agent.changeset(attrs) |> Repo.insert()
   def update_agent(%Agent{} = agent, attrs), do: agent |> Agent.changeset(attrs) |> Repo.update()
   def delete_agent(%Agent{} = agent), do: Repo.delete(agent)
@@ -27,7 +28,10 @@ defmodule SpriteAgents.Agents do
   end
 
   def create_secret(attrs), do: %Secret{} |> Secret.changeset(attrs) |> Repo.insert()
-  def update_secret(%Secret{} = secret, attrs), do: secret |> Secret.changeset(attrs) |> Repo.update()
+
+  def update_secret(%Secret{} = secret, attrs),
+    do: secret |> Secret.changeset(attrs) |> Repo.update()
+
   def delete_secret(%Secret{} = secret), do: Repo.delete(secret)
   def get_secret!(id), do: Repo.get!(Secret, id)
   def change_secret(%Secret{} = secret, attrs \\ %{}), do: Secret.changeset(secret, attrs)

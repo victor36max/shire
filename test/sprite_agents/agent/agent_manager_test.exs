@@ -1,0 +1,47 @@
+defmodule SpriteAgents.Agent.AgentManagerTest do
+  use SpriteAgents.DataCase, async: true
+
+  alias SpriteAgents.Agent.AgentManager
+  alias SpriteAgents.Agents
+
+  setup do
+    {:ok, agent} =
+      Agents.create_agent(%{
+        name: "test-agent",
+        model: "claude-sonnet-4-6",
+        system_prompt: "You are a test agent."
+      })
+
+    %{agent: agent}
+  end
+
+  describe "start_link/1" do
+    test "starts the GenServer and registers with the agent name", %{agent: agent} do
+      {:ok, pid} =
+        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+
+      assert Process.alive?(pid)
+      assert GenServer.call(pid, :get_state) |> Map.get(:phase) == :idle
+    end
+  end
+
+  describe "state management" do
+    test "get_state returns current state", %{agent: agent} do
+      {:ok, pid} =
+        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+
+      state = AgentManager.get_state(pid)
+      assert state.agent_name == "test-agent"
+      assert state.phase == :idle
+    end
+  end
+
+  describe "send_message/3" do
+    test "returns error when agent is not active", %{agent: agent} do
+      {:ok, pid} =
+        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+
+      assert {:error, :not_active} = GenServer.call(pid, {:send_message, "hello", :user})
+    end
+  end
+end

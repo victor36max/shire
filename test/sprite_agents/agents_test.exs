@@ -52,6 +52,18 @@ defmodule SpriteAgents.AgentsTest do
       {:ok, agent} = Agents.create_agent(%{name: "Test"})
       assert %Ecto.Changeset{} = Agents.change_agent(agent)
     end
+
+    test "get_agent_by_name!/1 returns the agent with given name" do
+      {:ok, agent} =
+        Agents.create_agent(%{
+          name: "named-agent",
+          model: "claude-sonnet-4-6",
+          system_prompt: "You are a test agent."
+        })
+
+      found = Agents.get_agent_by_name!(agent.name)
+      assert found.id == agent.id
+    end
   end
 
   describe "secrets" do
@@ -70,7 +82,9 @@ defmodule SpriteAgents.AgentsTest do
     test "list_global_secrets/0 returns only global secrets" do
       {:ok, agent} = Agents.create_agent(%{name: "Agent"})
       {:ok, _global} = Agents.create_secret(%{key: "GLOBAL_KEY", value: "val"})
-      {:ok, _agent_secret} = Agents.create_secret(%{key: "AGENT_KEY", value: "val", agent_id: agent.id})
+
+      {:ok, _agent_secret} =
+        Agents.create_secret(%{key: "AGENT_KEY", value: "val", agent_id: agent.id})
 
       globals = Agents.list_global_secrets()
       assert length(globals) == 1
@@ -80,7 +94,9 @@ defmodule SpriteAgents.AgentsTest do
     test "list_secrets_for_agent/1 returns only agent secrets" do
       {:ok, agent} = Agents.create_agent(%{name: "Agent"})
       {:ok, _global} = Agents.create_secret(%{key: "GLOBAL_KEY", value: "val"})
-      {:ok, _agent_secret} = Agents.create_secret(%{key: "AGENT_KEY", value: "val", agent_id: agent.id})
+
+      {:ok, _agent_secret} =
+        Agents.create_secret(%{key: "AGENT_KEY", value: "val", agent_id: agent.id})
 
       agent_secrets = Agents.list_secrets_for_agent(agent.id)
       assert length(agent_secrets) == 1
@@ -91,7 +107,10 @@ defmodule SpriteAgents.AgentsTest do
       {:ok, agent} = Agents.create_agent(%{name: "Agent"})
       {:ok, _} = Agents.create_secret(%{key: "SHARED_KEY", value: "global_val"})
       {:ok, _} = Agents.create_secret(%{key: "ONLY_GLOBAL", value: "val"})
-      {:ok, _} = Agents.create_secret(%{key: "SHARED_KEY", value: "agent_val", agent_id: agent.id})
+
+      {:ok, _} =
+        Agents.create_secret(%{key: "SHARED_KEY", value: "agent_val", agent_id: agent.id})
+
       {:ok, _} = Agents.create_secret(%{key: "ONLY_AGENT", value: "val", agent_id: agent.id})
 
       effective = Agents.effective_secrets(agent.id)
