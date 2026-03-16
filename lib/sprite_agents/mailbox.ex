@@ -72,12 +72,18 @@ defmodule SpriteAgents.Mailbox do
     final_path = "#{@inbox_dir}/#{fname}"
 
     fs = Sprites.filesystem(sprite, @inbox_dir)
-    :ok = Sprites.Filesystem.write(fs, tmp_path, json)
 
-    # Atomic rename
-    {_, 0} = Sprites.cmd(sprite, "mv", [tmp_path, final_path])
-    update_seq(sprite, seq)
-    {:ok, seq}
+    with :ok <- Sprites.Filesystem.write(fs, tmp_path, json),
+         {_, 0} <- Sprites.cmd(sprite, "mv", [tmp_path, final_path]) do
+      update_seq(sprite, seq)
+      {:ok, seq}
+    else
+      {_, exit_code} when is_integer(exit_code) ->
+        {:error, {:rename_failed, exit_code}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp next_seq(sprite) do
