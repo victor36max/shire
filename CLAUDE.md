@@ -125,4 +125,5 @@ mix precommit
 - Elixir schema fields use `:string` type even for text columns
 - Always generate migrations with `mix ecto.gen.migration`
 - Don't use `@apply` in CSS
+- Always use shadcn/ui components (Button, Input, Dialog, etc.) instead of plain HTML elements unless the library doesn't support the needed component
 - shadcn dialog animations: use fade + zoom only, no slide classes (they conflict with translate centering)

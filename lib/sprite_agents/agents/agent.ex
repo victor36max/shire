@@ -18,6 +18,7 @@ defmodule SpriteAgents.Agents.Agent do
     field :system_prompt, :string
 
     has_many :secrets, SpriteAgents.Agents.Secret
+    has_many :messages, SpriteAgents.Agents.Message
     timestamps(type: :utc_datetime)
   end
 

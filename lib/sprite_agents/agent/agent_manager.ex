@@ -13,6 +13,14 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   You are one of several agents running in a shared environment. You can collaborate with other agents.
 
+  ### First Responder Rule
+  When the user sends you a message, YOU are the lead for that task. This means:
+  - You are responsible for delivering the final result to the user
+  - If the task needs capabilities other agents have, delegate to them via outbox messages
+  - When you receive replies from other agents, synthesize their input and present the final answer
+  - Never leave the user without a response — acknowledge the task, delegate if needed, then follow up with the result
+  - The user sees YOUR output, not the other agents' — so always produce the complete final response
+
   ### Discovering Peers
   Read `/workspace/peers.json` to see which other agents are currently running. Each entry has:
   - `name`: the agent's identifier (use this in messages)
@@ -30,7 +38,8 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   ### Receiving Messages
   Messages from other agents arrive in your normal conversation flow, prefixed with [Message from agent "<name>"].
-  Reply naturally — your response will be visible to the user, not sent back automatically. If you want to respond to the agent, write a new outbox message.
+  If you are the lead (user messaged you), incorporate the agent's reply into your final response to the user.
+  If another agent asked you for help, send your result back via a new outbox message.
 
   ### Guidelines
   - Check peers.json before messaging to confirm the agent exists
@@ -64,6 +73,10 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   def get_state(server) do
     GenServer.call(server, :get_state)
+  end
+
+  def get_sprite(name) do
+    GenServer.call(via(name), :get_sprite)
   end
 
   def stop(name) do
@@ -249,6 +262,11 @@ defmodule SpriteAgents.Agent.AgentManager do
   @impl true
   def handle_call(:get_state, _from, state) do
     {:reply, Map.from_struct(state), state}
+  end
+
+  @impl true
+  def handle_call(:get_sprite, _from, state) do
+    {:reply, {:ok, state.sprite}, state}
   end
 
   # Process stdout from agent runner (JSONL lines)

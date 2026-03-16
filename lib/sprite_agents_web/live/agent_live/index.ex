@@ -75,7 +75,7 @@ defmodule SpriteAgentsWeb.AgentLive.Index do
     Enum.map(agents, fn agent ->
       agent
       |> Map.from_struct()
-      |> Map.drop([:__meta__, :secrets])
+      |> Map.drop([:__meta__, :secrets, :messages])
       |> Map.update(:inserted_at, nil, &to_string/1)
       |> Map.update(:updated_at, nil, &to_string/1)
     end)
@@ -86,7 +86,7 @@ defmodule SpriteAgentsWeb.AgentLive.Index do
   defp serialize_agent(agent) do
     agent
     |> Map.from_struct()
-    |> Map.drop([:__meta__, :secrets])
+    |> Map.drop([:__meta__, :secrets, :messages])
     |> Map.update(:inserted_at, nil, &to_string/1)
     |> Map.update(:updated_at, nil, &to_string/1)
   end

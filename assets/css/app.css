@@ -3,6 +3,8 @@
 
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
+@import "@tailwindcss/typography";
+@import "@xterm/xterm/css/xterm.css";
 
 @source "../css";
 @source "../js";

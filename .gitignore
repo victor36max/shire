@@ -36,8 +36,10 @@ npm-debug.log
 /assets/node_modules/
 /priv/sprite/node_modules/
 
+# Screenshots and Playwright MCP
 /screenshots
 .playwright-mcp
+/*.png
 
 # Local environment variables
 .env

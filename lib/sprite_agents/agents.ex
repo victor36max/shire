@@ -1,7 +1,7 @@
 defmodule SpriteAgents.Agents do
   import Ecto.Query
   alias SpriteAgents.Repo
-  alias SpriteAgents.Agents.{Agent, Secret}
+  alias SpriteAgents.Agents.{Agent, Message, Secret}
 
   # Agent CRUD
   def list_agents, do: Repo.all(Agent)
@@ -35,4 +35,49 @@ defmodule SpriteAgents.Agents do
   def delete_secret(%Secret{} = secret), do: Repo.delete(secret)
   def get_secret!(id), do: Repo.get!(Secret, id)
   def change_secret(%Secret{} = secret, attrs \\ %{}), do: Secret.changeset(secret, attrs)
+
+  # Message CRUD
+
+  def create_message(attrs), do: %Message{} |> Message.changeset(attrs) |> Repo.insert()
+  def get_message!(id), do: Repo.get!(Message, id)
+
+  def update_message(%Message{} = message, attrs),
+    do: message |> Message.changeset(attrs) |> Repo.update()
+
+  @doc """
+  Lists messages for an agent with cursor-based pagination.
+
+  Options:
+    - `:before` - message id cursor, fetch messages older than this id
+    - `:limit` - page size, default 50
+
+  Returns `{messages, has_more?}` where messages are ordered oldest-first.
+  """
+  def list_messages_for_agent(agent_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    before = Keyword.get(opts, :before)
+
+    query =
+      from m in Message,
+        where: m.agent_id == ^agent_id,
+        order_by: [desc: m.id],
+        limit: ^limit
+
+    query =
+      if before do
+        from m in query, where: m.id < ^before
+      else
+        query
+      end
+
+    messages = Repo.all(query)
+    has_more = length(messages) == limit
+
+    {Enum.reverse(messages), has_more}
+  end
+
+  def delete_messages_for_agent(agent_id) do
+    from(m in Message, where: m.agent_id == ^agent_id)
+    |> Repo.delete_all()
+  end
 end

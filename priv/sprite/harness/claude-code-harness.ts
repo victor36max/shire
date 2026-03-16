@@ -98,8 +98,66 @@ export class ClaudeCodeHarness implements Harness {
         if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
           this.emitEvent({
             type: "tool_use",
-            payload: { tool: event.content_block.name, status: "started" },
+            payload: {
+              tool: event.content_block.name,
+              tool_use_id: event.content_block.id,
+              input: {},
+              status: "started",
+            },
           });
+        }
+        break;
+      }
+
+      case "assistant": {
+        // Extract tool calls with their inputs from the complete assistant message
+        const content = (message as Record<string, unknown>).message as { content?: unknown[] } | undefined;
+        if (content && Array.isArray(content.content)) {
+          for (const block of content.content) {
+            const b = block as Record<string, unknown>;
+            if (b.type === "tool_use") {
+              this.emitEvent({
+                type: "tool_use",
+                payload: {
+                  tool: b.name as string,
+                  tool_use_id: b.id as string,
+                  input: b.input as Record<string, unknown>,
+                  status: "input_ready",
+                },
+              });
+            }
+          }
+        }
+        break;
+      }
+
+      case "user": {
+        // Extract tool results from user messages (these follow tool_use)
+        const userMsg = (message as Record<string, unknown>).message as { content?: unknown } | undefined;
+        const userContent = userMsg?.content;
+        if (Array.isArray(userContent)) {
+          for (const block of userContent) {
+            const b = block as Record<string, unknown>;
+            if (b.type === "tool_result" && typeof b.tool_use_id === "string") {
+              let output = "";
+              if (typeof b.content === "string") {
+                output = b.content;
+              } else if (Array.isArray(b.content)) {
+                output = (b.content as Record<string, unknown>[])
+                  .filter((c) => c.type === "text")
+                  .map((c) => c.text as string)
+                  .join("\n");
+              }
+              this.emitEvent({
+                type: "tool_result",
+                payload: {
+                  tool_use_id: b.tool_use_id,
+                  output: output.slice(0, 2000),
+                  is_error: (b.is_error as boolean) ?? false,
+                },
+              });
+            }
+          }
         }
         break;
       }

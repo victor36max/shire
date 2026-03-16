@@ -1,6 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
+
+// Mock Terminal component to avoid xterm/canvas dependencies
+vi.mock("../react-components/Terminal", () => ({
+  default: ({ pushEvent }: { pushEvent: unknown }) => (
+    <div data-testid="terminal-mock">Terminal Component</div>
+  ),
+}));
+
 import AgentShow from "../react-components/AgentShow";
 
 const agent = {
@@ -65,5 +73,122 @@ describe("AgentShow", () => {
   it("displays Claude Code harness", () => {
     render(<AgentShow agent={{ ...agent, harness: "claude_code" }} pushEvent={vi.fn()} />);
     expect(screen.getByText("Claude Code")).toBeInTheDocument();
+  });
+
+  it("renders tool call messages with running state", () => {
+    const messages = [
+      {
+        role: "tool_use",
+        tool: "Bash",
+        tool_use_id: "tu_1",
+        input: { command: "ls" },
+        output: null,
+        is_error: false,
+        ts: "2026-03-16T00:00:00Z",
+      },
+    ];
+    render(<AgentShow agent={agent} messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Bash")).toBeInTheDocument();
+    expect(screen.getByText("running...")).toBeInTheDocument();
+  });
+
+  it("renders tool call messages with done state", () => {
+    const messages = [
+      {
+        role: "tool_use",
+        tool: "Read",
+        tool_use_id: "tu_2",
+        input: { file_path: "/tmp/test.txt" },
+        output: "file contents here",
+        is_error: false,
+        ts: "2026-03-16T00:00:00Z",
+      },
+    ];
+    render(<AgentShow agent={agent} messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.getByText("done")).toBeInTheDocument();
+  });
+
+  it("renders tool call messages with error state", () => {
+    const messages = [
+      {
+        role: "tool_use",
+        tool: "Write",
+        tool_use_id: "tu_3",
+        input: { file_path: "/readonly" },
+        output: "permission denied",
+        is_error: true,
+        ts: "2026-03-16T00:00:00Z",
+      },
+    ];
+    render(<AgentShow agent={agent} messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Write")).toBeInTheDocument();
+    expect(screen.getByText("error")).toBeInTheDocument();
+  });
+
+  it("expands tool call to show input and output", async () => {
+    const messages = [
+      {
+        role: "tool_use",
+        tool: "Bash",
+        tool_use_id: "tu_4",
+        input: { command: "echo hello" },
+        output: "hello",
+        is_error: false,
+        ts: "2026-03-16T00:00:00Z",
+      },
+    ];
+    render(<AgentShow agent={agent} messages={messages} pushEvent={vi.fn()} />);
+    // Input/output should be hidden initially
+    expect(screen.queryByText("Input")).not.toBeInTheDocument();
+    // Click to expand
+    await userEvent.click(screen.getByText("Bash"));
+    expect(screen.getByText("Input")).toBeInTheDocument();
+    expect(screen.getByText("Output")).toBeInTheDocument();
+    expect(screen.getByText("hello")).toBeInTheDocument();
+  });
+
+  it("shows chat history for stopped agents", () => {
+    const messages = [
+      { id: 1, role: "user", text: "hello", ts: "2026-03-16T00:00:00Z" },
+      { id: 2, role: "agent", text: "hi there", ts: "2026-03-16T00:00:01Z" },
+    ];
+    render(<AgentShow agent={{ ...agent, status: "created" }} messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.getByText("hello")).toBeInTheDocument();
+    expect(screen.getByText("hi there")).toBeInTheDocument();
+    // Input should not be shown for non-active agents
+    expect(screen.queryByPlaceholderText("Type a message...")).not.toBeInTheDocument();
+  });
+
+  it("shows loading indicator when loadingMore is true", () => {
+    const messages = [{ id: 1, role: "user", text: "hello", ts: "2026-03-16T00:00:00Z" }];
+    render(
+      <AgentShow agent={agent} messages={messages} hasMore={true} loadingMore={true} pushEvent={vi.fn()} />,
+    );
+    expect(screen.getByText("Loading older messages...")).toBeInTheDocument();
+  });
+
+  it("shows Terminal tab for active agents", () => {
+    render(<AgentShow agent={{ ...agent, status: "active" }} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Terminal")).toBeInTheDocument();
+    expect(screen.getByText("Chat")).toBeInTheDocument();
+  });
+
+  it("does not show Terminal tab for created agents", () => {
+    const messages = [{ id: 1, role: "user", text: "hello", ts: "2026-03-16T00:00:00Z" }];
+    render(<AgentShow agent={{ ...agent, status: "created" }} messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.queryByText("Terminal")).not.toBeInTheDocument();
+  });
+
+  it("switches to terminal view when Terminal tab is clicked", async () => {
+    render(<AgentShow agent={{ ...agent, status: "active" }} pushEvent={vi.fn()} />);
+    await userEvent.click(screen.getByText("Terminal"));
+    expect(screen.getByTestId("terminal-mock")).toBeInTheDocument();
+  });
+
+  it("shows Terminal tab for sleeping agents", () => {
+    const messages = [{ id: 1, role: "user", text: "hello", ts: "2026-03-16T00:00:00Z" }];
+    render(<AgentShow agent={{ ...agent, status: "sleeping" }} messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Terminal")).toBeInTheDocument();
   });
 });

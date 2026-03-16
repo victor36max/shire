@@ -202,6 +202,8 @@ describe("ClaudeCodeHarness", () => {
     const toolEvent = events.find((e) => e.type === "tool_use");
     expect(toolEvent).toBeDefined();
     expect(toolEvent!.payload.tool).toBe("bash");
+    expect(toolEvent!.payload.tool_use_id).toBe("tool-1");
+    expect(toolEvent!.payload.input).toEqual({});
     expect(toolEvent!.payload.status).toBe("started");
   });
 
@@ -291,6 +293,75 @@ describe("ClaudeCodeHarness", () => {
 
     await harness.sendMessage("should not emit");
     expect(events).toHaveLength(0);
+  });
+
+  test("sendMessage() emits tool_use input_ready from assistant message", async () => {
+    const assistantMsg: SDKMessage = {
+      type: "assistant",
+      message: {
+        id: "msg-1",
+        type: "message",
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "tu-abc", name: "Bash", input: { command: "echo hello" } },
+        ],
+        model: "claude-sonnet-4-6",
+        stop_reason: "tool_use",
+        stop_sequence: null,
+        usage: { input_tokens: 10, output_tokens: 20 },
+      },
+      parent_tool_use_id: null,
+      uuid: "uuid-asst-1",
+      session_id: "s1",
+    } as unknown as SDKMessage;
+
+    const mockQuery = createMockQuery([assistantMsg, resultSuccess("done", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+
+    await harness.start(baseConfig);
+    await harness.sendMessage("run echo");
+
+    const toolEvent = events.find((e) => e.type === "tool_use" && e.payload.status === "input_ready");
+    expect(toolEvent).toBeDefined();
+    expect(toolEvent!.payload.tool).toBe("Bash");
+    expect(toolEvent!.payload.tool_use_id).toBe("tu-abc");
+    expect(toolEvent!.payload.input).toEqual({ command: "echo hello" });
+  });
+
+  test("sendMessage() emits tool_result from user message", async () => {
+    const userMsg: SDKMessage = {
+      type: "user",
+      message: {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tu-abc",
+            content: [{ type: "text", text: "hello world" }],
+            is_error: false,
+          },
+        ],
+      },
+      parent_tool_use_id: null,
+      isSynthetic: true,
+      session_id: "s1",
+    } as unknown as SDKMessage;
+
+    const mockQuery = createMockQuery([userMsg, resultSuccess("done", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const resultEvent = events.find((e) => e.type === "tool_result");
+    expect(resultEvent).toBeDefined();
+    expect(resultEvent!.payload.tool_use_id).toBe("tu-abc");
+    expect(resultEvent!.payload.output).toBe("hello world");
+    expect(resultEvent!.payload.is_error).toBe(false);
   });
 
   test("sendMessage() prefixes from agent name", async () => {
