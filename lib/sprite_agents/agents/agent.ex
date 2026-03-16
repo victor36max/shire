@@ -10,6 +10,10 @@ defmodule SpriteAgents.Agents.Agent do
       values: [:created, :starting, :active, :sleeping, :failed, :destroyed],
       default: :created
 
+    field :harness, Ecto.Enum,
+      values: [:pi, :claude_code],
+      default: :pi
+
     field :model, :string
     field :system_prompt, :string
 
@@ -19,7 +23,7 @@ defmodule SpriteAgents.Agents.Agent do
 
   def changeset(agent, attrs) do
     agent
-    |> cast(attrs, [:name, :sprite_name, :status, :model, :system_prompt])
+    |> cast(attrs, [:name, :sprite_name, :status, :harness, :model, :system_prompt])
     |> validate_required([:name])
     |> unique_constraint(:name)
   end
