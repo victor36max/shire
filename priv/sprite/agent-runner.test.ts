@@ -1,6 +1,6 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
 import { describe, test, expect, mock, spyOn } from "bun:test";
-import { emit, processMessage, type AgentConfig, type MessageEnvelope } from "./agent-runner";
+import { emit, processMessage, type MessageEnvelope } from "./agent-runner";
 import type { Harness } from "./harness";
 import { createHarness } from "./harness";
 
@@ -33,7 +33,6 @@ async function captureEmits(
 
 function makeEnvelope(overrides: Partial<MessageEnvelope> = {}): MessageEnvelope {
   return {
-    seq: 1,
     ts: Date.now(),
     type: "user_message",
     from: "orchestrator",
@@ -57,13 +56,6 @@ function createMockHarness(): Harness & {
     isProcessing: mock(() => false),
   };
 }
-
-const baseConfig: AgentConfig = {
-  harness: "pi",
-  model: "anthropic/claude-sonnet-4-6",
-  system_prompt: "You are a helpful assistant.",
-  max_tokens: 1024,
-};
 
 // ---------------------------------------------------------------------------
 // emit()
@@ -131,7 +123,7 @@ describe("processMessage() — user_message", () => {
     const harness = createMockHarness();
     const envelope = makeEnvelope({ type: "user_message", payload: { text: "Hi there" } });
 
-    await processMessage(harness, { ...baseConfig }, envelope);
+    await processMessage(harness, envelope);
 
     expect(harness.sendMessage).toHaveBeenCalledWith("Hi there", undefined);
   });
@@ -150,7 +142,7 @@ describe("processMessage() — agent_message", () => {
       payload: { text: "Here is data." },
     });
 
-    await processMessage(harness, { ...baseConfig }, envelope);
+    await processMessage(harness, envelope);
 
     expect(harness.sendMessage).toHaveBeenCalledWith("Here is data.", "researcher-bot");
   });
@@ -166,7 +158,7 @@ describe("processMessage() — interrupt", () => {
     const envelope = makeEnvelope({ type: "interrupt", payload: {} });
 
     const events = await captureEmits(async () => {
-      await processMessage(harness, { ...baseConfig }, envelope);
+      await processMessage(harness, envelope);
     });
 
     expect(harness.interrupt).toHaveBeenCalled();
@@ -178,116 +170,10 @@ describe("processMessage() — interrupt", () => {
     const envelope = makeEnvelope({ type: "interrupt", payload: {} });
 
     await captureEmits(async () => {
-      await processMessage(harness, { ...baseConfig }, envelope);
+      await processMessage(harness, envelope);
     });
 
     expect(harness.sendMessage).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// processMessage() — configure
-// ---------------------------------------------------------------------------
-
-describe("processMessage() — configure", () => {
-  test("stops old harness and emits configured event", async () => {
-    const harness = createMockHarness();
-    const config: AgentConfig = { ...baseConfig };
-    const newConfig: AgentConfig = {
-      harness: "pi",
-      model: "anthropic/claude-haiku-4-5",
-      system_prompt: "Updated.",
-      max_tokens: 2048,
-    };
-    const fakeLoadConfig = mock(async () => newConfig);
-    const envelope = makeEnvelope({ type: "configure", payload: {} });
-
-    const events = await captureEmits(async () => {
-      await processMessage(harness, config, envelope, fakeLoadConfig);
-    });
-
-    expect(harness.stop).toHaveBeenCalled();
-    expect(fakeLoadConfig).toHaveBeenCalledTimes(1);
-    expect(config.model).toBe("anthropic/claude-haiku-4-5");
-
-    const configuredEvent = events.find((e) => e.type === "configured");
-    expect(configuredEvent).toBeDefined();
-    expect(configuredEvent!.payload.model).toBe("anthropic/claude-haiku-4-5");
-  });
-
-  test("returns a new harness instance after configure", async () => {
-    const harness = createMockHarness();
-    const config: AgentConfig = { ...baseConfig };
-    const fakeLoadConfig = mock(async () => ({ ...baseConfig }));
-    const envelope = makeEnvelope({ type: "configure", payload: {} });
-
-    let result: { harness: Harness; config: AgentConfig } | undefined;
-    await captureEmits(async () => {
-      result = await processMessage(harness, config, envelope, fakeLoadConfig);
-    });
-
-    // The returned harness should be different from the original mock
-    expect(result!.harness).not.toBe(harness);
-    expect(result!.harness.start).toBeInstanceOf(Function);
-  });
-
-  test("does not call harness.sendMessage for configure", async () => {
-    const harness = createMockHarness();
-    const fakeLoadConfig = mock(async () => ({ ...baseConfig }));
-    const envelope = makeEnvelope({ type: "configure", payload: {} });
-
-    await captureEmits(async () => {
-      await processMessage(harness, { ...baseConfig }, envelope, fakeLoadConfig);
-    });
-
-    expect(harness.sendMessage).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// processMessage() — shutdown
-// ---------------------------------------------------------------------------
-
-describe("processMessage() — shutdown", () => {
-  test("calls harness.stop() and emits shutdown event", async () => {
-    const harness = createMockHarness();
-    const envelope = makeEnvelope({ type: "shutdown", payload: {} });
-
-    // Capture stdout manually so we retain lines even if process.exit throws
-    const lines: string[] = [];
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
-      if (typeof chunk === "string") {
-        chunk
-          .split("\n")
-          .filter(Boolean)
-          .forEach((l) => lines.push(l));
-      }
-      return true;
-    });
-
-    // Mock process.exit to prevent actual exit
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("EXIT");
-    });
-
-    let exitCalledWith: number | undefined;
-    try {
-      await processMessage(harness, { ...baseConfig }, envelope);
-    } catch (e: unknown) {
-      if (e instanceof Error && e.message !== "EXIT") throw e;
-    } finally {
-      // Record the call before restoring so assertions work after restore
-      const calls = exitSpy.mock.calls;
-      exitCalledWith = calls.length > 0 ? (calls[0][0] as number) : undefined;
-      writeSpy.mockRestore();
-      exitSpy.mockRestore();
-    }
-
-    const events = lines.map((l) => JSON.parse(l) as { type: string; payload: Record<string, unknown> });
-
-    expect(harness.stop).toHaveBeenCalled();
-    expect(events.map((e) => e.type)).toContain("shutdown");
-    expect(exitCalledWith).toBe(0);
   });
 });
 
@@ -302,7 +188,7 @@ describe("processMessage() — unknown type", () => {
 
     let threw = false;
     try {
-      await processMessage(harness, { ...baseConfig }, envelope);
+      await processMessage(harness, envelope);
     } catch {
       threw = true;
     }
@@ -313,7 +199,7 @@ describe("processMessage() — unknown type", () => {
     const harness = createMockHarness();
     const envelope = makeEnvelope({ type: "noop", payload: {} });
 
-    await processMessage(harness, { ...baseConfig }, envelope);
+    await processMessage(harness, envelope);
 
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });

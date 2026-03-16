@@ -150,21 +150,27 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
         {:noreply, socket}
 
       :error ->
-        case AgentManager.get_sprite(agent.id) do
-          {:ok, sprite} when not is_nil(sprite) ->
-            case TerminalSession.start_link(agent_id: agent.id, sprite: sprite) do
-              {:ok, _pid} ->
-                Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "terminal:#{agent.id}")
-                {:noreply, socket}
+        try do
+          case AgentManager.get_sprite(agent.id) do
+            {:ok, sprite} when not is_nil(sprite) ->
+              case TerminalSession.start_link(agent_id: agent.id, sprite: sprite) do
+                {:ok, _pid} ->
+                  Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "terminal:#{agent.id}")
+                  {:noreply, socket}
 
-              {:error, reason} ->
-                {:noreply,
-                 push_event(socket, "terminal-exit", %{code: 1, error: inspect(reason)})}
-            end
+                {:error, reason} ->
+                  {:noreply,
+                   push_event(socket, "terminal-exit", %{code: 1, error: inspect(reason)})}
+              end
 
-          _ ->
+            _ ->
+              {:noreply,
+               push_event(socket, "terminal-exit", %{code: 1, error: "No sprite available"})}
+          end
+        catch
+          :exit, _ ->
             {:noreply,
-             push_event(socket, "terminal-exit", %{code: 1, error: "No sprite available"})}
+             push_event(socket, "terminal-exit", %{code: 1, error: "Agent is not running"})}
         end
     end
   end
@@ -212,14 +218,20 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
 
   @impl true
   def handle_info({:status, _status}, socket) do
-    agent = Agents.get_agent!(socket.assigns.agent.id)
-    {:noreply, assign(socket, :agent, agent)}
+    case Agents.get_agent(socket.assigns.agent.id) do
+      {:ok, agent} ->
+        {:noreply, assign(socket, :agent, agent)}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_info({:agent_event, event}, socket) do
     agent = socket.assigns.agent
-    messages = socket.assigns.messages
+    # Strip ephemeral streaming entry from previous render before processing
+    messages = Enum.reject(socket.assigns.messages, &(&1[:role] == "agent_streaming"))
     streaming_text = socket.assigns.streaming_text
 
     {messages, streaming_text} =

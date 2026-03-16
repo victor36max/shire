@@ -7,6 +7,14 @@ defmodule SpriteAgents.Agents do
   def list_agents, do: Repo.all(from a in Agent, where: a.is_base == false)
   def list_base_recipes, do: Repo.all(from a in Agent, where: a.is_base == true)
   def get_agent!(id), do: Repo.get!(Agent, id)
+
+  def get_agent(id) do
+    case Repo.get(Agent, id) do
+      nil -> {:error, :not_found}
+      agent -> {:ok, agent}
+    end
+  end
+
   def create_agent(attrs), do: %Agent{} |> Agent.changeset(attrs) |> Repo.insert()
   def update_agent(%Agent{} = agent, attrs), do: agent |> Agent.changeset(attrs) |> Repo.update()
   def delete_agent(%Agent{} = agent), do: Repo.delete(agent)
@@ -14,6 +22,12 @@ defmodule SpriteAgents.Agents do
 
   def update_agent_status(%Agent{} = agent, status) do
     agent |> Agent.status_changeset(%{status: status}) |> Repo.update()
+  end
+
+  @doc "List agents that were running before server restart."
+  def list_previously_active do
+    stale = [:starting, :bootstrapping, :active]
+    Repo.all(from a in Agent, where: a.status in ^stale)
   end
 
   def find_base_recipe_by_name(name) do

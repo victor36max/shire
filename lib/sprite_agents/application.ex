@@ -26,11 +26,38 @@ defmodule SpriteAgents.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: SpriteAgents.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+
+    # Auto-restart agents that were active before server restart
+    restart_previously_active_agents()
+
+    result
   end
 
   # Tell Phoenix to update the endpoint configuration
   # whenever the application is updated.
+  defp restart_previously_active_agents do
+    agents = SpriteAgents.Agents.list_previously_active()
+
+    if agents != [] do
+      require Logger
+      Logger.info("Auto-restarting #{length(agents)} previously active agent(s)")
+
+      for agent <- agents do
+        Task.start(fn ->
+          case SpriteAgents.Agent.Coordinator.start_agent(agent.id) do
+            {:ok, _pid} ->
+              Logger.info("Auto-restarted agent #{agent.id}")
+
+            {:error, reason} ->
+              Logger.warning("Failed to auto-restart agent #{agent.id}: #{inspect(reason)}")
+              SpriteAgents.Agents.update_agent_status(agent, :failed)
+          end
+        end)
+      end
+    end
+  end
+
   @impl true
   def config_change(changed, _new, removed) do
     SpriteAgentsWeb.Endpoint.config_change(changed, removed)

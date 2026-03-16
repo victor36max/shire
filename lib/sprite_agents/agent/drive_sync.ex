@@ -107,6 +107,10 @@ defmodule SpriteAgents.Agent.DriveSync do
         Logger.error("Failed to create shared drive Sprite on init: #{inspect(reason)}")
         {:noreply, state}
     end
+  rescue
+    e ->
+      Logger.error("DriveSync init_sprite crashed: #{inspect(e)}")
+      {:noreply, state}
   end
 
   @impl true

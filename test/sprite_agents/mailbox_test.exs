@@ -6,13 +6,9 @@ defmodule SpriteAgents.MailboxTest do
   describe "encode/3" do
     test "encodes a user_message envelope" do
       envelope =
-        Mailbox.encode("user_message", "coordinator", %{text: "hello"},
-          seq: 1,
-          ts: 1_710_500_000_000
-        )
+        Mailbox.encode("user_message", "coordinator", %{text: "hello"}, ts: 1_710_500_000_000)
 
       decoded = Jason.decode!(envelope)
-      assert decoded["seq"] == 1
       assert decoded["ts"] == 1_710_500_000_000
       assert decoded["type"] == "user_message"
       assert decoded["from"] == "coordinator"
@@ -21,7 +17,7 @@ defmodule SpriteAgents.MailboxTest do
 
     test "encodes an agent_message envelope" do
       envelope =
-        Mailbox.encode("agent_message", "alice", %{text: "hi bob"}, seq: 5, ts: 1_710_500_001_000)
+        Mailbox.encode("agent_message", "alice", %{text: "hi bob"}, ts: 1_710_500_001_000)
 
       decoded = Jason.decode!(envelope)
       assert decoded["type"] == "agent_message"
@@ -29,7 +25,7 @@ defmodule SpriteAgents.MailboxTest do
       assert decoded["payload"]["text"] == "hi bob"
     end
 
-    test "auto-generates seq and ts when not provided" do
+    test "auto-generates ts when not provided" do
       envelope = Mailbox.encode("user_message", "coordinator", %{text: "hello"})
       decoded = Jason.decode!(envelope)
       assert is_integer(decoded["ts"])
@@ -41,7 +37,6 @@ defmodule SpriteAgents.MailboxTest do
     test "decodes a valid envelope" do
       json =
         Jason.encode!(%{
-          seq: 1,
           ts: 1_710_500_000_000,
           type: "user_message",
           from: "coordinator",
@@ -59,15 +54,9 @@ defmodule SpriteAgents.MailboxTest do
     end
   end
 
-  describe "filename/2" do
-    test "formats filename with zero-padded seq" do
-      assert Mailbox.filename(1, "user_message", ts: 1_710_500_000_000) ==
-               "000001_1710500000000_user_message.json"
-    end
-
-    test "formats filename with large seq" do
-      assert Mailbox.filename(999, "agent_message", ts: 1_710_500_001_000) ==
-               "000999_1710500001000_agent_message.json"
+  describe "filename/1" do
+    test "formats filename from timestamp" do
+      assert Mailbox.filename(1_710_500_000_000) == "1710500000000.json"
     end
   end
 

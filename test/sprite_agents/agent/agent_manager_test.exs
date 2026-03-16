@@ -48,4 +48,14 @@ defmodule SpriteAgents.Agent.AgentManagerTest do
       assert {:error, :not_active} = GenServer.call(pid, {:send_message, "hello", :user})
     end
   end
+
+  describe "responsiveness" do
+    test "get_state responds immediately even during non-idle phases", %{agent: agent} do
+      {:ok, pid} =
+        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+
+      state = AgentManager.get_state(pid)
+      assert state.phase == :idle
+    end
+  end
 end

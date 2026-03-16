@@ -113,10 +113,12 @@ Full precommit (compile + format + test):
 mix precommit
 ```
 
-**Rules:**
-- Always write tests for new features and bug fixes
-- Always run verification after implementing changes — don't leave broken builds
+**Rules (CRITICAL — never skip these):**
+- **Always write tests for new features and bug fixes** — no exceptions, every new function/behavior must have corresponding test coverage
+- **Always run verification after implementing changes** — don't leave broken builds
+- **Fix ALL test failures before claiming work is done** — including pre-existing failures unrelated to your change. If tests are failing, fix them.
 - Fix warnings and type errors before considering work done
+- **Always fix any bug, lint, or type check issue you see along the way**, regardless of whether it's related to your current change — never dismiss failures as "pre-existing" or "unrelated"
 
 ## Guidelines
 

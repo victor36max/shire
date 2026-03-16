@@ -152,6 +152,18 @@ defmodule SpriteAgents.AgentsTest do
     end
   end
 
+  describe "get_agent/1" do
+    test "returns {:ok, agent} for existing agent" do
+      {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
+      assert {:ok, fetched} = Agents.get_agent(agent.id)
+      assert fetched.id == agent.id
+    end
+
+    test "returns {:error, :not_found} for non-existent agent" do
+      assert {:error, :not_found} = Agents.get_agent(0)
+    end
+  end
+
   describe "recipe helpers" do
     test "parse_recipe/1 parses valid YAML" do
       {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe("helper-test")})

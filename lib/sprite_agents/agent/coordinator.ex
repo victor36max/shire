@@ -16,8 +16,8 @@ defmodule SpriteAgents.Agent.Coordinator do
 
   # --- Public API ---
 
-  def start_agent(agent_id) do
-    GenServer.call(__MODULE__, {:start_agent, agent_id})
+  def start_agent(agent_id, opts \\ []) do
+    GenServer.call(__MODULE__, {:start_agent, agent_id, opts})
   end
 
   def stop_agent(agent_id) do
@@ -28,12 +28,17 @@ defmodule SpriteAgents.Agent.Coordinator do
     AgentManager.send_message(agent_id, text, :user)
   end
 
-  def route_agent_message(from_agent_name, to_agent_name, text) do
-    # Resolve target agent by name (from peers.json)
-    to_agent_id = find_running_agent_id_by_name(to_agent_name)
+  @doc """
+  Called by AgentManager when it reaches :active phase.
+  Triggers a debounced broadcast to update all running agents' peer lists.
+  """
+  def request_peers(agent_id) do
+    GenServer.cast(__MODULE__, {:request_peers, agent_id})
+  end
 
-    case to_agent_id && lookup(to_agent_id) do
-      {:ok, _pid} ->
+  def route_agent_message(from_agent_name, to_agent_name, text) do
+    case lookup_by_name(to_agent_name) do
+      {:ok, to_agent_id} ->
         try do
           AgentManager.send_message(to_agent_id, text, {:agent, from_agent_name})
         catch
@@ -42,7 +47,7 @@ defmodule SpriteAgents.Agent.Coordinator do
               "Failed to route message from #{from_agent_name} to #{to_agent_name}: #{inspect(reason)}"
             )
 
-            broadcast_to_agent_by_name(
+            broadcast_to_agent(
               from_agent_name,
               {:agent_event,
                %{
@@ -54,10 +59,10 @@ defmodule SpriteAgents.Agent.Coordinator do
             {:error, :delivery_failed}
         end
 
-      _ ->
+      {:error, :not_found} ->
         Logger.warning("Agent #{to_agent_name} not found for message from #{from_agent_name}")
 
-        broadcast_to_agent_by_name(
+        broadcast_to_agent(
           from_agent_name,
           {:agent_event,
            %{
@@ -83,33 +88,39 @@ defmodule SpriteAgents.Agent.Coordinator do
     ])
   end
 
+  @doc "Returns all running agents as `[{agent_id, pid, agent_name}]`."
+  def list_running_with_names do
+    Registry.select(SpriteAgents.AgentRegistry, [
+      {{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2", :"$3"}}]}
+    ])
+  end
+
+  @doc "Look up a running agent's id by its recipe name. Registry scan, no DB queries."
+  def lookup_by_name(name) do
+    result =
+      Registry.select(SpriteAgents.AgentRegistry, [
+        {{:"$1", :_, :"$2"}, [{:==, :"$2", name}], [:"$1"]}
+      ])
+
+    case result do
+      [agent_id | _] -> {:ok, agent_id}
+      [] -> {:error, :not_found}
+    end
+  end
+
   def broadcast_peers do
-    running = list_running()
-
-    peers =
-      Enum.map(running, fn {agent_id, _pid} ->
-        agent = Agents.get_agent!(agent_id)
-        recipe = Agent.parse_recipe!(agent)
-        %{name: recipe["name"], description: truncate(recipe["description"] || "", 200)}
-      end)
-
-    Enum.each(running, fn {agent_id, pid} ->
-      agent = Agents.get_agent!(agent_id)
-      name = Agent.recipe_name(agent)
-      filtered = Enum.reject(peers, fn p -> p.name == name end)
-      GenServer.cast(pid, {:update_peers, filtered})
-    end)
+    do_broadcast_peers()
   end
 
   # --- Callbacks ---
 
   @impl true
   def init(_opts) do
-    {:ok, %{monitors: %{}}}
+    {:ok, %{monitors: %{}, broadcast_timer: nil}}
   end
 
   @impl true
-  def handle_call({:start_agent, agent_id}, _from, state) do
+  def handle_call({:start_agent, agent_id, _opts}, _from, state) do
     state = ensure_monitors(state)
 
     case lookup(agent_id) do
@@ -133,8 +144,8 @@ defmodule SpriteAgents.Agent.Coordinator do
               ref = Process.monitor(pid)
               monitors = Map.put(state.monitors, ref, agent_id)
               Logger.info("Started agent #{agent_id} (pid: #{inspect(pid)})")
-              Task.start(fn -> broadcast_peers() end)
-              {:reply, {:ok, pid}, %{state | monitors: monitors}}
+              state = schedule_peer_broadcast(%{state | monitors: monitors})
+              {:reply, {:ok, pid}, state}
 
             {:error, reason} ->
               Logger.error("Failed to start agent #{agent_id}: #{inspect(reason)}")
@@ -160,16 +171,14 @@ defmodule SpriteAgents.Agent.Coordinator do
 
         if ref, do: Process.demonitor(ref, [:flush])
 
-        try do
-          agent = Agents.get_agent!(agent_id)
-          Agents.update_agent_status(agent, :created)
-        rescue
-          _ -> :ok
+        case Agents.get_agent(agent_id) do
+          {:ok, agent} -> Agents.update_agent_status(agent, :created)
+          {:error, :not_found} -> :ok
         end
 
         Logger.info("Stopped agent #{agent_id}")
-        Task.start(fn -> broadcast_peers() end)
-        {:reply, :ok, %{state | monitors: monitors}}
+        state = schedule_peer_broadcast(%{state | monitors: monitors})
+        {:reply, :ok, state}
 
       {:error, :not_found} ->
         {:reply, {:error, :not_found}, state}
@@ -197,36 +206,82 @@ defmodule SpriteAgents.Agent.Coordinator do
         _ -> :ok
       end
 
-      Task.start(fn -> broadcast_peers() end)
+      state = schedule_peer_broadcast(%{state | monitors: monitors})
+      {:noreply, state}
+    else
+      {:noreply, %{state | monitors: monitors}}
     end
+  end
 
-    {:noreply, %{state | monitors: monitors}}
+  @impl true
+  def handle_info(:broadcast_peers, state) do
+    do_broadcast_peers()
+    {:noreply, %{state | broadcast_timer: nil}}
+  end
+
+  @impl true
+  def handle_cast({:request_peers, _agent_id}, state) do
+    state = ensure_monitors(state)
+    state = schedule_peer_broadcast(state)
+    {:noreply, state}
   end
 
   # --- Private ---
 
-  defp find_running_agent_id_by_name(name) do
-    running = list_running()
+  defp do_broadcast_peers do
+    running = list_running_with_names()
 
-    Enum.find_value(running, fn {agent_id, _pid} ->
-      agent = Agents.get_agent!(agent_id)
+    agent_data =
+      Enum.flat_map(running, fn {agent_id, pid, agent_name} ->
+        case Agents.get_agent(agent_id) do
+          {:ok, agent} ->
+            recipe = Agent.parse_recipe!(agent)
 
-      if Agent.recipe_name(agent) == name do
-        agent_id
-      end
+            [
+              %{
+                pid: pid,
+                name: agent_name,
+                description: truncate(recipe["description"] || "", 200)
+              }
+            ]
+
+          {:error, :not_found} ->
+            Logger.warning("Agent #{agent_id} in Registry but missing from DB, skipping")
+            []
+        end
+      end)
+
+    peers = Enum.map(agent_data, &%{name: &1.name, description: &1.description})
+
+    Enum.each(agent_data, fn %{pid: pid, name: name} ->
+      filtered = Enum.reject(peers, fn p -> p.name == name end)
+      GenServer.cast(pid, {:update_peers, filtered})
     end)
   end
 
-  defp broadcast_to_agent_by_name(name, message) do
-    agent_id = find_running_agent_id_by_name(name)
+  defp schedule_peer_broadcast(state) do
+    if state.broadcast_timer, do: Process.cancel_timer(state.broadcast_timer)
+    timer = Process.send_after(self(), :broadcast_peers, 500)
+    %{state | broadcast_timer: timer}
+  end
 
-    if agent_id do
-      Phoenix.PubSub.broadcast(SpriteAgents.PubSub, "agent:#{agent_id}", message)
+  defp broadcast_to_agent(name, message) do
+    case lookup_by_name(name) do
+      {:ok, agent_id} ->
+        Phoenix.PubSub.broadcast(SpriteAgents.PubSub, "agent:#{agent_id}", message)
+
+      _ ->
+        :ok
     end
   end
 
-  defp ensure_monitors(%{monitors: _} = state), do: state
-  defp ensure_monitors(state), do: Map.put(state, :monitors, %{})
+  defp ensure_monitors(%{monitors: _, broadcast_timer: _} = state), do: state
+
+  defp ensure_monitors(state) do
+    state
+    |> Map.put_new(:monitors, %{})
+    |> Map.put_new(:broadcast_timer, nil)
+  end
 
   defp truncate(text, max_length) when byte_size(text) <= max_length, do: text
 

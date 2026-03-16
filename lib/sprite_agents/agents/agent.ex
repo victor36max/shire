@@ -9,7 +9,16 @@ defmodule SpriteAgents.Agents.Agent do
     field :is_base, :boolean, default: false
 
     field :status, Ecto.Enum,
-      values: [:created, :starting, :active, :sleeping, :failed, :crashed, :destroyed],
+      values: [
+        :created,
+        :starting,
+        :bootstrapping,
+        :active,
+        :sleeping,
+        :failed,
+        :crashed,
+        :destroyed
+      ],
       default: :created
 
     has_many :secrets, SpriteAgents.Agents.Secret

@@ -19,7 +19,6 @@ export interface AgentConfig {
 }
 
 export interface MessageEnvelope {
-  seq: number;
   ts: number;
   type: string;
   from: string;
@@ -36,12 +35,7 @@ export async function loadConfig(path = CONFIG_PATH): Promise<AgentConfig> {
   return JSON.parse(raw);
 }
 
-export async function processMessage(
-  harness: Harness,
-  config: AgentConfig,
-  envelope: MessageEnvelope,
-  loadConfigFn: () => Promise<AgentConfig> = loadConfig,
-): Promise<{ harness: Harness; config: AgentConfig }> {
+export async function processMessage(harness: Harness, envelope: MessageEnvelope): Promise<void> {
   if (envelope.type === "user_message" || envelope.type === "agent_message") {
     const text = envelope.payload.text as string;
     const from = envelope.type === "agent_message" ? envelope.from : undefined;
@@ -49,54 +43,24 @@ export async function processMessage(
   } else if (envelope.type === "interrupt") {
     await harness.interrupt();
     emit("interrupted", {});
-  } else if (envelope.type === "shutdown") {
-    await harness.stop();
-    emit("shutdown", {});
-    process.exit(0);
-  } else if (envelope.type === "configure") {
-    await harness.stop();
-    const newConfig = await loadConfigFn();
-    Object.assign(config, newConfig);
-    const newHarness = createHarness(config.harness);
-    newHarness.onEvent((event) => emit(event.type, event.payload));
-    await newHarness.start({
-      model: config.model,
-      systemPrompt: config.system_prompt,
-      cwd: "/workspace",
-      maxTokens: config.max_tokens,
-    });
-    emit("configured", { model: config.model });
-    return { harness: newHarness, config };
   }
-
-  return { harness, config };
 }
 
-export async function processInbox(
-  harness: Harness,
-  config: AgentConfig,
-): Promise<{ harness: Harness; config: AgentConfig }> {
+export async function processInbox(harness: Harness): Promise<void> {
   const files = await readdir(INBOX_DIR);
   const sorted = files.filter((f) => f.endsWith(".json")).sort();
-
-  let currentHarness = harness;
-  let currentConfig = config;
 
   for (const file of sorted) {
     const path = join(INBOX_DIR, file);
     try {
       const raw = await readFile(path, "utf-8");
       const envelope: MessageEnvelope = JSON.parse(raw);
-      const result = await processMessage(currentHarness, currentConfig, envelope);
-      currentHarness = result.harness;
-      currentConfig = result.config;
+      await processMessage(harness, envelope);
       await unlink(path);
     } catch (err) {
       emit("error", { message: `Failed to process ${file}: ${err}` });
     }
   }
-
-  return { harness: currentHarness, config: currentConfig };
 }
 
 export async function processOutbox(outboxDir = OUTBOX_DIR): Promise<number> {
@@ -133,7 +97,7 @@ export async function processOutbox(outboxDir = OUTBOX_DIR): Promise<number> {
 
 async function main() {
   const config = await loadConfig();
-  let harness = createHarness(config.harness);
+  const harness = createHarness(config.harness);
 
   harness.onEvent((event) => emit(event.type, event.payload));
   await harness.start({
@@ -148,16 +112,14 @@ async function main() {
   let processing = false;
 
   // Process any existing inbox messages
-  const result = await processInbox(harness, config);
-  harness = result.harness;
+  await processInbox(harness);
 
   // Watch for new messages
   const watcher = watch(INBOX_DIR, async (_eventType: string, filename: string | null) => {
     if (!filename?.endsWith(".json") || processing) return;
     processing = true;
     try {
-      const result = await processInbox(harness, config);
-      harness = result.harness;
+      await processInbox(harness);
     } finally {
       processing = false;
     }

@@ -60,6 +60,8 @@ defmodule SpriteAgents.Agent.AgentManager do
   - Maximum file size: 1MB per file
   """
 
+  @cmd_timeout 30_000
+
   defstruct [
     :agent_id,
     :agent_name,
@@ -69,7 +71,6 @@ defmodule SpriteAgents.Agent.AgentManager do
     :command_ref,
     :pubsub_topic,
     phase: :idle,
-    inbox_seq: 0,
     buffer: ""
   ]
 
@@ -79,7 +80,9 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   def start_link(opts) do
     agent = Keyword.fetch!(opts, :agent)
-    GenServer.start_link(__MODULE__, opts, name: via(agent.id))
+    recipe = Agent.parse_recipe!(agent)
+    agent_name = recipe["name"] || "agent-#{agent.id}"
+    GenServer.start_link(__MODULE__, opts, name: via(agent.id, agent_name))
   end
 
   def send_message(agent_id, text, from \\ :user) do
@@ -100,6 +103,10 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   defp via(agent_id) do
     {:via, Registry, {SpriteAgents.AgentRegistry, agent_id}}
+  end
+
+  defp via(agent_id, agent_name) do
+    {:via, Registry, {SpriteAgents.AgentRegistry, agent_id, agent_name}}
   end
 
   # --- Callbacks ---
@@ -132,6 +139,7 @@ defmodule SpriteAgents.Agent.AgentManager do
   def handle_continue(:start_sprite, state) do
     state = %{state | phase: :starting}
     broadcast(state, {:status, :starting})
+    update_agent_status(state, :starting)
 
     slug = state.agent_name |> String.downcase() |> String.replace(~r/[^a-z0-9-]/, "-")
     sprite_name = "flyagents-#{slug}"
@@ -140,6 +148,7 @@ defmodule SpriteAgents.Agent.AgentManager do
       {:ok, sprite} ->
         state = %{state | sprite: sprite, phase: :bootstrapping}
         broadcast(state, {:status, :bootstrapping})
+        update_agent_status(state, :bootstrapping)
         {:noreply, state, {:continue, :bootstrap}}
 
       {:error, reason} ->
@@ -153,98 +162,20 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   @impl true
   def handle_continue(:bootstrap, state) do
+    agent_id = state.agent_id
     sprite = state.sprite
 
-    try do
-      # Run bootstrap script
-      bootstrap_script =
-        File.read!(Application.app_dir(:sprite_agents, "priv/sprite/bootstrap.sh"))
+    Task.start_link(fn ->
+      result = run_bootstrap(agent_id, sprite)
+      GenServer.cast(via(agent_id), {:bootstrap_complete, result})
+    end)
 
-      {_, 0} = Sprites.cmd(sprite, "bash", ["-c", bootstrap_script])
-
-      # Write agent config
-      agent = Agents.get_agent!(state.agent_id)
-      recipe = Agent.parse_recipe!(agent)
-      secrets = Agents.effective_secrets(state.agent_id)
-
-      harness = recipe["harness"] || "pi"
-
-      default_model =
-        case harness do
-          "claude_code" -> "claude-sonnet-4-6"
-          _ -> "anthropic/claude-sonnet-4-6"
-        end
-
-      system_prompt =
-        (recipe["system_prompt"] || "You are a helpful assistant.") <> "\n\n" <> @comms_prompt
-
-      config =
-        Jason.encode!(%{
-          harness: harness,
-          model: recipe["model"] || default_model,
-          system_prompt: system_prompt,
-          max_tokens: 4096
-        })
-
-      fs = SpriteHelpers.filesystem(sprite)
-      :ok = Sprites.Filesystem.write(fs, "/workspace/agent-config.json", config)
-      :ok = Sprites.Filesystem.write(fs, "/workspace/peers.json", "[]")
-
-      # Write recipe JSON for recipe-runner
-      recipe_json = Jason.encode!(recipe)
-      :ok = Sprites.Filesystem.write(fs, "/workspace/recipe.json", recipe_json)
-
-      # Write secrets as environment variables file
-      env_content = Enum.map_join(secrets, "\n", fn s -> "#{s.key}=#{s.value}" end)
-      :ok = Sprites.Filesystem.write(fs, "/workspace/.env", env_content)
-
-      # Deploy all TypeScript source files
-      ts_files = [
-        "agent-runner.ts",
-        "harness/types.ts",
-        "harness/pi-harness.ts",
-        "harness/claude-code-harness.ts",
-        "harness/index.ts"
-      ]
-
-      for file <- ts_files do
-        source = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/#{file}"))
-        :ok = Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
-      end
-
-      # Deploy recipe-runner
-      recipe_runner = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/recipe-runner.ts"))
-      :ok = Sprites.Filesystem.write(fs, "/workspace/recipe-runner.ts", recipe_runner)
-
-      pkg_json = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/package.json"))
-      :ok = Sprites.Filesystem.write(fs, "/workspace/package.json", pkg_json)
-
-      # Run recipe scripts
-      if recipe["scripts"] && recipe["scripts"] != [] do
-        Sprites.cmd(sprite, "bun", ["run", "/workspace/recipe-runner.ts"], timeout: 300_000)
-      end
-
-      # Install deps
-      {_, 0} =
-        Sprites.cmd(sprite, "bash", ["-c", "cd /workspace && bun install"], timeout: 60_000)
-
-      # Sync shared drive files to agent
-      DriveSync.ensure_started()
-      DriveSync.sync_to_agent(state.agent_id, sprite)
-
-      {:noreply, state, {:continue, :spawn_runner}}
-    rescue
-      e ->
-        Logger.error("Bootstrap failed for #{state.agent_name}: #{inspect(e)}")
-        state = %{state | phase: :failed}
-        broadcast(state, {:status, :failed})
-        update_agent_status(state, :failed)
-        {:noreply, state}
-    end
+    {:noreply, state}
   end
 
   @impl true
   def handle_continue(:spawn_runner, state) do
+    kill_existing_runners(state.sprite)
     env = load_env_vars(state.sprite)
 
     case Sprites.spawn(state.sprite, "bun", ["run", "/workspace/agent-runner.ts"],
@@ -255,6 +186,7 @@ defmodule SpriteAgents.Agent.AgentManager do
         state = %{state | command: command, command_ref: command.ref, phase: :active}
         broadcast(state, {:status, :active})
         update_agent_status(state, :active)
+        SpriteAgents.Agent.Coordinator.request_peers(state.agent_id)
         {:noreply, state}
 
       {:error, reason} ->
@@ -281,12 +213,9 @@ defmodule SpriteAgents.Agent.AgentManager do
         {:agent, _} -> "agent_message"
       end
 
-    case Mailbox.write_inbox(state.sprite, type, %{text: text},
-           from: from_str,
-           seq: state.inbox_seq + 1
-         ) do
-      {:ok, seq} ->
-        {:reply, :ok, %{state | inbox_seq: seq}}
+    case Mailbox.write_inbox(state.sprite, type, %{text: text}, from: from_str) do
+      :ok ->
+        {:reply, :ok, state}
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
@@ -359,6 +288,19 @@ defmodule SpriteAgents.Agent.AgentManager do
   end
 
   @impl true
+  def handle_cast({:bootstrap_complete, :ok}, state) do
+    {:noreply, state, {:continue, :spawn_runner}}
+  end
+
+  def handle_cast({:bootstrap_complete, {:error, e}}, state) do
+    Logger.error("Bootstrap failed for #{state.agent_name}: #{inspect(e)}")
+    state = %{state | phase: :failed}
+    broadcast(state, {:status, :failed})
+    update_agent_status(state, :failed)
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_cast({:update_peers, peers}, %{phase: :active, sprite: sprite} = state)
       when not is_nil(sprite) do
     try do
@@ -393,7 +335,8 @@ defmodule SpriteAgents.Agent.AgentManager do
             "mkdir -p $(dirname '/workspace/shared/#{safe_path}') && " <>
             "cat > '/workspace/shared/#{safe_path}'"
         ],
-        stdin: content
+        stdin: content,
+        timeout: @cmd_timeout
       )
     rescue
       e ->
@@ -408,12 +351,17 @@ defmodule SpriteAgents.Agent.AgentManager do
     try do
       safe_path = String.replace(path, "'", "'\\''")
 
-      Sprites.cmd(sprite, "bash", [
-        "-c",
-        "mkdir -p /workspace/.drive-sync/$(dirname '#{safe_path}') && " <>
-          "touch '/workspace/.drive-sync/#{safe_path}' && " <>
-          "rm -f '/workspace/shared/#{safe_path}'"
-      ])
+      Sprites.cmd(
+        sprite,
+        "bash",
+        [
+          "-c",
+          "mkdir -p /workspace/.drive-sync/$(dirname '#{safe_path}') && " <>
+            "touch '/workspace/.drive-sync/#{safe_path}' && " <>
+            "rm -f '/workspace/shared/#{safe_path}'"
+        ],
+        timeout: @cmd_timeout
+      )
     rescue
       e ->
         Logger.warning(
@@ -428,12 +376,13 @@ defmodule SpriteAgents.Agent.AgentManager do
       when not is_nil(sprite) do
     try do
       safe_path = String.replace(path, "'", "'\\''")
-      Sprites.cmd(sprite, "mkdir", ["-p", "/workspace/shared/#{safe_path}"])
+
+      Sprites.cmd(sprite, "mkdir", ["-p", "/workspace/shared/#{safe_path}"],
+        timeout: @cmd_timeout
+      )
     rescue
       e ->
-        Logger.warning(
-          "Failed to create drive dir #{path} on #{state.agent_name}: #{inspect(e)}"
-        )
+        Logger.warning("Failed to create drive dir #{path} on #{state.agent_name}: #{inspect(e)}")
     end
 
     {:noreply, state}
@@ -443,12 +392,10 @@ defmodule SpriteAgents.Agent.AgentManager do
       when not is_nil(sprite) do
     try do
       safe_path = String.replace(path, "'", "'\\''")
-      Sprites.cmd(sprite, "rm", ["-rf", "/workspace/shared/#{safe_path}"])
+      Sprites.cmd(sprite, "rm", ["-rf", "/workspace/shared/#{safe_path}"], timeout: @cmd_timeout)
     rescue
       e ->
-        Logger.warning(
-          "Failed to delete drive dir #{path} on #{state.agent_name}: #{inspect(e)}"
-        )
+        Logger.warning("Failed to delete drive dir #{path} on #{state.agent_name}: #{inspect(e)}")
     end
 
     {:noreply, state}
@@ -467,6 +414,87 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   # --- Private ---
 
+  defp run_bootstrap(agent_id, sprite) do
+    bootstrap_script =
+      File.read!(Application.app_dir(:sprite_agents, "priv/sprite/bootstrap.sh"))
+
+    {_, 0} = Sprites.cmd(sprite, "bash", ["-c", bootstrap_script], timeout: 120_000)
+
+    agent = Agents.get_agent!(agent_id)
+    recipe = Agent.parse_recipe!(agent)
+    secrets = Agents.effective_secrets(agent_id)
+
+    harness = recipe["harness"] || "pi"
+
+    default_model =
+      case harness do
+        "claude_code" -> "claude-sonnet-4-6"
+        _ -> "anthropic/claude-sonnet-4-6"
+      end
+
+    system_prompt =
+      (recipe["system_prompt"] || "You are a helpful assistant.") <> "\n\n" <> @comms_prompt
+
+    config =
+      Jason.encode!(%{
+        harness: harness,
+        model: recipe["model"] || default_model,
+        system_prompt: system_prompt,
+        max_tokens: 4096
+      })
+
+    fs = SpriteHelpers.filesystem(sprite)
+    :ok = Sprites.Filesystem.write(fs, "/workspace/agent-config.json", config)
+    :ok = Sprites.Filesystem.write(fs, "/workspace/peers.json", "[]")
+
+    recipe_json = Jason.encode!(recipe)
+    :ok = Sprites.Filesystem.write(fs, "/workspace/recipe.json", recipe_json)
+
+    env_content = Enum.map_join(secrets, "\n", fn s -> "#{s.key}=#{s.value}" end)
+    :ok = Sprites.Filesystem.write(fs, "/workspace/.env", env_content)
+
+    ts_files = [
+      "agent-runner.ts",
+      "harness/types.ts",
+      "harness/pi-harness.ts",
+      "harness/claude-code-harness.ts",
+      "harness/index.ts"
+    ]
+
+    for file <- ts_files do
+      source = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/#{file}"))
+      :ok = Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
+    end
+
+    recipe_runner =
+      File.read!(Application.app_dir(:sprite_agents, "priv/sprite/recipe-runner.ts"))
+
+    :ok = Sprites.Filesystem.write(fs, "/workspace/recipe-runner.ts", recipe_runner)
+
+    pkg_json = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/package.json"))
+    :ok = Sprites.Filesystem.write(fs, "/workspace/package.json", pkg_json)
+
+    if recipe["scripts"] && recipe["scripts"] != [] do
+      Sprites.cmd(sprite, "bun", ["run", "/workspace/recipe-runner.ts"], timeout: 300_000)
+    end
+
+    {_, 0} =
+      Sprites.cmd(sprite, "bash", ["-c", "cd /workspace && bun install"], timeout: 60_000)
+
+    DriveSync.ensure_started()
+    DriveSync.sync_to_agent(agent_id, sprite)
+
+    :ok
+  rescue
+    e -> {:error, e}
+  end
+
+  defp kill_existing_runners(sprite) do
+    Sprites.cmd(sprite, "pkill", ["-f", "agent-runner"], timeout: @cmd_timeout)
+  rescue
+    _ -> :ok
+  end
+
   defp split_lines(data) do
     parts = String.split(data, "\n")
     {complete, [rest]} = Enum.split(parts, -1)
@@ -478,8 +506,13 @@ defmodule SpriteAgents.Agent.AgentManager do
   end
 
   defp update_agent_status(state, status) do
-    agent = Agents.get_agent!(state.agent_id)
-    Agents.update_agent(agent, %{status: status})
+    case Agents.get_agent(state.agent_id) do
+      {:ok, agent} ->
+        Agents.update_agent_status(agent, status)
+
+      {:error, :not_found} ->
+        Logger.warning("Agent #{state.agent_id} deleted, skipping status update to #{status}")
+    end
   end
 
   defp get_or_create_sprite(client, name) do
