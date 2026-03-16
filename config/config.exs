@@ -57,6 +57,9 @@ config :sprite_agents, SpriteAgents.Vault,
        tag: "AES.GCM.V1", key: Base.decode64!("YitIszs1Fk8VGU/kZmrg9lmjaw79vjHDqcKTO5nzChY=")}
   ]
 
+# Sprites client — token configured per-environment
+config :sprite_agents, :sprites_token, nil
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

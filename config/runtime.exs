@@ -23,6 +23,15 @@ end
 config :sprite_agents, SpriteAgentsWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Sprites — optional in dev, required in prod
+sprites_token = System.get_env("SPRITES_TOKEN")
+
+if config_env() == :prod && is_nil(sprites_token) do
+  raise "environment variable SPRITES_TOKEN is missing."
+end
+
+config :sprite_agents, :sprites_token, sprites_token
+
 if config_env() == :prod do
   cloak_key =
     System.get_env("CLOAK_KEY") ||
