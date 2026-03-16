@@ -104,9 +104,15 @@ defmodule SpriteAgents.Agent.AgentManager do
       agent = Agents.get_agent!(state.agent_id)
       secrets = Agents.effective_secrets(state.agent_id)
 
+      default_model = case agent.harness do
+        :claude_code -> "claude-sonnet-4-6"
+        _ -> "anthropic/claude-sonnet-4-6"
+      end
+
       config =
         Jason.encode!(%{
-          model: agent.model || "claude-sonnet-4-6",
+          harness: agent.harness || "pi",
+          model: agent.model || default_model,
           system_prompt: agent.system_prompt || "You are a helpful assistant.",
           max_tokens: 4096
         })
@@ -118,11 +124,24 @@ defmodule SpriteAgents.Agent.AgentManager do
       env_content = Enum.map_join(secrets, "\n", fn s -> "#{s.key}=#{s.value}" end)
       Sprites.Filesystem.write(fs, "/workspace/.env", env_content)
 
-      # Deploy agent-runner
-      runner_source =
-        File.read!(Application.app_dir(:sprite_agents, "priv/sprite/agent-runner.ts"))
+      # Deploy all TypeScript source files
+      ts_files = [
+        "agent-runner.ts",
+        "harness/types.ts",
+        "harness/pi-harness.ts",
+        "harness/claude-code-harness.ts",
+        "harness/index.ts"
+      ]
 
-      Sprites.Filesystem.write(fs, "/workspace/agent-runner.ts", runner_source)
+      for file <- ts_files do
+        source = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/#{file}"))
+        # Ensure harness subdirectory exists
+        if String.contains?(file, "/") do
+          dir = Path.dirname("/workspace/#{file}")
+          Sprites.cmd(sprite, "mkdir", ["-p", dir])
+        end
+        Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
+      end
 
       pkg_json = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/package.json"))
       Sprites.Filesystem.write(fs, "/workspace/package.json", pkg_json)
