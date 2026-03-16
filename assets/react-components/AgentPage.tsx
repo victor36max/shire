@@ -14,17 +14,11 @@ import {
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
 
-interface Agent {
-  id: number;
-  name: string;
-  status: string;
-  model: string | null;
-  system_prompt: string | null;
-}
+import { type Agent, type HarnessType } from "./types";
 
 interface AgentPageProps {
   agents: Agent[];
-  editAgent: { id?: number; name?: string; model?: string; system_prompt?: string } | null;
+  editAgent: { id?: number; name?: string; model?: string; system_prompt?: string; harness?: HarnessType } | null;
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }
 
@@ -54,7 +48,12 @@ export default function AgentPage({ agents, editAgent, pushEvent }: AgentPagePro
 
   const handleEdit = (e: React.MouseEvent, agent: Agent) => {
     e.stopPropagation();
-    setCurrentAgent({ name: agent.name, model: agent.model ?? "", system_prompt: agent.system_prompt ?? "" });
+    setCurrentAgent({
+      name: agent.name,
+      model: agent.model ?? "",
+      system_prompt: agent.system_prompt ?? "",
+      harness: agent.harness,
+    });
     setEditingId(agent.id);
     setFormTitle("Edit Agent");
     setFormOpen(true);
@@ -73,7 +72,7 @@ export default function AgentPage({ agents, editAgent, pushEvent }: AgentPagePro
   };
 
   const handleClick = (agent: Agent) => {
-    window.location.href = `/agents/${agent.id}`;
+    window.location.assign(`/agents/${agent.id}`);
   };
 
   const handleFormClose = () => {
@@ -91,82 +90,78 @@ export default function AgentPage({ agents, editAgent, pushEvent }: AgentPagePro
 
   return (
     <AppLayout>
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Agents</h1>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => (window.location.href = "/secrets")}
-          >
-            Manage Secrets
-          </Button>
-          <Button onClick={handleNew}>New Agent</Button>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Agents</h1>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => window.location.assign("/secrets")}>
+              Manage Secrets
+            </Button>
+            <Button onClick={handleNew}>New Agent</Button>
+          </div>
         </div>
-      </div>
 
-      {agents.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <p className="text-lg font-medium">No agents yet</p>
-          <p className="text-sm mt-1">
-            Create your first agent to get started.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {agents.map((agent) => (
-            <div key={agent.id} className="relative group">
-              <AgentCard agent={agent} onClick={() => handleClick(agent)} />
-              <div className="absolute top-2 right-12 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => handleEdit(e, agent)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={(e) => handleDeleteClick(e, agent)}
-                >
-                  Delete
-                </Button>
+        {agents.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <p className="text-lg font-medium">No agents yet</p>
+            <p className="text-sm mt-1">Create your first agent to get started.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {agents.map((agent) => (
+              <div key={agent.id} className="relative group">
+                <AgentCard agent={agent} onClick={() => handleClick(agent)} />
+                <div className="absolute top-2 right-12 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={(e) => handleEdit(e, agent)}>
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={(e) => handleDeleteClick(e, agent)}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      <AgentForm
-        open={formOpen}
-        title={formTitle}
-        agent={currentAgent}
-        pushEvent={handleFormSave}
-        onClose={handleFormClose}
-      />
+        <AgentForm
+          open={formOpen}
+          title={formTitle}
+          agent={currentAgent}
+          pushEvent={handleFormSave}
+          onClose={handleFormClose}
+        />
 
-      <AlertDialog open={!!deleteAgent} onOpenChange={(open) => { if (!open) setDeleteAgent(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Agent</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{deleteAgent?.name}&rdquo;? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDeleteConfirm}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        <AlertDialog
+          open={!!deleteAgent}
+          onOpenChange={(open) => {
+            if (!open) setDeleteAgent(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Agent</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete &ldquo;{deleteAgent?.name}&rdquo;? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleDeleteConfirm}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </AppLayout>
   );
 }

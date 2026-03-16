@@ -11,7 +11,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
       Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "agent:#{agent.name}")
     end
 
-    {:ok, assign(socket, :agent, agent)}
+    {:ok, assign(socket, agent: agent, messages: [])}
   end
 
   @impl true
@@ -49,6 +49,21 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   end
 
   @impl true
+  def handle_event("send-message", %{"text" => text}, socket) do
+    agent = socket.assigns.agent
+
+    case SpriteAgents.Agent.Coordinator.send_message(agent.name, text) do
+      :ok ->
+        msg = %{role: "user", text: text, ts: DateTime.utc_now() |> to_string()}
+        messages = socket.assigns.messages ++ [msg]
+        {:noreply, assign(socket, :messages, messages)}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to send: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
   def handle_event("stop-agent", _params, socket) do
     agent = socket.assigns.agent
 
@@ -73,9 +88,38 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   end
 
   @impl true
-  def handle_info({:agent_event, _event}, socket) do
-    # For now, ignore agent events on the show page (chat page will use these)
-    {:noreply, socket}
+  def handle_info({:agent_event, event}, socket) do
+    messages = socket.assigns.messages
+
+    messages =
+      case event do
+        %{"type" => "text", "payload" => %{"text" => text}} ->
+          messages ++ [%{role: "agent", text: text, ts: DateTime.utc_now() |> to_string()}]
+
+        %{"type" => "text_delta", "payload" => %{"delta" => delta}} ->
+          case List.last(messages) do
+            %{role: "agent_streaming"} = last ->
+              List.replace_at(messages, -1, %{last | text: last.text <> delta})
+
+            _ ->
+              messages ++
+                [%{role: "agent_streaming", text: delta, ts: DateTime.utc_now() |> to_string()}]
+          end
+
+        %{"type" => "turn_complete"} ->
+          case List.last(messages) do
+            %{role: "agent_streaming"} = last ->
+              List.replace_at(messages, -1, %{last | role: "agent"})
+
+            _ ->
+              messages
+          end
+
+        _ ->
+          messages
+      end
+
+    {:noreply, assign(socket, :messages, messages)}
   end
 
   defp serialize_agent(agent) do
@@ -89,7 +133,7 @@ defmodule SpriteAgentsWeb.AgentLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <.react name="AgentShow" agent={serialize_agent(@agent)} socket={@socket} />
+    <.react name="AgentShow" agent={serialize_agent(@agent)} messages={@messages} socket={@socket} />
     """
   end
 end

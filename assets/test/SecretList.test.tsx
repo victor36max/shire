@@ -69,9 +69,7 @@ describe("SecretList", () => {
 
     expect(screen.getByText(/Are you sure you want to delete/)).toBeInTheDocument();
 
-    const confirmDelete = screen.getAllByText("Delete").find(
-      (el) => el.closest("[role='alertdialog']")
-    );
+    const confirmDelete = screen.getAllByText("Delete").find((el) => el.closest("[role='alertdialog']"));
     await userEvent.click(confirmDelete!);
 
     expect(pushEvent).toHaveBeenCalledWith("delete", { id: 1 });

@@ -1,14 +1,7 @@
 import * as React from "react";
 import AgentCard from "./AgentCard";
 import { Button } from "./components/ui/button";
-
-interface Agent {
-  id: number;
-  name: string;
-  status: string;
-  model: string | null;
-  system_prompt: string | null;
-}
+import type { Agent } from "./types";
 
 interface AgentListProps {
   agents: Agent[];
@@ -17,7 +10,7 @@ interface AgentListProps {
 
 export default function AgentList({ agents, pushEvent }: AgentListProps) {
   const handleClick = (agent: Agent) => {
-    window.location.href = `/agents/${agent.id}`;
+    window.location.assign(`/agents/${agent.id}`);
   };
 
   const handleDelete = (e: React.MouseEvent, agent: Agent) => {
@@ -37,10 +30,7 @@ export default function AgentList({ agents, pushEvent }: AgentListProps) {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Agents</h1>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => (window.location.href = "/secrets")}
-          >
+          <Button variant="outline" onClick={() => window.location.assign("/secrets")}>
             Manage Secrets
           </Button>
           <Button onClick={() => pushEvent("new-agent", {})}>New Agent</Button>
@@ -50,9 +40,7 @@ export default function AgentList({ agents, pushEvent }: AgentListProps) {
       {agents.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <p className="text-lg font-medium">No agents yet</p>
-          <p className="text-sm mt-1">
-            Create your first agent to get started.
-          </p>
+          <p className="text-sm mt-1">Create your first agent to get started.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -60,11 +48,7 @@ export default function AgentList({ agents, pushEvent }: AgentListProps) {
             <div key={agent.id} className="relative group">
               <AgentCard agent={agent} onClick={() => handleClick(agent)} />
               <div className="absolute top-2 right-12 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => handleEdit(e, agent)}
-                >
+                <Button variant="ghost" size="sm" onClick={(e) => handleEdit(e, agent)}>
                   Edit
                 </Button>
                 <Button

@@ -184,7 +184,8 @@ defmodule SpriteAgentsWeb.CoreComponents do
           id={@id}
           name={@name}
           class={[
-            @class || "w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500",
+            @class ||
+              "w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500",
             @errors != [] && (@error_class || "border-red-500")
           ]}
           multiple={@multiple}
@@ -208,7 +209,8 @@ defmodule SpriteAgentsWeb.CoreComponents do
           id={@id}
           name={@name}
           class={[
-            @class || "w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500",
+            @class ||
+              "w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500",
             @errors != [] && (@error_class || "border-red-500")
           ]}
           {@rest}
@@ -231,7 +233,8 @@ defmodule SpriteAgentsWeb.CoreComponents do
           id={@id}
           value={Phoenix.HTML.Form.normalize_value(@type, @value)}
           class={[
-            @class || "w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500",
+            @class ||
+              "w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500",
             @errors != [] && (@error_class || "border-red-500")
           ]}
           {@rest}
@@ -309,7 +312,10 @@ defmodule SpriteAgentsWeb.CoreComponents do
     <table class="w-full text-sm">
       <thead class="border-b border-gray-200">
         <tr>
-          <th :for={col <- @col} class="text-left p-3 text-xs font-medium uppercase tracking-wider text-gray-500">
+          <th
+            :for={col <- @col}
+            class="text-left p-3 text-xs font-medium uppercase tracking-wider text-gray-500"
+          >
             {col[:label]}
           </th>
           <th :if={@action != []} class="text-right p-3">
@@ -318,7 +324,11 @@ defmodule SpriteAgentsWeb.CoreComponents do
         </tr>
       </thead>
       <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
-        <tr :for={row <- @rows} id={@row_id && @row_id.(row)} class="border-b border-gray-100 hover:bg-gray-50">
+        <tr
+          :for={row <- @rows}
+          id={@row_id && @row_id.(row)}
+          class="border-b border-gray-100 hover:bg-gray-50"
+        >
           <td
             :for={col <- @col}
             phx-click={@row_click && @row_click.(row)}

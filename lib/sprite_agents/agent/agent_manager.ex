@@ -8,6 +8,36 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   alias SpriteAgents.{Agents, Mailbox}
 
+  @comms_prompt """
+  ## Inter-Agent Communication
+
+  You are one of several agents running in a shared environment. You can collaborate with other agents.
+
+  ### Discovering Peers
+  Read `/workspace/peers.json` to see which other agents are currently running. Each entry has:
+  - `name`: the agent's identifier (use this in messages)
+  - `description`: what the agent does
+
+  This file is updated automatically when agents start or stop.
+
+  ### Sending Messages
+  To send a message to another agent, write a JSON file to `/workspace/mailbox/outbox/`:
+
+  File: `/workspace/mailbox/outbox/<anything>.json`
+  Format: {"to": "<agent-name>", "text": "<your message>"}
+
+  The message will be delivered to the other agent automatically and the file will be cleaned up.
+
+  ### Receiving Messages
+  Messages from other agents arrive in your normal conversation flow, prefixed with [Message from agent "<name>"].
+  Reply naturally — your response will be visible to the user, not sent back automatically. If you want to respond to the agent, write a new outbox message.
+
+  ### Guidelines
+  - Check peers.json before messaging to confirm the agent exists
+  - Be specific about what you need from the other agent
+  - Don't send messages unnecessarily — only when collaboration genuinely helps the task
+  """
+
   defstruct [
     :agent_id,
     :agent_name,
@@ -72,7 +102,8 @@ defmodule SpriteAgents.Agent.AgentManager do
     state = %{state | phase: :starting}
     broadcast(state, {:status, :starting})
 
-    sprite_name = "flyagents-#{state.agent_name}"
+    slug = state.agent_name |> String.downcase() |> String.replace(~r/[^a-z0-9-]/, "-")
+    sprite_name = "flyagents-#{slug}"
 
     case get_or_create_sprite(state.sprites_client, sprite_name) do
       {:ok, sprite} ->
@@ -110,20 +141,24 @@ defmodule SpriteAgents.Agent.AgentManager do
           _ -> "anthropic/claude-sonnet-4-6"
         end
 
+      system_prompt =
+        (agent.system_prompt || "You are a helpful assistant.") <> "\n\n" <> @comms_prompt
+
       config =
         Jason.encode!(%{
           harness: agent.harness || "pi",
           model: agent.model || default_model,
-          system_prompt: agent.system_prompt || "You are a helpful assistant.",
+          system_prompt: system_prompt,
           max_tokens: 4096
         })
 
-      fs = Sprites.filesystem(sprite)
-      Sprites.Filesystem.write(fs, "/workspace/agent-config.json", config)
+      fs = filesystem(sprite)
+      :ok = Sprites.Filesystem.write(fs, "/workspace/agent-config.json", config)
+      :ok = Sprites.Filesystem.write(fs, "/workspace/peers.json", "[]")
 
       # Write secrets as environment variables file
       env_content = Enum.map_join(secrets, "\n", fn s -> "#{s.key}=#{s.value}" end)
-      Sprites.Filesystem.write(fs, "/workspace/.env", env_content)
+      :ok = Sprites.Filesystem.write(fs, "/workspace/.env", env_content)
 
       # Deploy all TypeScript source files
       ts_files = [
@@ -136,17 +171,11 @@ defmodule SpriteAgents.Agent.AgentManager do
 
       for file <- ts_files do
         source = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/#{file}"))
-        # Ensure harness subdirectory exists
-        if String.contains?(file, "/") do
-          dir = Path.dirname("/workspace/#{file}")
-          Sprites.cmd(sprite, "mkdir", ["-p", dir])
-        end
-
-        Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
+        :ok = Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
       end
 
       pkg_json = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/package.json"))
-      Sprites.Filesystem.write(fs, "/workspace/package.json", pkg_json)
+      :ok = Sprites.Filesystem.write(fs, "/workspace/package.json", pkg_json)
 
       # Install deps
       {_, 0} =
@@ -267,6 +296,24 @@ defmodule SpriteAgents.Agent.AgentManager do
     {:noreply, state}
   end
 
+  @impl true
+  def handle_cast({:update_peers, peers}, %{phase: :active, sprite: sprite} = state)
+      when not is_nil(sprite) do
+    try do
+      fs = filesystem(sprite)
+      :ok = Sprites.Filesystem.write(fs, "/workspace/peers.json", Jason.encode!(peers))
+    rescue
+      e ->
+        Logger.warning("Failed to write peers.json for #{state.agent_name}: #{inspect(e)}")
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_cast({:update_peers, _peers}, state) do
+    {:noreply, state}
+  end
+
   # --- Private ---
 
   defp split_lines(data) do
@@ -286,10 +333,20 @@ defmodule SpriteAgents.Agent.AgentManager do
 
   defp get_or_create_sprite(client, name) do
     case Sprites.get_sprite(client, name) do
-      {:ok, sprite} -> {:ok, sprite}
-      {:error, :not_found} -> Sprites.create(client, name)
+      {:ok, _info} -> {:ok, Sprites.sprite(client, name)}
+      {:error, {:not_found, _}} -> Sprites.create(client, name)
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  # Work around SDK bug: filesystem ops miss /v1/sprites/{name} prefix.
+  # Patch the Req client's base_url to include the sprite path prefix.
+  defp filesystem(sprite) do
+    prefix = "/v1/sprites/#{URI.encode(sprite.name)}"
+    patched_req = Req.merge(sprite.client.req, base_url: sprite.client.base_url <> prefix)
+    patched_client = %{sprite.client | req: patched_req}
+    patched_sprite = %{sprite | client: patched_client}
+    Sprites.filesystem(patched_sprite)
   end
 
   defp load_env_vars(sprite) do

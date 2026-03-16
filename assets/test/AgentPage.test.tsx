@@ -4,8 +4,22 @@ import { describe, it, expect, vi } from "vitest";
 import AgentPage from "../react-components/AgentPage";
 
 const agents = [
-  { id: 1, name: "Agent One", status: "active", model: "claude-sonnet-4-6", system_prompt: null },
-  { id: 2, name: "Agent Two", status: "created", model: null, system_prompt: "Be helpful" },
+  {
+    id: 1,
+    name: "Agent One",
+    status: "active" as const,
+    model: "claude-sonnet-4-6",
+    system_prompt: null,
+    harness: "pi" as const,
+  },
+  {
+    id: 2,
+    name: "Agent Two",
+    status: "created" as const,
+    model: null,
+    system_prompt: "Be helpful",
+    harness: "claude_code" as const,
+  },
 ];
 
 describe("AgentPage", () => {
@@ -36,7 +50,7 @@ describe("AgentPage", () => {
     await userEvent.click(screen.getByText("Save Agent"));
 
     expect(pushEvent).toHaveBeenCalledWith("create-agent", {
-      agent: { name: "My Agent", model: "claude-sonnet-4-6", system_prompt: "" },
+      agent: { name: "My Agent", model: "claude-sonnet-4-6", system_prompt: "", harness: "pi" },
     });
   });
 
@@ -55,7 +69,7 @@ describe("AgentPage", () => {
 
     expect(pushEvent).toHaveBeenCalledWith("update-agent", {
       id: 1,
-      agent: { name: "Agent One", model: "claude-sonnet-4-6", system_prompt: "" },
+      agent: { name: "Agent One", model: "claude-sonnet-4-6", system_prompt: "", harness: "pi" },
     });
   });
 
@@ -78,9 +92,7 @@ describe("AgentPage", () => {
     await userEvent.click(deleteButtons[0]);
 
     // Click the Delete button in the confirmation dialog
-    const confirmDelete = screen.getAllByText("Delete").find(
-      (el) => el.closest("[role='alertdialog']")
-    );
+    const confirmDelete = screen.getAllByText("Delete").find((el) => el.closest("[role='alertdialog']"));
     await userEvent.click(confirmDelete!);
 
     expect(pushEvent).toHaveBeenCalledWith("delete-agent", { id: 1 });

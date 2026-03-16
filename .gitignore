@@ -34,7 +34,11 @@ sprite_agents-*.tar
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/
+/priv/sprite/node_modules/
 
 /screenshots
 
 .playwright-mcppriv/sprite/node_modules/
+
+# Local environment variables
+.env

@@ -59,7 +59,6 @@ defmodule SpriteAgents.Mailbox do
 
   @doc """
   Write a message to a Sprite's inbox using the Sprites filesystem API.
-  Performs atomic write: writes to .tmp file then renames.
   """
   def write_inbox(sprite, type, payload, opts \\ []) do
     from = Keyword.get(opts, :from, "coordinator")
@@ -68,21 +67,17 @@ defmodule SpriteAgents.Mailbox do
 
     json = encode(type, from, payload, seq: seq, ts: ts)
     fname = filename(seq, type, ts: ts)
-    tmp_path = "#{@inbox_dir}/.#{fname}.tmp"
     final_path = "#{@inbox_dir}/#{fname}"
 
-    fs = Sprites.filesystem(sprite, @inbox_dir)
+    fs = filesystem(sprite)
 
-    with :ok <- Sprites.Filesystem.write(fs, tmp_path, json),
-         {_, 0} <- Sprites.cmd(sprite, "mv", [tmp_path, final_path]) do
-      update_seq(sprite, seq)
-      {:ok, seq}
-    else
-      {_, exit_code} when is_integer(exit_code) ->
-        {:error, {:rename_failed, exit_code}}
+    case Sprites.Filesystem.write(fs, final_path, json) do
+      :ok ->
+        update_seq(sprite, seq)
+        {:ok, seq}
 
       {:error, reason} ->
-        {:error, reason}
+        {:error, {:write_failed, reason}}
     end
   end
 
@@ -97,7 +92,16 @@ defmodule SpriteAgents.Mailbox do
   end
 
   defp update_seq(sprite, seq) do
-    fs = Sprites.filesystem(sprite, "/workspace/mailbox")
-    Sprites.Filesystem.write(fs, "/workspace/mailbox/.inbox_seq", Integer.to_string(seq))
+    fs = filesystem(sprite)
+    :ok = Sprites.Filesystem.write(fs, "/workspace/mailbox/.inbox_seq", to_string(seq))
+  end
+
+  # Work around SDK bug: filesystem ops miss /v1/sprites/{name} prefix.
+  defp filesystem(sprite) do
+    prefix = "/v1/sprites/#{URI.encode(sprite.name)}"
+    patched_req = Req.merge(sprite.client.req, base_url: sprite.client.base_url <> prefix)
+    patched_client = %{sprite.client | req: patched_req}
+    patched_sprite = %{sprite | client: patched_client}
+    Sprites.filesystem(patched_sprite)
   end
 end

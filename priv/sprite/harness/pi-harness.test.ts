@@ -1,5 +1,6 @@
-import { describe, test, expect, mock, spyOn, beforeEach } from "bun:test";
-import { PiHarness } from "./pi-harness";
+import { describe, test, expect, mock } from "bun:test";
+import { PiHarness, type SessionLike } from "./pi-harness";
+import type { AgentSessionEvent } from "@mariozechner/pi-coding-agent";
 import type { AgentEvent, HarnessConfig } from "./types";
 
 const baseConfig: HarnessConfig = {
@@ -10,17 +11,27 @@ const baseConfig: HarnessConfig = {
 };
 
 function createMockSession() {
-  let subscriber: ((event: any) => void) | null = null;
-  const session = {
-    subscribe: mock((cb: (event: any) => void) => { subscriber = cb; }),
+  let subscriber: ((event: AgentSessionEvent) => void) | null = null;
+  const session: SessionLike & { fireEvent: (event: AgentSessionEvent) => void } = {
+    subscribe: mock((cb: (event: AgentSessionEvent) => void) => {
+      subscriber = cb;
+    }),
     prompt: mock(async (_text: string) => {
       if (subscriber) {
-        subscriber({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Hello" } });
-        subscriber({ type: "message_end", message: { content: [{ type: "text", text: "Hello world" }] } });
-        subscriber({ type: "agent_end" });
+        subscriber({
+          type: "message_update",
+          assistantMessageEvent: { type: "text_delta", delta: "Hello" },
+        } as AgentSessionEvent);
+        subscriber({
+          type: "message_end",
+          message: { content: [{ type: "text", text: "Hello world" }] },
+        } as AgentSessionEvent);
+        subscriber({ type: "agent_end" } as AgentSessionEvent);
       }
     }),
-    fireEvent: (event: any) => { if (subscriber) subscriber(event); },
+    fireEvent: (event: AgentSessionEvent) => {
+      if (subscriber) subscriber(event);
+    },
   };
   return session;
 }
@@ -33,7 +44,7 @@ describe("PiHarness", () => {
 
   test("start() initializes without throwing", async () => {
     const harness = new PiHarness();
-    harness._setSessionFactory(async () => createMockSession() as any);
+    harness._setSessionFactory(async () => createMockSession());
     await harness.start(baseConfig);
   });
 
@@ -41,7 +52,7 @@ describe("PiHarness", () => {
     const harness = new PiHarness();
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
-    harness._setSessionFactory(async () => createMockSession() as any);
+    harness._setSessionFactory(async () => createMockSession());
     await harness.start(baseConfig);
     await harness.sendMessage("Hi there");
     const deltas = events.filter((e) => e.type === "text_delta");
@@ -53,7 +64,7 @@ describe("PiHarness", () => {
     const harness = new PiHarness();
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
-    harness._setSessionFactory(async () => createMockSession() as any);
+    harness._setSessionFactory(async () => createMockSession());
     await harness.start(baseConfig);
     await harness.sendMessage("Hi");
     const types = events.map((e) => e.type);
@@ -69,11 +80,20 @@ describe("PiHarness", () => {
     harness.onEvent((e) => events.push(e));
     const mockSession = createMockSession();
     mockSession.prompt = mock(async () => {
-      mockSession.fireEvent({ type: "tool_execution_start", toolName: "bash", toolCallId: "tc1" });
-      mockSession.fireEvent({ type: "tool_execution_end", toolName: "bash", toolCallId: "tc1", result: { content: [{ type: "text", text: "done" }] } });
-      mockSession.fireEvent({ type: "agent_end" });
+      mockSession.fireEvent({
+        type: "tool_execution_start",
+        toolName: "bash",
+        toolCallId: "tc1",
+      } as AgentSessionEvent);
+      mockSession.fireEvent({
+        type: "tool_execution_end",
+        toolName: "bash",
+        toolCallId: "tc1",
+        result: { content: [{ type: "text", text: "done" }] },
+      } as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
     });
-    harness._setSessionFactory(async () => mockSession as any);
+    harness._setSessionFactory(async () => mockSession);
     await harness.start(baseConfig);
     await harness.sendMessage("run ls");
     const toolEvents = events.filter((e) => e.type === "tool_use");
@@ -86,7 +106,7 @@ describe("PiHarness", () => {
   test("sendMessage() prepends agent prefix for agent messages", async () => {
     const harness = new PiHarness();
     const mockSession = createMockSession();
-    harness._setSessionFactory(async () => mockSession as any);
+    harness._setSessionFactory(async () => mockSession);
     await harness.start(baseConfig);
     await harness.sendMessage("Some data", "researcher-bot");
     expect(mockSession.prompt).toHaveBeenCalledWith('[Message from agent "researcher-bot"]\nSome data');
@@ -98,9 +118,9 @@ describe("PiHarness", () => {
     const mockSession = createMockSession();
     mockSession.prompt = mock(async () => {
       processingDuringCall = harness.isProcessing();
-      mockSession.fireEvent({ type: "agent_end" });
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
     });
-    harness._setSessionFactory(async () => mockSession as any);
+    harness._setSessionFactory(async () => mockSession);
     await harness.start(baseConfig);
     await harness.sendMessage("test");
     expect(processingDuringCall).toBe(true);
@@ -112,8 +132,10 @@ describe("PiHarness", () => {
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
     const mockSession = createMockSession();
-    mockSession.prompt = mock(async () => { throw new Error("Rate limit exceeded"); });
-    harness._setSessionFactory(async () => mockSession as any);
+    mockSession.prompt = mock(async () => {
+      throw new Error("Rate limit exceeded");
+    });
+    harness._setSessionFactory(async () => mockSession);
     await harness.start(baseConfig);
     await harness.sendMessage("test");
     const errorEvent = events.find((e) => e.type === "error");
@@ -126,17 +148,23 @@ describe("PiHarness", () => {
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
     const mockSession = createMockSession();
-    harness._setSessionFactory(async () => mockSession as any);
+    harness._setSessionFactory(async () => mockSession);
     await harness.start(baseConfig);
     await harness.stop();
-    mockSession.fireEvent({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "should not appear" } });
+    mockSession.fireEvent({
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: "should not appear" },
+    } as AgentSessionEvent);
     expect(events).toHaveLength(0);
   });
 
   test("interrupt() resets session", async () => {
     const harness = new PiHarness();
     let sessionCount = 0;
-    harness._setSessionFactory(async () => { sessionCount++; return createMockSession() as any; });
+    harness._setSessionFactory(async () => {
+      sessionCount++;
+      return createMockSession();
+    });
     await harness.start(baseConfig);
     expect(sessionCount).toBe(1);
     await harness.interrupt();

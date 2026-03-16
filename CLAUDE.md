@@ -7,7 +7,7 @@
 - **Build:** Vite (not esbuild), Bun (not npm/node)
 - **Encryption:** Cloak/CloakEcto for secrets at rest
 - **CSS:** Tailwind v4 with `@theme inline` + oklch CSS variables (shadcn default)
-- **Agent runtime (Phase 2):** Bun + Pi TypeScript SDK (`@mariozechner/pi-coding-agent`)
+- **Agent runtime:** Bun + multi-harness adapter pattern (Pi SDK, Claude Code CLI)
 
 ## Architecture: LiveView + React Split
 
@@ -33,40 +33,64 @@
 ```
 lib/
   sprite_agents/
-    agents.ex              # Context: Agent + Secret CRUD
+    application.ex           # OTP application
+    agents.ex                # Context: Agent + Secret CRUD
     agents/
-      agent.ex             # Agent schema
-      secret.ex            # Secret schema (Cloak-encrypted value)
-    vault.ex               # Cloak vault
+      agent.ex               # Agent schema (includes harness enum)
+      secret.ex              # Secret schema (Cloak-encrypted value)
+    agent/
+      agent_manager.ex       # Agent deployment & management
+      coordinator.ex         # Agent coordinator
+    mailbox.ex               # Agent mailbox
+    vault.ex                 # Cloak vault
+    encrypted/binary.ex      # Custom encrypted binary type
     repo.ex
   sprite_agents_web/
     router.ex
     components/
-      layouts.ex           # Passthrough app layout + flash_group
+      core_components.ex     # Core UI components (react helper, etc.)
+      layouts.ex             # Passthrough app layout + flash_group
       layouts/root.html.heex
     live/
       agent_live/
-        index.ex           # Renders <.react name="AgentPage" />
-        show.ex            # Renders <.react name="AgentShow" />
+        index.ex             # Renders <.react name="AgentPage" />
+        show.ex              # Renders <.react name="AgentShow" />
       secret_live/
-        index.ex           # Renders <.react name="SecretList" />
+        index.ex             # Renders <.react name="SecretList" />
 
 assets/
-  js/app.js                # LiveSocket + LiveReact hooks
-  css/app.css              # Tailwind v4 + shadcn theme variables
+  js/app.js                  # LiveSocket + LiveReact hooks
+  css/app.css                # Tailwind v4 + shadcn theme variables
   vite.config.js
   react-components/
-    AgentPage.tsx           # Agent list page
-    AgentShow.tsx           # Agent detail page
-    AgentCard.tsx           # Card component for agent grid
-    AgentForm.tsx           # Dialog form (controlled via open/onClose props)
-    SecretList.tsx          # Secrets page
-    index.ts               # Barrel exports for LiveReact
+    AgentPage.tsx             # Agent list page
+    AgentShow.tsx             # Agent detail page
+    AgentCard.tsx             # Card component for agent grid
+    AgentForm.tsx             # Dialog form (controlled via open/onClose props)
+    AgentList.tsx             # Agent list component
+    SecretList.tsx            # Secrets page
+    types.ts                 # Shared TypeScript type definitions
+    index.ts                 # Barrel exports for LiveReact
     components/
-      AppLayout.tsx         # Shared layout wrapper
-      ui/                   # shadcn/ui components (button, card, dialog, etc.)
+      AppLayout.tsx           # Shared layout wrapper
+      ui/                     # shadcn/ui components (button, card, dialog, etc.)
     lib/
-      utils.ts              # cn() utility
+      utils.ts                # cn() utility
+  test/
+    setup.ts                  # Vitest test setup
+    AgentCard.test.tsx        # Component tests
+    AgentPage.test.tsx
+    AgentShow.test.tsx
+    SecretList.test.tsx
+
+priv/sprite/                  # Agent runtime (Bun/TypeScript)
+  agent-runner.ts             # Main agent runner
+  bootstrap.sh                # VM bootstrap script
+  harness/
+    types.ts                  # Harness interface definition
+    index.ts                  # Harness exports
+    pi-harness.ts             # Pi SDK harness adapter
+    claude-code-harness.ts    # Claude Code CLI harness adapter
 ```
 
 ## Verification Commands

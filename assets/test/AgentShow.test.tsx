@@ -6,9 +6,10 @@ import AgentShow from "../react-components/AgentShow";
 const agent = {
   id: 1,
   name: "Test Agent",
-  status: "active",
+  status: "active" as const,
   model: "claude-sonnet-4-6",
   system_prompt: "You are a helpful assistant.",
+  harness: "pi" as const,
 };
 
 describe("AgentShow", () => {
@@ -21,12 +22,7 @@ describe("AgentShow", () => {
   });
 
   it("shows fallback for missing model and system prompt", () => {
-    render(
-      <AgentShow
-        agent={{ ...agent, model: null, system_prompt: null }}
-        pushEvent={vi.fn()}
-      />
-    );
+    render(<AgentShow agent={{ ...agent, model: null, system_prompt: null }} pushEvent={vi.fn()} />);
     expect(screen.getAllByText("Not set")).toHaveLength(2);
   });
 
@@ -59,5 +55,15 @@ describe("AgentShow", () => {
     render(<AgentShow agent={{ ...agent, status: "active" }} pushEvent={pushEvent} />);
     await userEvent.click(screen.getByText("Stop Agent"));
     expect(pushEvent).toHaveBeenCalledWith("stop-agent", {});
+  });
+
+  it("displays harness badge", () => {
+    render(<AgentShow agent={agent} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Pi")).toBeInTheDocument();
+  });
+
+  it("displays Claude Code harness", () => {
+    render(<AgentShow agent={{ ...agent, harness: "claude_code" }} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
   });
 });

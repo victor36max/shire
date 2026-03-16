@@ -1,24 +1,7 @@
+import { query, type Query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { Harness, HarnessConfig, EventCallback } from "./types";
 
-type SpawnResult = {
-  stdout: ReadableStream;
-  exited: Promise<number>;
-  kill: (signal?: number) => void;
-};
-
-type Spawner = (cmd: string[], opts: Record<string, unknown>) => SpawnResult;
-
-interface ClaudeJsonLine {
-  type?: string;
-  session_id?: string;
-  subtype?: string;
-  result?: string;
-  event?: {
-    type?: string;
-    delta?: { type?: string; text?: string };
-    content_block?: { type?: string; name?: string };
-  };
-}
+type QueryFn = typeof query;
 
 export class ClaudeCodeHarness implements Harness {
   private callback: EventCallback = () => {};
@@ -26,12 +9,11 @@ export class ClaudeCodeHarness implements Harness {
   private stopped = false;
   private config: HarnessConfig | null = null;
   private sessionId: string | null = null;
-  private activeProc: SpawnResult | null = null;
-  private spawner: Spawner | null = null;
+  private activeQuery: Query | null = null;
+  private queryFn: QueryFn;
 
-  /** For testing: inject a mock spawner */
-  _setSpawner(spawner: Spawner): void {
-    this.spawner = spawner;
+  constructor(queryFn?: QueryFn) {
+    this.queryFn = queryFn ?? query;
   }
 
   async start(config: HarnessConfig): Promise<void> {
@@ -45,93 +27,48 @@ export class ClaudeCodeHarness implements Harness {
 
     const content = from ? `[Message from agent "${from}"]\n${text}` : text;
 
-    const args = [
-      "claude",
-      "-p",
-      content,
-      "--output-format",
-      "stream-json",
-      "--verbose",
-      "--include-partial-messages",
-      "--allowedTools",
-      "Bash,Read,Edit,Write",
-      "--model",
-      this.config.model,
-    ];
-
-    if (this.config.systemPrompt) {
-      args.push("--append-system-prompt", this.config.systemPrompt);
-    }
-
-    if (this.sessionId) {
-      args.push("--resume", this.sessionId);
-    }
-
     this.processing = true;
     try {
-      const spawn =
-        this.spawner ||
-        ((cmd: string[], opts: Record<string, unknown>) => Bun.spawn(cmd, opts) as unknown as SpawnResult);
-
-      const proc = spawn(args, {
-        cwd: this.config.cwd,
-        env: process.env,
-        stdout: "pipe",
+      const q = this.queryFn({
+        prompt: content,
+        options: {
+          model: this.config.model,
+          systemPrompt: this.config.systemPrompt,
+          cwd: this.config.cwd,
+          allowedTools: ["Bash", "Read", "Edit", "Write"],
+          resume: this.sessionId ?? undefined,
+          permissionMode: "bypassPermissions",
+          allowDangerouslySkipPermissions: true,
+        },
       });
-      this.activeProc = proc;
+      this.activeQuery = q;
 
-      // Read stdout as text stream
-      const reader = proc.stdout.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          this.parseLine(line);
-        }
-      }
-
-      // Process remaining buffer
-      if (buffer.trim()) {
-        this.parseLine(buffer);
-      }
-
-      const exitCode = await proc.exited;
-      if (exitCode !== 0) {
-        this.emitEvent({
-          type: "error",
-          payload: { message: `Claude CLI exit code ${exitCode}` },
-        });
+      for await (const message of q) {
+        if (this.stopped) break;
+        this.handleMessage(message);
       }
     } catch (err) {
       this.emitEvent({ type: "error", payload: { message: String(err) } });
     } finally {
       this.processing = false;
-      this.activeProc = null;
+      this.activeQuery = null;
     }
   }
 
   async interrupt(): Promise<void> {
-    if (this.activeProc) {
-      this.activeProc.kill();
-      this.activeProc = null;
+    if (this.activeQuery) {
+      await this.activeQuery.interrupt();
+      this.activeQuery.close();
+      this.activeQuery = null;
     }
     this.sessionId = null;
   }
 
   async stop(): Promise<void> {
     this.stopped = true;
-    if (this.activeProc) {
-      this.activeProc.kill();
-      this.activeProc = null;
+    if (this.activeQuery) {
+      this.activeQuery.close();
+      this.activeQuery = null;
     }
   }
 
@@ -143,40 +80,42 @@ export class ClaudeCodeHarness implements Harness {
     return this.processing;
   }
 
-  private parseLine(line: string): void {
-    try {
-      const obj = JSON.parse(line) as ClaudeJsonLine;
+  private handleMessage(message: SDKMessage): void {
+    // Capture session ID from any message that has one
+    if ("session_id" in message && message.session_id) {
+      this.sessionId = message.session_id;
+    }
 
-      if (obj.type === "system" && obj.session_id) {
-        this.sessionId = obj.session_id;
-      }
-
-      if (obj.type === "stream_event") {
-        const delta = obj.event?.delta;
-        if (delta?.type === "text_delta") {
+    switch (message.type) {
+      case "stream_event": {
+        const event = message.event;
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
           this.emitEvent({
             type: "text_delta",
-            payload: { delta: delta.text },
+            payload: { delta: event.delta.text },
           });
         }
-        if (obj.event?.type === "content_block_start" && obj.event?.content_block?.type === "tool_use") {
+        if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
           this.emitEvent({
             type: "tool_use",
-            payload: {
-              tool: obj.event.content_block.name,
-              status: "started",
-            },
+            payload: { tool: event.content_block.name, status: "started" },
           });
         }
+        break;
       }
 
-      if (obj.type === "result") {
-        this.emitEvent({ type: "text", payload: { text: obj.result } });
+      case "result": {
+        if (message.subtype === "success") {
+          this.emitEvent({ type: "text", payload: { text: message.result } });
+        } else {
+          this.emitEvent({
+            type: "error",
+            payload: { message: message.errors.join(", ") },
+          });
+        }
         this.emitEvent({ type: "turn_complete", payload: {} });
-        if (obj.session_id) this.sessionId = obj.session_id;
+        break;
       }
-    } catch {
-      // Skip unparseable lines
     }
   }
 

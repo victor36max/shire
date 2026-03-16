@@ -2,13 +2,14 @@
 import { watch } from "fs";
 import { readFile, readdir, unlink } from "fs/promises";
 import { join } from "path";
-import { createHarness, type Harness } from "./harness";
+import { createHarness, type Harness, type HarnessType } from "./harness";
 
 const INBOX_DIR = "/workspace/mailbox/inbox";
+const OUTBOX_DIR = "/workspace/mailbox/outbox";
 const CONFIG_PATH = "/workspace/agent-config.json";
 
 export interface AgentConfig {
-  harness: string;
+  harness: HarnessType;
   model: string;
   system_prompt: string;
   max_tokens?: number;
@@ -95,6 +96,40 @@ export async function processInbox(
   return { harness: currentHarness, config: currentConfig };
 }
 
+export async function processOutbox(
+  outboxDir = OUTBOX_DIR,
+): Promise<number> {
+  const files = await readdir(outboxDir);
+  const sorted = files.filter((f) => f.endsWith(".json")).sort();
+
+  for (const file of sorted) {
+    const path = join(outboxDir, file);
+    try {
+      const raw = await readFile(path, "utf-8");
+      const msg = JSON.parse(raw);
+
+      if (typeof msg.to === "string" && typeof msg.text === "string") {
+        emit("agent_message", { to_agent: msg.to, text: msg.text });
+      } else {
+        emit("error", {
+          message: `Invalid outbox file ${file}: missing "to" or "text" field`,
+        });
+      }
+
+      await unlink(path);
+    } catch (err) {
+      emit("error", { message: `Failed to process outbox ${file}: ${err}` });
+      try {
+        await unlink(path);
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+  }
+
+  return sorted.length;
+}
+
 async function main() {
   const config = await loadConfig();
   let harness = createHarness(config.harness);
@@ -127,6 +162,24 @@ async function main() {
     }
   });
 
+  // Watch for outbox messages (agent-to-agent)
+  let outboxProcessing = false;
+  const outboxWatcher = watch(
+    OUTBOX_DIR,
+    async (_eventType: string, filename: string | null) => {
+      if (!filename?.endsWith(".json") || outboxProcessing) return;
+      outboxProcessing = true;
+      try {
+        let count: number;
+        do {
+          count = await processOutbox();
+        } while (count > 0);
+      } finally {
+        outboxProcessing = false;
+      }
+    },
+  );
+
   // Heartbeat every 30 seconds
   setInterval(() => {
     emit("heartbeat", { status: "alive" });
@@ -135,6 +188,7 @@ async function main() {
   // Keep process alive
   process.on("SIGTERM", () => {
     watcher.close();
+    outboxWatcher.close();
     harness.stop();
     emit("shutdown", {});
     process.exit(0);

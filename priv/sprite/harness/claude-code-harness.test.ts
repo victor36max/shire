@@ -1,6 +1,7 @@
 import { describe, test, expect, mock } from "bun:test";
 import { ClaudeCodeHarness } from "./claude-code-harness";
 import type { AgentEvent, HarnessConfig } from "./types";
+import type { Query, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 const baseConfig: HarnessConfig = {
   model: "claude-sonnet-4-6",
@@ -9,85 +10,155 @@ const baseConfig: HarnessConfig = {
   maxTokens: 4096,
 };
 
-// Helper: create a mock spawner that returns configurable stdout lines
-function createMockSpawner(lines: string[]) {
-  return mock((_cmd: string[], _opts: Record<string, unknown>) => {
-    const encoder = new TextEncoder();
-    const data = lines.map((l) => l + "\n").join("");
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(data));
-        controller.close();
-      },
-    });
+/** Create a mock query function that yields the given SDK messages */
+function createMockQuery(messages: SDKMessage[]) {
+  return mock((_params: { prompt: string; options?: Record<string, unknown> }) => {
+    const gen = (async function* () {
+      for (const msg of messages) {
+        yield msg;
+      }
+    })() as Query;
 
-    return {
-      stdout: stream,
-      exited: Promise.resolve(0),
-      kill: mock(() => {}),
-    };
+    gen.interrupt = mock(() => Promise.resolve());
+    gen.close = mock(() => {});
+    // Stub out other Query methods we don't use
+    gen.rewindFiles = mock(() => Promise.resolve({ canRewind: false })) as Query["rewindFiles"];
+    gen.setPermissionMode = mock(() => Promise.resolve());
+    gen.setModel = mock(() => Promise.resolve());
+    gen.setMaxThinkingTokens = mock(() => Promise.resolve());
+    gen.initializationResult = mock(() => Promise.resolve({})) as Query["initializationResult"];
+    gen.supportedCommands = mock(() => Promise.resolve([]));
+    gen.supportedModels = mock(() => Promise.resolve([]));
+    gen.supportedAgents = mock(() => Promise.resolve([]));
+    gen.mcpServerStatus = mock(() => Promise.resolve([]));
+    gen.accountInfo = mock(() => Promise.resolve({})) as Query["accountInfo"];
+    gen.reconnectMcpServer = mock(() => Promise.resolve());
+    gen.toggleMcpServer = mock(() => Promise.resolve());
+    gen.setMcpServers = mock(() => Promise.resolve({})) as Query["setMcpServers"];
+    gen.streamInput = mock(() => Promise.resolve());
+    gen.stopTask = mock(() => Promise.resolve());
+
+    return gen;
   });
+}
+
+function resultSuccess(result: string, sessionId: string): SDKMessage {
+  return {
+    type: "result",
+    subtype: "success",
+    result,
+    session_id: sessionId,
+    duration_ms: 100,
+    duration_api_ms: 80,
+    is_error: false,
+    num_turns: 1,
+    stop_reason: "end_turn",
+    total_cost_usd: 0.001,
+    usage: { input_tokens: 10, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, server_tool_use_input_tokens: 0 },
+    modelUsage: {},
+    permission_denials: [],
+    uuid: "uuid-1",
+  } as SDKMessage;
+}
+
+function resultError(errors: string[], sessionId: string): SDKMessage {
+  return {
+    type: "result",
+    subtype: "error_during_execution",
+    errors,
+    session_id: sessionId,
+    duration_ms: 100,
+    duration_api_ms: 80,
+    is_error: true,
+    num_turns: 1,
+    stop_reason: null,
+    total_cost_usd: 0.001,
+    usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, server_tool_use_input_tokens: 0 },
+    modelUsage: {},
+    permission_denials: [],
+    uuid: "uuid-err",
+    session_id: sessionId,
+  } as unknown as SDKMessage;
+}
+
+function streamTextDelta(text: string, sessionId: string): SDKMessage {
+  return {
+    type: "stream_event",
+    event: {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "text_delta", text },
+    },
+    parent_tool_use_id: null,
+    uuid: "uuid-stream-1",
+    session_id: sessionId,
+  } as SDKMessage;
+}
+
+function streamToolUseStart(name: string, sessionId: string): SDKMessage {
+  return {
+    type: "stream_event",
+    event: {
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "tool_use", id: "tool-1", name, input: "" },
+    },
+    parent_tool_use_id: null,
+    uuid: "uuid-stream-2",
+    session_id: sessionId,
+  } as SDKMessage;
 }
 
 describe("ClaudeCodeHarness", () => {
   test("isProcessing() returns false initially", () => {
-    const harness = new ClaudeCodeHarness();
+    const harness = new ClaudeCodeHarness(createMockQuery([]));
     expect(harness.isProcessing()).toBe(false);
   });
 
   test("start() is a no-op that does not throw", async () => {
-    const harness = new ClaudeCodeHarness();
+    const harness = new ClaudeCodeHarness(createMockQuery([]));
     await harness.start(baseConfig);
   });
 
-  test("sendMessage() constructs correct CLI args", async () => {
-    const spawner = createMockSpawner(['{"type":"result","subtype":"success","result":"Hi","session_id":"s1"}']);
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+  test("sendMessage() calls query with correct options", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
     harness.onEvent(() => {});
 
     await harness.start(baseConfig);
     await harness.sendMessage("Hello");
 
-    expect(spawner).toHaveBeenCalledTimes(1);
-    const [cmd] = spawner.mock.calls[0];
-    expect(cmd[0]).toBe("claude");
-    expect(cmd).toContain("-p");
-    expect(cmd).toContain("Hello");
-    expect(cmd).toContain("--output-format");
-    expect(cmd).toContain("stream-json");
-    expect(cmd).toContain("--model");
-    expect(cmd).toContain("claude-sonnet-4-6");
-    expect(cmd).toContain("--append-system-prompt");
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    const params = mockQuery.mock.calls[0][0];
+    expect(params.prompt).toBe("Hello");
+    expect(params.options?.model).toBe("claude-sonnet-4-6");
+    expect(params.options?.systemPrompt).toBe("You are a helpful assistant.");
+    expect(params.options?.cwd).toBe("/workspace");
+    expect(params.options?.permissionMode).toBe("bypassPermissions");
   });
 
-  test("sendMessage() captures session_id from result event", async () => {
-    const spawner = createMockSpawner(['{"type":"result","subtype":"success","result":"Hi","session_id":"sess-123"}']);
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+  test("sendMessage() captures session_id and resumes on next call", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "sess-123")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
     harness.onEvent(() => {});
 
     await harness.start(baseConfig);
     await harness.sendMessage("First message");
 
-    // Second call should include --resume
-    spawner.mockImplementation(
-      createMockSpawner(['{"type":"result","subtype":"success","result":"Ok","session_id":"sess-123"}']),
-    );
+    // Second call should include resume
+    mockQuery.mockImplementation(createMockQuery([resultSuccess("Ok", "sess-123")]));
     await harness.sendMessage("Second message");
 
-    const [cmd2] = spawner.mock.calls[1];
-    expect(cmd2).toContain("--resume");
-    expect(cmd2).toContain("sess-123");
+    const params2 = mockQuery.mock.calls[1][0];
+    expect(params2.options?.resume).toBe("sess-123");
   });
 
   test("sendMessage() emits text_delta from stream_event", async () => {
-    const spawner = createMockSpawner([
-      '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}}',
-      '{"type":"result","subtype":"success","result":"Hello world","session_id":"s1"}',
+    const mockQuery = createMockQuery([
+      streamTextDelta("Hello", "s1"),
+      resultSuccess("Hello world", "s1"),
     ]);
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+    const harness = new ClaudeCodeHarness(mockQuery);
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
 
@@ -100,11 +171,8 @@ describe("ClaudeCodeHarness", () => {
   });
 
   test("sendMessage() emits text and turn_complete from result", async () => {
-    const spawner = createMockSpawner([
-      '{"type":"result","subtype":"success","result":"Full response","session_id":"s1"}',
-    ]);
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+    const mockQuery = createMockQuery([resultSuccess("Full response", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
 
@@ -120,12 +188,11 @@ describe("ClaudeCodeHarness", () => {
   });
 
   test("sendMessage() emits tool_use for tool content blocks", async () => {
-    const spawner = createMockSpawner([
-      '{"type":"stream_event","event":{"type":"content_block_start","content_block":{"type":"tool_use","name":"bash"}}}',
-      '{"type":"result","subtype":"success","result":"done","session_id":"s1"}',
+    const mockQuery = createMockQuery([
+      streamToolUseStart("bash", "s1"),
+      resultSuccess("done", "s1"),
     ]);
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+    const harness = new ClaudeCodeHarness(mockQuery);
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
 
@@ -138,18 +205,9 @@ describe("ClaudeCodeHarness", () => {
     expect(toolEvent!.payload.status).toBe("started");
   });
 
-  test("sendMessage() emits error on non-zero exit", async () => {
-    const spawner = mock((_cmd: string[], _opts: Record<string, unknown>) => ({
-      stdout: new ReadableStream({
-        start(controller) {
-          controller.close();
-        },
-      }),
-      exited: Promise.resolve(1),
-      kill: mock(() => {}),
-    }));
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+  test("sendMessage() emits error from result error", async () => {
+    const mockQuery = createMockQuery([resultError(["something went wrong"], "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
 
@@ -158,63 +216,73 @@ describe("ClaudeCodeHarness", () => {
 
     const errorEvent = events.find((e) => e.type === "error");
     expect(errorEvent).toBeDefined();
-    expect(String(errorEvent!.payload.message)).toContain("exit code 1");
+    expect(String(errorEvent!.payload.message)).toContain("something went wrong");
   });
 
   test("interrupt() clears session ID", async () => {
-    const spawner = createMockSpawner(['{"type":"result","subtype":"success","result":"Hi","session_id":"sess-abc"}']);
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+    const mockQuery = createMockQuery([resultSuccess("Hi", "sess-abc")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
     harness.onEvent(() => {});
 
     await harness.start(baseConfig);
     await harness.sendMessage("First");
     await harness.interrupt();
 
-    // Next call should NOT include --resume
-    spawner.mockImplementation(
-      createMockSpawner(['{"type":"result","subtype":"success","result":"Fresh","session_id":"sess-new"}']),
-    );
+    // Next call should NOT include resume
+    mockQuery.mockImplementation(createMockQuery([resultSuccess("Fresh", "sess-new")]));
     await harness.sendMessage("After interrupt");
 
-    const [cmd] = spawner.mock.calls[spawner.mock.calls.length - 1];
-    expect(cmd).not.toContain("--resume");
+    const params = mockQuery.mock.calls[mockQuery.mock.calls.length - 1][0];
+    expect(params.options?.resume).toBeUndefined();
   });
 
-  test("isProcessing() tracks subprocess lifecycle", async () => {
-    let resolveExit: (code: number) => void;
-    const exitPromise = new Promise<number>((r) => {
-      resolveExit = r;
+  test("isProcessing() tracks query lifecycle", async () => {
+    let resolveGenerator: (() => void) | null = null;
+    const blockingQuery = mock(() => {
+      const gen = (async function* () {
+        await new Promise<void>((r) => {
+          resolveGenerator = r;
+        });
+        yield resultSuccess("done", "s1");
+      })() as Query;
+
+      gen.interrupt = mock(() => Promise.resolve());
+      gen.close = mock(() => {});
+      gen.rewindFiles = mock(() => Promise.resolve({ canRewind: false })) as Query["rewindFiles"];
+      gen.setPermissionMode = mock(() => Promise.resolve());
+      gen.setModel = mock(() => Promise.resolve());
+      gen.setMaxThinkingTokens = mock(() => Promise.resolve());
+      gen.initializationResult = mock(() => Promise.resolve({})) as Query["initializationResult"];
+      gen.supportedCommands = mock(() => Promise.resolve([]));
+      gen.supportedModels = mock(() => Promise.resolve([]));
+      gen.supportedAgents = mock(() => Promise.resolve([]));
+      gen.mcpServerStatus = mock(() => Promise.resolve([]));
+      gen.accountInfo = mock(() => Promise.resolve({})) as Query["accountInfo"];
+      gen.reconnectMcpServer = mock(() => Promise.resolve());
+      gen.toggleMcpServer = mock(() => Promise.resolve());
+      gen.setMcpServers = mock(() => Promise.resolve({})) as Query["setMcpServers"];
+      gen.streamInput = mock(() => Promise.resolve());
+      gen.stopTask = mock(() => Promise.resolve());
+
+      return gen;
     });
 
-    const spawner = mock((_cmd: string[], _opts: Record<string, unknown>) => ({
-      stdout: new ReadableStream({
-        start(controller) {
-          controller.close();
-        },
-      }),
-      exited: exitPromise,
-      kill: mock(() => {}),
-    }));
-
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+    const harness = new ClaudeCodeHarness(blockingQuery);
     harness.onEvent(() => {});
     await harness.start(baseConfig);
 
     const sendPromise = harness.sendMessage("test");
-    // Processing should be true while subprocess is running
+    // Processing should be true while query is running
     expect(harness.isProcessing()).toBe(true);
 
-    resolveExit!(0);
+    resolveGenerator!();
     await sendPromise;
     expect(harness.isProcessing()).toBe(false);
   });
 
   test("stop() suppresses further event emission", async () => {
-    const spawner = createMockSpawner(['{"type":"result","subtype":"success","result":"Hi","session_id":"s1"}']);
-    const harness = new ClaudeCodeHarness();
-    harness._setSpawner(spawner);
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
 
@@ -223,5 +291,17 @@ describe("ClaudeCodeHarness", () => {
 
     await harness.sendMessage("should not emit");
     expect(events).toHaveLength(0);
+  });
+
+  test("sendMessage() prefixes from agent name", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Ok", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+
+    await harness.start(baseConfig);
+    await harness.sendMessage("Hello", "agent-1");
+
+    const params = mockQuery.mock.calls[0][0];
+    expect(params.prompt).toBe('[Message from agent "agent-1"]\nHello');
   });
 });

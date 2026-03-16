@@ -1,7 +1,8 @@
+import type { AgentSessionEvent, AgentSessionEventListener } from "@mariozechner/pi-coding-agent";
 import type { Harness, HarnessConfig, EventCallback } from "./types";
 
-type SessionLike = {
-  subscribe: (cb: (event: any) => void) => void;
+export type SessionLike = {
+  subscribe: (cb: AgentSessionEventListener) => void;
   prompt: (text: string) => Promise<void>;
 };
 
@@ -61,7 +62,15 @@ export class PiHarness implements Harness {
   private async createSession(config: HarnessConfig): Promise<SessionLike> {
     if (this.sessionFactory) return this.sessionFactory(config);
 
-    const { createAgentSession, AuthStorage, ModelRegistry, createCodingTools, SessionManager, SettingsManager, DefaultResourceLoader } = await import("@mariozechner/pi-coding-agent");
+    const {
+      createAgentSession,
+      AuthStorage,
+      ModelRegistry,
+      createCodingTools,
+      SessionManager,
+      SettingsManager,
+      DefaultResourceLoader,
+    } = await import("@mariozechner/pi-coding-agent");
     const { getModel } = await import("@mariozechner/pi-ai");
 
     const authStorage = AuthStorage.create();
@@ -85,8 +94,11 @@ export class PiHarness implements Harness {
     await loader.reload();
 
     const { session } = await createAgentSession({
-      cwd: config.cwd, model, thinkingLevel: "off",
-      authStorage, modelRegistry,
+      cwd: config.cwd,
+      model,
+      thinkingLevel: "off",
+      authStorage,
+      modelRegistry,
       tools: createCodingTools(config.cwd),
       resourceLoader: loader,
       sessionManager: SessionManager.inMemory(),
@@ -96,7 +108,7 @@ export class PiHarness implements Harness {
   }
 
   private subscribeToSession(session: SessionLike): void {
-    session.subscribe((event: any) => {
+    session.subscribe((event: AgentSessionEvent) => {
       switch (event.type) {
         case "message_update":
           if (event.assistantMessageEvent?.type === "text_delta") {
@@ -104,10 +116,15 @@ export class PiHarness implements Harness {
           }
           break;
         case "message_end": {
-          const text = (event.message?.content || [])
-            .filter((b: any) => b.type === "text")
-            .map((b: any) => b.text)
-            .join("");
+          const content = event.message?.content;
+          const text = Array.isArray(content)
+            ? content
+                .filter((b): b is { type: "text"; text: string } => b.type === "text" && "text" in b)
+                .map((b) => b.text)
+                .join("")
+            : typeof content === "string"
+              ? content
+              : "";
           this.emitEvent({ type: "text", payload: { text } });
           break;
         }
@@ -115,7 +132,10 @@ export class PiHarness implements Harness {
           this.emitEvent({ type: "tool_use", payload: { tool: event.toolName, status: "started" } });
           break;
         case "tool_execution_end":
-          this.emitEvent({ type: "tool_use", payload: { tool: event.toolName, status: "completed", result: event.result } });
+          this.emitEvent({
+            type: "tool_use",
+            payload: { tool: event.toolName, status: "completed", result: event.result },
+          });
           break;
         case "agent_end":
           this.emitEvent({ type: "turn_complete", payload: {} });

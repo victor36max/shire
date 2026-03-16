@@ -3,9 +3,11 @@ import type { Harness } from "./types";
 import { PiHarness } from "./pi-harness";
 import { ClaudeCodeHarness } from "./claude-code-harness";
 
+export type HarnessType = "pi" | "claude_code";
+
 export { type Harness, type HarnessConfig, type AgentEvent, type EventCallback } from "./types";
 
-export function createHarness(type: string): Harness {
+export function createHarness(type: HarnessType): Harness {
   switch (type) {
     case "pi":
       return new PiHarness();

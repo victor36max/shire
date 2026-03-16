@@ -6,9 +6,10 @@ import AgentCard from "../react-components/AgentCard";
 const agent = {
   id: 1,
   name: "Test Agent",
-  status: "active",
+  status: "active" as const,
   model: "claude-sonnet-4-6",
   system_prompt: "You are helpful.",
+  harness: "pi" as const,
 };
 
 describe("AgentCard", () => {
@@ -16,7 +17,7 @@ describe("AgentCard", () => {
     render(<AgentCard agent={agent} />);
     expect(screen.getByText("Test Agent")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
-    expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
+    expect(screen.getByText("Pi · claude-sonnet-4-6")).toBeInTheDocument();
   });
 
   it("renders system prompt when present", () => {
@@ -26,7 +27,7 @@ describe("AgentCard", () => {
 
   it("shows fallback when model is null", () => {
     render(<AgentCard agent={{ ...agent, model: null }} />);
-    expect(screen.getByText("No model set")).toBeInTheDocument();
+    expect(screen.getByText("Pi")).toBeInTheDocument();
   });
 
   it("hides system prompt when null", () => {

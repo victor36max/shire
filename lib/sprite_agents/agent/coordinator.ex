@@ -28,7 +28,44 @@ defmodule SpriteAgents.Agent.Coordinator do
   end
 
   def route_agent_message(from_agent, to_agent, text) do
-    AgentManager.send_message(to_agent, text, {:agent, from_agent})
+    case lookup(to_agent) do
+      {:ok, _pid} ->
+        try do
+          AgentManager.send_message(to_agent, text, {:agent, from_agent})
+        catch
+          :exit, reason ->
+            Logger.warning(
+              "Failed to route message from #{from_agent} to #{to_agent}: #{inspect(reason)}"
+            )
+
+            Phoenix.PubSub.broadcast(
+              SpriteAgents.PubSub,
+              "agent:#{from_agent}",
+              {:agent_event,
+               %{
+                 "type" => "agent_message_failed",
+                 "payload" => %{"to_agent" => to_agent, "reason" => "delivery_failed"}
+               }}
+            )
+
+            {:error, :delivery_failed}
+        end
+
+      {:error, :not_found} ->
+        Logger.warning("Agent #{to_agent} not found for message from #{from_agent}")
+
+        Phoenix.PubSub.broadcast(
+          SpriteAgents.PubSub,
+          "agent:#{from_agent}",
+          {:agent_event,
+           %{
+             "type" => "agent_message_failed",
+             "payload" => %{"to_agent" => to_agent, "reason" => "not_running"}
+           }}
+        )
+
+        {:error, :not_running}
+    end
   end
 
   def lookup(agent_name) do
@@ -42,6 +79,21 @@ defmodule SpriteAgents.Agent.Coordinator do
     Registry.select(SpriteAgents.AgentRegistry, [
       {{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}
     ])
+  end
+
+  def broadcast_peers do
+    running = list_running()
+
+    peers =
+      Enum.map(running, fn {name, _pid} ->
+        agent = Agents.get_agent_by_name!(name)
+        %{name: name, description: truncate(agent.system_prompt || "", 200)}
+      end)
+
+    Enum.each(running, fn {name, pid} ->
+      filtered = Enum.reject(peers, fn p -> p.name == name end)
+      GenServer.cast(pid, {:update_peers, filtered})
+    end)
   end
 
   # --- Callbacks ---
@@ -72,6 +124,7 @@ defmodule SpriteAgents.Agent.Coordinator do
                ) do
             {:ok, pid} ->
               Logger.info("Started agent #{agent_name} (pid: #{inspect(pid)})")
+              Task.start(fn -> broadcast_peers() end)
               {:reply, {:ok, pid}, state}
 
             {:error, reason} ->
@@ -97,10 +150,24 @@ defmodule SpriteAgents.Agent.Coordinator do
         end
 
         Logger.info("Stopped agent #{agent_name}")
+        Task.start(fn -> broadcast_peers() end)
         {:reply, :ok, state}
 
       {:error, :not_found} ->
         {:reply, {:error, :not_found}, state}
+    end
+  end
+
+  # --- Private ---
+
+  defp truncate(text, max_length) when byte_size(text) <= max_length, do: text
+
+  defp truncate(text, max_length) do
+    truncated = String.slice(text, 0, max_length)
+
+    case String.split(truncated, ~r/\s+/) |> Enum.drop(-1) do
+      [] -> truncated
+      words -> Enum.join(words, " ") <> "..."
     end
   end
 end

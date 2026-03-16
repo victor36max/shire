@@ -5,7 +5,11 @@
     "dev": "vite --host -l warn",
     "build": "vite build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint 'react-components/**/*.{ts,tsx}' 'test/**/*.{ts,tsx}' 'js/**/*.js'",
+    "lint:fix": "eslint 'react-components/**/*.{ts,tsx}' 'test/**/*.{ts,tsx}' 'js/**/*.js' --fix",
+    "format": "prettier --write 'react-components/**/*.{ts,tsx}' 'test/**/*.{ts,tsx}' 'js/**/*.js'",
+    "format:check": "prettier --check 'react-components/**/*.{ts,tsx}' 'test/**/*.{ts,tsx}' 'js/**/*.js'"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -33,9 +37,18 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
+    "@typescript-eslint/parser": "^8.57.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "jsdom": "^29.0.0",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
     "vite": "^8.0.0",
     "vitest": "^4.1.0"
   }
