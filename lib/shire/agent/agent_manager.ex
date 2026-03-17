@@ -249,8 +249,8 @@ defmodule Shire.Agent.AgentManager do
     {:reply, :ok, state}
   end
 
-  def handle_call(:restart, _from, state) do
-    {:reply, {:error, :no_sprite}, state}
+  def handle_call(:restart, _from, %{sprite: nil} = state) do
+    {:reply, :ok, state, {:continue, :start_sprite}}
   end
 
   # Process stdout from agent runner (JSONL lines)
