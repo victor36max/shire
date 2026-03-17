@@ -1,7 +1,7 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
 import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
 import { mkdirSync, writeFileSync, rmSync, readdirSync } from "fs";
-import { emit, processMessage, processInbox, type MessageEnvelope } from "./agent-runner";
+import { emit, processMessage, processInbox, runRecipes, type MessageEnvelope } from "./agent-runner";
 import type { Harness } from "./harness";
 import { createHarness } from "./harness";
 
@@ -203,6 +203,124 @@ describe("processMessage() — unknown type", () => {
     await processMessage(harness, envelope);
 
     expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// processInbox() — drain and return count
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// runRecipes() — recipe execution
+// ---------------------------------------------------------------------------
+
+const TEST_RECIPE_DIR = "/tmp/test-recipe-" + process.pid;
+const TEST_STATE_DIR = "/tmp/test-recipe-state-" + process.pid;
+
+describe("runRecipes()", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_STATE_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_RECIPE_DIR, { recursive: true, force: true });
+    rmSync(TEST_STATE_DIR, { recursive: true, force: true });
+  });
+
+  test("returns no_recipe when recipe file does not exist", async () => {
+    const events = await captureEmits(async () => {
+      const result = await runRecipes("/tmp/nonexistent-recipe.json", TEST_STATE_DIR);
+      expect(result.status).toBe("no_recipe");
+    });
+    expect(events.some((e) => e.type === "recipe_complete")).toBe(true);
+  });
+
+  test("returns no_scripts when recipe has empty scripts array", async () => {
+    const recipePath = `${TEST_RECIPE_DIR}/recipe.json`;
+    mkdirSync(TEST_RECIPE_DIR, { recursive: true });
+    writeFileSync(recipePath, JSON.stringify({ scripts: [] }));
+
+    const events = await captureEmits(async () => {
+      const result = await runRecipes(recipePath, TEST_STATE_DIR);
+      expect(result.status).toBe("no_scripts");
+    });
+    expect(events.some((e) => e.type === "recipe_complete")).toBe(true);
+  });
+
+  test("runs scripts and returns done (mocked spawn)", async () => {
+    const recipePath = `${TEST_RECIPE_DIR}/recipe.json`;
+    mkdirSync(TEST_RECIPE_DIR, { recursive: true });
+    writeFileSync(recipePath, JSON.stringify({ scripts: [{ name: "test-step", run: "echo hello" }] }));
+
+    const originalSpawn = Bun.spawn;
+    Bun.spawn = (() => ({
+      stdout: new ReadableStream({ start: (c) => c.close() }),
+      stderr: new ReadableStream({ start: (c) => c.close() }),
+      exited: Promise.resolve(0),
+    })) as unknown as typeof Bun.spawn;
+
+    try {
+      const events = await captureEmits(async () => {
+        const result = await runRecipes(recipePath, TEST_STATE_DIR);
+        expect(result.status).toBe("done");
+      });
+      expect(events.some((e) => e.type === "recipe_step" && e.payload.name === "test-step")).toBe(true);
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
+  });
+
+  test("skips scripts with matching marker", async () => {
+    const recipePath = `${TEST_RECIPE_DIR}/recipe.json`;
+    mkdirSync(TEST_RECIPE_DIR, { recursive: true });
+    writeFileSync(recipePath, JSON.stringify({ scripts: [{ name: "test-step", run: "echo hello" }] }));
+
+    const originalSpawn = Bun.spawn;
+    Bun.spawn = (() => ({
+      stdout: new ReadableStream({ start: (c) => c.close() }),
+      stderr: new ReadableStream({ start: (c) => c.close() }),
+      exited: Promise.resolve(0),
+    })) as unknown as typeof Bun.spawn;
+
+    try {
+      // Run once to create marker
+      await captureEmits(async () => {
+        await runRecipes(recipePath, TEST_STATE_DIR);
+      });
+
+      // Run again — should skip
+      const events = await captureEmits(async () => {
+        const result = await runRecipes(recipePath, TEST_STATE_DIR);
+        expect(result.status).toBe("done");
+      });
+      expect(events.some((e) => e.type === "recipe_step" && e.payload.status === "skipped")).toBe(true);
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
+  });
+
+  test("returns failed when a script fails (mocked spawn)", async () => {
+    const recipePath = `${TEST_RECIPE_DIR}/recipe.json`;
+    mkdirSync(TEST_RECIPE_DIR, { recursive: true });
+    writeFileSync(recipePath, JSON.stringify({ scripts: [{ name: "bad-step", run: "exit 1" }] }));
+
+    const originalSpawn = Bun.spawn;
+    Bun.spawn = (() => ({
+      stdout: new ReadableStream({ start: (c) => c.close() }),
+      stderr: new ReadableStream({ start: (c) => c.close() }),
+      exited: Promise.resolve(1),
+    })) as unknown as typeof Bun.spawn;
+
+    try {
+      const events = await captureEmits(async () => {
+        const result = await runRecipes(recipePath, TEST_STATE_DIR);
+        expect(result.status).toBe("failed");
+        expect(result.failed_step).toBe("bad-step");
+      });
+      expect(events.some((e) => e.type === "recipe_step" && e.payload.status === "failed")).toBe(true);
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
   });
 });
 

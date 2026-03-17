@@ -38,9 +38,10 @@ describe("AgentShow", () => {
     expect(screen.getAllByText("Not set")).toHaveLength(2);
   });
 
-  it("shows Start button for created agent", () => {
+  it("shows Start and Kill buttons for created agent", () => {
     render(<AgentShow agent={{ ...agent, status: "created" }} secrets={[]} pushEvent={vi.fn()} />);
     expect(screen.getByText("Start Agent")).toBeInTheDocument();
+    expect(screen.getByText("Kill Agent")).toBeInTheDocument();
   });
 
   it("shows Restart and Kill buttons for active agent", () => {
@@ -72,9 +73,31 @@ describe("AgentShow", () => {
     expect(pushEvent).toHaveBeenCalledWith("kill-agent", {});
   });
 
-  it("shows Start button for crashed agent", () => {
+  it("shows Start and Kill buttons for crashed agent", () => {
     render(<AgentShow agent={{ ...agent, status: "crashed" }} secrets={[]} pushEvent={vi.fn()} />);
     expect(screen.getByText("Start Agent")).toBeInTheDocument();
+    expect(screen.getByText("Kill Agent")).toBeInTheDocument();
+  });
+
+  it("shows Restart and Kill buttons for bootstrapping agent", () => {
+    render(<AgentShow agent={{ ...agent, status: "bootstrapping" }} secrets={[]} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Restart Agent")).toBeInTheDocument();
+    expect(screen.getByText("Kill Agent")).toBeInTheDocument();
+    expect(screen.queryByText("Start Agent")).not.toBeInTheDocument();
+  });
+
+  it("shows Kill button for failed agent", () => {
+    render(<AgentShow agent={{ ...agent, status: "failed" }} secrets={[]} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Kill Agent")).toBeInTheDocument();
+    expect(screen.getByText("Start Agent")).toBeInTheDocument();
+  });
+
+  it("calls pushEvent with kill-agent for created agent after confirming", async () => {
+    const pushEvent = vi.fn();
+    render(<AgentShow agent={{ ...agent, status: "created" }} secrets={[]} pushEvent={pushEvent} />);
+    await userEvent.click(screen.getByText("Kill Agent"));
+    await userEvent.click(screen.getByText("Kill"));
+    expect(pushEvent).toHaveBeenCalledWith("kill-agent", {});
   });
 
   it("displays harness badge", () => {
