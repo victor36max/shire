@@ -2,40 +2,27 @@ defmodule Shire.Agent.CoordinatorTest do
   use Shire.DataCase, async: false
 
   alias Shire.Agent.{AgentManager, Coordinator}
-  alias Shire.Agents
 
-  defp valid_recipe(name \\ "coord-test-agent") do
-    """
-    version: 1
-    name: #{name}
-    harness: pi
-    model: claude-sonnet-4-6
-    system_prompt: Test
-    """
-  end
-
-  defp start_agent_manager(agent, opts \\ []) do
-    name = Keyword.get(opts, :id, agent.id)
+  defp start_agent_manager(agent_name, agent_id, opts \\ []) do
+    supervisor_id = Keyword.get(opts, :id, agent_id)
 
     start_supervised(
-      {AgentManager, agent: agent, sprites_client: nil, skip_sprite: true},
-      id: name
+      {AgentManager, agent_name: agent_name, agent_id: agent_id, skip_sprite: true},
+      id: supervisor_id
     )
   end
 
-  setup do
-    {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
-    %{agent: agent}
-  end
+  @agent_name "coord-test-agent"
+  @agent_id 9999
 
   describe "lookup/1" do
     test "returns error when agent is not running" do
       assert {:error, :not_found} = Coordinator.lookup("nonexistent")
     end
 
-    test "returns {:ok, pid} for a running agent", %{agent: agent} do
-      {:ok, pid} = start_agent_manager(agent)
-      assert {:ok, ^pid} = Coordinator.lookup(agent.id)
+    test "returns {:ok, pid} for a running agent" do
+      {:ok, pid} = start_agent_manager(@agent_name, @agent_id)
+      assert {:ok, ^pid} = Coordinator.lookup(@agent_id)
     end
   end
 
@@ -52,23 +39,23 @@ defmodule Shire.Agent.CoordinatorTest do
   end
 
   describe "start_agent/1 with failed agent" do
-    test "restarts a failed agent instead of returning already_running", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
+    test "restarts a failed agent instead of returning already_running" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
 
       # Simulate the agent entering a failed state
-      Coordinator.notify_status(agent.id, :failed)
-      assert :failed == Coordinator.agent_status(agent.id)
+      Coordinator.notify_status(@agent_id, :failed)
+      assert :failed == Coordinator.agent_status(@agent_id)
 
       # start_agent should restart it instead of returning :already_running
-      result = Coordinator.start_agent(agent.id)
+      result = Coordinator.start_agent(@agent_id)
       assert {:ok, :restarted} = result
     end
 
-    test "still returns already_running for active agents", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
-      Coordinator.notify_status(agent.id, :active)
+    test "still returns already_running for active agents" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
+      Coordinator.notify_status(@agent_id, :active)
 
-      assert {:error, :already_running} = Coordinator.start_agent(agent.id)
+      assert {:error, :already_running} = Coordinator.start_agent(@agent_id)
     end
   end
 
@@ -77,19 +64,19 @@ defmodule Shire.Agent.CoordinatorTest do
       assert Coordinator.list_running() == []
     end
 
-    test "includes running agents", %{agent: agent} do
-      {:ok, pid} = start_agent_manager(agent)
+    test "includes running agents" do
+      {:ok, pid} = start_agent_manager(@agent_name, @agent_id)
       running = Coordinator.list_running()
-      assert {agent.id, pid} in running
+      assert {@agent_id, pid} in running
     end
   end
 
   describe "request_peers/1" do
-    test "does not crash the coordinator", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
+    test "does not crash the coordinator" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
 
       # request_peers is a cast — should not crash
-      Coordinator.request_peers(agent.id)
+      Coordinator.request_peers(@agent_id)
       # Wait for the async Task inside the cast to complete
       Process.sleep(100)
 
@@ -109,16 +96,16 @@ defmodule Shire.Agent.CoordinatorTest do
       Coordinator.broadcast_peers()
     end
 
-    test "does not crash when agents are registered", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
+    test "does not crash when agents are registered" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
       Coordinator.broadcast_peers()
     end
   end
 
   describe "lookup_by_name/1" do
-    test "returns {:ok, agent_id} for a running agent by name", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
-      assert {:ok, agent.id} == Coordinator.lookup_by_name("coord-test-agent")
+    test "returns {:ok, agent_id} for a running agent by name" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
+      assert {:ok, @agent_id} == Coordinator.lookup_by_name(@agent_name)
     end
 
     test "returns {:error, :not_found} for unknown name" do
@@ -127,10 +114,10 @@ defmodule Shire.Agent.CoordinatorTest do
   end
 
   describe "list_running_with_names/0" do
-    test "returns agent_id, pid, and name", %{agent: agent} do
-      {:ok, pid} = start_agent_manager(agent)
+    test "returns agent_id, pid, and name" do
+      {:ok, pid} = start_agent_manager(@agent_name, @agent_id)
       running = Coordinator.list_running_with_names()
-      assert {agent.id, pid, "coord-test-agent"} in running
+      assert {@agent_id, pid, @agent_name} in running
     end
   end
 
@@ -140,62 +127,46 @@ defmodule Shire.Agent.CoordinatorTest do
                Coordinator.route_agent_message("sender", "nonexistent", "hello")
     end
 
-    test "returns error when target agent is not active", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
+    test "returns error when target agent is not active" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
 
       # Agent is in :idle phase (skip_sprite), so send_message returns {:error, :not_active}
-      result = Coordinator.route_agent_message("sender", "coord-test-agent", "hello")
+      result = Coordinator.route_agent_message("sender", @agent_name, "hello")
       assert result == {:error, :not_active} or result == {:error, :delivery_failed}
     end
   end
 
   describe "broadcast_peers/0 resilience" do
-    test "survives when an agent is deleted from DB while running", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
-
-      # Delete the agent from DB while it's still registered in Registry
-      Agents.delete_agent(agent)
+    test "survives when agents are running" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
 
       # Should not crash
       Coordinator.broadcast_peers()
       assert Process.alive?(GenServer.whereis(Coordinator))
     end
 
-    test "excludes terminal sessions from registry queries", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
+    test "excludes terminal sessions from registry queries" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
 
       # Simulate a terminal session registering in the same registry
       {:ok, _} =
-        Registry.register(Shire.AgentRegistry, {:terminal, agent.id}, "terminal-session")
+        Registry.register(Shire.AgentRegistry, {:terminal, @agent_id}, "terminal-session")
 
       # list_running should only return agent entries, not terminal entries
       running = Coordinator.list_running()
       running_keys = Enum.map(running, fn {key, _pid} -> key end)
-      assert agent.id in running_keys
-      refute {:terminal, agent.id} in running_keys
+      assert @agent_id in running_keys
+      refute {:terminal, @agent_id} in running_keys
 
       # list_running_with_names should also exclude terminal entries
       running_names = Coordinator.list_running_with_names()
       running_name_keys = Enum.map(running_names, fn {key, _pid, _name} -> key end)
-      assert agent.id in running_name_keys
-      refute {:terminal, agent.id} in running_name_keys
+      assert @agent_id in running_name_keys
+      refute {:terminal, @agent_id} in running_name_keys
 
       # broadcast_peers should not crash
       Coordinator.broadcast_peers()
       assert Process.alive?(GenServer.whereis(Coordinator))
-    end
-  end
-
-  describe "list_agents/0 (auto-restart source)" do
-    test "returns all non-base agents" do
-      {:ok, a1} = Agents.create_agent(%{recipe: valid_recipe("agent-one")})
-      {:ok, a2} = Agents.create_agent(%{recipe: valid_recipe("agent-two")})
-
-      agents = Agents.list_agents()
-      agent_ids = Enum.map(agents, & &1.id)
-
-      assert a1.id in agent_ids
-      assert a2.id in agent_ids
     end
   end
 
@@ -204,46 +175,39 @@ defmodule Shire.Agent.CoordinatorTest do
       assert :created == Coordinator.agent_status("nonexistent")
     end
 
-    test "returns status after notify_status", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
-      Coordinator.notify_status(agent.id, :active)
-      assert :active == Coordinator.agent_status(agent.id)
+    test "returns status after notify_status" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
+      Coordinator.notify_status(@agent_id, :active)
+      assert :active == Coordinator.agent_status(@agent_id)
     end
   end
 
   describe "agent_statuses/1" do
-    test "returns status map for given agent IDs", %{agent: agent} do
-      {:ok, _pid} = start_agent_manager(agent)
-      Coordinator.notify_status(agent.id, :bootstrapping)
+    test "returns status map for given agent IDs" do
+      {:ok, _pid} = start_agent_manager(@agent_name, @agent_id)
+      Coordinator.notify_status(@agent_id, :bootstrapping)
 
-      result = Coordinator.agent_statuses([agent.id, "nonexistent"])
-      assert result[agent.id] == :bootstrapping
+      result = Coordinator.agent_statuses([@agent_id, "nonexistent"])
+      assert result[@agent_id] == :bootstrapping
       assert result["nonexistent"] == :created
     end
   end
 
   describe "notify_status/2 broadcasts" do
-    test "broadcasts {:status, status} to agent topic", %{agent: agent} do
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{agent.id}")
-      Coordinator.notify_status(agent.id, :active)
+    test "broadcasts {:status, status} to agent topic" do
+      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{@agent_id}")
+      Coordinator.notify_status(@agent_id, :active)
       assert_receive {:status, :active}
     end
 
-    test "broadcasts {:agent_status, id, status} to lobby", %{agent: agent} do
+    test "broadcasts {:agent_status, id, status} to lobby" do
       Phoenix.PubSub.subscribe(Shire.PubSub, "agents:lobby")
-      Coordinator.notify_status(agent.id, :bootstrapping)
+      Coordinator.notify_status(@agent_id, :bootstrapping)
       assert_receive {:agent_status, _id, :bootstrapping}
     end
   end
 
   describe "auto-restart on init" do
-    test "handle_continue(:restart_agents) starts agents from DB", %{agent: agent} do
-      # The Coordinator already ran handle_continue at boot with no sprites token in test,
-      # so agents won't actually start (no token). Verify the agent is in list_previously_active.
-      agents = Agents.list_agents()
-      assert agent.id in Enum.map(agents, & &1.id)
-    end
-
     test "handle_continue does not crash when no agents exist" do
       # Clean slate — the singleton Coordinator already survived init
       assert Process.alive?(GenServer.whereis(Coordinator))
@@ -252,16 +216,13 @@ defmodule Shire.Agent.CoordinatorTest do
 
   describe "debounced peer broadcast" do
     test "coordinator remains healthy after rapid request_peers calls" do
-      {:ok, agent1} = Agents.create_agent(%{recipe: valid_recipe("debounce-one")})
-      {:ok, agent2} = Agents.create_agent(%{recipe: valid_recipe("debounce-two")})
-
-      {:ok, _} = start_agent_manager(agent1, id: :db1)
-      {:ok, _} = start_agent_manager(agent2, id: :db2)
+      {:ok, _} = start_agent_manager("debounce-one", 10001, id: :db1)
+      {:ok, _} = start_agent_manager("debounce-two", 10002, id: :db2)
 
       # Fire multiple rapid requests — should debounce into fewer broadcasts
-      Coordinator.request_peers(agent1.id)
-      Coordinator.request_peers(agent2.id)
-      Coordinator.request_peers(agent1.id)
+      Coordinator.request_peers(10001)
+      Coordinator.request_peers(10002)
+      Coordinator.request_peers(10001)
 
       # Wait for debounce window (500ms) + processing
       Process.sleep(700)

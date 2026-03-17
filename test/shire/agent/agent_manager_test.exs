@@ -4,25 +4,21 @@ defmodule Shire.Agent.AgentManagerTest do
   alias Shire.Agent.AgentManager
   alias Shire.Agents
 
-  defp valid_recipe(name \\ "test-agent") do
-    """
-    version: 1
-    name: #{name}
-    harness: pi
-    model: claude-sonnet-4-6
-    system_prompt: You are a test agent.
-    """
-  end
+  @agent_name "test-agent"
+  @agent_id 8888
 
-  setup do
-    {:ok, agent} = Agents.create_agent(%{recipe: valid_recipe()})
-    %{agent: agent}
+  defp start_manager(opts \\ []) do
+    name = Keyword.get(opts, :agent_name, @agent_name)
+    id = Keyword.get(opts, :agent_id, @agent_id)
+
+    start_supervised(
+      {AgentManager, agent_name: name, agent_id: id, sprites_client: nil, skip_sprite: true}
+    )
   end
 
   describe "start_link/1" do
-    test "starts the GenServer and registers with the agent id", %{agent: agent} do
-      {:ok, pid} =
-        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+    test "starts the GenServer and registers with the agent id" do
+      {:ok, pid} = start_manager()
 
       assert Process.alive?(pid)
       assert GenServer.call(pid, :get_state) |> Map.get(:phase) == :idle
@@ -30,45 +26,62 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "state management" do
-    test "get_state returns current state", %{agent: agent} do
-      {:ok, pid} =
-        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+    test "get_state returns current state" do
+      {:ok, pid} = start_manager()
 
       state = AgentManager.get_state(pid)
-      assert state.agent_name == "test-agent"
+      assert state.agent_name == @agent_name
       assert state.phase == :idle
     end
   end
 
   describe "send_message/3" do
-    test "returns error when agent is not active", %{agent: agent} do
-      {:ok, pid} =
-        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+    test "returns error when agent is not active" do
+      {:ok, pid} = start_manager()
 
       assert {:error, :not_active} = GenServer.call(pid, {:send_message, "hello", :user})
     end
   end
 
   describe "responsiveness" do
-    test "get_state responds immediately even during non-idle phases", %{agent: agent} do
-      {:ok, pid} =
-        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+    test "get_state responds immediately even during non-idle phases" do
+      {:ok, pid} = start_manager()
 
       state = AgentManager.get_state(pid)
       assert state.phase == :idle
     end
   end
 
+  describe "error handling" do
+    test "transitions to failed on command error" do
+      {:ok, pid} = start_manager()
+
+      ref = make_ref()
+      command = %{ref: ref}
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: command, command_ref: ref, phase: :active}
+      end)
+
+      send(pid, {:error, %{ref: ref}, :closed})
+
+      # Give the GenServer time to process
+      state = AgentManager.get_state(pid)
+      assert state.phase == :failed
+      assert state.command == nil
+      assert state.command_ref == nil
+    end
+  end
+
   describe "persist_and_broadcast (stdout event persistence)" do
-    setup %{agent: agent} do
-      {:ok, pid} =
-        start_supervised({AgentManager, agent: agent, sprites_client: nil, skip_sprite: true})
+    setup do
+      {:ok, pid} = start_manager()
 
       # Allow the GenServer process to access the DB sandbox
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
       # Subscribe to PubSub to receive broadcasts
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{agent.id}")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{@agent_id}")
 
       # Create a fake command ref so stdout handler matches
       ref = make_ref()
@@ -81,7 +94,7 @@ defmodule Shire.Agent.AgentManagerTest do
       %{pid: pid, ref: ref}
     end
 
-    test "persists text event as agent message in DB", %{agent: agent, pid: pid, ref: ref} do
+    test "persists text event as agent message in DB", %{pid: pid, ref: ref} do
       line = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "Hello world"}})
       send(pid, {:stdout, %{ref: ref}, line <> "\n"})
 
@@ -94,10 +107,10 @@ defmodule Shire.Agent.AgentManagerTest do
       # Verify it was persisted in DB
       db_msg = Agents.get_message!(msg[:id])
       assert db_msg.content["text"] == "Hello world"
-      assert db_msg.agent_id == agent.id
+      assert db_msg.agent_name == @agent_name
     end
 
-    test "persists tool_use started event in DB", %{agent: agent, pid: pid, ref: ref} do
+    test "persists tool_use started event in DB", %{pid: pid, ref: ref} do
       line =
         Jason.encode!(%{
           "type" => "tool_use",
@@ -119,7 +132,7 @@ defmodule Shire.Agent.AgentManagerTest do
       db_msg = Agents.get_message!(msg[:id])
       assert db_msg.role == "tool_use"
       assert db_msg.content["tool"] == "Read"
-      assert db_msg.agent_id == agent.id
+      assert db_msg.agent_name == @agent_name
     end
 
     test "updates tool_use with tool_result in DB", %{pid: pid, ref: ref} do
@@ -159,11 +172,7 @@ defmodule Shire.Agent.AgentManagerTest do
       assert db_msg.content["is_error"] == false
     end
 
-    test "flushes accumulated streaming text on turn_complete", %{
-      agent: agent,
-      pid: pid,
-      ref: ref
-    } do
+    test "flushes accumulated streaming text on turn_complete", %{pid: pid, ref: ref} do
       # Send text_delta events
       delta1 = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "Hello "}})
       delta2 = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "world"}})
@@ -183,18 +192,18 @@ defmodule Shire.Agent.AgentManagerTest do
 
       db_msg = Agents.get_message!(msg[:id])
       assert db_msg.content["text"] == "Hello world"
-      assert db_msg.agent_id == agent.id
+      assert db_msg.agent_name == @agent_name
 
       # And then the turn_complete
       assert_receive {:agent_event, _, %{"type" => "turn_complete"}}, 1_000
     end
 
-    test "broadcasts include agent_id in 3-tuple", %{agent: agent, pid: pid, ref: ref} do
+    test "broadcasts include agent_id in 3-tuple", %{pid: pid, ref: ref} do
       line = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "test"}})
       send(pid, {:stdout, %{ref: ref}, line <> "\n"})
 
       assert_receive {:agent_event, agent_id, _event}, 1_000
-      assert agent_id == agent.id
+      assert agent_id == @agent_id
     end
   end
 end

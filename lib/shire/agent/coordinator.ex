@@ -8,7 +8,6 @@ defmodule Shire.Agent.Coordinator do
 
   alias Shire.Agent.AgentManager
   alias Shire.Agents
-  alias Shire.Agents.Agent
 
   @sprite_prefix Application.compile_env(:shire, :sprite_prefix, "agent")
 
@@ -64,7 +63,7 @@ defmodule Shire.Agent.Coordinator do
           result = AgentManager.send_message(to_agent_id, text, {:agent, from_agent_name})
 
           Agents.create_message(%{
-            agent_id: to_agent_id,
+            agent_name: to_agent_name,
             role: "inter_agent",
             content: %{
               "text" => text,
@@ -152,52 +151,7 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_continue(:restart_agents, state) do
-    agents = Agents.list_agents()
-
-    if agents != [] do
-      Logger.info("Restarting #{length(agents)} previously active agent(s)")
-    end
-
-    state =
-      Enum.reduce(agents, state, fn agent, acc ->
-        # Skip if already running (e.g. Coordinator restarted but agents survived)
-        case lookup(agent.id) do
-          {:ok, pid} ->
-            ref = Process.monitor(pid)
-            monitors = Map.put(acc.monitors, ref, agent.id)
-            statuses = Map.put(acc.statuses, agent.id, :active)
-            Logger.info("Agent #{agent.id} already running, re-monitoring")
-            %{acc | monitors: monitors, statuses: statuses}
-
-          {:error, :not_found} ->
-            token = Application.get_env(:shire, :sprites_token)
-
-            if token do
-              client = Sprites.new(token)
-
-              case DynamicSupervisor.start_child(
-                     Shire.AgentSupervisor,
-                     {AgentManager, agent: agent, sprites_client: client}
-                   ) do
-                {:ok, pid} ->
-                  ref = Process.monitor(pid)
-                  monitors = Map.put(acc.monitors, ref, agent.id)
-                  statuses = Map.put(acc.statuses, agent.id, :starting)
-                  Logger.info("Auto-started agent #{agent.id}")
-                  %{acc | monitors: monitors, statuses: statuses}
-
-                {:error, reason} ->
-                  Logger.error("Failed to auto-start agent #{agent.id}: #{inspect(reason)}")
-                  acc
-              end
-            else
-              Logger.warning("No sprites token, skipping auto-start of agent #{agent.id}")
-              acc
-            end
-        end
-      end)
-
-    state = if agents != [], do: schedule_peer_broadcast(state), else: state
+    # TODO(Phase 2): Reimplement with filesystem-based agent scanning
     {:noreply, state}
   end
 
@@ -222,31 +176,8 @@ defmodule Shire.Agent.Coordinator do
         end
 
       {:error, :not_found} ->
-        token = Application.get_env(:shire, :sprites_token)
-
-        if is_nil(token) do
-          {:reply, {:error, :no_sprites_token}, state}
-        else
-          agent = Agents.get_agent!(agent_id)
-          client = Sprites.new(token)
-
-          case DynamicSupervisor.start_child(
-                 Shire.AgentSupervisor,
-                 {AgentManager, agent: agent, sprites_client: client}
-               ) do
-            {:ok, pid} ->
-              ref = Process.monitor(pid)
-              monitors = Map.put(state.monitors, ref, agent_id)
-              statuses = Map.put(state.statuses, agent_id, :starting)
-              Logger.info("Started agent #{agent_id} (pid: #{inspect(pid)})")
-              state = schedule_peer_broadcast(%{state | monitors: monitors, statuses: statuses})
-              {:reply, {:ok, pid}, state}
-
-            {:error, reason} ->
-              Logger.error("Failed to start agent #{agent_id}: #{inspect(reason)}")
-              {:reply, {:error, reason}, state}
-          end
-        end
+        # TODO(Phase 2): Reimplement with filesystem-based agent lookup
+        {:reply, {:error, :not_implemented}, state}
     end
   end
 
@@ -270,13 +201,8 @@ defmodule Shire.Agent.Coordinator do
         # Destroy the Sprite VM using the deterministic name
         destroy_sprite_vm(agent_name)
 
-        case Agents.get_agent(agent_id) do
-          {:ok, agent} -> Agents.delete_agent(agent)
-          {:error, :not_found} -> :ok
-        end
-
         statuses = Map.delete(state.statuses, agent_id)
-        Logger.info("Killed agent #{agent_id} (VM destroyed, record deleted)")
+        Logger.info("Killed agent #{agent_id} (VM destroyed)")
         state = schedule_peer_broadcast(%{state | monitors: monitors, statuses: statuses})
         {:reply, :ok, state}
 
@@ -376,34 +302,8 @@ defmodule Shire.Agent.Coordinator do
   # --- Private ---
 
   defp do_broadcast_peers do
-    running = list_running_with_names()
-
-    agent_data =
-      Enum.flat_map(running, fn {agent_id, pid, agent_name} ->
-        case Agents.get_agent(agent_id) do
-          {:ok, agent} ->
-            recipe = Agent.parse_recipe!(agent)
-
-            [
-              %{
-                pid: pid,
-                name: agent_name,
-                description: truncate(recipe["description"] || "", 200)
-              }
-            ]
-
-          {:error, :not_found} ->
-            Logger.warning("Agent #{agent_id} in Registry but missing from DB, skipping")
-            []
-        end
-      end)
-
-    peers = Enum.map(agent_data, &%{name: &1.name, description: &1.description})
-
-    Enum.each(agent_data, fn %{pid: pid, name: name} ->
-      filtered = Enum.reject(peers, fn p -> p.name == name end)
-      GenServer.cast(pid, {:update_peers, filtered})
-    end)
+    # TODO(Phase 2): Reimplement with filesystem-based agent data
+    :ok
   end
 
   defp schedule_peer_broadcast(state) do
@@ -448,18 +348,5 @@ defmodule Shire.Agent.Coordinator do
     end
   rescue
     e -> Logger.warning("Failed to destroy sprite VM for #{agent_name}: #{inspect(e)}")
-  end
-
-  defp truncate(text, max_length) when is_binary(text) do
-    if String.length(text) <= max_length do
-      text
-    else
-      truncated = String.slice(text, 0, max_length)
-
-      case truncated |> String.split(~r/\s+/) |> Enum.drop(-1) do
-        [] -> truncated
-        words -> Enum.join(words, " ") <> "..."
-      end
-    end
   end
 end

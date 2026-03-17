@@ -9,16 +9,12 @@ defmodule Shire.Application do
   def start(_type, _args) do
     children = [
       ShireWeb.Telemetry,
-      Shire.Vault,
       Shire.Repo,
       {DNSCluster, query: Application.get_env(:shire, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Shire.PubSub},
       {Registry, keys: :unique, name: Shire.AgentRegistry},
       {DynamicSupervisor, name: Shire.AgentSupervisor, strategy: :one_for_one},
-      Shire.Agent.DriveSync,
       Shire.Agent.Coordinator,
-      # Start a worker by calling: Shire.Worker.start_link(arg)
-      # {Shire.Worker, arg},
       # Start to serve requests, typically the last entry
       ShireWeb.Endpoint
     ]
