@@ -5,19 +5,15 @@ defmodule Shire.Agent.AgentManagerTest do
   alias Shire.Agents
 
   @agent_name "test-agent"
-  @agent_id 8888
 
   defp start_manager(opts \\ []) do
     name = Keyword.get(opts, :agent_name, @agent_name)
-    id = Keyword.get(opts, :agent_id, @agent_id)
 
-    start_supervised(
-      {AgentManager, agent_name: name, agent_id: id, sprites_client: nil, skip_sprite: true}
-    )
+    start_supervised({AgentManager, agent_name: name, skip_sprite: true})
   end
 
   describe "start_link/1" do
-    test "starts the GenServer and registers with the agent id" do
+    test "starts the GenServer and registers with the agent name" do
       {:ok, pid} = start_manager()
 
       assert Process.alive?(pid)
@@ -65,7 +61,6 @@ defmodule Shire.Agent.AgentManagerTest do
 
       send(pid, {:error, %{ref: ref}, :closed})
 
-      # Give the GenServer time to process
       state = AgentManager.get_state(pid)
       assert state.phase == :failed
       assert state.command == nil
@@ -77,13 +72,10 @@ defmodule Shire.Agent.AgentManagerTest do
     setup do
       {:ok, pid} = start_manager()
 
-      # Allow the GenServer process to access the DB sandbox
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
-      # Subscribe to PubSub to receive broadcasts
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{@agent_id}")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{@agent_name}")
 
-      # Create a fake command ref so stdout handler matches
       ref = make_ref()
       command = %{ref: ref}
 
@@ -98,13 +90,11 @@ defmodule Shire.Agent.AgentManagerTest do
       line = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "Hello world"}})
       send(pid, {:stdout, %{ref: ref}, line <> "\n"})
 
-      # Wait for the broadcast
       assert_receive {:agent_event, _, %{"type" => "text", "message" => msg}}, 1_000
       assert msg[:text] == "Hello world"
       assert msg[:role] == "agent"
       assert msg[:id]
 
-      # Verify it was persisted in DB
       db_msg = Agents.get_message!(msg[:id])
       assert db_msg.content["text"] == "Hello world"
       assert db_msg.agent_name == @agent_name
@@ -136,7 +126,6 @@ defmodule Shire.Agent.AgentManagerTest do
     end
 
     test "updates tool_use with tool_result in DB", %{pid: pid, ref: ref} do
-      # First, send tool_use started
       started =
         Jason.encode!(%{
           "type" => "tool_use",
@@ -152,7 +141,6 @@ defmodule Shire.Agent.AgentManagerTest do
       assert_receive {:agent_event, _, %{"type" => "tool_use", "message" => msg}}, 1_000
       msg_id = msg[:id]
 
-      # Then send tool_result
       result =
         Jason.encode!(%{
           "type" => "tool_result",
@@ -166,14 +154,12 @@ defmodule Shire.Agent.AgentManagerTest do
       send(pid, {:stdout, %{ref: ref}, result <> "\n"})
       assert_receive {:agent_event, _, %{"type" => "tool_result"}}, 1_000
 
-      # Verify DB was updated
       db_msg = Agents.get_message!(msg_id)
       assert db_msg.content["output"] == "file contents here"
       assert db_msg.content["is_error"] == false
     end
 
     test "flushes accumulated streaming text on turn_complete", %{pid: pid, ref: ref} do
-      # Send text_delta events
       delta1 = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "Hello "}})
       delta2 = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "world"}})
       send(pid, {:stdout, %{ref: ref}, delta1 <> "\n" <> delta2 <> "\n"})
@@ -181,11 +167,9 @@ defmodule Shire.Agent.AgentManagerTest do
       assert_receive {:agent_event, _, %{"type" => "text_delta"}}, 1_000
       assert_receive {:agent_event, _, %{"type" => "text_delta"}}, 1_000
 
-      # Send turn_complete to flush
       complete = Jason.encode!(%{"type" => "turn_complete"})
       send(pid, {:stdout, %{ref: ref}, complete <> "\n"})
 
-      # Should receive a flushed text event with the persisted message
       assert_receive {:agent_event, _, %{"type" => "text", "message" => msg}}, 1_000
       assert msg[:text] == "Hello world"
       assert msg[:id]
@@ -194,16 +178,15 @@ defmodule Shire.Agent.AgentManagerTest do
       assert db_msg.content["text"] == "Hello world"
       assert db_msg.agent_name == @agent_name
 
-      # And then the turn_complete
       assert_receive {:agent_event, _, %{"type" => "turn_complete"}}, 1_000
     end
 
-    test "broadcasts include agent_id in 3-tuple", %{pid: pid, ref: ref} do
+    test "broadcasts include agent_name in 3-tuple", %{pid: pid, ref: ref} do
       line = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "test"}})
       send(pid, {:stdout, %{ref: ref}, line <> "\n"})
 
-      assert_receive {:agent_event, agent_id, _event}, 1_000
-      assert agent_id == @agent_id
+      assert_receive {:agent_event, agent_name, _event}, 1_000
+      assert agent_name == @agent_name
     end
   end
 end

@@ -17,13 +17,13 @@ Design spec: `docs/superpowers/specs/2026-03-18-single-vm-architecture-design.md
 - [x] Remove Cloak config from `config/`
 - [x] `mix compile --warnings-as-errors` passes
 
-## Phase 2: Core (Coordinator + AgentManager)
-- [ ] Refactor `coordinator.ex` — single VM lifecycle, scan `/workspace/agents/`, remove peer broadcasting
-- [ ] Refactor `agent_manager.ex` — receive shared sprite, create agent workspace dir, deploy skills, write config
-- [ ] Update `bootstrap.sh` — base structure only
-- [ ] Update `application.ex` — AgentRegistry keyed by name
-- [ ] Test: app starts, single VM bootstraps, can create agent workspace dir
-- [ ] `mix compile --warnings-as-errors` passes
+## Phase 2: Core (Coordinator + AgentManager) ✅
+- [x] Refactor `coordinator.ex` — single VM lifecycle, scan `/workspace/agents/`, remove peer broadcasting
+- [x] Refactor `agent_manager.ex` — receive shared sprite, create agent workspace dir, deploy skills, write config
+- [x] Update `bootstrap.sh` — base structure only
+- [x] Update `application.ex` — AgentRegistry keyed by name (string keys via registry)
+- [x] Test: app starts, single VM bootstraps, can create agent workspace dir
+- [x] `mix compile --warnings-as-errors` passes
 
 ## Phase 3: Agent Runner
 - [ ] Parameterize paths via `--agent-dir` CLI arg
