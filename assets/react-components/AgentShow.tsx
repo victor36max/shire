@@ -57,53 +57,51 @@ export default function AgentShow({
               <Pencil className="h-4 w-4 mr-1" />
               Edit
             </Button>
-            {agent.status === "active" || agent.status === "starting" ? (
-              <>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline">Restart Agent</Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Restart Agent</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will stop the current runner, re-run recipe scripts, and restart the agent. The VM will be
-                        preserved.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => pushEvent("restart-agent", {})}>Restart</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive">Kill Agent</Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Kill Agent</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will destroy the agent's VM entirely. The agent will need a full re-bootstrap on next
-                        start.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        className={buttonVariants({ variant: "destructive" })}
-                        onClick={() => pushEvent("kill-agent", {})}
-                      >
-                        Kill
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </>
-            ) : agent.status !== "bootstrapping" ? (
+            {(agent.status === "active" || agent.status === "starting" || agent.status === "bootstrapping") && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline">Restart Agent</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Restart Agent</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will stop the current runner, re-run recipe scripts, and restart the agent. The VM will be
+                      preserved.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => pushEvent("restart-agent", {})}>Restart</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {agent.status !== "active" && agent.status !== "starting" && agent.status !== "bootstrapping" && (
               <Button onClick={() => pushEvent("start-agent", {})}>Start Agent</Button>
-            ) : null}
+            )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">Kill Agent</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Kill Agent</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will destroy the agent's VM entirely. The agent will need a full re-bootstrap on next start.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className={buttonVariants({ variant: "destructive" })}
+                    onClick={() => pushEvent("kill-agent", {})}
+                  >
+                    Kill
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 

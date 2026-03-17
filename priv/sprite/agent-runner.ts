@@ -1,6 +1,9 @@
-// agent-runner.ts — Bun daemon that watches the inbox and dispatches to configured harness.
+// agent-runner.ts — Bun daemon that runs recipe scripts, then watches the inbox
+// and dispatches to configured harness.
 import { watch } from "fs";
 import { readFile, readdir, stat, unlink } from "fs/promises";
+import { readFileSync, readdirSync, existsSync, writeFileSync, unlinkSync } from "fs";
+import { createHash } from "crypto";
 import { join } from "path";
 import { createHarness, type Harness, type HarnessType } from "./harness";
 
@@ -10,6 +13,8 @@ const CONFIG_PATH = "/workspace/agent-config.json";
 const SHARED_DIR = "/workspace/shared";
 const SYNC_MARKER_DIR = "/workspace/.drive-sync";
 const MAX_SHARED_FILE_SIZE = 1_000_000; // 1MB limit
+const RECIPE_PATH = "/workspace/recipe.json";
+const RECIPE_STATE_DIR = "/workspace/.recipe-state";
 
 export interface AgentConfig {
   harness: HarnessType;
@@ -25,10 +30,117 @@ export interface MessageEnvelope {
   payload: Record<string, unknown>;
 }
 
+interface RecipeScript {
+  name: string;
+  run: string;
+}
+
+interface Recipe {
+  scripts: RecipeScript[];
+}
+
 export function emit(type: string, payload: Record<string, unknown> = {}) {
   const line = JSON.stringify({ type, payload });
   process.stdout.write(line + "\n");
 }
+
+// ---------------------------------------------------------------------------
+// Recipe execution (folded from recipe-runner.ts)
+// ---------------------------------------------------------------------------
+
+function hashContent(content: string): string {
+  return createHash("sha256").update(content).digest("hex").slice(0, 12);
+}
+
+function getMarkerPath(name: string, hash: string, stateDir = RECIPE_STATE_DIR): string {
+  return join(stateDir, `${name}.${hash}`);
+}
+
+function hasMarker(name: string, hash: string, stateDir = RECIPE_STATE_DIR): boolean {
+  return existsSync(getMarkerPath(name, hash, stateDir));
+}
+
+function clearOldMarkers(name: string, currentHash: string, stateDir = RECIPE_STATE_DIR): void {
+  if (!existsSync(stateDir)) return;
+
+  for (const file of readdirSync(stateDir)) {
+    if (file.startsWith(`${name}.`) && !file.endsWith(`.${currentHash}`)) {
+      unlinkSync(join(stateDir, file));
+    }
+  }
+}
+
+function writeMarker(name: string, hash: string, stateDir = RECIPE_STATE_DIR): void {
+  writeFileSync(getMarkerPath(name, hash, stateDir), new Date().toISOString());
+}
+
+async function runRecipeScript(script: RecipeScript, stateDir = RECIPE_STATE_DIR): Promise<boolean> {
+  const hash = hashContent(script.run);
+
+  if (hasMarker(script.name, hash, stateDir)) {
+    emit("recipe_step", { name: script.name, status: "skipped" });
+    return true;
+  }
+
+  clearOldMarkers(script.name, hash, stateDir);
+
+  const proc = Bun.spawn(["bash", "-c", script.run], {
+    stdout: "pipe",
+    stderr: "pipe",
+    cwd: "/workspace",
+  });
+
+  const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+
+  const exitCode = await proc.exited;
+
+  if (exitCode === 0) {
+    writeMarker(script.name, hash, stateDir);
+    emit("recipe_step", { name: script.name, status: "done" });
+    return true;
+  } else {
+    emit("recipe_step", {
+      name: script.name,
+      status: "failed",
+      exit_code: exitCode,
+      stdout: stdout.trim(),
+      stderr: stderr.trim(),
+    });
+    return false;
+  }
+}
+
+export async function runRecipes(
+  recipePath = RECIPE_PATH,
+  stateDir = RECIPE_STATE_DIR,
+): Promise<{ status: string; failed_step?: string }> {
+  if (!existsSync(recipePath)) {
+    emit("recipe_complete", { status: "no_recipe" });
+    return { status: "no_recipe" };
+  }
+
+  const recipe: Recipe = JSON.parse(readFileSync(recipePath, "utf-8"));
+
+  if (!recipe.scripts || recipe.scripts.length === 0) {
+    emit("recipe_complete", { status: "no_scripts" });
+    return { status: "no_scripts" };
+  }
+
+  for (const script of recipe.scripts) {
+    const success = await runRecipeScript(script, stateDir);
+    if (!success) {
+      emit("recipe_complete", { status: "failed", failed_step: script.name });
+      return { status: "failed", failed_step: script.name };
+    }
+  }
+
+  emit("recipe_complete", { status: "done", steps: recipe.scripts.length });
+  return { status: "done" };
+}
+
+// ---------------------------------------------------------------------------
+// Message processing
+// ---------------------------------------------------------------------------
 
 export async function loadConfig(path = CONFIG_PATH): Promise<AgentConfig> {
   const raw = await readFile(path, "utf-8");
@@ -97,7 +209,17 @@ export async function processOutbox(outboxDir = OUTBOX_DIR): Promise<number> {
   return sorted.length;
 }
 
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
 async function main() {
+  // Run recipe setup scripts first
+  const recipeResult = await runRecipes();
+  if (recipeResult.status === "failed") {
+    process.exit(1);
+  }
+
   const config = await loadConfig();
   const harness = createHarness(config.harness);
 

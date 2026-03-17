@@ -33,7 +33,7 @@
 
 ## Key Concepts
 
-**Recipe system:** Agents are defined by YAML recipes containing `name`, `description`, and `scripts` (array of `{name, run}` steps). Recipes are deployed to `/workspace/recipe.json` in the Sprite VM and executed idempotently by `recipe-runner.ts` with marker-file tracking.
+**Recipe system:** Agents are defined by YAML recipes containing `name`, `description`, and `scripts` (array of `{name, run}` steps). Recipes are deployed to `/workspace/recipe.json` in the Sprite VM and executed idempotently by the agent runner with marker-file tracking in `/workspace/.recipe-state/`.
 
 **Inter-agent messaging:** The Coordinator routes messages between agents. Each agent has a mailbox with inbox/outbox directories on its Sprite VM. Peers are discovered via `peers.json`. Messages are delivered as files to `/workspace/mailbox/inbox/`.
 
@@ -130,16 +130,15 @@ assets/
     SharedDrive.test.tsx
     Terminal.test.tsx
 
-priv/sprite/                  # Agent runtime (Bun/TypeScript)
-  agent-runner.ts             # Main agent runner (multi-harness)
-  recipe-runner.ts            # Idempotent recipe script runner with marker-file tracking
-  bootstrap.sh                # VM bootstrap script
+priv/sprite/                  # Agent runtime (Bun/TypeScript), deployed to /workspace/.runner/
+  agent-runner.ts             # Main agent runner (recipe execution + multi-harness daemon)
+  bootstrap.sh                # VM bootstrap script (creates /workspace dirs)
   harness/
     types.ts                  # Harness interface definition
     index.ts                  # Harness factory (creates harness by type)
     pi-harness.ts             # Pi SDK harness adapter
     claude-code-harness.ts    # Claude Code CLI harness adapter
-  agent-runner.test.ts        # Agent runner tests
+  agent-runner.test.ts        # Agent runner tests (includes recipe execution tests)
   harness/
     pi-harness.test.ts        # Pi harness tests
     claude-code-harness.test.ts # Claude Code harness tests

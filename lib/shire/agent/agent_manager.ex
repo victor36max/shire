@@ -58,6 +58,16 @@ defmodule Shire.Agent.AgentManager do
   - Avoid rapid sequential writes to the same file — batch your changes when possible
   - If a file changed unexpectedly, another agent may have updated it — re-read before overwriting
   - Maximum file size: 1MB per file
+
+  ## Scripts & Documents
+
+  You have two dedicated directories for organizing your work:
+
+  ### Scripts (`/workspace/scripts/`)
+  Write reusable scripts here — shell scripts, data processing pipelines, automation tools, or any code you want to run repeatedly. Keep scripts self-contained and well-named.
+
+  ### Documents (`/workspace/documents/`)
+  Store internal reference documents here — research notes, analysis summaries, plans, findings, or any structured information you want to persist and refer back to.
   """
 
   @sprite_prefix Application.compile_env(:shire, :sprite_prefix, "agent")
@@ -176,7 +186,7 @@ defmodule Shire.Agent.AgentManager do
     kill_existing_runners(state.sprite)
     env = load_env_vars(state.sprite)
 
-    case Sprites.spawn(state.sprite, "bun", ["run", "/workspace/agent-runner.ts"],
+    case Sprites.spawn(state.sprite, "bun", ["run", "/workspace/.runner/agent-runner.ts"],
            env: env,
            dir: "/workspace"
          ) do
@@ -442,7 +452,6 @@ defmodule Shire.Agent.AgentManager do
     deploy_config(sprite, fs, agent_id, recipe)
     deploy_skills(sprite, fs, recipe, recipe["harness"] || "claude_code")
     deploy_runtime_files(fs)
-    run_recipe_scripts(sprite, recipe)
     install_dependencies(sprite)
 
     DriveSync.ensure_started()
@@ -492,7 +501,6 @@ defmodule Shire.Agent.AgentManager do
   defp deploy_runtime_files(fs) do
     runtime_files = [
       "agent-runner.ts",
-      "recipe-runner.ts",
       "package.json",
       "harness/types.ts",
       "harness/pi-harness.ts",
@@ -502,19 +510,13 @@ defmodule Shire.Agent.AgentManager do
 
     for file <- runtime_files do
       source = File.read!(Application.app_dir(:shire, "priv/sprite/#{file}"))
-      :ok = Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
-    end
-  end
-
-  defp run_recipe_scripts(sprite, recipe) do
-    if recipe["scripts"] && recipe["scripts"] != [] do
-      Sprites.cmd(sprite, "bun", ["run", "/workspace/recipe-runner.ts"], timeout: 300_000)
+      :ok = Sprites.Filesystem.write(fs, "/workspace/.runner/#{file}", source)
     end
   end
 
   defp install_dependencies(sprite) do
     {_, 0} =
-      Sprites.cmd(sprite, "bash", ["-c", "cd /workspace && bun install"], timeout: 60_000)
+      Sprites.cmd(sprite, "bash", ["-c", "cd /workspace/.runner && bun install"], timeout: 60_000)
   end
 
   defp deploy_skills(sprite, fs, recipe, harness) do
