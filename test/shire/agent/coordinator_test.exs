@@ -139,6 +139,30 @@ defmodule Shire.Agent.CoordinatorTest do
       Coordinator.broadcast_peers()
       assert Process.alive?(GenServer.whereis(Coordinator))
     end
+
+    test "excludes terminal sessions from registry queries", %{agent: agent} do
+      {:ok, _pid} = start_agent_manager(agent)
+
+      # Simulate a terminal session registering in the same registry
+      {:ok, _} =
+        Registry.register(Shire.AgentRegistry, {:terminal, agent.id}, "terminal-session")
+
+      # list_running should only return agent entries, not terminal entries
+      running = Coordinator.list_running()
+      running_keys = Enum.map(running, fn {key, _pid} -> key end)
+      assert agent.id in running_keys
+      refute {:terminal, agent.id} in running_keys
+
+      # list_running_with_names should also exclude terminal entries
+      running_names = Coordinator.list_running_with_names()
+      running_name_keys = Enum.map(running_names, fn {key, _pid, _name} -> key end)
+      assert agent.id in running_name_keys
+      refute {:terminal, agent.id} in running_name_keys
+
+      # broadcast_peers should not crash
+      Coordinator.broadcast_peers()
+      assert Process.alive?(GenServer.whereis(Coordinator))
+    end
   end
 
   describe "list_agents/0 (auto-restart source)" do

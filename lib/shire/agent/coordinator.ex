@@ -115,14 +115,14 @@ defmodule Shire.Agent.Coordinator do
 
   def list_running do
     Registry.select(Shire.AgentRegistry, [
-      {{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}
+      {{:"$1", :"$2", :_}, [{:is_integer, :"$1"}], [{{:"$1", :"$2"}}]}
     ])
   end
 
   @doc "Returns all running agents as `[{agent_id, pid, agent_name}]`."
   def list_running_with_names do
     Registry.select(Shire.AgentRegistry, [
-      {{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2", :"$3"}}]}
+      {{:"$1", :"$2", :"$3"}, [{:is_integer, :"$1"}], [{{:"$1", :"$2", :"$3"}}]}
     ])
   end
 
@@ -130,7 +130,7 @@ defmodule Shire.Agent.Coordinator do
   def lookup_by_name(name) do
     result =
       Registry.select(Shire.AgentRegistry, [
-        {{:"$1", :_, :"$2"}, [{:==, :"$2", name}], [:"$1"]}
+        {{:"$1", :_, :"$2"}, [{:is_integer, :"$1"}, {:==, :"$2", name}], [:"$1"]}
       ])
 
     case result do
@@ -160,29 +160,40 @@ defmodule Shire.Agent.Coordinator do
 
     state =
       Enum.reduce(agents, state, fn agent, acc ->
-        token = Application.get_env(:shire, :sprites_token)
+        # Skip if already running (e.g. Coordinator restarted but agents survived)
+        case lookup(agent.id) do
+          {:ok, pid} ->
+            ref = Process.monitor(pid)
+            monitors = Map.put(acc.monitors, ref, agent.id)
+            statuses = Map.put(acc.statuses, agent.id, :active)
+            Logger.info("Agent #{agent.id} already running, re-monitoring")
+            %{acc | monitors: monitors, statuses: statuses}
 
-        if token do
-          client = Sprites.new(token)
+          {:error, :not_found} ->
+            token = Application.get_env(:shire, :sprites_token)
 
-          case DynamicSupervisor.start_child(
-                 Shire.AgentSupervisor,
-                 {AgentManager, agent: agent, sprites_client: client}
-               ) do
-            {:ok, pid} ->
-              ref = Process.monitor(pid)
-              monitors = Map.put(acc.monitors, ref, agent.id)
-              statuses = Map.put(acc.statuses, agent.id, :starting)
-              Logger.info("Auto-started agent #{agent.id}")
-              %{acc | monitors: monitors, statuses: statuses}
+            if token do
+              client = Sprites.new(token)
 
-            {:error, reason} ->
-              Logger.error("Failed to auto-start agent #{agent.id}: #{inspect(reason)}")
+              case DynamicSupervisor.start_child(
+                     Shire.AgentSupervisor,
+                     {AgentManager, agent: agent, sprites_client: client}
+                   ) do
+                {:ok, pid} ->
+                  ref = Process.monitor(pid)
+                  monitors = Map.put(acc.monitors, ref, agent.id)
+                  statuses = Map.put(acc.statuses, agent.id, :starting)
+                  Logger.info("Auto-started agent #{agent.id}")
+                  %{acc | monitors: monitors, statuses: statuses}
+
+                {:error, reason} ->
+                  Logger.error("Failed to auto-start agent #{agent.id}: #{inspect(reason)}")
+                  acc
+              end
+            else
+              Logger.warning("No sprites token, skipping auto-start of agent #{agent.id}")
               acc
-          end
-        else
-          Logger.warning("No sprites token, skipping auto-start of agent #{agent.id}")
-          acc
+            end
         end
       end)
 
