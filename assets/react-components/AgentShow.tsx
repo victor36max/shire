@@ -17,8 +17,9 @@ import {
 import AppLayout from "./components/AppLayout";
 import Terminal from "./Terminal";
 import SecretList from "./SecretList";
-import { ChevronLeft } from "lucide-react";
-import { type Agent, type Secret, statusVariant, harnessLabel } from "./types";
+import AgentForm from "./AgentForm";
+import { ChevronLeft, Pencil } from "lucide-react";
+import { type Agent, type BaseRecipe, type Secret, statusVariant, harnessLabel } from "./types";
 
 const agentSecretEvents = {
   create: "create-agent-secret",
@@ -29,12 +30,15 @@ const agentSecretEvents = {
 export default function AgentShow({
   agent,
   secrets,
+  baseRecipes = [],
   pushEvent,
 }: {
   agent: Agent;
   secrets: Secret[];
+  baseRecipes?: BaseRecipe[];
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }) {
+  const [editOpen, setEditOpen] = React.useState(false);
   const showTerminal = agent.status === "active" || agent.status === "sleeping";
 
   return (
@@ -49,6 +53,10 @@ export default function AgentShow({
             <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-4 w-4 mr-1" />
+              Edit
+            </Button>
             {agent.status === "active" || agent.status === "starting" ? (
               <>
                 <AlertDialog>
@@ -181,6 +189,15 @@ export default function AgentShow({
           </TabsContent>
         </Tabs>
       </div>
+
+      <AgentForm
+        open={editOpen}
+        title="Edit Agent"
+        agent={agent}
+        baseRecipes={baseRecipes}
+        pushEvent={pushEvent}
+        onClose={() => setEditOpen(false)}
+      />
     </AppLayout>
   );
 }
