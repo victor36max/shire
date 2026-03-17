@@ -25,16 +25,16 @@ Design spec: `docs/superpowers/specs/2026-03-18-single-vm-architecture-design.md
 - [x] Test: app starts, single VM bootstraps, can create agent workspace dir
 - [x] `mix compile --warnings-as-errors` passes
 
-## Phase 3: Agent Runner
-- [ ] Parameterize paths via `--agent-dir` CLI arg
-- [ ] Remove `processOutbox`, outbox watcher
-- [ ] Remove shared drive watcher + echo-prevention
-- [ ] Remove recipe execution (`runRecipes`, marker functions)
-- [ ] Add `sendToAgent()` for direct inbox writes
-- [ ] Add `spawn_agent` event emission
-- [ ] Change harness `cwd` to agent dir
-- [ ] Update SIGTERM handler
-- [ ] `cd priv/sprite && bun run lint && bun run format:check && bun test` passes
+## Phase 3: Agent Runner ✅
+- [x] Parameterize paths via `--agent-dir` CLI arg
+- [x] Remove `processOutbox`, outbox watcher
+- [x] Remove shared drive watcher + echo-prevention
+- [x] Remove recipe execution (`runRecipes`, marker functions)
+- [x] Add `sendToAgent()` for direct inbox writes
+- [x] Add `spawn_agent` event emission (handled in AgentManager stdout handler)
+- [x] Change harness `cwd` to agent dir
+- [x] Update SIGTERM handler
+- [x] `cd priv/sprite && bun run lint && bun run format:check && bun test` passes
 
 ## Phase 4: UI (LiveView + React)
 - [ ] Update router — remove secret/shared-drive routes, agent routes use `:name`

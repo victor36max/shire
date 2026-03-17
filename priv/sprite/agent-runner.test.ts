@@ -1,7 +1,7 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
 import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, writeFileSync, rmSync, readdirSync } from "fs";
-import { emit, processMessage, processInbox, runRecipes, type MessageEnvelope } from "./agent-runner";
+import { mkdirSync, writeFileSync, rmSync, readdirSync, readFileSync } from "fs";
+import { emit, processMessage, processInbox, sendToAgent, type MessageEnvelope } from "./agent-runner";
 import type { Harness } from "./harness";
 import { createHarness } from "./harness";
 
@@ -210,124 +210,6 @@ describe("processMessage() — unknown type", () => {
 // processInbox() — drain and return count
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// runRecipes() — recipe execution
-// ---------------------------------------------------------------------------
-
-const TEST_RECIPE_DIR = "/tmp/test-recipe-" + process.pid;
-const TEST_STATE_DIR = "/tmp/test-recipe-state-" + process.pid;
-
-describe("runRecipes()", () => {
-  beforeEach(() => {
-    mkdirSync(TEST_STATE_DIR, { recursive: true });
-  });
-
-  afterEach(() => {
-    rmSync(TEST_RECIPE_DIR, { recursive: true, force: true });
-    rmSync(TEST_STATE_DIR, { recursive: true, force: true });
-  });
-
-  test("returns no_recipe when recipe file does not exist", async () => {
-    const events = await captureEmits(async () => {
-      const result = await runRecipes("/tmp/nonexistent-recipe.json", TEST_STATE_DIR);
-      expect(result.status).toBe("no_recipe");
-    });
-    expect(events.some((e) => e.type === "recipe_complete")).toBe(true);
-  });
-
-  test("returns no_scripts when recipe has empty scripts array", async () => {
-    const recipePath = `${TEST_RECIPE_DIR}/recipe.json`;
-    mkdirSync(TEST_RECIPE_DIR, { recursive: true });
-    writeFileSync(recipePath, JSON.stringify({ scripts: [] }));
-
-    const events = await captureEmits(async () => {
-      const result = await runRecipes(recipePath, TEST_STATE_DIR);
-      expect(result.status).toBe("no_scripts");
-    });
-    expect(events.some((e) => e.type === "recipe_complete")).toBe(true);
-  });
-
-  test("runs scripts and returns done (mocked spawn)", async () => {
-    const recipePath = `${TEST_RECIPE_DIR}/recipe.json`;
-    mkdirSync(TEST_RECIPE_DIR, { recursive: true });
-    writeFileSync(recipePath, JSON.stringify({ scripts: [{ name: "test-step", run: "echo hello" }] }));
-
-    const originalSpawn = Bun.spawn;
-    Bun.spawn = (() => ({
-      stdout: new ReadableStream({ start: (c) => c.close() }),
-      stderr: new ReadableStream({ start: (c) => c.close() }),
-      exited: Promise.resolve(0),
-    })) as unknown as typeof Bun.spawn;
-
-    try {
-      const events = await captureEmits(async () => {
-        const result = await runRecipes(recipePath, TEST_STATE_DIR);
-        expect(result.status).toBe("done");
-      });
-      expect(events.some((e) => e.type === "recipe_step" && e.payload.name === "test-step")).toBe(true);
-    } finally {
-      Bun.spawn = originalSpawn;
-    }
-  });
-
-  test("skips scripts with matching marker", async () => {
-    const recipePath = `${TEST_RECIPE_DIR}/recipe.json`;
-    mkdirSync(TEST_RECIPE_DIR, { recursive: true });
-    writeFileSync(recipePath, JSON.stringify({ scripts: [{ name: "test-step", run: "echo hello" }] }));
-
-    const originalSpawn = Bun.spawn;
-    Bun.spawn = (() => ({
-      stdout: new ReadableStream({ start: (c) => c.close() }),
-      stderr: new ReadableStream({ start: (c) => c.close() }),
-      exited: Promise.resolve(0),
-    })) as unknown as typeof Bun.spawn;
-
-    try {
-      // Run once to create marker
-      await captureEmits(async () => {
-        await runRecipes(recipePath, TEST_STATE_DIR);
-      });
-
-      // Run again — should skip
-      const events = await captureEmits(async () => {
-        const result = await runRecipes(recipePath, TEST_STATE_DIR);
-        expect(result.status).toBe("done");
-      });
-      expect(events.some((e) => e.type === "recipe_step" && e.payload.status === "skipped")).toBe(true);
-    } finally {
-      Bun.spawn = originalSpawn;
-    }
-  });
-
-  test("returns failed when a script fails (mocked spawn)", async () => {
-    const recipePath = `${TEST_RECIPE_DIR}/recipe.json`;
-    mkdirSync(TEST_RECIPE_DIR, { recursive: true });
-    writeFileSync(recipePath, JSON.stringify({ scripts: [{ name: "bad-step", run: "exit 1" }] }));
-
-    const originalSpawn = Bun.spawn;
-    Bun.spawn = (() => ({
-      stdout: new ReadableStream({ start: (c) => c.close() }),
-      stderr: new ReadableStream({ start: (c) => c.close() }),
-      exited: Promise.resolve(1),
-    })) as unknown as typeof Bun.spawn;
-
-    try {
-      const events = await captureEmits(async () => {
-        const result = await runRecipes(recipePath, TEST_STATE_DIR);
-        expect(result.status).toBe("failed");
-        expect(result.failed_step).toBe("bad-step");
-      });
-      expect(events.some((e) => e.type === "recipe_step" && e.payload.status === "failed")).toBe(true);
-    } finally {
-      Bun.spawn = originalSpawn;
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// processInbox() — drain and return count
-// ---------------------------------------------------------------------------
-
 const TEST_INBOX = "/tmp/test-inbox-" + process.pid;
 
 describe("processInbox()", () => {
@@ -364,5 +246,42 @@ describe("processInbox()", () => {
     await processInbox(harness, TEST_INBOX);
     const remaining = readdirSync(TEST_INBOX).filter((f) => f.endsWith(".json"));
     expect(remaining).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sendToAgent() — direct inbox write + stdout event
+// ---------------------------------------------------------------------------
+
+const TEST_AGENTS_ROOT = "/tmp/test-agents-" + process.pid;
+
+describe("sendToAgent()", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_AGENTS_ROOT, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_AGENTS_ROOT, { recursive: true, force: true });
+  });
+
+  test("writes envelope to target agent's inbox and emits agent_message event", async () => {
+    const events = await captureEmits(async () => {
+      await sendToAgent("target-bot", "Hello from me", "sender-bot", TEST_AGENTS_ROOT);
+    });
+
+    // Verify the file was written to the target's inbox
+    const inboxDir = `${TEST_AGENTS_ROOT}/target-bot/mailbox/inbox`;
+    const files = readdirSync(inboxDir).filter((f) => f.endsWith(".json"));
+    expect(files).toHaveLength(1);
+
+    const envelope = JSON.parse(readFileSync(`${inboxDir}/${files[0]}`, "utf-8"));
+    expect(envelope.type).toBe("agent_message");
+    expect(envelope.from).toBe("sender-bot");
+    expect(envelope.payload.text).toBe("Hello from me");
+
+    // Verify the stdout event was emitted for DB persistence
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("agent_message");
+    expect(events[0].payload).toEqual({ to_agent: "target-bot", text: "Hello from me" });
   });
 });
