@@ -375,4 +375,17 @@ describe("ClaudeCodeHarness", () => {
     const params = mockQuery.mock.calls[0][0];
     expect(params.prompt).toBe('[Message from agent "agent-1"]\nHello');
   });
+
+  test("sendMessage() includes Skill in allowedTools and project settingSources", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+
+    await harness.start(baseConfig);
+    await harness.sendMessage("Hello");
+
+    const params = mockQuery.mock.calls[0][0];
+    expect(params.options?.allowedTools).toContain("Skill");
+    expect(params.options?.settingSources).toEqual(["project"]);
+  });
 });

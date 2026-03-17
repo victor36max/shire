@@ -123,17 +123,12 @@ defmodule SpriteAgents.Agent.DriveSync do
   end
 
   def handle_call(:ensure_started, _from, state) do
-    case get_or_create_sprite(state.sprites_client, @drive_name) do
-      {:ok, sprite} ->
-        # Create the drive root directory
-        Sprites.cmd(sprite, "mkdir", ["-p", @drive_root])
-        drive_fs = SpriteHelpers.filesystem(sprite)
-        state = %{state | sprite: sprite, drive_fs: drive_fs}
-        Logger.info("Shared drive Sprite ready: #{@drive_name}")
-        {:reply, :ok, state}
+    case init_sprite(state) do
+      {:ok, new_state} ->
+        {:reply, :ok, new_state}
 
       {:error, reason} ->
-        Logger.error("Failed to create shared drive Sprite: #{inspect(reason)}")
+        Logger.error("Failed to start shared drive Sprite: #{inspect(reason)}")
         {:reply, {:error, reason}, state}
     end
   end
@@ -234,6 +229,20 @@ defmodule SpriteAgents.Agent.DriveSync do
       {:ok, content} -> {:reply, {:ok, content}, state}
       {:error, reason} -> {:reply, {:error, reason}, state}
     end
+  end
+
+  # --- Private helpers (used by handle_call) ---
+
+  defp init_sprite(state) do
+    with {:ok, sprite} <- get_or_create_sprite(state.sprites_client, @drive_name) do
+      Sprites.cmd(sprite, "mkdir", ["-p", @drive_root])
+      drive_fs = SpriteHelpers.filesystem(sprite)
+      Logger.info("Shared drive Sprite ready: #{@drive_name}")
+      {:ok, %{state | sprite: sprite, drive_fs: drive_fs}}
+    end
+  rescue
+    e ->
+      {:error, e}
   end
 
   # --- Casts ---

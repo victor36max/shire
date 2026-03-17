@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-import type { Agent, BaseRecipe, HarnessType, Script } from "./types";
+import type { Agent, BaseRecipe, HarnessType, Script, Skill, SkillReference } from "./types";
 
 interface AgentFormProps {
   open: boolean;
@@ -38,6 +38,7 @@ function buildRecipeYaml(fields: {
   model: string;
   systemPrompt: string;
   scripts: Script[];
+  skills: Skill[];
 }): string {
   const doc: Record<string, unknown> = { version: 1, name: fields.name };
   if (fields.description) doc.description = fields.description;
@@ -45,6 +46,7 @@ function buildRecipeYaml(fields: {
   if (fields.harness) doc.harness = fields.harness;
   if (fields.model) doc.model = fields.model;
   if (fields.systemPrompt) doc.system_prompt = fields.systemPrompt;
+  if (fields.skills.length > 0) doc.skills = fields.skills;
   if (fields.scripts.length > 0) doc.scripts = fields.scripts;
   return stringify(doc, { lineWidth: 0 });
 }
@@ -60,6 +62,7 @@ function parseRecipeYaml(yaml: string) {
       model: (doc.model as string) || "",
       systemPrompt: (doc.system_prompt as string) || "",
       scripts: (doc.scripts as Script[]) || [],
+      skills: (doc.skills as Skill[]) || [],
     };
   } catch {
     return null;
@@ -81,6 +84,7 @@ export default function AgentForm({
   const [systemPrompt, setSystemPrompt] = React.useState("");
   const [harness, setHarness] = React.useState<HarnessType>("pi");
   const [scripts, setScripts] = React.useState<Script[]>([]);
+  const [skills, setSkills] = React.useState<Skill[]>([]);
   const [rawMode, setRawMode] = React.useState(false);
   const [rawYaml, setRawYaml] = React.useState("");
 
@@ -95,6 +99,7 @@ export default function AgentForm({
         setSystemPrompt(parsed.systemPrompt);
         setHarness((parsed.harness as HarnessType) || "pi");
         setScripts(parsed.scripts);
+        setSkills(parsed.skills);
         setRawYaml(agent.recipe);
       }
     } else {
@@ -105,6 +110,7 @@ export default function AgentForm({
       setSystemPrompt(agent?.system_prompt || "");
       setHarness(agent?.harness || "pi");
       setScripts(agent?.scripts || []);
+      setSkills(agent?.skills || []);
       setRawYaml("");
     }
     setRawMode(false);
@@ -115,7 +121,7 @@ export default function AgentForm({
 
     const recipe = rawMode
       ? rawYaml
-      : buildRecipeYaml({ name, description, extends: extendsRecipe, harness, model, systemPrompt, scripts });
+      : buildRecipeYaml({ name, description, extends: extendsRecipe, harness, model, systemPrompt, scripts, skills });
 
     const event = agent?.id ? "update-agent" : "create-agent";
     const payload: Record<string, unknown> = { recipe };
@@ -137,11 +143,12 @@ export default function AgentForm({
         setSystemPrompt(parsed.systemPrompt);
         setHarness((parsed.harness as HarnessType) || "pi");
         setScripts(parsed.scripts);
+        setSkills(parsed.skills);
       }
     } else {
       // Switching to raw: serialize current fields
       setRawYaml(
-        buildRecipeYaml({ name, description, extends: extendsRecipe, harness, model, systemPrompt, scripts })
+        buildRecipeYaml({ name, description, extends: extendsRecipe, harness, model, systemPrompt, scripts, skills })
       );
     }
     setRawMode(!rawMode);
@@ -153,6 +160,37 @@ export default function AgentForm({
     const updated = [...scripts];
     updated[idx] = { ...updated[idx], [field]: value };
     setScripts(updated);
+  };
+
+  const addSkill = () => setSkills([...skills, { name: "", description: "", content: "" }]);
+  const removeSkill = (idx: number) => setSkills(skills.filter((_, i) => i !== idx));
+  const updateSkill = (idx: number, field: "name" | "description" | "content", value: string) => {
+    const updated = [...skills];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setSkills(updated);
+  };
+  const addReference = (skillIdx: number) => {
+    const updated = [...skills];
+    updated[skillIdx] = {
+      ...updated[skillIdx],
+      references: [...(updated[skillIdx].references || []), { name: "", content: "" }],
+    };
+    setSkills(updated);
+  };
+  const removeReference = (skillIdx: number, refIdx: number) => {
+    const updated = [...skills];
+    updated[skillIdx] = {
+      ...updated[skillIdx],
+      references: (updated[skillIdx].references || []).filter((_, i) => i !== refIdx),
+    };
+    setSkills(updated);
+  };
+  const updateReference = (skillIdx: number, refIdx: number, field: keyof SkillReference, value: string) => {
+    const updated = [...skills];
+    const refs = [...(updated[skillIdx].references || [])];
+    refs[refIdx] = { ...refs[refIdx], [field]: value };
+    updated[skillIdx] = { ...updated[skillIdx], references: refs };
+    setSkills(updated);
   };
 
   return (
@@ -253,6 +291,81 @@ export default function AgentForm({
                   placeholder="Instructions for the agent..."
                   rows={4}
                 />
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Skills</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addSkill}>
+                    Add Skill
+                  </Button>
+                </div>
+                {skills.map((skill, idx) => (
+                  <div key={idx} className="rounded-lg border border-border p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={skill.name}
+                        onChange={(e) => updateSkill(idx, "name", e.target.value)}
+                        placeholder="e.g. web-scraping"
+                        className="flex-1"
+                      />
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeSkill(idx)}>
+                        Remove
+                      </Button>
+                    </div>
+                    <Input
+                      value={skill.description}
+                      onChange={(e) => updateSkill(idx, "description", e.target.value)}
+                      placeholder="When to use this skill..."
+                    />
+                    <Textarea
+                      value={skill.content}
+                      onChange={(e) => updateSkill(idx, "content", e.target.value)}
+                      placeholder="Markdown instructions..."
+                      rows={6}
+                      className="font-mono text-sm"
+                    />
+                    <div className="space-y-2 pl-3 border-l-2 border-border">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">References</Label>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => addReference(idx)}>
+                          Add Reference
+                        </Button>
+                      </div>
+                      {(skill.references || []).map((ref, refIdx) => (
+                        <div key={refIdx} className="rounded border border-border p-2 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={ref.name}
+                              onChange={(e) => updateReference(idx, refIdx, "name", e.target.value)}
+                              placeholder="e.g. api-patterns.md"
+                              className="flex-1 text-sm"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeReference(idx, refIdx)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                          <Textarea
+                            value={ref.content}
+                            onChange={(e) => updateReference(idx, refIdx, "content", e.target.value)}
+                            placeholder="Reference content..."
+                            rows={3}
+                            className="font-mono text-sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {skills.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No skills defined. Add skills to give the agent specialized knowledge.
+                  </p>
+                )}
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">

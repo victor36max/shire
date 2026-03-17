@@ -65,6 +65,7 @@ defmodule SpriteAgents.Agents.Agent do
           |> validate_recipe_name(parsed)
           |> validate_recipe_harness(parsed)
           |> validate_recipe_scripts(parsed)
+          |> validate_recipe_skills(parsed)
 
         {:ok, _} ->
           [recipe: "must be a YAML mapping"]
@@ -119,6 +120,121 @@ defmodule SpriteAgents.Agents.Agent do
       errors
     else
       [{:recipe, "script names must be unique"} | errors]
+    end
+  end
+
+  # --- Skill validation ---
+
+  @skill_name_format ~r/^[a-z0-9][a-z0-9-]*$/
+
+  defp validate_recipe_skills(errors, parsed) do
+    case parsed["skills"] do
+      nil ->
+        errors
+
+      skills when is_list(skills) ->
+        errors
+        |> validate_skill_entries(skills)
+        |> validate_skill_names_format(skills)
+        |> validate_skill_names_unique(skills)
+        |> validate_skill_references(skills)
+
+      _ ->
+        [{:recipe, "skills must be a list"} | errors]
+    end
+  end
+
+  defp validate_skill_entries(errors, skills) do
+    Enum.reduce(skills, errors, fn
+      %{"name" => n, "description" => d, "content" => c}, acc
+      when is_binary(n) and n != "" and is_binary(d) and d != "" and is_binary(c) and c != "" ->
+        acc
+
+      _, acc ->
+        [
+          {:recipe, "each skill must have 'name', 'description', and 'content' string fields"}
+          | acc
+        ]
+    end)
+  end
+
+  defp validate_skill_names_format(errors, skills) do
+    Enum.reduce(skills, errors, fn
+      %{"name" => name}, acc ->
+        if Regex.match?(@skill_name_format, name) do
+          acc
+        else
+          [{:recipe, "skill name '#{name}' must be lowercase alphanumeric with hyphens"} | acc]
+        end
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp validate_skill_names_unique(errors, skills) do
+    names = for %{"name" => n} <- skills, do: n
+
+    if length(names) == length(Enum.uniq(names)) do
+      errors
+    else
+      [{:recipe, "skill names must be unique"} | errors]
+    end
+  end
+
+  @reference_name_format ~r/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
+
+  defp validate_skill_references(errors, skills) do
+    Enum.reduce(skills, errors, fn
+      %{"references" => refs}, acc when is_list(refs) ->
+        acc
+        |> validate_reference_entries(refs)
+        |> validate_reference_names_format(refs)
+        |> validate_reference_names_unique(refs)
+
+      %{"references" => _}, acc ->
+        [{:recipe, "skill references must be a list"} | acc]
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp validate_reference_entries(errors, refs) do
+    Enum.reduce(refs, errors, fn
+      %{"name" => n, "content" => c}, acc when is_binary(n) and n != "" and is_binary(c) ->
+        acc
+
+      _, acc ->
+        [{:recipe, "each skill reference must have 'name' and 'content' string fields"} | acc]
+    end)
+  end
+
+  defp validate_reference_names_format(errors, refs) do
+    Enum.reduce(refs, errors, fn
+      %{"name" => name}, acc ->
+        if Regex.match?(@reference_name_format, name) do
+          acc
+        else
+          [
+            {:recipe,
+             "reference name '#{name}' must be a safe filename (alphanumeric, dots, hyphens, underscores)"}
+            | acc
+          ]
+        end
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp validate_reference_names_unique(errors, refs) do
+    names = for %{"name" => n} <- refs, do: n
+
+    if length(names) == length(Enum.uniq(names)) do
+      errors
+    else
+      [{:recipe, "skill reference names must be unique within a skill"} | errors]
     end
   end
 end

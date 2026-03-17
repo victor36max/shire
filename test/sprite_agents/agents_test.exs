@@ -150,6 +150,144 @@ defmodule SpriteAgents.AgentsTest do
       assert {:ok, updated} = Agents.update_agent_status(agent, :active)
       assert updated.status == :active
     end
+
+    test "create_agent/1 with valid skills" do
+      recipe = """
+      name: skilled-agent
+      skills:
+        - name: web-scraping
+          description: Use when scraping web pages
+          content: |
+            # Web Scraping Guide
+            Use requests + BeautifulSoup.
+      """
+
+      assert {:ok, agent} = Agents.create_agent(%{recipe: recipe})
+      parsed = Agent.parse_recipe!(agent)
+      assert length(parsed["skills"]) == 1
+      assert hd(parsed["skills"])["name"] == "web-scraping"
+    end
+
+    test "create_agent/1 with skills and references" do
+      recipe = """
+      name: skilled-agent
+      skills:
+        - name: api-guide
+          description: API design patterns
+          content: Use REST conventions.
+          references:
+            - name: schema.md
+              content: Users table has id, email.
+      """
+
+      assert {:ok, agent} = Agents.create_agent(%{recipe: recipe})
+      parsed = Agent.parse_recipe!(agent)
+      skill = hd(parsed["skills"])
+      assert length(skill["references"]) == 1
+      assert hd(skill["references"])["name"] == "schema.md"
+    end
+
+    test "create_agent/1 validates skill structure" do
+      recipe = "name: test\nskills:\n  - wrong: format"
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+
+      assert "each skill must have 'name', 'description', and 'content' string fields" in errors_on(
+               changeset
+             ).recipe
+    end
+
+    test "create_agent/1 rejects duplicate skill names" do
+      recipe = """
+      name: test
+      skills:
+        - name: my-skill
+          description: First skill
+          content: Instructions 1
+        - name: my-skill
+          description: Second skill
+          content: Instructions 2
+      """
+
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+      assert "skill names must be unique" in errors_on(changeset).recipe
+    end
+
+    test "create_agent/1 rejects invalid skill name format" do
+      recipe = """
+      name: test
+      skills:
+        - name: Invalid Name
+          description: Bad name format
+          content: Instructions
+      """
+
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+
+      assert Enum.any?(errors_on(changeset).recipe, fn msg ->
+               String.contains?(msg, "must be lowercase alphanumeric")
+             end)
+    end
+
+    test "create_agent/1 rejects invalid skill references" do
+      recipe = """
+      name: test
+      skills:
+        - name: my-skill
+          description: A skill
+          content: Instructions
+          references:
+            - bad: format
+      """
+
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+
+      assert "each skill reference must have 'name' and 'content' string fields" in errors_on(
+               changeset
+             ).recipe
+    end
+
+    test "create_agent/1 rejects skills that is not a list" do
+      recipe = "name: test\nskills: not-a-list"
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+      assert "skills must be a list" in errors_on(changeset).recipe
+    end
+
+    test "create_agent/1 rejects duplicate reference names within a skill" do
+      recipe = """
+      name: test
+      skills:
+        - name: my-skill
+          description: A skill
+          content: Instructions
+          references:
+            - name: schema.md
+              content: First
+            - name: schema.md
+              content: Second
+      """
+
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+      assert "skill reference names must be unique within a skill" in errors_on(changeset).recipe
+    end
+
+    test "create_agent/1 rejects unsafe reference names" do
+      recipe = """
+      name: test
+      skills:
+        - name: my-skill
+          description: A skill
+          content: Instructions
+          references:
+            - name: ../../etc/passwd
+              content: Sneaky
+      """
+
+      assert {:error, changeset} = Agents.create_agent(%{recipe: recipe})
+
+      assert Enum.any?(errors_on(changeset).recipe, fn msg ->
+               String.contains?(msg, "must be a safe filename")
+             end)
+    end
   end
 
   describe "get_agent/1" do

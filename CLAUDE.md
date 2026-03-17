@@ -8,6 +8,9 @@
 - **Encryption:** Cloak/CloakEcto for secrets at rest
 - **CSS:** Tailwind v4 with `@theme inline` + oklch CSS variables (shadcn default)
 - **Agent runtime:** Bun + multi-harness adapter pattern (Pi SDK, Claude Code CLI)
+- **Agent deployment:** Recipe-based (YAML recipes defining setup scripts per agent)
+- **Inter-agent comms:** Mailbox system with inbox/outbox directories + peer discovery via `peers.json`
+- **Shared drive:** Dedicated Sprite VM for shared files, synced to all agents
 
 ## Architecture: LiveView + React Split
 
@@ -22,26 +25,40 @@
 - Layout and rendering via shadcn/ui components
 
 **Key patterns:**
-- One page-level React component per LiveView (e.g., `AgentPage`, `AgentShow`, `SecretList`)
+- One page-level React component per LiveView (e.g., `AgentPage`, `AgentShow`, `SecretList`, `SharedDrive`)
 - React receives `pushEvent` as a prop from LiveReact to send events back to LiveView
 - Use specific event names like `create-agent`, `update-agent` instead of generic `save` (avoids dependency on `live_action`)
 - Shared `AppLayout` component wraps all pages with consistent padding/max-width
 - The Elixir `app` layout is a passthrough — layout is handled in React
+
+## Key Concepts
+
+**Recipe system:** Agents are defined by YAML recipes containing `name`, `description`, and `scripts` (array of `{name, run}` steps). Recipes are deployed to `/workspace/recipe.json` in the Sprite VM and executed idempotently by `recipe-runner.ts` with marker-file tracking.
+
+**Inter-agent messaging:** The Coordinator routes messages between agents. Each agent has a mailbox with inbox/outbox directories on its Sprite VM. Peers are discovered via `peers.json`. Messages are delivered as files to `/workspace/mailbox/inbox/`.
+
+**Shared drive:** A dedicated Sprite VM managed by `DriveSync` provides shared file storage at `/drive`. All agents sync to `/workspace/shared/`. File changes are broadcast via PubSub.
+
+**Terminal sessions:** Interactive TTY sessions (`bash -i`) on Sprite VMs, bridged to LiveView via PubSub and rendered with xterm.js in React.
 
 ## Folder Structure
 
 ```
 lib/
   sprite_agents/
-    application.ex           # OTP application
-    agents.ex                # Context: Agent + Secret CRUD
+    application.ex           # OTP application (supervises DriveSync, Coordinator, DynamicSupervisor)
+    agents.ex                # Context: Agent + Secret + Message CRUD
     agents/
-      agent.ex               # Agent schema (includes harness enum)
+      agent.ex               # Agent schema (recipe-based: recipe, is_base, status)
       secret.ex              # Secret schema (Cloak-encrypted value)
+      message.ex             # Message schema (inter-agent communication)
     agent/
-      agent_manager.ex       # Agent deployment & management
-      coordinator.ex         # Agent coordinator
-    mailbox.ex               # Agent mailbox
+      agent_manager.ex       # Agent deployment, recipe execution, lifecycle management
+      coordinator.ex         # Agent lifecycle coordination, inter-agent message routing
+      drive_sync.ex          # Shared drive Sprite VM management + file sync
+      terminal_session.ex    # Interactive TTY sessions on Sprite VMs
+      sprite_helpers.ex      # Shared helpers for Sprites SDK filesystem operations
+    mailbox.ex               # Mailbox message envelope encoding/decoding, inbox writing
     vault.ex                 # Cloak vault
     encrypted/binary.ex      # Custom encrypted binary type
     repo.ex
@@ -51,12 +68,16 @@ lib/
       core_components.ex     # Core UI components (react helper, etc.)
       layouts.ex             # Passthrough app layout + flash_group
       layouts/root.html.heex
+    controllers/
+      shared_drive_controller.ex  # File download/stream endpoint
     live/
       agent_live/
         index.ex             # Renders <.react name="AgentPage" />
         show.ex              # Renders <.react name="AgentShow" />
       secret_live/
         index.ex             # Renders <.react name="SecretList" />
+      shared_drive_live/
+        index.ex             # Renders <.react name="SharedDrive" />
 
 assets/
   js/app.js                  # LiveSocket + LiveReact hooks
@@ -69,11 +90,14 @@ assets/
     AgentForm.tsx             # Dialog form (controlled via open/onClose props)
     AgentList.tsx             # Agent list component
     SecretList.tsx            # Secrets page
+    SharedDrive.tsx           # Shared drive file browser (upload/delete/navigate)
+    Terminal.tsx              # xterm.js interactive terminal via WebSocket bridge
     types.ts                 # Shared TypeScript type definitions
     index.ts                 # Barrel exports for LiveReact
     components/
       AppLayout.tsx           # Shared layout wrapper
-      ui/                     # shadcn/ui components (button, card, dialog, etc.)
+      Markdown.tsx            # React Markdown renderer (GitHub-flavored)
+      ui/                     # shadcn/ui components (button, card, dialog, alert-dialog, select, textarea, badge, table, etc.)
     lib/
       utils.ts                # cn() utility
   test/
@@ -82,15 +106,22 @@ assets/
     AgentPage.test.tsx
     AgentShow.test.tsx
     SecretList.test.tsx
+    SharedDrive.test.tsx
+    Terminal.test.tsx
 
 priv/sprite/                  # Agent runtime (Bun/TypeScript)
-  agent-runner.ts             # Main agent runner
+  agent-runner.ts             # Main agent runner (multi-harness)
+  recipe-runner.ts            # Idempotent recipe script runner with marker-file tracking
   bootstrap.sh                # VM bootstrap script
   harness/
     types.ts                  # Harness interface definition
-    index.ts                  # Harness exports
+    index.ts                  # Harness factory (creates harness by type)
     pi-harness.ts             # Pi SDK harness adapter
     claude-code-harness.ts    # Claude Code CLI harness adapter
+  agent-runner.test.ts        # Agent runner tests
+  harness/
+    pi-harness.test.ts        # Pi harness tests
+    claude-code-harness.test.ts # Claude Code harness tests
 ```
 
 ## Verification Commands
@@ -124,6 +155,7 @@ mix precommit
 
 - Use `bun` for all JS package management and scripts, never `npm` or `node`
 - Use `Req` for HTTP requests, never httpoison/tesla/httpc
+- Use `yaml_elixir` for YAML parsing in Elixir
 - Elixir schema fields use `:string` type even for text columns
 - Always generate migrations with `mix ecto.gen.migration`
 - Don't use `@apply` in CSS

@@ -7,6 +7,18 @@ export interface Script {
   run: string;
 }
 
+export interface SkillReference {
+  name: string;
+  content: string;
+}
+
+export interface Skill {
+  name: string;
+  description: string;
+  content: string;
+  references?: SkillReference[];
+}
+
 export interface Agent {
   id: number;
   name: string;
@@ -18,6 +30,7 @@ export interface Agent {
   recipe: string;
   is_base: boolean;
   scripts?: Script[];
+  skills?: Skill[];
 }
 
 export interface BaseRecipe {

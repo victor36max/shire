@@ -453,6 +453,8 @@ defmodule SpriteAgents.Agent.AgentManager do
     env_content = Enum.map_join(secrets, "\n", fn s -> "#{s.key}=#{s.value}" end)
     :ok = Sprites.Filesystem.write(fs, "/workspace/.env", env_content)
 
+    deploy_skills(sprite, fs, recipe, harness)
+
     ts_files = [
       "agent-runner.ts",
       "harness/types.ts",
@@ -487,6 +489,52 @@ defmodule SpriteAgents.Agent.AgentManager do
     :ok
   rescue
     e -> {:error, e}
+  end
+
+  defp deploy_skills(sprite, fs, recipe, harness) do
+    skills = recipe["skills"] || []
+
+    if skills == [] do
+      :ok
+    else
+      deploy_skills_to_vm(sprite, fs, skills, harness)
+    end
+  end
+
+  defp deploy_skills_to_vm(sprite, fs, skills, harness) do
+    skill_base =
+      case harness do
+        "claude_code" -> "/workspace/.claude/skills"
+        _ -> "/workspace/.pi/agent/skills"
+      end
+
+    # Clean stale skills from previous recipe versions
+    Sprites.cmd(sprite, "rm", ["-rf", skill_base], timeout: @cmd_timeout)
+
+    for skill <- skills do
+      skill_dir = "#{skill_base}/#{skill["name"]}"
+      Sprites.cmd(sprite, "mkdir", ["-p", skill_dir], timeout: @cmd_timeout)
+
+      skill_md = build_skill_md(skill)
+      :ok = Sprites.Filesystem.write(fs, "#{skill_dir}/SKILL.md", skill_md)
+
+      for ref <- skill["references"] || [] do
+        :ok = Sprites.Filesystem.write(fs, "#{skill_dir}/#{ref["name"]}", ref["content"])
+      end
+    end
+
+    :ok
+  end
+
+  defp build_skill_md(skill) do
+    """
+    ---
+    name: #{skill["name"]}
+    description: #{skill["description"]}
+    ---
+
+    #{skill["content"]}
+    """
   end
 
   defp kill_existing_runners(sprite) do
