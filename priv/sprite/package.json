@@ -5,8 +5,8 @@
   "scripts": {
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "format": "prettier --write '**/*.ts' --ignore-path node_modules",
-    "format:check": "prettier --check '**/*.ts' --ignore-path node_modules"
+    "format": "prettier --write '**/*.ts' '!node_modules'",
+    "format:check": "prettier --check '**/*.ts' '!node_modules'"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.76",

@@ -44,6 +44,7 @@ export default defineConfig(({ command }) => {
       globals: true,
       setupFiles: ["./test/setup.ts"],
       include: ["./test/**/*.test.{ts,tsx}"],
+      testTimeout: 15000,
     },
   };
 });

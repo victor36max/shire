@@ -17,8 +17,8 @@
 The core issue: `handle_continue(:bootstrap, state)` does all work synchronously, blocking the GenServer for potentially minutes. Moving this to a `Task` keeps the GenServer responsive.
 
 **Files:**
-- Modify: `lib/sprite_agents/agent/agent_manager.ex`
-- Modify: `test/sprite_agents/agent/agent_manager_test.exs`
+- Modify: `lib/shire/agent/agent_manager.ex`
+- Modify: `test/shire/agent/agent_manager_test.exs`
 
 - [ ] **Step 1: Write test for GenServer responsiveness during bootstrap**
 
@@ -39,7 +39,7 @@ end
 
 - [ ] **Step 2: Run test to verify it passes (baseline)**
 
-Run: `mix test test/sprite_agents/agent/agent_manager_test.exs -v`
+Run: `mix test test/shire/agent/agent_manager_test.exs -v`
 Expected: PASS (this is a baseline test)
 
 - [ ] **Step 3: Refactor handle_continue(:bootstrap) to use Task**
@@ -68,7 +68,7 @@ Extract the bootstrap body into a private function:
 ```elixir
 defp run_bootstrap(agent_id, sprite) do
   bootstrap_script =
-    File.read!(Application.app_dir(:sprite_agents, "priv/sprite/bootstrap.sh"))
+    File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
 
   {_, 0} = Sprites.cmd(sprite, "bash", ["-c", bootstrap_script], timeout: 120_000)
 
@@ -114,16 +114,16 @@ defp run_bootstrap(agent_id, sprite) do
   ]
 
   for file <- ts_files do
-    source = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/#{file}"))
+    source = File.read!(Application.app_dir(:shire, "priv/sprite/#{file}"))
     :ok = Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
   end
 
   recipe_runner =
-    File.read!(Application.app_dir(:sprite_agents, "priv/sprite/recipe-runner.ts"))
+    File.read!(Application.app_dir(:shire, "priv/sprite/recipe-runner.ts"))
 
   :ok = Sprites.Filesystem.write(fs, "/workspace/recipe-runner.ts", recipe_runner)
 
-  pkg_json = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/package.json"))
+  pkg_json = File.read!(Application.app_dir(:shire, "priv/sprite/package.json"))
   :ok = Sprites.Filesystem.write(fs, "/workspace/package.json", pkg_json)
 
   if recipe["scripts"] && recipe["scripts"] != [] do
@@ -160,7 +160,7 @@ end
 
 - [ ] **Step 4: Run tests**
 
-Run: `mix test test/sprite_agents/agent/agent_manager_test.exs -v`
+Run: `mix test test/shire/agent/agent_manager_test.exs -v`
 Expected: PASS
 
 - [ ] **Step 5: Compile with warnings check**
@@ -171,7 +171,7 @@ Expected: No warnings
 ### Task 2: Add timeouts to bare Sprites.cmd calls
 
 **Files:**
-- Modify: `lib/sprite_agents/agent/agent_manager.ex`
+- Modify: `lib/shire/agent/agent_manager.ex`
 
 - [ ] **Step 6: Add module attribute for default cmd timeout**
 
@@ -205,7 +205,7 @@ Expected: Clean
 ### Task 3: Add try-catch to get_sprite in LiveView
 
 **Files:**
-- Modify: `lib/sprite_agents_web/live/agent_live/show.ex`
+- Modify: `lib/shire_web/live/agent_live/show.ex`
 
 - [ ] **Step 10: Wrap connect-terminal's get_sprite call**
 
@@ -220,7 +220,7 @@ Replace lines 152-168:
             {:ok, sprite} when not is_nil(sprite) ->
               case TerminalSession.start_link(agent_id: agent.id, sprite: sprite) do
                 {:ok, _pid} ->
-                  Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "terminal:#{agent.id}")
+                  Phoenix.PubSub.subscribe(Shire.PubSub, "terminal:#{agent.id}")
                   {:noreply, socket}
 
                 {:error, reason} ->
@@ -251,7 +251,7 @@ mix test
 - [ ] **Step 12: Commit**
 
 ```bash
-git add lib/sprite_agents/agent/agent_manager.ex lib/sprite_agents_web/live/agent_live/show.ex test/sprite_agents/agent/agent_manager_test.exs
+git add lib/shire/agent/agent_manager.ex lib/shire_web/live/agent_live/show.ex test/shire/agent/agent_manager_test.exs
 git commit -m "fix: prevent timeout crashes in AgentManager
 
 Move bootstrap to async Task so GenServer stays responsive during

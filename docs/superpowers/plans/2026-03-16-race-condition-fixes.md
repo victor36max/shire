@@ -17,12 +17,12 @@
 Every race condition stems from `get_agent!` raising when an agent is deleted mid-operation. Add a safe version.
 
 **Files:**
-- Modify: `lib/sprite_agents/agents.ex:9`
-- Test: `test/sprite_agents/agents_test.exs`
+- Modify: `lib/shire/agents.ex:9`
+- Test: `test/shire/agents_test.exs`
 
 - [ ] **Step 1: Write the failing test**
 
-In `test/sprite_agents/agents_test.exs`, add:
+In `test/shire/agents_test.exs`, add:
 
 ```elixir
 describe "get_agent/1" do
@@ -54,12 +54,12 @@ end
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `mix test test/sprite_agents/agents_test.exs -v`
+Run: `mix test test/shire/agents_test.exs -v`
 Expected: compilation error — `Agents.get_agent/1` undefined
 
 - [ ] **Step 3: Implement `get_agent/1`**
 
-In `lib/sprite_agents/agents.ex`, after line 9 (`def get_agent!(id), do: Repo.get!(Agent, id)`), add:
+In `lib/shire/agents.ex`, after line 9 (`def get_agent!(id), do: Repo.get!(Agent, id)`), add:
 
 ```elixir
 def get_agent(id) do
@@ -72,13 +72,13 @@ end
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `mix test test/sprite_agents/agents_test.exs -v`
+Run: `mix test test/shire/agents_test.exs -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/sprite_agents/agents.ex test/sprite_agents/agents_test.exs
+git add lib/shire/agents.ex test/shire/agents_test.exs
 git commit -m "feat: add Agents.get_agent/1 non-bang variant"
 ```
 
@@ -89,14 +89,14 @@ git commit -m "feat: add Agents.get_agent/1 non-bang variant"
 Currently `AgentManager` registers with `via(agent_id)` which stores no value metadata. Change it to store `agent_name` so the Coordinator can look up names without DB queries.
 
 **Files:**
-- Modify: `lib/sprite_agents/agent/agent_manager.ex:83,103`
-- Modify: `lib/sprite_agents/agent/coordinator.ex:82-93,248-258`
-- Test: `test/sprite_agents/agent/coordinator_test.exs`
-- Test: `test/sprite_agents/agent/agent_manager_test.exs`
+- Modify: `lib/shire/agent/agent_manager.ex:83,103`
+- Modify: `lib/shire/agent/coordinator.ex:82-93,248-258`
+- Test: `test/shire/agent/coordinator_test.exs`
+- Test: `test/shire/agent/agent_manager_test.exs`
 
 - [ ] **Step 1: Write the failing tests for name-based Registry lookup**
 
-In `test/sprite_agents/agent/coordinator_test.exs`, add new describe blocks:
+In `test/shire/agent/coordinator_test.exs`, add new describe blocks:
 
 ```elixir
 describe "lookup_by_name/1" do
@@ -121,20 +121,20 @@ end
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `mix test test/sprite_agents/agent/coordinator_test.exs -v`
+Run: `mix test test/shire/agent/coordinator_test.exs -v`
 Expected: compilation error — `Coordinator.lookup_by_name/1` undefined
 
 - [ ] **Step 3: Change AgentManager to register with agent_name as value**
 
-In `lib/sprite_agents/agent/agent_manager.ex`, change the `via/1` function to accept an optional name:
+In `lib/shire/agent/agent_manager.ex`, change the `via/1` function to accept an optional name:
 
 ```elixir
 defp via(agent_id) do
-  {:via, Registry, {SpriteAgents.AgentRegistry, agent_id}}
+  {:via, Registry, {Shire.AgentRegistry, agent_id}}
 end
 
 defp via(agent_id, agent_name) do
-  {:via, Registry, {SpriteAgents.AgentRegistry, agent_id, agent_name}}
+  {:via, Registry, {Shire.AgentRegistry, agent_id, agent_name}}
 end
 ```
 
@@ -151,11 +151,11 @@ end
 
 - [ ] **Step 4: Add `lookup_by_name/1` and update `list_running/0` in Coordinator**
 
-In `lib/sprite_agents/agent/coordinator.ex`, change `list_running/0` to include the agent_name from Registry:
+In `lib/shire/agent/coordinator.ex`, change `list_running/0` to include the agent_name from Registry:
 
 ```elixir
 def list_running do
-  Registry.select(SpriteAgents.AgentRegistry, [
+  Registry.select(Shire.AgentRegistry, [
     {{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}
   ])
 end
@@ -166,7 +166,7 @@ This already works — the third element (`:"$3"` / the value) is ignored with `
 ```elixir
 @doc "Returns all running agents as `[{agent_id, pid, agent_name}]`."
 def list_running_with_names do
-  Registry.select(SpriteAgents.AgentRegistry, [
+  Registry.select(Shire.AgentRegistry, [
     {{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2", :"$3"}}]}
   ])
 end
@@ -174,7 +174,7 @@ end
 @doc "Look up a running agent's id by its recipe name. Registry scan, no DB queries."
 def lookup_by_name(name) do
   result =
-    Registry.select(SpriteAgents.AgentRegistry, [
+    Registry.select(Shire.AgentRegistry, [
       {{:"$1", :_, :"$2"}, [{:==, :"$2", name}], [:"$1"]}
     ])
 
@@ -187,13 +187,13 @@ end
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `mix test test/sprite_agents/agent/coordinator_test.exs test/sprite_agents/agent/agent_manager_test.exs -v`
+Run: `mix test test/shire/agent/coordinator_test.exs test/shire/agent/agent_manager_test.exs -v`
 Expected: ALL PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/sprite_agents/agent/agent_manager.ex lib/sprite_agents/agent/coordinator.ex test/sprite_agents/agent/coordinator_test.exs
+git add lib/shire/agent/agent_manager.ex lib/shire/agent/coordinator.ex test/shire/agent/coordinator_test.exs
 git commit -m "feat: store agent_name in Registry value, add lookup_by_name"
 ```
 
@@ -204,11 +204,11 @@ git commit -m "feat: store agent_name in Registry value, add lookup_by_name"
 Remove the O(n) DB-querying `find_running_agent_id_by_name` and use `lookup_by_name` instead.
 
 **Files:**
-- Modify: `lib/sprite_agents/agent/coordinator.ex:40-80,248-266`
+- Modify: `lib/shire/agent/coordinator.ex:40-80,248-266`
 
 - [ ] **Step 1: Replace `find_running_agent_id_by_name` usages**
 
-In `lib/sprite_agents/agent/coordinator.ex`, replace `route_agent_message/3` (lines 40-80):
+In `lib/shire/agent/coordinator.ex`, replace `route_agent_message/3` (lines 40-80):
 
 ```elixir
 def route_agent_message(from_agent_name, to_agent_name, text) do
@@ -257,7 +257,7 @@ Replace `broadcast_to_agent_by_name/2` (lines 260-266) with a simpler version:
 defp broadcast_to_agent(name, message) do
   case lookup_by_name(name) do
     {:ok, agent_id} ->
-      Phoenix.PubSub.broadcast(SpriteAgents.PubSub, "agent:#{agent_id}", message)
+      Phoenix.PubSub.broadcast(Shire.PubSub, "agent:#{agent_id}", message)
 
     _ ->
       :ok
@@ -269,7 +269,7 @@ Delete the old `find_running_agent_id_by_name/1` and `broadcast_to_agent_by_name
 
 - [ ] **Step 2: Add tests for route_agent_message**
 
-In `test/sprite_agents/agent/coordinator_test.exs`, add:
+In `test/shire/agent/coordinator_test.exs`, add:
 
 ```elixir
 describe "route_agent_message/3" do
@@ -297,7 +297,7 @@ Expected: ALL PASS, no warnings
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lib/sprite_agents/agent/coordinator.ex test/sprite_agents/agent/coordinator_test.exs
+git add lib/shire/agent/coordinator.ex test/shire/agent/coordinator_test.exs
 git commit -m "refactor: use Registry-based name lookup, remove O(n) DB queries"
 ```
 
@@ -308,11 +308,11 @@ git commit -m "refactor: use Registry-based name lookup, remove O(n) DB queries"
 The `do_broadcast_peers/0` function and `request_peers` @doc now reference the `Agents` module. Replace crash-prone `get_agent!` calls.
 
 **Files:**
-- Modify: `lib/sprite_agents/agent/coordinator.ex:217-240`
+- Modify: `lib/shire/agent/coordinator.ex:217-240`
 
 - [ ] **Step 1: Write test for broadcast_peers surviving a deleted agent**
 
-In `test/sprite_agents/agent/coordinator_test.exs`, add:
+In `test/shire/agent/coordinator_test.exs`, add:
 
 ```elixir
 describe "broadcast_peers/0 resilience" do
@@ -331,12 +331,12 @@ end
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `mix test test/sprite_agents/agent/coordinator_test.exs --only "survives when" -v`
+Run: `mix test test/shire/agent/coordinator_test.exs --only "survives when" -v`
 Expected: FAIL with `Ecto.NoResultsError`
 
 - [ ] **Step 3: Rewrite `do_broadcast_peers` to use `list_running_with_names` and skip deleted agents**
 
-In `lib/sprite_agents/agent/coordinator.ex`, replace `do_broadcast_peers/0`:
+In `lib/shire/agent/coordinator.ex`, replace `do_broadcast_peers/0`:
 
 ```elixir
 defp do_broadcast_peers do
@@ -373,13 +373,13 @@ end
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `mix test test/sprite_agents/agent/coordinator_test.exs -v`
+Run: `mix test test/shire/agent/coordinator_test.exs -v`
 Expected: ALL PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/sprite_agents/agent/coordinator.ex test/sprite_agents/agent/coordinator_test.exs
+git add lib/shire/agent/coordinator.ex test/shire/agent/coordinator_test.exs
 git commit -m "fix: broadcast_peers survives deleted agents using get_agent/1"
 ```
 
@@ -390,12 +390,12 @@ git commit -m "fix: broadcast_peers survives deleted agents using get_agent/1"
 Currently `update_agent_status/2` uses `get_agent!` which crashes if the agent is deleted. This can crash the AgentManager during any phase transition.
 
 **Files:**
-- Modify: `lib/sprite_agents/agent/agent_manager.ex:502-505`
-- Test: `test/sprite_agents/agent/agent_manager_test.exs`
+- Modify: `lib/shire/agent/agent_manager.ex:502-505`
+- Test: `test/shire/agent/agent_manager_test.exs`
 
 - [ ] **Step 1: Fix `update_agent_status/2`**
 
-In `lib/sprite_agents/agent/agent_manager.ex`, replace lines 502-505:
+In `lib/shire/agent/agent_manager.ex`, replace lines 502-505:
 
 ```elixir
 defp update_agent_status(state, status) do
@@ -419,7 +419,7 @@ Expected: ALL PASS
 - [ ] **Step 3: Commit**
 
 ```bash
-git add lib/sprite_agents/agent/agent_manager.ex
+git add lib/shire/agent/agent_manager.ex
 git commit -m "fix: AgentManager.update_agent_status handles deleted agents"
 ```
 
@@ -428,7 +428,7 @@ git commit -m "fix: AgentManager.update_agent_status handles deleted agents"
 ### Task 6: Update `request_peers` doc and clean up dead code
 
 **Files:**
-- Modify: `lib/sprite_agents/agent/coordinator.ex:31-35`
+- Modify: `lib/shire/agent/coordinator.ex:31-35`
 
 - [ ] **Step 1: Update the `@doc` for `request_peers/1`**
 
@@ -459,7 +459,7 @@ Expected: ALL PASS
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lib/sprite_agents/agent/coordinator.ex
+git add lib/shire/agent/coordinator.ex
 git commit -m "chore: clean up request_peers doc and dead code"
 ```
 

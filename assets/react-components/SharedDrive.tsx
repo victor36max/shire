@@ -1,14 +1,7 @@
 import * as React from "react";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -49,23 +42,12 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function Breadcrumbs({
-  path,
-  onNavigate,
-}: {
-  path: string;
-  onNavigate: (path: string) => void;
-}) {
+function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
   const segments = path.split("/").filter(Boolean);
 
   return (
     <div className="flex items-center gap-1 text-sm">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 px-2"
-        onClick={() => onNavigate("/")}
-      >
+      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => onNavigate("/")}>
         shared
       </Button>
       {segments.map((segment, i) => {
@@ -73,12 +55,7 @@ function Breadcrumbs({
         return (
           <React.Fragment key={segmentPath}>
             <span className="text-muted-foreground">/</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2"
-              onClick={() => onNavigate(segmentPath)}
-            >
+            <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => onNavigate(segmentPath)}>
               {segment}
             </Button>
           </React.Fragment>
@@ -88,11 +65,7 @@ function Breadcrumbs({
   );
 }
 
-export default function SharedDrive({
-  files,
-  current_path,
-  pushEvent,
-}: SharedDriveProps) {
+export default function SharedDrive({ files, current_path, pushEvent }: SharedDriveProps) {
   const [newFolderOpen, setNewFolderOpen] = React.useState(false);
   const [newFolderName, setNewFolderName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
@@ -149,24 +122,11 @@ export default function SharedDrive({
         <div className="flex items-center justify-between">
           <Breadcrumbs path={current_path} onNavigate={navigate} />
           <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              onChange={handleUpload}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-            >
+            <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
               Upload File
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setNewFolderOpen(true)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setNewFolderOpen(true)}>
               New Folder
             </Button>
           </div>
@@ -215,10 +175,7 @@ export default function SharedDrive({
                       <div className="flex items-center justify-end gap-1">
                         {file.type === "file" && (
                           <Button variant="ghost" size="sm" asChild>
-                            <a
-                              href={`/shared/download?path=${encodeURIComponent(file.path)}`}
-                              download
-                            >
+                            <a href={`/shared/download?path=${encodeURIComponent(file.path)}`} download>
                               Download
                             </a>
                           </Button>
@@ -246,9 +203,7 @@ export default function SharedDrive({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Folder</DialogTitle>
-            <DialogDescription>
-              Create a new folder in the shared drive.
-            </DialogDescription>
+            <DialogDescription>Create a new folder in the shared drive.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -276,22 +231,15 @@ export default function SharedDrive({
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {deleteTarget?.type === "directory" ? "folder" : "file"}?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete {deleteTarget?.type === "directory" ? "folder" : "file"}?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete &ldquo;{deleteTarget?.name}&rdquo;
-              {deleteTarget?.type === "directory" && " and all its contents"}.
-              This action cannot be undone.
+              {deleteTarget?.type === "directory" && " and all its contents"}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteTarget && handleDelete(deleteTarget)}
-            >
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteTarget && handleDelete(deleteTarget)}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

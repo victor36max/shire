@@ -1,6 +1,7 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
-import { describe, test, expect, mock, spyOn } from "bun:test";
-import { emit, processMessage, type MessageEnvelope } from "./agent-runner";
+import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
+import { mkdirSync, writeFileSync, rmSync, readdirSync } from "fs";
+import { emit, processMessage, processInbox, type MessageEnvelope } from "./agent-runner";
 import type { Harness } from "./harness";
 import { createHarness } from "./harness";
 
@@ -202,5 +203,48 @@ describe("processMessage() — unknown type", () => {
     await processMessage(harness, envelope);
 
     expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// processInbox() — drain and return count
+// ---------------------------------------------------------------------------
+
+const TEST_INBOX = "/tmp/test-inbox-" + process.pid;
+
+describe("processInbox()", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_INBOX, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_INBOX, { recursive: true, force: true });
+  });
+
+  test("returns 0 when inbox is empty", async () => {
+    const harness = createMockHarness();
+    const count = await processInbox(harness, TEST_INBOX);
+    expect(count).toBe(0);
+  });
+
+  test("returns count of processed messages", async () => {
+    const harness = createMockHarness();
+    const envelope = { ts: Date.now(), type: "user_message", from: "coordinator", payload: { text: "hi" } };
+    writeFileSync(`${TEST_INBOX}/1.json`, JSON.stringify(envelope));
+    writeFileSync(`${TEST_INBOX}/2.json`, JSON.stringify(envelope));
+
+    const count = await processInbox(harness, TEST_INBOX);
+    expect(count).toBe(2);
+    expect(harness.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  test("removes processed files from inbox", async () => {
+    const harness = createMockHarness();
+    const envelope = { ts: Date.now(), type: "user_message", from: "coordinator", payload: { text: "hi" } };
+    writeFileSync(`${TEST_INBOX}/1.json`, JSON.stringify(envelope));
+
+    await processInbox(harness, TEST_INBOX);
+    const remaining = readdirSync(TEST_INBOX).filter((f) => f.endsWith(".json"));
+    expect(remaining).toHaveLength(0);
   });
 });

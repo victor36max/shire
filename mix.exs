@@ -1,9 +1,9 @@
-defmodule SpriteAgents.MixProject do
+defmodule Shire.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :sprite_agents,
+      app: :shire,
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -20,7 +20,7 @@ defmodule SpriteAgents.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {SpriteAgents.Application, []},
+      mod: {Shire.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end
@@ -87,13 +87,22 @@ defmodule SpriteAgents.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "cmd --cd assets bun install"],
-      "assets.build": ["compile", "tailwind sprite_agents", "cmd --cd assets bun run build"],
+      "assets.build": ["compile", "tailwind shire", "cmd --cd assets bun run build"],
       "assets.deploy": [
-        "tailwind sprite_agents --minify",
+        "tailwind shire --minify",
         "cmd --cd assets bun run build",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format",
+        "cmd --cd assets bun run lint",
+        "cmd --cd assets bun run format:check",
+        "cmd --cd priv/sprite bun run lint",
+        "cmd --cd priv/sprite bun run format:check",
+        "test"
+      ]
     ]
   end
 end

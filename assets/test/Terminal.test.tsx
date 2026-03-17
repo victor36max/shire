@@ -93,9 +93,7 @@ describe("Terminal", () => {
 
   it("shows reconnect button on terminal exit", () => {
     render(<Terminal pushEvent={pushEvent} />);
-    const exitCall = mockHandleEvent.mock.calls.find(
-      (call: unknown[]) => call[0] === "terminal-exit",
-    )!;
+    const exitCall = mockHandleEvent.mock.calls.find((call: unknown[]) => call[0] === "terminal-exit")!;
     act(() => {
       exitCall[1]({ code: 0 });
     });
@@ -104,16 +102,12 @@ describe("Terminal", () => {
 
   it("reconnects when clicking Reconnect", async () => {
     render(<Terminal pushEvent={pushEvent} />);
-    const exitCall = mockHandleEvent.mock.calls.find(
-      (call: unknown[]) => call[0] === "terminal-exit",
-    )!;
+    const exitCall = mockHandleEvent.mock.calls.find((call: unknown[]) => call[0] === "terminal-exit")!;
     act(() => {
       exitCall[1]({ code: 0 });
     });
     await userEvent.click(screen.getByText("Reconnect"));
-    const connectCalls = pushEvent.mock.calls.filter(
-      (call: unknown[]) => call[0] === "connect-terminal",
-    );
+    const connectCalls = pushEvent.mock.calls.filter((call: unknown[]) => call[0] === "connect-terminal");
     expect(connectCalls).toHaveLength(2);
   });
 });

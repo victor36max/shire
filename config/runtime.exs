@@ -16,16 +16,15 @@ end
 # If you use `mix release`, you need to explicitly enable the server
 # by passing the PHX_SERVER=true when you start it:
 #
-#     PHX_SERVER=true bin/sprite_agents start
+#     PHX_SERVER=true bin/shire start
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
 if System.get_env("PHX_SERVER") do
-  config :sprite_agents, SpriteAgentsWeb.Endpoint, server: true
+  config :shire, ShireWeb.Endpoint, server: true
 end
 
-config :sprite_agents, SpriteAgentsWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+config :shire, ShireWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 # Sprites — optional in dev, required in prod
 sprites_token = System.get_env("SPRITES_TOKEN")
@@ -34,7 +33,7 @@ if config_env() == :prod && is_nil(sprites_token) do
   raise "environment variable SPRITES_TOKEN is missing."
 end
 
-config :sprite_agents, :sprites_token, sprites_token
+config :shire, :sprites_token, sprites_token
 
 if config_env() == :prod do
   cloak_key =
@@ -44,7 +43,7 @@ if config_env() == :prod do
       Generate one with: :crypto.strong_rand_bytes(32) |> Base.encode64()
       """
 
-  config :sprite_agents, SpriteAgents.Vault,
+  config :shire, Shire.Vault,
     ciphers: [
       default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Base.decode64!(cloak_key)}
     ]
@@ -58,7 +57,7 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :sprite_agents, SpriteAgents.Repo,
+  config :shire, Shire.Repo,
     # ssl: true,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
@@ -80,9 +79,9 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
-  config :sprite_agents, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+  config :shire, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  config :sprite_agents, SpriteAgentsWeb.Endpoint,
+  config :shire, ShireWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
       # Enable IPv6 and bind on all interfaces.
@@ -98,7 +97,7 @@ if config_env() == :prod do
   # To get SSL working, you will need to add the `https` key
   # to your endpoint configuration:
   #
-  #     config :sprite_agents, SpriteAgentsWeb.Endpoint,
+  #     config :shire, ShireWeb.Endpoint,
   #       https: [
   #         ...,
   #         port: 443,
@@ -120,7 +119,7 @@ if config_env() == :prod do
   # We also recommend setting `force_ssl` in your config/prod.exs,
   # ensuring no data is ever sent via http, always redirecting to https:
   #
-  #     config :sprite_agents, SpriteAgentsWeb.Endpoint,
+  #     config :shire, ShireWeb.Endpoint,
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
@@ -130,7 +129,7 @@ if config_env() == :prod do
   # In production you need to configure the mailer to use a different adapter.
   # Here is an example configuration for Mailgun:
   #
-  #     config :sprite_agents, SpriteAgents.Mailer,
+  #     config :shire, Shire.Mailer,
   #       adapter: Swoosh.Adapters.Mailgun,
   #       api_key: System.get_env("MAILGUN_API_KEY"),
   #       domain: System.get_env("MAILGUN_DOMAIN")

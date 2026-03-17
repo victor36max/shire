@@ -108,8 +108,8 @@ If another agent asked you for help, send your result back via a new outbox mess
 
 | File | Change |
 |------|--------|
-| `lib/sprite_agents/agent/coordinator.ex` | Add `broadcast_peers/0` (async), add error handling to `route_agent_message/3`, call broadcast after start/stop |
-| `lib/sprite_agents/agent/agent_manager.ex` | Add `handle_cast({:update_peers, peers})`, write peers.json; append comms prompt in bootstrap; write empty peers.json in bootstrap |
+| `lib/shire/agent/coordinator.ex` | Add `broadcast_peers/0` (async), add error handling to `route_agent_message/3`, call broadcast after start/stop |
+| `lib/shire/agent/agent_manager.ex` | Add `handle_cast({:update_peers, peers})`, write peers.json; append comms prompt in bootstrap; write empty peers.json in bootstrap |
 | `priv/sprite/agent-runner.ts` | Add `OUTBOX_DIR`, `processOutbox()`, outbox watcher with flag-and-recheck pattern |
 
 ## Verification

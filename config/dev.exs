@@ -1,11 +1,11 @@
 import Config
 
 # Configure your database
-config :sprite_agents, SpriteAgents.Repo,
+config :shire, Shire.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
-  database: "sprite_agents_dev",
+  database: "shire_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
@@ -16,7 +16,7 @@ config :sprite_agents, SpriteAgents.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
-config :sprite_agents, SpriteAgentsWeb.Endpoint,
+config :shire, ShireWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}],
@@ -26,7 +26,7 @@ config :sprite_agents, SpriteAgentsWeb.Endpoint,
   secret_key_base: "nj2bd4KdE0MMSipbspQkMVQMc6vYkO+L0fyTvCWXERD1imLP+ven+wPv2xcpAwc3",
   watchers: [
     bun: ["run", "dev", cd: Path.expand("../assets", __DIR__)],
-    tailwind: {Tailwind, :install_and_run, [:sprite_agents, ~w(--watch)]}
+    tailwind: {Tailwind, :install_and_run, [:shire, ~w(--watch)]}
   ]
 
 config :live_react,
@@ -57,7 +57,7 @@ config :live_react,
 # different ports.
 
 # Reload browser tabs when matching files change.
-config :sprite_agents, SpriteAgentsWeb.Endpoint,
+config :shire, ShireWeb.Endpoint,
   live_reload: [
     web_console_logger: true,
     patterns: [
@@ -66,13 +66,13 @@ config :sprite_agents, SpriteAgentsWeb.Endpoint,
       # Gettext translations
       ~r"priv/gettext/.*\.po$",
       # Router, Controllers, LiveViews and LiveComponents
-      ~r"lib/sprite_agents_web/router\.ex$",
-      ~r"lib/sprite_agents_web/(controllers|live|components)/.*\.(ex|heex)$"
+      ~r"lib/shire_web/router\.ex$",
+      ~r"lib/shire_web/(controllers|live|components)/.*\.(ex|heex)$"
     ]
   ]
 
 # Enable dev routes for dashboard and mailbox
-config :sprite_agents, dev_routes: true
+config :shire, dev_routes: true
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

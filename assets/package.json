@@ -14,9 +14,11 @@
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@tailwindcss/typography": "^0.5.19",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",

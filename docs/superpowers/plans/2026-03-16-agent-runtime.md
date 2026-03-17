@@ -14,7 +14,7 @@
 
 ```
 lib/
-  sprite_agents/
+  shire/
     mailbox.ex                    # Pure message encode/decode + Sprite write helpers
     agent/
       agent_manager.ex            # GenServer: one per active agent, manages Sprite lifecycle
@@ -26,7 +26,7 @@ config/
   runtime.exs                     # (modify) Add SPRITES_TOKEN env var
   dev.exs                         # (modify) Add dev Sprites token
 
-lib/sprite_agents/application.ex  # (modify) Add Registry, DynamicSupervisor, Coordinator
+lib/shire/application.ex  # (modify) Add Registry, DynamicSupervisor, Coordinator
 
 priv/sprite/
   agent-runner.ts                 # Bun daemon: watches inbox, dispatches to Pi SDK
@@ -34,7 +34,7 @@ priv/sprite/
   package.json                    # Bun deps for agent-runner
 
 test/
-  sprite_agents/
+  shire/
     mailbox_test.exs              # Unit tests for Mailbox encode/decode
     agent/
       agent_manager_test.exs      # AgentManager tests with mocked Sprites
@@ -48,8 +48,8 @@ test/
 ### Task 1: Mailbox encode/decode (pure functions)
 
 **Files:**
-- Create: `lib/sprite_agents/mailbox.ex`
-- Create: `test/sprite_agents/mailbox_test.exs`
+- Create: `lib/shire/mailbox.ex`
+- Create: `test/shire/mailbox_test.exs`
 
 The Mailbox module handles encoding/decoding message envelopes and generating filenames. These are pure functions with no side effects — fully unit-testable.
 
@@ -59,11 +59,11 @@ Message envelope: `%{seq: int, ts: int, type: string, from: string, payload: map
 - [ ] **Step 1: Write failing tests for encode/decode**
 
 ```elixir
-# test/sprite_agents/mailbox_test.exs
-defmodule SpriteAgents.MailboxTest do
+# test/shire/mailbox_test.exs
+defmodule Shire.MailboxTest do
   use ExUnit.Case, async: true
 
-  alias SpriteAgents.Mailbox
+  alias Shire.Mailbox
 
   describe "encode/3" do
     test "encodes a user_message envelope" do
@@ -140,14 +140,14 @@ end
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `mix test test/sprite_agents/mailbox_test.exs`
+Run: `mix test test/shire/mailbox_test.exs`
 Expected: Compilation error — `Mailbox` module doesn't exist.
 
 - [ ] **Step 3: Implement Mailbox module**
 
 ```elixir
-# lib/sprite_agents/mailbox.ex
-defmodule SpriteAgents.Mailbox do
+# lib/shire/mailbox.ex
+defmodule Shire.Mailbox do
   @moduledoc """
   Encodes/decodes mailbox message envelopes and generates filenames.
   Also provides helpers to write messages to a Sprite's inbox via the filesystem API.
@@ -248,13 +248,13 @@ end
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `mix test test/sprite_agents/mailbox_test.exs`
+Run: `mix test test/shire/mailbox_test.exs`
 Expected: All tests PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/sprite_agents/mailbox.ex test/sprite_agents/mailbox_test.exs
+git add lib/shire/mailbox.ex test/shire/mailbox_test.exs
 git commit -m "feat: add Mailbox module with encode/decode and filename helpers"
 ```
 
@@ -473,7 +473,7 @@ Setting up configuration and supervision tree first, because AgentManager and Co
 ### Task 3: Update supervision tree
 
 **Files:**
-- Modify: `lib/sprite_agents/application.ex`
+- Modify: `lib/shire/application.ex`
 
 Add Registry, DynamicSupervisor, and Coordinator to the supervision tree. This must happen before Tasks 4-5 because AgentManager registers via `{:via, Registry, ...}` and Coordinator looks up agents in the Registry.
 
@@ -483,11 +483,11 @@ Read the file to understand existing children.
 
 - [ ] **Step 2: Add supervision children**
 
-Add these children to the supervision tree, after `Phoenix.PubSub` and before `SpriteAgentsWeb.Endpoint`:
+Add these children to the supervision tree, after `Phoenix.PubSub` and before `ShireWeb.Endpoint`:
 
 ```elixir
-{Registry, keys: :unique, name: SpriteAgents.AgentRegistry},
-{DynamicSupervisor, name: SpriteAgents.AgentSupervisor, strategy: :one_for_one},
+{Registry, keys: :unique, name: Shire.AgentRegistry},
+{DynamicSupervisor, name: Shire.AgentSupervisor, strategy: :one_for_one},
 ```
 
 Note: Don't add `Coordinator` yet — it will be added when Task 5 implements it.
@@ -505,7 +505,7 @@ Expected: All tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/sprite_agents/application.ex
+git add lib/shire/application.ex
 git commit -m "feat: add AgentRegistry and AgentSupervisor to supervision tree"
 ```
 
@@ -525,7 +525,7 @@ Add to `config/config.exs`, after the existing Cloak config:
 
 ```elixir
 # Sprites client — token configured per-environment
-config :sprite_agents, :sprites_token, nil
+config :shire, :sprites_token, nil
 ```
 
 - [ ] **Step 2: Add runtime token to runtime.exs**
@@ -540,7 +540,7 @@ if config_env() == :prod && is_nil(sprites_token) do
   raise "environment variable SPRITES_TOKEN is missing."
 end
 
-config :sprite_agents, :sprites_token, sprites_token
+config :shire, :sprites_token, sprites_token
 ```
 
 - [ ] **Step 3: Commit**
@@ -557,9 +557,9 @@ git commit -m "feat: add Sprites token configuration"
 ### Task 5: AgentManager GenServer
 
 **Files:**
-- Create: `lib/sprite_agents/agent/agent_manager.ex`
-- Create: `test/sprite_agents/agent/agent_manager_test.exs`
-- Modify: `lib/sprite_agents/agents.ex` (add `get_agent_by_name!/1`)
+- Create: `lib/shire/agent/agent_manager.ex`
+- Create: `test/shire/agent/agent_manager_test.exs`
+- Modify: `lib/shire/agents.ex` (add `get_agent_by_name!/1`)
 
 The AgentManager is a GenServer that manages a single agent's Sprite lifecycle. One AgentManager per active agent.
 
@@ -571,13 +571,13 @@ The AgentManager is a GenServer that manages a single agent's Sprite lifecycle. 
 
 - [ ] **Step 1: Add get_agent_by_name!/1 to Agents context with test**
 
-Add to `lib/sprite_agents/agents.ex`:
+Add to `lib/shire/agents.ex`:
 
 ```elixir
 def get_agent_by_name!(name), do: Repo.get_by!(Agent, name: name)
 ```
 
-Add test to `test/sprite_agents/agents_test.exs` in the "agents" describe block:
+Add test to `test/shire/agents_test.exs` in the "agents" describe block:
 
 ```elixir
 test "get_agent_by_name!/1 returns the agent with given name" do
@@ -590,12 +590,12 @@ end
 - [ ] **Step 2: Write AgentManager tests**
 
 ```elixir
-# test/sprite_agents/agent/agent_manager_test.exs
-defmodule SpriteAgents.Agent.AgentManagerTest do
-  use SpriteAgents.DataCase, async: true
+# test/shire/agent/agent_manager_test.exs
+defmodule Shire.Agent.AgentManagerTest do
+  use Shire.DataCase, async: true
 
-  alias SpriteAgents.Agent.AgentManager
-  alias SpriteAgents.Agents
+  alias Shire.Agent.AgentManager
+  alias Shire.Agents
 
   setup do
     {:ok, agent} = Agents.create_agent(%{
@@ -634,14 +634,14 @@ end
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `mix test test/sprite_agents/agent/agent_manager_test.exs`
+Run: `mix test test/shire/agent/agent_manager_test.exs`
 Expected: Compilation error — `AgentManager` module doesn't exist.
 
 - [ ] **Step 4: Implement AgentManager**
 
 ```elixir
-# lib/sprite_agents/agent/agent_manager.ex
-defmodule SpriteAgents.Agent.AgentManager do
+# lib/shire/agent/agent_manager.ex
+defmodule Shire.Agent.AgentManager do
   @moduledoc """
   GenServer managing a single agent's Sprite lifecycle.
   One AgentManager per active agent.
@@ -649,7 +649,7 @@ defmodule SpriteAgents.Agent.AgentManager do
   use GenServer
   require Logger
 
-  alias SpriteAgents.{Agents, Mailbox}
+  alias Shire.{Agents, Mailbox}
 
   defstruct [
     :agent_id,
@@ -684,7 +684,7 @@ defmodule SpriteAgents.Agent.AgentManager do
   end
 
   defp via(name) do
-    {:via, Registry, {SpriteAgents.AgentRegistry, name}}
+    {:via, Registry, {Shire.AgentRegistry, name}}
   end
 
   # --- Callbacks ---
@@ -738,7 +738,7 @@ defmodule SpriteAgents.Agent.AgentManager do
 
     try do
       # Run bootstrap script
-      bootstrap_script = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/bootstrap.sh"))
+      bootstrap_script = File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
       {_, 0} = Sprites.cmd(sprite, "bash", ["-c", bootstrap_script])
 
       # Write agent config
@@ -759,10 +759,10 @@ defmodule SpriteAgents.Agent.AgentManager do
       Sprites.Filesystem.write(fs, "/workspace/.env", env_content)
 
       # Deploy agent-runner
-      runner_source = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/agent-runner.ts"))
+      runner_source = File.read!(Application.app_dir(:shire, "priv/sprite/agent-runner.ts"))
       Sprites.Filesystem.write(fs, "/workspace/agent-runner.ts", runner_source)
 
-      pkg_json = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/package.json"))
+      pkg_json = File.read!(Application.app_dir(:shire, "priv/sprite/package.json"))
       Sprites.Filesystem.write(fs, "/workspace/package.json", pkg_json)
 
       # Install deps
@@ -841,7 +841,7 @@ defmodule SpriteAgents.Agent.AgentManager do
       case Mailbox.parse_stdout_line(line) do
         {:ok, %{"type" => "agent_message", "payload" => %{"to_agent" => to, "text" => text}}} ->
           # Route inter-agent message via Coordinator
-          SpriteAgents.Agent.Coordinator.route_agent_message(state.agent_name, to, text)
+          Shire.Agent.Coordinator.route_agent_message(state.agent_name, to, text)
 
         {:ok, event} ->
           broadcast(state, {:agent_event, event})
@@ -886,7 +886,7 @@ defmodule SpriteAgents.Agent.AgentManager do
   end
 
   defp broadcast(state, message) do
-    Phoenix.PubSub.broadcast(SpriteAgents.PubSub, state.pubsub_topic, message)
+    Phoenix.PubSub.broadcast(Shire.PubSub, state.pubsub_topic, message)
   end
 
   defp update_agent_status(state, status) do
@@ -924,13 +924,13 @@ end
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `mix test test/sprite_agents/agent/agent_manager_test.exs`
+Run: `mix test test/shire/agent/agent_manager_test.exs`
 Expected: PASS. (Tests use `skip_sprite: true` to avoid needing a real Sprites connection.)
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/sprite_agents/agent/agent_manager.ex test/sprite_agents/agent/agent_manager_test.exs lib/sprite_agents/agents.ex
+git add lib/shire/agent/agent_manager.ex test/shire/agent/agent_manager_test.exs lib/shire/agents.ex
 git commit -m "feat: add AgentManager GenServer for Sprite lifecycle management"
 ```
 
@@ -939,20 +939,20 @@ git commit -m "feat: add AgentManager GenServer for Sprite lifecycle management"
 ### Task 6: Coordinator GenServer
 
 **Files:**
-- Create: `lib/sprite_agents/agent/coordinator.ex`
-- Create: `test/sprite_agents/agent/coordinator_test.exs`
+- Create: `lib/shire/agent/coordinator.ex`
+- Create: `test/shire/agent/coordinator_test.exs`
 
 The Coordinator starts/stops agents and routes inter-agent messages.
 
 - [ ] **Step 1: Write Coordinator tests**
 
 ```elixir
-# test/sprite_agents/agent/coordinator_test.exs
-defmodule SpriteAgents.Agent.CoordinatorTest do
-  use SpriteAgents.DataCase, async: true
+# test/shire/agent/coordinator_test.exs
+defmodule Shire.Agent.CoordinatorTest do
+  use Shire.DataCase, async: true
 
-  alias SpriteAgents.Agent.Coordinator
-  alias SpriteAgents.Agents
+  alias Shire.Agent.Coordinator
+  alias Shire.Agents
 
   setup do
     {:ok, agent} = Agents.create_agent(%{
@@ -985,14 +985,14 @@ end
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `mix test test/sprite_agents/agent/coordinator_test.exs`
+Run: `mix test test/shire/agent/coordinator_test.exs`
 Expected: Compilation error — `Coordinator` module doesn't exist.
 
 - [ ] **Step 3: Implement Coordinator**
 
 ```elixir
-# lib/sprite_agents/agent/coordinator.ex
-defmodule SpriteAgents.Agent.Coordinator do
+# lib/shire/agent/coordinator.ex
+defmodule Shire.Agent.Coordinator do
   @moduledoc """
   Manages agent lifecycle: starts/stops AgentManagers via DynamicSupervisor,
   routes inter-agent messages.
@@ -1000,8 +1000,8 @@ defmodule SpriteAgents.Agent.Coordinator do
   use GenServer
   require Logger
 
-  alias SpriteAgents.Agent.AgentManager
-  alias SpriteAgents.Agents
+  alias Shire.Agent.AgentManager
+  alias Shire.Agents
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -1026,14 +1026,14 @@ defmodule SpriteAgents.Agent.Coordinator do
   end
 
   def lookup(agent_name) do
-    case Registry.lookup(SpriteAgents.AgentRegistry, agent_name) do
+    case Registry.lookup(Shire.AgentRegistry, agent_name) do
       [{pid, _}] -> {:ok, pid}
       [] -> {:error, :not_found}
     end
   end
 
   def list_running do
-    Registry.select(SpriteAgents.AgentRegistry, [{{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}])
+    Registry.select(Shire.AgentRegistry, [{{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}])
   end
 
   # --- Callbacks ---
@@ -1050,7 +1050,7 @@ defmodule SpriteAgents.Agent.Coordinator do
         {:reply, {:error, :already_running}, state}
 
       {:error, :not_found} ->
-        token = Application.get_env(:sprite_agents, :sprites_token)
+        token = Application.get_env(:shire, :sprites_token)
 
         if is_nil(token) do
           {:reply, {:error, :no_sprites_token}, state}
@@ -1059,7 +1059,7 @@ defmodule SpriteAgents.Agent.Coordinator do
           client = Sprites.new(token)
 
           case DynamicSupervisor.start_child(
-               SpriteAgents.AgentSupervisor,
+               Shire.AgentSupervisor,
                {AgentManager, agent: agent, sprites_client: client}
              ) do
           {:ok, pid} ->
@@ -1078,7 +1078,7 @@ defmodule SpriteAgents.Agent.Coordinator do
   def handle_call({:stop_agent, agent_name}, _from, state) do
     case lookup(agent_name) do
       {:ok, pid} ->
-        DynamicSupervisor.terminate_child(SpriteAgents.AgentSupervisor, pid)
+        DynamicSupervisor.terminate_child(Shire.AgentSupervisor, pid)
         Logger.info("Stopped agent #{agent_name}")
         {:reply, :ok, state}
 
@@ -1091,21 +1091,21 @@ end
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `mix test test/sprite_agents/agent/coordinator_test.exs`
+Run: `mix test test/shire/agent/coordinator_test.exs`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
-Also add `SpriteAgents.Agent.Coordinator` to the supervision tree in `application.ex`, after `AgentSupervisor`:
+Also add `Shire.Agent.Coordinator` to the supervision tree in `application.ex`, after `AgentSupervisor`:
 
 ```elixir
-{Registry, keys: :unique, name: SpriteAgents.AgentRegistry},
-{DynamicSupervisor, name: SpriteAgents.AgentSupervisor, strategy: :one_for_one},
-SpriteAgents.Agent.Coordinator,
+{Registry, keys: :unique, name: Shire.AgentRegistry},
+{DynamicSupervisor, name: Shire.AgentSupervisor, strategy: :one_for_one},
+Shire.Agent.Coordinator,
 ```
 
 ```bash
-git add lib/sprite_agents/agent/coordinator.ex test/sprite_agents/agent/coordinator_test.exs lib/sprite_agents/application.ex
+git add lib/shire/agent/coordinator.ex test/shire/agent/coordinator_test.exs lib/shire/application.ex
 git commit -m "feat: add Coordinator GenServer for agent lifecycle management"
 ```
 
@@ -1116,7 +1116,7 @@ git commit -m "feat: add Coordinator GenServer for agent lifecycle management"
 ### Task 7: Start/Stop agent from UI
 
 **Files:**
-- Modify: `lib/sprite_agents_web/live/agent_live/show.ex` — Add start/stop buttons
+- Modify: `lib/shire_web/live/agent_live/show.ex` — Add start/stop buttons
 - Modify: `assets/react-components/AgentShow.tsx` — Add start/stop UI
 - Create: `assets/test/AgentShow.test.tsx` — Update tests for new buttons
 
@@ -1176,14 +1176,14 @@ Update the button section in `AgentShow.tsx` to include Start/Stop based on agen
 
 - [ ] **Step 4: Add handle_event callbacks to AgentLive.Show**
 
-Add to `lib/sprite_agents_web/live/agent_live/show.ex`:
+Add to `lib/shire_web/live/agent_live/show.ex`:
 
 ```elixir
 @impl true
 def handle_event("start-agent", _params, socket) do
   agent = socket.assigns.agent
 
-  case SpriteAgents.Agent.Coordinator.start_agent(agent.name) do
+  case Shire.Agent.Coordinator.start_agent(agent.name) do
     {:ok, _pid} ->
       agent = Agents.get_agent!(agent.id)
       {:noreply,
@@ -1206,7 +1206,7 @@ end
 def handle_event("stop-agent", _params, socket) do
   agent = socket.assigns.agent
 
-  case SpriteAgents.Agent.Coordinator.stop_agent(agent.name) do
+  case Shire.Agent.Coordinator.stop_agent(agent.name) do
     :ok ->
       agent = Agents.get_agent!(agent.id)
       {:noreply,
@@ -1227,7 +1227,7 @@ def mount(%{"id" => id}, _session, socket) do
   agent = Agents.get_agent!(id)
 
   if connected?(socket) do
-    Phoenix.PubSub.subscribe(SpriteAgents.PubSub, "agent:#{agent.name}")
+    Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{agent.name}")
   end
 
   {:ok, assign(socket, :agent, agent)}
@@ -1263,7 +1263,7 @@ Expected: No errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add lib/sprite_agents_web/live/agent_live/show.ex assets/react-components/AgentShow.tsx assets/test/AgentShow.test.tsx
+git add lib/shire_web/live/agent_live/show.ex assets/react-components/AgentShow.tsx assets/test/AgentShow.test.tsx
 git commit -m "feat: add start/stop agent controls to agent detail page"
 ```
 

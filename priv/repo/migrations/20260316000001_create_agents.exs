@@ -1,4 +1,4 @@
-defmodule SpriteAgents.Repo.Migrations.CreateAgents do
+defmodule Shire.Repo.Migrations.CreateAgents do
   use Ecto.Migration
 
   def change do

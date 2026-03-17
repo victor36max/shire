@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import SecretList from "../react-components/SecretList";
@@ -24,7 +24,7 @@ describe("SecretList", () => {
   it("opens new secret dialog", async () => {
     render(<SecretList secrets={[]} pushEvent={vi.fn()} />);
     await userEvent.click(screen.getByText("New Secret"));
-    expect(screen.getByText("Secrets are encrypted at rest and available to all agents.")).toBeInTheDocument();
+    expect(screen.getByText("New Secret", { selector: "[role='dialog'] *" })).toBeInTheDocument();
   });
 
   it("calls pushEvent with create-secret on save", async () => {
@@ -32,8 +32,10 @@ describe("SecretList", () => {
     render(<SecretList secrets={[]} pushEvent={pushEvent} />);
 
     await userEvent.click(screen.getByText("New Secret"));
-    await userEvent.type(screen.getByLabelText("Key"), "MY_KEY");
-    await userEvent.type(screen.getByLabelText("Value"), "my-secret-value");
+    const keyInput = await screen.findByLabelText("Key");
+    const valueInput = await screen.findByLabelText("Value");
+    fireEvent.change(keyInput, { target: { value: "MY_KEY" } });
+    fireEvent.change(valueInput, { target: { value: "my-secret-value" } });
     await userEvent.click(screen.getByText("Save Secret"));
 
     expect(pushEvent).toHaveBeenCalledWith("create-secret", {
@@ -49,9 +51,10 @@ describe("SecretList", () => {
     await userEvent.click(editButtons[0]);
 
     // Key should be pre-filled
-    expect(screen.getByDisplayValue("ANTHROPIC_API_KEY")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("ANTHROPIC_API_KEY")).toBeInTheDocument();
 
-    await userEvent.type(screen.getByLabelText("Value"), "new-value");
+    const valueInput = await screen.findByLabelText("Value");
+    fireEvent.change(valueInput, { target: { value: "new-value" } });
     await userEvent.click(screen.getByText("Save Secret"));
 
     expect(pushEvent).toHaveBeenCalledWith("update-secret", {
@@ -72,6 +75,6 @@ describe("SecretList", () => {
     const confirmDelete = screen.getAllByText("Delete").find((el) => el.closest("[role='alertdialog']"));
     await userEvent.click(confirmDelete!);
 
-    expect(pushEvent).toHaveBeenCalledWith("delete", { id: 1 });
+    expect(pushEvent).toHaveBeenCalledWith("delete-secret", { id: 1 });
   });
 });

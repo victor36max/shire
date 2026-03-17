@@ -1,2 +1,2 @@
 ExUnit.start()
-Ecto.Adapters.SQL.Sandbox.mode(SpriteAgents.Repo, :manual)
+Ecto.Adapters.SQL.Sandbox.mode(Shire.Repo, :manual)

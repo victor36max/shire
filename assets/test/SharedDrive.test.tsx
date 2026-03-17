@@ -91,9 +91,7 @@ describe("SharedDrive", () => {
     await userEvent.click(screen.getByText("Delete"));
 
     // Confirm in alert dialog
-    const confirmDelete = screen
-      .getAllByText("Delete")
-      .find((el) => el.closest("[role='alertdialog']"));
+    const confirmDelete = screen.getAllByText("Delete").find((el) => el.closest("[role='alertdialog']"));
     await userEvent.click(confirmDelete!);
 
     expect(pushEvent).toHaveBeenCalledWith("delete-file", { path: "test.txt" });

@@ -70,10 +70,7 @@ async function runScript(script: Script): Promise<boolean> {
     cwd: "/workspace",
   });
 
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
+  const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
 
   const exitCode = await proc.exited;
 

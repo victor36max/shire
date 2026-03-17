@@ -1,8 +1,8 @@
-import AgentCard from "./AgentCard";
+import AgentDashboard from "./AgentDashboard";
 import AgentForm from "./AgentForm";
-import AgentPage from "./AgentPage";
 import AgentShow from "./AgentShow";
 import SecretList from "./SecretList";
+import SettingsPage from "./SettingsPage";
 import SharedDrive from "./SharedDrive";
 
-export default { AgentCard, AgentForm, AgentPage, AgentShow, SecretList, SharedDrive };
+export default { AgentDashboard, AgentForm, AgentShow, SecretList, SettingsPage, SharedDrive };

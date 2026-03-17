@@ -1,4 +1,4 @@
-defmodule SpriteAgents.Repo.Migrations.RewriteAgentsAsRecipes do
+defmodule Shire.Repo.Migrations.RewriteAgentsAsRecipes do
   use Ecto.Migration
 
   def change do

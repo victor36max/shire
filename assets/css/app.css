@@ -9,7 +9,7 @@
 @source "../css";
 @source "../js";
 @source "../react-components";
-@source "../../lib/sprite_agents_web";
+@source "../../lib/shire_web";
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */

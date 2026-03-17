@@ -24,8 +24,8 @@
 | `priv/sprite/agent-runner.test.ts` | Rewrite | Test harness abstraction, not Anthropic SDK |
 | `priv/sprite/package.json` | Modify | Swap deps: remove `@anthropic-ai/sdk`, add Pi SDK |
 | `priv/sprite/tsconfig.json` | Modify | Include `harness/` subdirectory |
-| `lib/sprite_agents/agents/agent.ex` | Modify | Add `:harness` enum field |
-| `lib/sprite_agents/agent/agent_manager.ex` | Modify | Write harness to config, deploy harness files |
+| `lib/shire/agents/agent.ex` | Modify | Add `:harness` enum field |
+| `lib/shire/agent/agent_manager.ex` | Modify | Write harness to config, deploy harness files |
 | `priv/repo/migrations/*_add_harness_to_agents.exs` | Create | Add `harness` column |
 | `assets/react-components/AgentForm.tsx` | Modify | Add harness select dropdown |
 | `assets/react-components/AgentShow.tsx` | Modify | Show harness badge |
@@ -1569,17 +1569,17 @@ git commit -m "refactor: replace Anthropic SDK with harness adapter pattern in a
 
 **Files:**
 - Create: `priv/repo/migrations/TIMESTAMP_add_harness_to_agents.exs`
-- Modify: `lib/sprite_agents/agents/agent.ex`
-- Modify: `test/sprite_agents/agents_test.exs` (if exists, or inline verification)
+- Modify: `lib/shire/agents/agent.ex`
+- Modify: `test/shire/agents_test.exs` (if exists, or inline verification)
 
 - [ ] **Step 1: Generate migration timestamp and create migration**
 
-Run: `cd /Users/victor/Documents/sprite-agents && mix ecto.gen.migration add_harness_to_agents`
+Run: `cd /Users/victor/Documents/shire && mix ecto.gen.migration add_harness_to_agents`
 
 Then edit the generated file to contain:
 
 ```elixir
-defmodule SpriteAgents.Repo.Migrations.AddHarnessToAgents do
+defmodule Shire.Repo.Migrations.AddHarnessToAgents do
   use Ecto.Migration
 
   def change do
@@ -1592,7 +1592,7 @@ end
 
 - [ ] **Step 2: Add `:harness` field to Agent schema**
 
-In `lib/sprite_agents/agents/agent.ex`, add the field after `:status`:
+In `lib/shire/agents/agent.ex`, add the field after `:status`:
 
 ```elixir
 field :harness, Ecto.Enum,
@@ -1613,13 +1613,13 @@ Expected: Migration runs successfully.
 
 - [ ] **Step 4: Verify schema works**
 
-Run: `mix test test/sprite_agents/agents_test.exs`
+Run: `mix test test/shire/agents_test.exs`
 Expected: Existing agent tests still pass. The harness field defaults to `:pi`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add priv/repo/migrations/*_add_harness_to_agents.exs lib/sprite_agents/agents/agent.ex
+git add priv/repo/migrations/*_add_harness_to_agents.exs lib/shire/agents/agent.ex
 git commit -m "feat: add harness enum field to Agent schema"
 ```
 
@@ -1628,11 +1628,11 @@ git commit -m "feat: add harness enum field to Agent schema"
 ### Task 6: Update AgentManager to deploy harness files and write harness config
 
 **Files:**
-- Modify: `lib/sprite_agents/agent/agent_manager.ex`
+- Modify: `lib/shire/agent/agent_manager.ex`
 
 - [ ] **Step 1: Update config generation in `handle_continue(:bootstrap, state)`**
 
-In `lib/sprite_agents/agent/agent_manager.ex`, find the config generation block (around line 107) and replace:
+In `lib/shire/agent/agent_manager.ex`, find the config generation block (around line 107) and replace:
 
 ```elixir
 # Old:
@@ -1668,7 +1668,7 @@ In the same `handle_continue(:bootstrap, state)`, replace the single-file deploy
 ```elixir
 # Old:
 runner_source =
-  File.read!(Application.app_dir(:sprite_agents, "priv/sprite/agent-runner.ts"))
+  File.read!(Application.app_dir(:shire, "priv/sprite/agent-runner.ts"))
 Sprites.Filesystem.write(fs, "/workspace/agent-runner.ts", runner_source)
 ```
 
@@ -1685,7 +1685,7 @@ ts_files = [
 ]
 
 for file <- ts_files do
-  source = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/#{file}"))
+  source = File.read!(Application.app_dir(:shire, "priv/sprite/#{file}"))
   # Ensure harness subdirectory exists
   if String.contains?(file, "/") do
     dir = Path.dirname("/workspace/#{file}")
@@ -1703,7 +1703,7 @@ Expected: Compiles cleanly.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lib/sprite_agents/agent/agent_manager.ex
+git add lib/shire/agent/agent_manager.ex
 git commit -m "feat: update AgentManager to deploy harness files and write harness config"
 ```
 
@@ -1889,15 +1889,15 @@ git commit -m "feat: add harness selection to agent form and display in show/car
 ### Task 8: Update LiveView to pass harness field
 
 **Files:**
-- Modify: `lib/sprite_agents_web/live/agent_live/show.ex`
+- Modify: `lib/shire_web/live/agent_live/show.ex`
 
 - [ ] **Step 1: Verify serialize_agent includes harness**
 
-Check `lib/sprite_agents_web/live/agent_live/show.ex` — the `serialize_agent/1` function uses `Map.from_struct()` and `Map.drop([:__meta__, :secrets])`. Since `:harness` is not in the drop list, it will be included automatically. No change needed here.
+Check `lib/shire_web/live/agent_live/show.ex` — the `serialize_agent/1` function uses `Map.from_struct()` and `Map.drop([:__meta__, :secrets])`. Since `:harness` is not in the drop list, it will be included automatically. No change needed here.
 
 - [ ] **Step 2: Check that the form LiveView passes harness in save handler**
 
-Check the LiveView that handles "save" events (likely `lib/sprite_agents_web/live/agent_live/index.ex` or a form component). Ensure that `harness` is included in the permitted params being passed to `Agents.create_agent/1` or `Agents.update_agent/2`. Since these functions use `changeset/2` which now casts `:harness`, the form params just need to pass through.
+Check the LiveView that handles "save" events (likely `lib/shire_web/live/agent_live/index.ex` or a form component). Ensure that `harness` is included in the permitted params being passed to `Agents.create_agent/1` or `Agents.update_agent/2`. Since these functions use `changeset/2` which now casts `:harness`, the form params just need to pass through.
 
 If the LiveView save handler extracts specific fields, add `:harness`. If it passes params through directly, no change needed.
 

@@ -16,13 +16,13 @@ Data flows through the existing LiveView WebSocket — no new channels or socket
 
 ### 1. TerminalSession GenServer
 
-**File:** `lib/sprite_agents/agent/terminal_session.ex`
+**File:** `lib/shire/agent/terminal_session.ex`
 
 A GenServer that owns the Sprites TTY connection for a single agent terminal.
 
 **Lifecycle:**
 - Started on-demand when user clicks Terminal tab
-- Registered via `Registry` (in `SpriteAgents.AgentRegistry`) by `{:terminal, agent_name}` key so LiveView can find/reuse an existing session
+- Registered via `Registry` (in `Shire.AgentRegistry`) by `{:terminal, agent_name}` key so LiveView can find/reuse an existing session
 - Monitors the Sprites command — broadcasts disconnect on exit
 - Stopped explicitly via `stop/1` or when the Sprites command exits
 
@@ -45,7 +45,7 @@ A GenServer that owns the Sprites TTY connection for a single agent terminal.
 
 ### 2. AgentManager Addition
 
-**File:** `lib/sprite_agents/agent/agent_manager.ex`
+**File:** `lib/shire/agent/agent_manager.ex`
 
 Add a new public function:
 
@@ -65,7 +65,7 @@ end
 
 ### 3. LiveView Changes
 
-**File:** `lib/sprite_agents_web/live/agent_live/show.ex`
+**File:** `lib/shire_web/live/agent_live/show.ex`
 
 New event handlers:
 

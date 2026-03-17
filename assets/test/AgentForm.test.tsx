@@ -7,15 +7,15 @@ import type { Agent } from "../react-components/types";
 const pushEvent = vi.fn();
 
 function renderForm(agent: Agent | null = null) {
-  return render(
-    <AgentForm open={true} title="New Agent" agent={agent} pushEvent={pushEvent} onClose={vi.fn()} />,
-  );
+  return render(<AgentForm open={true} title="New Agent" agent={agent} pushEvent={pushEvent} onClose={vi.fn()} />);
 }
 
 describe("AgentForm skills", () => {
-  it("renders skills section with empty state", () => {
+  it("renders skills section with empty state", async () => {
     renderForm();
-    expect(screen.getByText("No skills defined. Add skills to give the agent specialized knowledge.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No skills defined. Add skills to give the agent specialized knowledge."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Add Skill")).toBeInTheDocument();
   });
 
@@ -73,7 +73,7 @@ describe("AgentForm skills", () => {
       status: "created",
       model: null,
       system_prompt: null,
-      harness: "pi",
+      harness: "claude_code",
       is_base: false,
       recipe: `version: 1
 name: test

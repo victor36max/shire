@@ -370,7 +370,7 @@ end
 
 ### Schema Change
 
-In `lib/sprite_agents/agents/agent.ex`:
+In `lib/shire/agents/agent.ex`:
 
 ```elixir
 field :harness, Ecto.Enum,
@@ -404,7 +404,7 @@ config = Jason.encode!(%{
 # Deploy all TypeScript source files
 for file <- ["agent-runner.ts", "harness/types.ts", "harness/pi-harness.ts",
              "harness/claude-code-harness.ts", "harness/index.ts"] do
-  source = File.read!(Application.app_dir(:sprite_agents, "priv/sprite/#{file}"))
+  source = File.read!(Application.app_dir(:shire, "priv/sprite/#{file}"))
   Sprites.Filesystem.write(fs, "/workspace/#{file}", source)
 end
 ```

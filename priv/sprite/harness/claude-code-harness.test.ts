@@ -54,7 +54,13 @@ function resultSuccess(result: string, sessionId: string): SDKMessage {
     num_turns: 1,
     stop_reason: "end_turn",
     total_cost_usd: 0.001,
-    usage: { input_tokens: 10, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, server_tool_use_input_tokens: 0 },
+    usage: {
+      input_tokens: 10,
+      output_tokens: 20,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      server_tool_use_input_tokens: 0,
+    },
     modelUsage: {},
     permission_denials: [],
     uuid: "uuid-1",
@@ -73,7 +79,13 @@ function resultError(errors: string[], sessionId: string): SDKMessage {
     num_turns: 1,
     stop_reason: null,
     total_cost_usd: 0.001,
-    usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, server_tool_use_input_tokens: 0 },
+    usage: {
+      input_tokens: 10,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      server_tool_use_input_tokens: 0,
+    },
     modelUsage: {},
     permission_denials: [],
     uuid: "uuid-err",
@@ -154,10 +166,7 @@ describe("ClaudeCodeHarness", () => {
   });
 
   test("sendMessage() emits text_delta from stream_event", async () => {
-    const mockQuery = createMockQuery([
-      streamTextDelta("Hello", "s1"),
-      resultSuccess("Hello world", "s1"),
-    ]);
+    const mockQuery = createMockQuery([streamTextDelta("Hello", "s1"), resultSuccess("Hello world", "s1")]);
     const harness = new ClaudeCodeHarness(mockQuery);
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
@@ -188,10 +197,7 @@ describe("ClaudeCodeHarness", () => {
   });
 
   test("sendMessage() emits tool_use for tool content blocks", async () => {
-    const mockQuery = createMockQuery([
-      streamToolUseStart("bash", "s1"),
-      resultSuccess("done", "s1"),
-    ]);
+    const mockQuery = createMockQuery([streamToolUseStart("bash", "s1"), resultSuccess("done", "s1")]);
     const harness = new ClaudeCodeHarness(mockQuery);
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
@@ -302,9 +308,7 @@ describe("ClaudeCodeHarness", () => {
         id: "msg-1",
         type: "message",
         role: "assistant",
-        content: [
-          { type: "tool_use", id: "tu-abc", name: "Bash", input: { command: "echo hello" } },
-        ],
+        content: [{ type: "tool_use", id: "tu-abc", name: "Bash", input: { command: "echo hello" } }],
         model: "claude-sonnet-4-6",
         stop_reason: "tool_use",
         stop_sequence: null,

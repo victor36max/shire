@@ -12,13 +12,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "./components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
 import type { Agent, BaseRecipe, HarnessType, Script, Skill, SkillReference } from "./types";
 
 interface AgentFormProps {
@@ -58,7 +52,7 @@ function parseRecipeYaml(yaml: string) {
       name: (doc.name as string) || "",
       description: (doc.description as string) || "",
       extends: (doc.extends as string) || "",
-      harness: (doc.harness as string) || "pi",
+      harness: (doc.harness as string) || "claude_code",
       model: (doc.model as string) || "",
       systemPrompt: (doc.system_prompt as string) || "",
       scripts: (doc.scripts as Script[]) || [],
@@ -69,20 +63,13 @@ function parseRecipeYaml(yaml: string) {
   }
 }
 
-export default function AgentForm({
-  open,
-  title,
-  agent,
-  baseRecipes = [],
-  pushEvent,
-  onClose,
-}: AgentFormProps) {
+export default function AgentForm({ open, title, agent, baseRecipes = [], pushEvent, onClose }: AgentFormProps) {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [extendsRecipe, setExtendsRecipe] = React.useState("");
   const [model, setModel] = React.useState("");
   const [systemPrompt, setSystemPrompt] = React.useState("");
-  const [harness, setHarness] = React.useState<HarnessType>("pi");
+  const [harness, setHarness] = React.useState<HarnessType>("claude_code");
   const [scripts, setScripts] = React.useState<Script[]>([]);
   const [skills, setSkills] = React.useState<Skill[]>([]);
   const [rawMode, setRawMode] = React.useState(false);
@@ -97,7 +84,7 @@ export default function AgentForm({
         setExtendsRecipe(parsed.extends);
         setModel(parsed.model);
         setSystemPrompt(parsed.systemPrompt);
-        setHarness((parsed.harness as HarnessType) || "pi");
+        setHarness((parsed.harness as HarnessType) || "claude_code");
         setScripts(parsed.scripts);
         setSkills(parsed.skills);
         setRawYaml(agent.recipe);
@@ -108,7 +95,7 @@ export default function AgentForm({
       setExtendsRecipe("");
       setModel(agent?.model || "");
       setSystemPrompt(agent?.system_prompt || "");
-      setHarness(agent?.harness || "pi");
+      setHarness(agent?.harness || "claude_code");
       setScripts(agent?.scripts || []);
       setSkills(agent?.skills || []);
       setRawYaml("");
@@ -141,14 +128,14 @@ export default function AgentForm({
         setExtendsRecipe(parsed.extends);
         setModel(parsed.model);
         setSystemPrompt(parsed.systemPrompt);
-        setHarness((parsed.harness as HarnessType) || "pi");
+        setHarness((parsed.harness as HarnessType) || "claude_code");
         setScripts(parsed.scripts);
         setSkills(parsed.skills);
       }
     } else {
       // Switching to raw: serialize current fields
       setRawYaml(
-        buildRecipeYaml({ name, description, extends: extendsRecipe, harness, model, systemPrompt, scripts, skills })
+        buildRecipeYaml({ name, description, extends: extendsRecipe, harness, model, systemPrompt, scripts, skills }),
       );
     }
     setRawMode(!rawMode);
@@ -222,7 +209,7 @@ export default function AgentForm({
                 id="raw-yaml"
                 value={rawYaml}
                 onChange={(e) => setRawYaml(e.target.value)}
-                placeholder="version: 1&#10;name: my-agent&#10;harness: pi&#10;..."
+                placeholder="version: 1&#10;name: my-agent&#10;harness: claude_code&#10;..."
                 rows={20}
                 className="font-mono text-sm"
               />
@@ -268,8 +255,8 @@ export default function AgentForm({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pi">Pi</SelectItem>
                     <SelectItem value="claude_code">Claude Code</SelectItem>
+                    <SelectItem value="pi">Pi</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -397,7 +384,9 @@ export default function AgentForm({
                   </div>
                 ))}
                 {scripts.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No setup scripts. Add scripts to install dependencies when the agent starts.</p>
+                  <p className="text-sm text-muted-foreground">
+                    No setup scripts. Add scripts to install dependencies when the agent starts.
+                  </p>
                 )}
               </div>
             </>

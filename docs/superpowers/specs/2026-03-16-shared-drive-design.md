@@ -10,7 +10,7 @@ Agents currently run in fully isolated Sprite VMs with no shared filesystem. The
 
 ### The Shared Drive Sprite
 
-A single Sprite VM named `flyagents-shared-drive` acts as the persistent filesystem. It runs no daemon — just holds files. The Elixir app reads/writes to it via the existing `Sprites.Filesystem` API. The name is configurable via `config :sprite_agents, :shared_drive_name` (defaults to `"flyagents-shared-drive"`).
+A single Sprite VM named `flyagents-shared-drive` acts as the persistent filesystem. It runs no daemon — just holds files. The Elixir app reads/writes to it via the existing `Sprites.Filesystem` API. The name is configurable via `config :shire, :shared_drive_name` (defaults to `"flyagents-shared-drive"`).
 
 ```
 Agent VM A                 Elixir (relay)              Shared Drive Sprite
@@ -24,7 +24,7 @@ Agent VM A                 Elixir (relay)              Shared Drive Sprite
 3. Debounces 300ms, then emits: `{"type": "drive_write", "payload": {"path": "report.md", "content": "<base64>"}}`
 4. `AgentManager` receives stdout event, calls `DriveSync.file_changed(agent_id, path, content)`
 5. `DriveSync` writes to shared drive Sprite: `Sprites.Filesystem.write(drive_fs, "/drive/report.md", content)`
-6. `DriveSync` fans out to all OTHER running agents by sending `GenServer.cast` to each `AgentManager` via the Registry (`{:via, Registry, {SpriteAgents.AgentRegistry, agent_id}}`)
+6. `DriveSync` fans out to all OTHER running agents by sending `GenServer.cast` to each `AgentManager` via the Registry (`{:via, Registry, {Shire.AgentRegistry, agent_id}}`)
 7. Each target `AgentManager` writes the sync marker and file atomically on its own Sprite (see Echo Prevention below)
 
 ### Sync Flow: Agent Deletes a File
@@ -51,20 +51,20 @@ For deletes, same pattern: write marker, then `rm -f` the file, in a single cmd 
 
 ## Components
 
-### 1. DriveSync GenServer (`lib/sprite_agents/agent/drive_sync.ex`)
+### 1. DriveSync GenServer (`lib/shire/agent/drive_sync.ex`)
 
-Singleton GenServer managing the shared drive Sprite and file synchronization. Registered as `SpriteAgents.Agent.DriveSync`.
+Singleton GenServer managing the shared drive Sprite and file synchronization. Registered as `Shire.Agent.DriveSync`.
 
 **State:**
 ```elixir
 %{
-  sprites_client: client,      # obtained from Application.get_env(:sprite_agents, :sprites_token)
+  sprites_client: client,      # obtained from Application.get_env(:shire, :sprites_token)
   sprite: sprite | nil,        # the shared drive Sprite
   drive_fs: filesystem | nil   # cached filesystem handle (uses patched client workaround)
 }
 ```
 
-**Note:** The `drive_fs` handle must use the same URL-patching workaround as `AgentManager.filesystem/1` (appending `/v1/sprites/{name}` to the base URL). Extract this into a shared helper `SpriteAgents.Agent.SpriteHelpers.filesystem/1` so both modules use it.
+**Note:** The `drive_fs` handle must use the same URL-patching workaround as `AgentManager.filesystem/1` (appending `/v1/sprites/{name}` to the base URL). Extract this into a shared helper `Shire.Agent.SpriteHelpers.filesystem/1` so both modules use it.
 
 **Initialization:** In `init/1`, read the Sprites token from app config. If no token is configured (dev/test without Sprites access), start in a degraded state where all operations return `{:error, :no_sprites}`.
 
@@ -82,12 +82,12 @@ Singleton GenServer managing the shared drive Sprite and file synchronization. R
 
 **PubSub:** After completing a write/delete + fan-out, broadcasts `{:drive_changed, path, :write | :delete}` to the `"shared-drive"` PubSub topic so the LiveView can update.
 
-### 2. Shared Filesystem Helper (`lib/sprite_agents/agent/sprite_helpers.ex`)
+### 2. Shared Filesystem Helper (`lib/shire/agent/sprite_helpers.ex`)
 
 Extract the filesystem SDK workaround from `AgentManager`:
 
 ```elixir
-defmodule SpriteAgents.Agent.SpriteHelpers do
+defmodule Shire.Agent.SpriteHelpers do
   def filesystem(sprite) do
     prefix = "/v1/sprites/#{URI.encode(sprite.name)}"
     patched_req = Req.merge(sprite.client.req, base_url: sprite.client.base_url <> prefix)
@@ -100,7 +100,7 @@ end
 
 Both `AgentManager` and `DriveSync` use this helper.
 
-### 3. AgentManager Changes (`lib/sprite_agents/agent/agent_manager.ex`)
+### 3. AgentManager Changes (`lib/shire/agent/agent_manager.ex`)
 
 **Bootstrap additions** (in `handle_continue(:bootstrap)`, after deploying files and before spawning runner):
 - Call `DriveSync.sync_to_agent(agent_id, sprite)` to push existing shared files
@@ -232,7 +232,7 @@ The shared drive is a top-level page at `/shared` — not nested under agents.
 live "/shared", SharedDriveLive.Index, :index
 ```
 
-**LiveView** (`lib/sprite_agents_web/live/shared_drive_live/index.ex`):
+**LiveView** (`lib/shire_web/live/shared_drive_live/index.ex`):
 - Assigns: `files` (list of `%{path, size, modified_at}`), `current_path` (for directory navigation, defaults to `/`)
 - Calls `DriveSync.list_files(current_path)` for directory listing (not recursive — one level at a time)
 - Subscribes to PubSub topic `"shared-drive"` for real-time updates
@@ -244,7 +244,7 @@ live "/shared", SharedDriveLive.Index, :index
   - `delete-directory` — `DriveSync.delete_dir/1` (recursive), fan out
 - Download: standard Phoenix controller endpoint at `/shared/download?path=...` that reads file from drive Sprite and streams it
 
-**Download controller** (`lib/sprite_agents_web/controllers/shared_drive_controller.ex`):
+**Download controller** (`lib/shire_web/controllers/shared_drive_controller.ex`):
 ```elixir
 def download(conn, %{"path" => path}) do
   case DriveSync.read_file(path) do
@@ -298,20 +298,20 @@ Add `DriveSync` to the application supervision tree in `application.ex`, before 
 
 | File | Action |
 |------|--------|
-| `lib/sprite_agents/agent/drive_sync.ex` | **Create** — DriveSync GenServer |
-| `lib/sprite_agents/agent/sprite_helpers.ex` | **Create** — shared filesystem() workaround helper |
-| `lib/sprite_agents/agent/agent_manager.ex` | **Modify** — bootstrap sync, stdout events, incoming sync casts, use SpriteHelpers |
+| `lib/shire/agent/drive_sync.ex` | **Create** — DriveSync GenServer |
+| `lib/shire/agent/sprite_helpers.ex` | **Create** — shared filesystem() workaround helper |
+| `lib/shire/agent/agent_manager.ex` | **Modify** — bootstrap sync, stdout events, incoming sync casts, use SpriteHelpers |
 | `priv/sprite/agent-runner.ts` | **Modify** — add shared dir watcher with debounce + sync markers |
 | `priv/sprite/bootstrap.sh` | **Modify** — add `shared/` and `.drive-sync/` dirs |
-| `lib/sprite_agents/application.ex` | **Modify** — add DriveSync to supervision tree |
-| `lib/sprite_agents_web/router.ex` | **Modify** — add `/shared` route + download endpoint |
-| `lib/sprite_agents_web/live/shared_drive_live/index.ex` | **Create** — SharedDrive LiveView |
-| `lib/sprite_agents_web/controllers/shared_drive_controller.ex` | **Create** — download endpoint |
+| `lib/shire/application.ex` | **Modify** — add DriveSync to supervision tree |
+| `lib/shire_web/router.ex` | **Modify** — add `/shared` route + download endpoint |
+| `lib/shire_web/live/shared_drive_live/index.ex` | **Create** — SharedDrive LiveView |
+| `lib/shire_web/controllers/shared_drive_controller.ex` | **Create** — download endpoint |
 | `assets/react-components/SharedDrive.tsx` | **Create** — full file manager React component |
 | `assets/react-components/index.ts` | **Modify** — export SharedDrive |
 | `assets/react-components/types.ts` | **Modify** — add SharedDriveFile type |
-| `test/sprite_agents/agent/drive_sync_test.exs` | **Create** — DriveSync unit tests |
-| `test/sprite_agents/agent/agent_manager_test.exs` | **Modify** — test drive sync events |
+| `test/shire/agent/drive_sync_test.exs` | **Create** — DriveSync unit tests |
+| `test/shire/agent/agent_manager_test.exs` | **Modify** — test drive sync events |
 | `assets/test/SharedDrive.test.tsx` | **Create** — SharedDrive component tests |
 
 ## Implementation Order

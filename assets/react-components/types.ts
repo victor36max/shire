@@ -1,6 +1,6 @@
 export type HarnessType = "pi" | "claude_code";
 
-export type AgentStatus = "created" | "starting" | "active" | "sleeping" | "failed" | "destroyed";
+export type AgentStatus = "created" | "starting" | "bootstrapping" | "active" | "sleeping" | "failed" | "crashed";
 
 export interface Script {
   name: string;
@@ -24,6 +24,7 @@ export interface Agent {
   name: string;
   description?: string;
   status: AgentStatus;
+  busy?: boolean;
   model: string | null;
   system_prompt: string | null;
   harness: HarnessType;
@@ -44,16 +45,30 @@ export const statusVariant = (status: string): "default" | "secondary" | "destru
     case "active":
       return "default";
     case "starting":
+    case "bootstrapping":
       return "secondary";
     case "failed":
+    case "crashed":
       return "destructive";
     case "sleeping":
-    case "destroyed":
       return "outline";
     default:
       return "secondary";
   }
 };
+
+export interface Secret {
+  id: number;
+  key: string;
+}
+
+export interface InterAgentMessage {
+  id: number;
+  from_agent: string;
+  to_agent: string;
+  text: string;
+  ts: string;
+}
 
 export interface SharedDriveFile {
   name: string;

@@ -1,4 +1,4 @@
-# Sprite Agents
+# Shire
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@
 - Layout and rendering via shadcn/ui components
 
 **Key patterns:**
-- One page-level React component per LiveView (e.g., `AgentPage`, `AgentShow`, `SecretList`, `SharedDrive`)
+- One page-level React component per LiveView (e.g., `AgentDashboard`, `AgentShow`, `SecretList`, `SettingsPage`, `SharedDrive`)
 - React receives `pushEvent` as a prop from LiveReact to send events back to LiveView
 - Use specific event names like `create-agent`, `update-agent` instead of generic `save` (avoids dependency on `live_action`)
 - Shared `AppLayout` component wraps all pages with consistent padding/max-width
@@ -45,11 +45,11 @@
 
 ```
 lib/
-  sprite_agents/
+  shire/
     application.ex           # OTP application (supervises DriveSync, Coordinator, DynamicSupervisor)
     agents.ex                # Context: Agent + Secret + Message CRUD
     agents/
-      agent.ex               # Agent schema (recipe-based: recipe, is_base, status)
+      agent.ex               # Agent schema (recipe-based: recipe, is_base)
       secret.ex              # Secret schema (Cloak-encrypted value)
       message.ex             # Message schema (inter-agent communication)
     agent/
@@ -61,21 +61,34 @@ lib/
     mailbox.ex               # Mailbox message envelope encoding/decoding, inbox writing
     vault.ex                 # Cloak vault
     encrypted/binary.ex      # Custom encrypted binary type
+    mailer.ex
     repo.ex
-  sprite_agents_web/
+  shire_web/
     router.ex
+    endpoint.ex
+    gettext.ex
+    telemetry.ex
     components/
       core_components.ex     # Core UI components (react helper, etc.)
       layouts.ex             # Passthrough app layout + flash_group
       layouts/root.html.heex
     controllers/
+      page_controller.ex
+      page_html.ex
+      page_html/home.html.heex
+      error_html.ex
+      error_json.ex
       shared_drive_controller.ex  # File download/stream endpoint
     live/
       agent_live/
-        index.ex             # Renders <.react name="AgentPage" />
+        index.ex             # Renders <.react name="AgentDashboard" />
         show.ex              # Renders <.react name="AgentShow" />
+        agent_streaming.ex   # Agent streaming support (SSE/PubSub bridge)
+        helpers.ex           # Shared LiveView helper functions
       secret_live/
         index.ex             # Renders <.react name="SecretList" />
+      settings_live/
+        index.ex             # Renders <.react name="SettingsPage" />
       shared_drive_live/
         index.ex             # Renders <.react name="SharedDrive" />
 
@@ -84,12 +97,16 @@ assets/
   css/app.css                # Tailwind v4 + shadcn theme variables
   vite.config.js
   react-components/
-    AgentPage.tsx             # Agent list page
+    AgentDashboard.tsx        # Main dashboard with agent sidebar + chat/welcome panel
+    AgentSidebar.tsx          # Agent list sidebar for dashboard
     AgentShow.tsx             # Agent detail page
-    AgentCard.tsx             # Card component for agent grid
     AgentForm.tsx             # Dialog form (controlled via open/onClose props)
-    AgentList.tsx             # Agent list component
+    ChatHeader.tsx            # Chat panel header with agent info
+    ChatPanel.tsx             # Chat/message panel for agent interaction
+    WelcomePanel.tsx          # Welcome/empty state panel
+    ActivityLog.tsx           # Activity log display
     SecretList.tsx            # Secrets page
+    SettingsPage.tsx          # Settings page
     SharedDrive.tsx           # Shared drive file browser (upload/delete/navigate)
     Terminal.tsx              # xterm.js interactive terminal via WebSocket bridge
     types.ts                 # Shared TypeScript type definitions
@@ -97,15 +114,19 @@ assets/
     components/
       AppLayout.tsx           # Shared layout wrapper
       Markdown.tsx            # React Markdown renderer (GitHub-flavored)
-      ui/                     # shadcn/ui components (button, card, dialog, alert-dialog, select, textarea, badge, table, etc.)
+      ui/                     # shadcn/ui components (button, card, dialog, alert-dialog, dropdown-menu, select, tabs, textarea, badge, table, etc.)
     lib/
       utils.ts                # cn() utility
   test/
     setup.ts                  # Vitest test setup
-    AgentCard.test.tsx        # Component tests
-    AgentPage.test.tsx
+    AgentDashboard.test.tsx
+    AgentForm.test.tsx
     AgentShow.test.tsx
+    AgentSidebar.test.tsx
+    ActivityLog.test.tsx
+    ChatPanel.test.tsx
     SecretList.test.tsx
+    SettingsPage.test.tsx
     SharedDrive.test.tsx
     Terminal.test.tsx
 
@@ -136,7 +157,13 @@ mix test                           # Elixir tests
 
 # Frontend (from assets/)
 cd assets && bun run tsc --noEmit  # TypeScript typecheck
+cd assets && bun run lint          # ESLint
+cd assets && bun run format:check  # Prettier
 cd assets && bun run test          # Vitest component tests
+
+# Agent runner (from priv/sprite/)
+cd priv/sprite && bun run lint          # ESLint
+cd priv/sprite && bun run format:check  # Prettier
 ```
 
 Full precommit (compile + format + test):

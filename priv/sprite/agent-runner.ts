@@ -46,12 +46,12 @@ export async function processMessage(harness: Harness, envelope: MessageEnvelope
   }
 }
 
-export async function processInbox(harness: Harness): Promise<void> {
-  const files = await readdir(INBOX_DIR);
+export async function processInbox(harness: Harness, inboxDir = INBOX_DIR): Promise<number> {
+  const files = await readdir(inboxDir);
   const sorted = files.filter((f) => f.endsWith(".json")).sort();
 
   for (const file of sorted) {
-    const path = join(INBOX_DIR, file);
+    const path = join(inboxDir, file);
     try {
       const raw = await readFile(path, "utf-8");
       const envelope: MessageEnvelope = JSON.parse(raw);
@@ -61,6 +61,8 @@ export async function processInbox(harness: Harness): Promise<void> {
       emit("error", { message: `Failed to process ${file}: ${err}` });
     }
   }
+
+  return sorted.length;
 }
 
 export async function processOutbox(outboxDir = OUTBOX_DIR): Promise<number> {
@@ -112,16 +114,24 @@ async function main() {
   let processing = false;
 
   // Process any existing inbox messages
-  await processInbox(harness);
+  const initialCount = await processInbox(harness);
+  if (initialCount > 0) {
+    emit("processing", { active: false });
+  }
 
   // Watch for new messages
   const watcher = watch(INBOX_DIR, async (_eventType: string, filename: string | null) => {
     if (!filename?.endsWith(".json") || processing) return;
     processing = true;
+    emit("processing", { active: true });
     try {
-      await processInbox(harness);
+      let count: number;
+      do {
+        count = await processInbox(harness);
+      } while (count > 0);
     } finally {
       processing = false;
+      emit("processing", { active: false });
     }
   });
 

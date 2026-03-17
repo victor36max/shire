@@ -23,7 +23,7 @@ erl_crash.dump
 /tmp/
 
 # Ignore package tarball (built via "mix hex.build").
-sprite_agents-*.tar
+shire-*.tar
 
 # Ignore assets that are produced by build tools.
 /priv/static/assets/
@@ -43,3 +43,7 @@ npm-debug.log
 
 # Local environment variables
 .env
+
+/docs/superpowers/
+
+/.superpowers
