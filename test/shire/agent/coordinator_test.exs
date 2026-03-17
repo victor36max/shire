@@ -51,6 +51,27 @@ defmodule Shire.Agent.CoordinatorTest do
     end
   end
 
+  describe "start_agent/1 with failed agent" do
+    test "restarts a failed agent instead of returning already_running", %{agent: agent} do
+      {:ok, _pid} = start_agent_manager(agent)
+
+      # Simulate the agent entering a failed state
+      Coordinator.notify_status(agent.id, :failed)
+      assert :failed == Coordinator.agent_status(agent.id)
+
+      # start_agent should restart it instead of returning :already_running
+      result = Coordinator.start_agent(agent.id)
+      assert {:ok, :restarted} = result
+    end
+
+    test "still returns already_running for active agents", %{agent: agent} do
+      {:ok, _pid} = start_agent_manager(agent)
+      Coordinator.notify_status(agent.id, :active)
+
+      assert {:error, :already_running} = Coordinator.start_agent(agent.id)
+    end
+  end
+
   describe "list_running/0" do
     test "returns empty list when no agents are running" do
       assert Coordinator.list_running() == []

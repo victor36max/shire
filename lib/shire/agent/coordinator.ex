@@ -205,7 +205,21 @@ defmodule Shire.Agent.Coordinator do
   def handle_call({:start_agent, agent_id, _opts}, _from, state) do
     case lookup(agent_id) do
       {:ok, _pid} ->
-        {:reply, {:error, :already_running}, state}
+        # If the agent is in a failed state, restart it instead of rejecting
+        case Map.get(state.statuses, agent_id) do
+          :failed ->
+            case AgentManager.restart(agent_id) do
+              :ok ->
+                Logger.info("Restarting failed agent #{agent_id}")
+                {:reply, {:ok, :restarted}, state}
+
+              {:error, reason} ->
+                {:reply, {:error, reason}, state}
+            end
+
+          _ ->
+            {:reply, {:error, :already_running}, state}
+        end
 
       {:error, :not_found} ->
         token = Application.get_env(:shire, :sprites_token)
