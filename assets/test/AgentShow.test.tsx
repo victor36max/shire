@@ -125,6 +125,15 @@ describe("AgentShow", () => {
     expect(screen.getByText(/Environment variables specific to this agent/)).toBeInTheDocument();
   });
 
+  it("shows Edit button and opens edit form dialog", async () => {
+    render(<AgentShow agent={agent} secrets={[]} pushEvent={vi.fn()} />);
+    const editBtn = screen.getByRole("button", { name: /edit/i });
+    expect(editBtn).toBeInTheDocument();
+    await userEvent.click(editBtn);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Edit Agent")).toBeInTheDocument();
+  });
+
   it("calls pushEvent with create-agent-secret on env var creation", async () => {
     const pushEvent = vi.fn();
     render(<AgentShow agent={{ ...agent, status: "created" }} secrets={[]} pushEvent={pushEvent} />);

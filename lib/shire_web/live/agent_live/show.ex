@@ -20,7 +20,8 @@ defmodule ShireWeb.AgentLive.Show do
      assign(socket,
        agent: agent,
        secrets: secrets,
-       agent_status: agent_status
+       agent_status: agent_status,
+       base_recipes: Agents.list_base_recipes()
      )}
   end
 
@@ -85,6 +86,22 @@ defmodule ShireWeb.AgentLive.Show do
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to restart: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
+  def handle_event("update-agent", %{"id" => id, "recipe" => recipe}, socket) do
+    agent = Agents.get_agent!(id)
+
+    case Agents.update_agent(agent, %{recipe: recipe}) do
+      {:ok, updated_agent} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Agent updated successfully")
+         |> assign(:agent, updated_agent)}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Failed to update agent")}
     end
   end
 
@@ -218,6 +235,7 @@ defmodule ShireWeb.AgentLive.Show do
       name="AgentShow"
       agent={Helpers.serialize_agent(@agent, MapSet.new(), %{@agent.id => @agent_status})}
       secrets={Helpers.serialize_secrets(@secrets)}
+      baseRecipes={Helpers.serialize_base_recipes(@base_recipes)}
       socket={@socket}
     />
     """
