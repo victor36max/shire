@@ -1,36 +1,28 @@
 defmodule ShireWeb.AgentLive.Show do
   use ShireWeb, :live_view
 
-  alias Shire.Agents
-  alias Shire.Agents.Agent
   alias Shire.Agent.{AgentManager, Coordinator, TerminalSession}
   alias ShireWeb.AgentLive.Helpers
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    agent = Agents.get_agent!(id)
-    secrets = Agents.list_secrets_for_agent(agent.id)
-    agent_status = Coordinator.agent_status(agent.id)
+    agent_status = Coordinator.agent_status(id)
 
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{agent.id}")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{id}")
     end
 
     {:ok,
      assign(socket,
-       agent: agent,
-       secrets: secrets,
+       agent: %{id: id},
        agent_status: agent_status,
-       base_recipes: Agents.list_base_recipes(),
        terminal_subscribed: false
      )}
   end
 
   @impl true
   def handle_params(_params, _url, socket) do
-    agent = socket.assigns.agent
-    name = Agent.recipe_name(agent)
-    {:noreply, assign(socket, :page_title, "Agent: #{name}")}
+    {:noreply, assign(socket, :page_title, "Agent")}
   end
 
   @impl true
@@ -64,12 +56,9 @@ defmodule ShireWeb.AgentLive.Show do
          |> redirect(to: ~p"/")}
 
       {:error, :not_found} ->
-        # Not running in coordinator — delete the record directly
-        Agents.delete_agent(agent)
-
         {:noreply,
          socket
-         |> put_flash(:info, "Agent deleted")
+         |> put_flash(:info, "Agent not found")
          |> redirect(to: ~p"/")}
     end
   end
@@ -91,56 +80,25 @@ defmodule ShireWeb.AgentLive.Show do
   end
 
   @impl true
-  def handle_event("update-agent", %{"id" => id, "recipe" => recipe}, socket) do
-    agent = Agents.get_agent!(id)
+  def handle_event("update-agent", _params, socket) do
+    {:noreply, socket}
+  end
 
-    case Agents.update_agent(agent, %{recipe: recipe}) do
-      {:ok, updated_agent} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Agent updated successfully")
-         |> assign(:agent, updated_agent)}
+  # Secret handlers — stubbed out, will be rewritten in Phase 4
 
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Failed to update agent")}
-    end
+  @impl true
+  def handle_event("create-agent-secret", _params, socket) do
+    {:noreply, socket}
   end
 
   @impl true
-  def handle_event("create-agent-secret", %{"secret" => params}, socket) do
-    agent = socket.assigns.agent
-    attrs = Map.put(params, "agent_id", agent.id)
-
-    case Agents.create_secret(attrs) do
-      {:ok, _secret} ->
-        secrets = Agents.list_secrets_for_agent(agent.id)
-        {:noreply, assign(socket, :secrets, secrets)}
-
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Failed to create secret")}
-    end
+  def handle_event("update-agent-secret", _params, socket) do
+    {:noreply, socket}
   end
 
   @impl true
-  def handle_event("update-agent-secret", %{"id" => id, "secret" => params}, socket) do
-    secret = Agents.get_secret!(id)
-
-    case Agents.update_secret(secret, params) do
-      {:ok, _secret} ->
-        secrets = Agents.list_secrets_for_agent(socket.assigns.agent.id)
-        {:noreply, assign(socket, :secrets, secrets)}
-
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Failed to update secret")}
-    end
-  end
-
-  @impl true
-  def handle_event("delete-agent-secret", %{"id" => id}, socket) do
-    secret = Agents.get_secret!(id)
-    {:ok, _} = Agents.delete_secret(secret)
-    secrets = Agents.list_secrets_for_agent(socket.assigns.agent.id)
-    {:noreply, assign(socket, :secrets, secrets)}
+  def handle_event("delete-agent-secret", _params, socket) do
+    {:noreply, socket}
   end
 
   @impl true
@@ -246,9 +204,9 @@ defmodule ShireWeb.AgentLive.Show do
     ~H"""
     <.react
       name="AgentShow"
-      agent={Helpers.serialize_agent(@agent, MapSet.new(), %{@agent.id => @agent_status})}
-      secrets={Helpers.serialize_secrets(@secrets)}
-      baseRecipes={Helpers.serialize_base_recipes(@base_recipes)}
+      agent={Helpers.serialize_agent(@agent)}
+      secrets={[]}
+      baseRecipes={[]}
       socket={@socket}
     />
     """

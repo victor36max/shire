@@ -22,15 +22,7 @@ defmodule ShireWeb.Router do
       live "/agents/:id", AgentLive.Show, :show
 
       live "/settings", SettingsLive.Index, :index
-
-      live "/shared", SharedDriveLive.Index, :index
     end
-  end
-
-  scope "/", ShireWeb do
-    pipe_through :browser
-
-    get "/shared/download", SharedDriveController, :download
   end
 
   # Other scopes may use custom stacks.

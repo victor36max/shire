@@ -6,69 +6,7 @@ defmodule Shire.Agent.AgentManager do
   use GenServer
   require Logger
 
-  alias Shire.Agent.{DriveSync, SpriteHelpers}
-  alias Shire.{Agents, Mailbox}
-
-  @comms_prompt """
-  ## Inter-Agent Communication
-
-  You are one of several agents running in a shared environment. You can collaborate with other agents.
-
-  ### First Responder Rule
-  When the user sends you a message, YOU are the lead for that task. This means:
-  - You are responsible for delivering the final result to the user
-  - If the task needs capabilities other agents have, delegate to them via outbox messages
-  - When you receive replies from other agents, synthesize their input and present the final answer
-  - Never leave the user without a response — acknowledge the task, delegate if needed, then follow up with the result
-  - The user sees YOUR output, not the other agents' — so always produce the complete final response
-
-  ### Discovering Peers
-  Read `/workspace/peers.json` to see which other agents are currently running. Each entry has:
-  - `name`: the agent's identifier (use this in messages)
-  - `description`: what the agent does
-
-  This file is updated automatically when agents start or stop.
-
-  ### Sending Messages
-  To send a message to another agent, write a JSON file to `/workspace/mailbox/outbox/`:
-
-  File: `/workspace/mailbox/outbox/<anything>.json`
-  Format: {"to": "<agent-name>", "text": "<your message>"}
-
-  The message will be delivered to the other agent automatically and the file will be cleaned up.
-
-  ### Receiving Messages
-  Messages from other agents arrive in your normal conversation flow, prefixed with [Message from agent "<name>"].
-  If you are the lead (user messaged you), incorporate the agent's reply into your final response to the user.
-  If another agent asked you for help, send your result back via a new outbox message.
-
-  ### Guidelines
-  - Check peers.json before messaging to confirm the agent exists
-  - Be specific about what you need from the other agent
-  - Don't send messages unnecessarily — only when collaboration genuinely helps the task
-
-  ## Shared Drive
-
-  All agents share a drive mounted at `/workspace/shared/`. Files you write here are automatically synced to all other running agents, and their writes appear here too.
-
-  ### Usage
-  - Read/write files normally in `/workspace/shared/`
-  - Changes sync automatically — no special protocol needed
-  - Use it for project files, documentation, research, build artifacts, or any shared data
-  - Avoid rapid sequential writes to the same file — batch your changes when possible
-  - If a file changed unexpectedly, another agent may have updated it — re-read before overwriting
-  - Maximum file size: 1MB per file
-
-  ## Scripts & Documents
-
-  You have two dedicated directories for organizing your work:
-
-  ### Scripts (`/workspace/scripts/`)
-  Write reusable scripts here — shell scripts, data processing pipelines, automation tools, or any code you want to run repeatedly. Keep scripts self-contained and well-named.
-
-  ### Documents (`/workspace/documents/`)
-  Store internal reference documents here — research notes, analysis summaries, plans, findings, or any structured information you want to persist and refer back to.
-  """
+  alias Shire.Agents
 
   @sprite_prefix Application.compile_env(:shire, :sprite_prefix, "agent")
   @cmd_timeout 30_000
@@ -91,13 +29,10 @@ defmodule Shire.Agent.AgentManager do
 
   # --- Public API ---
 
-  alias Shire.Agents.Agent
-
   def start_link(opts) do
-    agent = Keyword.fetch!(opts, :agent)
-    recipe = Agent.parse_recipe!(agent)
-    agent_name = recipe["name"] || "agent-#{agent.id}"
-    GenServer.start_link(__MODULE__, opts, name: via(agent.id, agent_name))
+    agent_name = Keyword.fetch!(opts, :agent_name)
+    agent_id = Keyword.fetch!(opts, :agent_id)
+    GenServer.start_link(__MODULE__, opts, name: via(agent_id, agent_name))
   end
 
   def send_message(agent_id, text, from \\ :user) do
@@ -128,18 +63,16 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def init(opts) do
-    agent = Keyword.fetch!(opts, :agent)
+    agent_id = Keyword.fetch!(opts, :agent_id)
+    agent_name = Keyword.fetch!(opts, :agent_name)
     client = Keyword.get(opts, :sprites_client)
     skip_sprite = Keyword.get(opts, :skip_sprite, false)
 
-    recipe = Agent.parse_recipe!(agent)
-    agent_name = recipe["name"] || "agent-#{agent.id}"
-
     state = %__MODULE__{
-      agent_id: agent.id,
+      agent_id: agent_id,
       agent_name: agent_name,
       sprites_client: client,
-      pubsub_topic: "agent:#{agent.id}",
+      pubsub_topic: "agent:#{agent_id}",
       phase: :idle
     }
 
@@ -218,13 +151,9 @@ defmodule Shire.Agent.AgentManager do
         {:agent, _} -> "agent_message"
       end
 
-    case Mailbox.write_inbox(state.sprite, type, %{text: text}, from: from_str) do
-      :ok ->
-        {:reply, :ok, state}
-
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
-    end
+    # TODO: Phase 2 — reimplement inbox writing
+    _ = {from_str, type, text}
+    {:reply, :ok, state}
   end
 
   def handle_call({:send_message, _text, _from}, _from_pid, state) do
@@ -270,17 +199,9 @@ defmodule Shire.Agent.AgentManager do
 
     state =
       Enum.reduce(lines, state, fn line, acc ->
-        case Mailbox.parse_stdout_line(line) do
+        case parse_stdout_line(line) do
           {:ok, %{"type" => "agent_message", "payload" => %{"to_agent" => to, "text" => text}}} ->
             Shire.Agent.Coordinator.route_agent_message(acc.agent_name, to, text)
-            acc
-
-          {:ok, %{"type" => "drive_write", "payload" => %{"path" => path, "content" => content}}} ->
-            DriveSync.file_changed(acc.agent_id, path, Base.decode64!(content))
-            acc
-
-          {:ok, %{"type" => "drive_delete", "payload" => %{"path" => path}}} ->
-            DriveSync.file_deleted(acc.agent_id, path)
             acc
 
           {:ok, %{"type" => "processing", "payload" => %{"active" => active}}} ->
@@ -321,6 +242,11 @@ defmodule Shire.Agent.AgentManager do
 
   def handle_info({:error, %{ref: ref}, reason}, %{command_ref: ref} = state) do
     Logger.error("Agent runner error for #{state.agent_name}: #{inspect(reason)}")
+
+    state =
+      %{state | command: nil, command_ref: nil}
+      |> transition_phase(:failed)
+
     {:noreply, state}
   end
 
@@ -339,89 +265,6 @@ defmodule Shire.Agent.AgentManager do
     {:noreply, transition_phase(state, :failed)}
   end
 
-  @impl true
-  def handle_cast({:update_peers, peers}, %{phase: :active, sprite: sprite} = state)
-      when not is_nil(sprite) do
-    try do
-      fs = SpriteHelpers.filesystem(sprite)
-      :ok = Sprites.Filesystem.write(fs, "/workspace/peers.json", Jason.encode!(peers))
-    rescue
-      e ->
-        Logger.warning("Failed to write peers.json for #{state.agent_name}: #{inspect(e)}")
-    end
-
-    {:noreply, state}
-  end
-
-  def handle_cast({:update_peers, _peers}, state) do
-    {:noreply, state}
-  end
-
-  # Incoming shared drive file sync from DriveSync
-  def handle_cast({:drive_sync, path, content}, %{sprite: sprite} = state)
-      when not is_nil(sprite) do
-    with_sprite_op(state, "sync drive file #{path}", fn ->
-      # Step 1: Create marker FIRST to prevent agent-runner from echoing this back
-      Sprites.cmd(
-        sprite,
-        "bash",
-        [
-          "-c",
-          ~S|set -e; mkdir -p "/workspace/.drive-sync/$(dirname "$1")"; touch "/workspace/.drive-sync/$1"; mkdir -p "$(dirname "/workspace/shared/$1")"|,
-          "--",
-          path
-        ],
-        timeout: @cmd_timeout
-      )
-
-      # Step 2: Write file content via filesystem API
-      # (Sprites.cmd doesn't support piping stdin data — it only enables the stdin flag)
-      fs = SpriteHelpers.filesystem(sprite)
-      Sprites.Filesystem.write(fs, "/workspace/shared/#{path}", content)
-    end)
-  end
-
-  def handle_cast({:drive_delete, path}, %{sprite: sprite} = state)
-      when not is_nil(sprite) do
-    with_sprite_op(state, "delete drive file #{path}", fn ->
-      Sprites.cmd(
-        sprite,
-        "bash",
-        [
-          "-c",
-          ~S|set -e; mkdir -p "/workspace/.drive-sync/$(dirname "$1")"; touch "/workspace/.drive-sync/$1"; rm -f "/workspace/shared/$1"|,
-          "--",
-          path
-        ],
-        timeout: @cmd_timeout
-      )
-    end)
-  end
-
-  def handle_cast({:drive_create_dir, path}, %{sprite: sprite} = state)
-      when not is_nil(sprite) do
-    with_sprite_op(state, "create drive dir #{path}", fn ->
-      Sprites.cmd(sprite, "mkdir", ["-p", "/workspace/shared/#{path}"], timeout: @cmd_timeout)
-    end)
-  end
-
-  def handle_cast({:drive_delete_dir, path}, %{sprite: sprite} = state)
-      when not is_nil(sprite) do
-    with_sprite_op(state, "delete drive dir #{path}", fn ->
-      Sprites.cmd(sprite, "rm", ["-rf", "/workspace/shared/#{path}"], timeout: @cmd_timeout)
-    end)
-  end
-
-  # Catch-all for drive casts when sprite is nil
-  def handle_cast({drive_op, _path}, state)
-      when drive_op in [:drive_delete, :drive_create_dir, :drive_delete_dir] do
-    {:noreply, state}
-  end
-
-  def handle_cast({:drive_sync, _path, _content}, state) do
-    {:noreply, state}
-  end
-
   # --- Private ---
 
   defp transition_phase(state, phase) do
@@ -430,33 +273,10 @@ defmodule Shire.Agent.AgentManager do
     state
   end
 
-  defp with_sprite_op(state, description, fun) do
-    try do
-      fun.()
-    rescue
-      e ->
-        Logger.warning("Failed to #{description} on #{state.agent_name}: #{inspect(e)}")
-    end
-
-    {:noreply, state}
-  end
-
-  defp run_bootstrap(agent_id, sprite) do
+  defp run_bootstrap(_agent_id, sprite) do
     wait_for_ready(sprite)
     run_bootstrap_script(sprite)
-
-    agent = Agents.get_agent!(agent_id)
-    recipe = Agent.parse_recipe!(agent)
-    fs = SpriteHelpers.filesystem(sprite)
-
-    deploy_config(sprite, fs, agent_id, recipe)
-    deploy_skills(sprite, fs, recipe, recipe["harness"] || "claude_code")
-    deploy_runtime_files(fs)
-    install_dependencies(sprite)
-
-    DriveSync.ensure_started()
-    DriveSync.sync_to_agent(agent_id, sprite)
-
+    # TODO: Phase 2 — reimplement recipe deployment, config, skills, runtime files
     :ok
   rescue
     e -> {:error, e}
@@ -469,106 +289,24 @@ defmodule Shire.Agent.AgentManager do
     {_, 0} = Sprites.cmd(sprite, "bash", ["-c", bootstrap_script], timeout: 120_000)
   end
 
-  defp deploy_config(_sprite, fs, agent_id, recipe) do
-    harness = recipe["harness"] || "claude_code"
-    secrets = Agents.effective_secrets(agent_id)
-
-    default_model =
-      case harness do
-        "claude_code" -> "claude-sonnet-4-6"
-        _ -> "anthropic/claude-sonnet-4-6"
-      end
-
-    system_prompt =
-      (recipe["system_prompt"] || "You are a helpful assistant.") <> "\n\n" <> @comms_prompt
-
-    config =
-      Jason.encode!(%{
-        harness: harness,
-        model: recipe["model"] || default_model,
-        system_prompt: system_prompt,
-        max_tokens: 4096
-      })
-
-    :ok = Sprites.Filesystem.write(fs, "/workspace/agent-config.json", config)
-    :ok = Sprites.Filesystem.write(fs, "/workspace/peers.json", "[]")
-    :ok = Sprites.Filesystem.write(fs, "/workspace/recipe.json", Jason.encode!(recipe))
-
-    env_content = Enum.map_join(secrets, "\n", fn s -> "#{s.key}=#{s.value}" end)
-    :ok = Sprites.Filesystem.write(fs, "/workspace/.env", env_content)
-  end
-
-  defp deploy_runtime_files(fs) do
-    runtime_files = [
-      "agent-runner.ts",
-      "package.json",
-      "harness/types.ts",
-      "harness/pi-harness.ts",
-      "harness/claude-code-harness.ts",
-      "harness/index.ts"
-    ]
-
-    for file <- runtime_files do
-      source = File.read!(Application.app_dir(:shire, "priv/sprite/#{file}"))
-      :ok = Sprites.Filesystem.write(fs, "/workspace/.runner/#{file}", source)
-    end
-  end
-
-  defp install_dependencies(sprite) do
-    {_, 0} =
-      Sprites.cmd(sprite, "bash", ["-c", "cd /workspace/.runner && bun install"], timeout: 60_000)
-  end
-
-  defp deploy_skills(sprite, fs, recipe, harness) do
-    skills = recipe["skills"] || []
-
-    if skills == [] do
-      :ok
-    else
-      deploy_skills_to_vm(sprite, fs, skills, harness)
-    end
-  end
-
-  defp deploy_skills_to_vm(sprite, fs, skills, harness) do
-    skill_base =
-      case harness do
-        "claude_code" -> "/workspace/.claude/skills"
-        _ -> "/workspace/.pi/agent/skills"
-      end
-
-    # Clean stale skills from previous recipe versions
-    Sprites.cmd(sprite, "rm", ["-rf", skill_base], timeout: @cmd_timeout)
-
-    for skill <- skills do
-      skill_dir = "#{skill_base}/#{skill["name"]}"
-      Sprites.cmd(sprite, "mkdir", ["-p", skill_dir], timeout: @cmd_timeout)
-
-      skill_md = build_skill_md(skill)
-      :ok = Sprites.Filesystem.write(fs, "#{skill_dir}/SKILL.md", skill_md)
-
-      for ref <- skill["references"] || [] do
-        :ok = Sprites.Filesystem.write(fs, "#{skill_dir}/#{ref["name"]}", ref["content"])
-      end
-    end
-
-    :ok
-  end
-
-  defp build_skill_md(skill) do
-    """
-    ---
-    name: #{skill["name"]}
-    description: #{skill["description"]}
-    ---
-
-    #{skill["content"]}
-    """
-  end
-
   defp kill_existing_runners(sprite) do
     Sprites.cmd(sprite, "pkill", ["-f", "agent-runner"], timeout: @cmd_timeout)
   rescue
     _ -> :ok
+  end
+
+  defp parse_stdout_line(line) do
+    trimmed = String.trim(line)
+
+    if trimmed == "" do
+      :ignore
+    else
+      case Jason.decode(trimmed) do
+        {:ok, %{"type" => _} = event} -> {:ok, event}
+        {:ok, _} -> :ignore
+        {:error, reason} -> {:error, reason}
+      end
+    end
   end
 
   defp split_lines(data) do
@@ -627,7 +365,7 @@ defmodule Shire.Agent.AgentManager do
     input = Map.get(payload, "input", %{})
 
     case Agents.create_message(%{
-           agent_id: state.agent_id,
+           agent_name: state.agent_name,
            role: "tool_use",
            content: %{
              "tool" => tool,
@@ -664,7 +402,7 @@ defmodule Shire.Agent.AgentManager do
         tool = Map.get(payload, "tool", "unknown")
 
         case Agents.create_message(%{
-               agent_id: state.agent_id,
+               agent_name: state.agent_name,
                role: "tool_use",
                content: %{
                  "tool" => tool,
@@ -718,7 +456,7 @@ defmodule Shire.Agent.AgentManager do
     state = flush_and_broadcast_streaming(state)
 
     case Agents.create_message(%{
-           agent_id: state.agent_id,
+           agent_name: state.agent_name,
            role: "agent",
            content: %{"text" => text}
          }) do
@@ -751,7 +489,7 @@ defmodule Shire.Agent.AgentManager do
 
   defp flush_and_broadcast_streaming(state) do
     case Agents.create_message(%{
-           agent_id: state.agent_id,
+           agent_name: state.agent_name,
            role: "agent",
            content: %{"text" => state.streaming_text}
          }) do

@@ -66,8 +66,6 @@ defmodule Shire.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:sprites, git: "https://github.com/superfly/sprites-ex.git"},
-      {:cloak_ecto, "~> 1.3"},
-      {:cloak, "~> 1.1"},
       {:live_react, "~> 1.0.1"},
       {:dotenv_parser, "~> 2.0", only: [:dev, :test]},
       {:yaml_elixir, "~> 2.11"}

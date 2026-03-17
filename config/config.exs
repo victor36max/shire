@@ -50,13 +50,6 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-config :shire, Shire.Vault,
-  ciphers: [
-    default:
-      {Cloak.Ciphers.AES.GCM,
-       tag: "AES.GCM.V1", key: Base.decode64!("YitIszs1Fk8VGU/kZmrg9lmjaw79vjHDqcKTO5nzChY=")}
-  ]
-
 # Sprites client — token configured per-environment
 config :shire, :sprites_token, nil
 
