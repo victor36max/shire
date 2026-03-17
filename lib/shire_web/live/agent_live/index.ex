@@ -186,35 +186,20 @@ defmodule ShireWeb.AgentLive.Index do
   # PubSub handlers
 
   @impl true
-  def handle_info({:agent_event, event}, socket) do
-    if socket.assigns.selected_agent_id do
-      {:noreply,
-       AgentStreaming.process_agent_event(socket, event, socket.assigns.selected_agent_id)}
+  def handle_info({:agent_event, agent_id, event}, socket) do
+    if socket.assigns.selected_agent_id == agent_id do
+      {:noreply, AgentStreaming.process_agent_event(socket, event)}
     else
       {:noreply, socket}
     end
   end
 
+  # Status updates from agent-specific topic are ignored in Index —
+  # the {:agent_status, agent_id, status} handler from "agents:lobby" covers it,
+  # preventing double processing when both topics deliver the same update.
   @impl true
-  def handle_info({:status, status}, socket) do
-    if socket.assigns.selected_agent_id do
-      statuses =
-        Map.put(socket.assigns.agent_statuses, socket.assigns.selected_agent_id, status)
-
-      case Agents.get_agent(socket.assigns.selected_agent_id) do
-        {:ok, agent} ->
-          {:noreply,
-           assign(socket,
-             agent_statuses: statuses,
-             selected_agent: Helpers.serialize_agent(agent, socket.assigns.busy_agents, statuses)
-           )}
-
-        {:error, :not_found} ->
-          {:noreply, assign(socket, :agent_statuses, statuses)}
-      end
-    else
-      {:noreply, socket}
-    end
+  def handle_info({:status, _status}, socket) do
+    {:noreply, socket}
   end
 
   @impl true

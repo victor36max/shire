@@ -1,24 +1,20 @@
 defmodule ShireWeb.AgentLive.AgentStreaming do
   @moduledoc """
   Shared agent event streaming logic for AgentLive views.
-  Processes real-time agent events (text deltas, tool calls, etc.)
-  and updates socket assigns accordingly.
+  Processes real-time agent events and updates socket assigns for display.
+  Message persistence is handled by AgentManager — this module is display-only.
   """
-
-  alias Shire.Agents
-  alias ShireWeb.AgentLive.Helpers
 
   @doc """
   Processes an agent event and returns an updated socket.
-  Expects the socket to have :messages, :streaming_text, and either
-  :agent (for show) or :selected_agent (for index) assigns with an :id field.
+  Expects the socket to have :messages and :streaming_text assigns.
   """
-  def process_agent_event(socket, event, agent_id) do
+  def process_agent_event(socket, event) do
     # Strip ephemeral streaming entry from previous render
     messages = Enum.reject(socket.assigns.messages, &(&1[:role] == "agent_streaming"))
     streaming_text = socket.assigns.streaming_text
 
-    {messages, streaming_text} = handle_event(messages, streaming_text, event, agent_id)
+    {messages, streaming_text} = handle_event(messages, streaming_text, event)
 
     display_messages =
       if streaming_text do
@@ -37,74 +33,51 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
     Phoenix.Component.assign(socket, messages: display_messages, streaming_text: streaming_text)
   end
 
-  defp handle_event(messages, streaming_text, event, agent_id) do
+  defp handle_event(messages, streaming_text, event) do
     case event do
       %{"type" => "text_delta", "payload" => %{"delta" => delta}} ->
         {messages, (streaming_text || "") <> delta}
 
+      %{"type" => "tool_use", "payload" => %{"status" => "started"}, "message" => msg} ->
+        # AgentManager already persisted and flushed streaming text
+        {messages ++ [msg], nil}
+
       %{"type" => "tool_use", "payload" => %{"status" => "started"} = payload} ->
+        # Fallback: no message included (e.g. persistence failed)
         tool = Map.get(payload, "tool", "unknown")
         tool_use_id = Map.get(payload, "tool_use_id", "")
         input = Map.get(payload, "input", %{})
 
-        messages = flush_streaming(messages, streaming_text, agent_id)
+        msg = %{
+          role: "tool_use",
+          tool: tool,
+          tool_use_id: tool_use_id,
+          input: input,
+          output: nil,
+          is_error: false,
+          ts: DateTime.utc_now() |> to_string()
+        }
 
-        {:ok, msg} =
-          Agents.create_message(%{
-            agent_id: agent_id,
-            role: "tool_use",
-            content: %{
-              "tool" => tool,
-              "tool_use_id" => tool_use_id,
-              "input" => input,
-              "output" => nil,
-              "is_error" => false
-            }
-          })
+        {messages ++ [msg], nil}
 
-        {messages ++ [Helpers.serialize_message(msg)], nil}
-
-      %{"type" => "tool_use", "payload" => %{"status" => "input_ready"} = payload} ->
+      %{"type" => "tool_use", "payload" => %{"status" => "input_ready"} = payload} = evt ->
         tool_use_id = Map.get(payload, "tool_use_id", "")
         input = Map.get(payload, "input", %{})
 
-        idx =
-          Enum.find_index(Enum.reverse(messages), fn msg ->
-            msg[:role] == "tool_use" && msg[:tool_use_id] == tool_use_id
-          end)
+        # Check if this came with a new message (no prior tool_use found)
+        case evt do
+          %{"message" => msg} ->
+            {messages ++ [msg], streaming_text}
 
-        if idx do
-          real_idx = length(messages) - 1 - idx
-          tool_msg = Enum.at(messages, real_idx)
-
-          if db_id = tool_msg[:id] do
-            db_msg = Agents.get_message!(db_id)
-
-            Agents.update_message(db_msg, %{
-              content: Map.merge(db_msg.content, %{"input" => input})
-            })
-          end
-
-          updated = %{tool_msg | input: input}
-          {List.replace_at(messages, real_idx, updated), streaming_text}
-        else
-          tool = Map.get(payload, "tool", "unknown")
-          messages = flush_streaming(messages, streaming_text, agent_id)
-
-          {:ok, msg} =
-            Agents.create_message(%{
-              agent_id: agent_id,
-              role: "tool_use",
-              content: %{
-                "tool" => tool,
-                "tool_use_id" => tool_use_id,
-                "input" => input,
-                "output" => nil,
-                "is_error" => false
-              }
-            })
-
-          {messages ++ [Helpers.serialize_message(msg)], nil}
+          _ ->
+            update_tool_use_in_list(
+              messages,
+              tool_use_id,
+              fn msg ->
+                %{msg | input: input}
+              end,
+              streaming_text
+            )
         end
 
       %{"type" => "tool_result", "payload" => payload} ->
@@ -112,57 +85,44 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
         output = Map.get(payload, "output", "")
         is_error = Map.get(payload, "is_error", false)
 
-        idx =
-          Enum.find_index(Enum.reverse(messages), fn msg ->
-            msg[:role] == "tool_use" && msg[:tool_use_id] == tool_use_id
-          end)
+        update_tool_use_in_list(
+          messages,
+          tool_use_id,
+          fn msg ->
+            %{msg | output: output, is_error: is_error}
+          end,
+          streaming_text
+        )
 
-        if idx do
-          real_idx = length(messages) - 1 - idx
-          tool_msg = Enum.at(messages, real_idx)
+      %{"type" => "text", "message" => msg} ->
+        # AgentManager already persisted; just append to display
+        {messages ++ [msg], nil}
 
-          if db_id = tool_msg[:id] do
-            db_msg = Agents.get_message!(db_id)
-
-            Agents.update_message(db_msg, %{
-              content: Map.merge(db_msg.content, %{"output" => output, "is_error" => is_error})
-            })
-          end
-
-          updated = %{tool_msg | output: output, is_error: is_error}
-          {List.replace_at(messages, real_idx, updated), streaming_text}
-        else
-          {messages, streaming_text}
-        end
-
-      %{"type" => "turn_complete"} ->
-        messages = flush_streaming(messages, streaming_text, agent_id)
+      %{"type" => "text", "payload" => %{"text" => _text}} ->
+        # Fallback: no message included
         {messages, nil}
 
-      %{"type" => "text", "payload" => %{"text" => text}} ->
-        messages = flush_streaming(messages, streaming_text, agent_id)
-
-        {:ok, msg} =
-          Agents.create_message(%{
-            agent_id: agent_id,
-            role: "agent",
-            content: %{"text" => text}
-          })
-
-        {messages ++ [Helpers.serialize_message(msg)], nil}
+      %{"type" => "turn_complete"} ->
+        {messages, nil}
 
       _ ->
         {messages, streaming_text}
     end
   end
 
-  defp flush_streaming(messages, nil, _agent_id), do: messages
-  defp flush_streaming(messages, "", _agent_id), do: messages
+  defp update_tool_use_in_list(messages, tool_use_id, update_fn, streaming_text) do
+    idx =
+      Enum.find_index(Enum.reverse(messages), fn msg ->
+        msg[:role] == "tool_use" && msg[:tool_use_id] == tool_use_id
+      end)
 
-  defp flush_streaming(messages, text, agent_id) do
-    {:ok, msg} =
-      Agents.create_message(%{agent_id: agent_id, role: "agent", content: %{"text" => text}})
-
-    messages ++ [Helpers.serialize_message(msg)]
+    if idx do
+      real_idx = length(messages) - 1 - idx
+      tool_msg = Enum.at(messages, real_idx)
+      updated = update_fn.(tool_msg)
+      {List.replace_at(messages, real_idx, updated), streaming_text}
+    else
+      {messages, streaming_text}
+    end
   end
 end

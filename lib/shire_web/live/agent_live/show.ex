@@ -21,7 +21,8 @@ defmodule ShireWeb.AgentLive.Show do
        agent: agent,
        secrets: secrets,
        agent_status: agent_status,
-       base_recipes: Agents.list_base_recipes()
+       base_recipes: Agents.list_base_recipes(),
+       terminal_subscribed: false
      )}
   end
 
@@ -148,7 +149,7 @@ defmodule ShireWeb.AgentLive.Show do
 
     case TerminalSession.find(agent.id) do
       {:ok, _pid} ->
-        Phoenix.PubSub.subscribe(Shire.PubSub, "terminal:#{agent.id}")
+        socket = subscribe_terminal(socket, agent.id)
         {:noreply, socket}
 
       :error ->
@@ -157,7 +158,7 @@ defmodule ShireWeb.AgentLive.Show do
             {:ok, sprite} when not is_nil(sprite) ->
               case TerminalSession.start_link(agent_id: agent.id, sprite: sprite) do
                 {:ok, _pid} ->
-                  Phoenix.PubSub.subscribe(Shire.PubSub, "terminal:#{agent.id}")
+                  socket = subscribe_terminal(socket, agent.id)
                   {:noreply, socket}
 
                 {:error, reason} ->
@@ -180,8 +181,12 @@ defmodule ShireWeb.AgentLive.Show do
   @impl true
   def handle_event("disconnect-terminal", _params, socket) do
     agent = socket.assigns.agent
-    Phoenix.PubSub.unsubscribe(Shire.PubSub, "terminal:#{agent.id}")
-    {:noreply, socket}
+
+    if socket.assigns.terminal_subscribed do
+      Phoenix.PubSub.unsubscribe(Shire.PubSub, "terminal:#{agent.id}")
+    end
+
+    {:noreply, assign(socket, :terminal_subscribed, false)}
   end
 
   @impl true
@@ -208,6 +213,14 @@ defmodule ShireWeb.AgentLive.Show do
     {:noreply, socket}
   end
 
+  defp subscribe_terminal(socket, agent_id) do
+    unless socket.assigns.terminal_subscribed do
+      Phoenix.PubSub.subscribe(Shire.PubSub, "terminal:#{agent_id}")
+    end
+
+    assign(socket, :terminal_subscribed, true)
+  end
+
   @impl true
   def handle_info({:terminal_output, data}, socket) do
     {:noreply, push_event(socket, "terminal-output", %{data: Base.encode64(data)})}
@@ -224,7 +237,7 @@ defmodule ShireWeb.AgentLive.Show do
   end
 
   @impl true
-  def handle_info({:agent_event, _event}, socket) do
+  def handle_info({:agent_event, _agent_id, _event}, socket) do
     {:noreply, socket}
   end
 

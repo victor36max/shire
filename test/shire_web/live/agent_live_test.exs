@@ -89,5 +89,67 @@ defmodule ShireWeb.AgentLiveTest do
       html = render(view)
       refute html =~ "&quot;busy&quot;:true"
     end
+
+    test "ignores {:status, _} from agent topic to avoid double processing", %{
+      conn: conn,
+      agent: agent
+    } do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Select the agent first
+      render_hook(view, "select-agent", %{"id" => agent.id})
+
+      # Send {:status, :active} on the agent-specific topic
+      # This should be a no-op since Index uses {:agent_status, ...} from lobby
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "agent:#{agent.id}",
+        {:status, :active}
+      )
+
+      # Should not crash; view still renders
+      html = render(view)
+      assert html =~ "AgentDashboard"
+    end
+
+    test "handles {:agent_status, agent_id, status} from lobby", %{conn: conn, agent: agent} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Select the agent
+      render_hook(view, "select-agent", %{"id" => agent.id})
+
+      # Broadcast status via lobby (the correct path)
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "agents:lobby",
+        {:agent_status, agent.id, :active}
+      )
+
+      html = render(view)
+      assert html =~ "&quot;status&quot;:&quot;active&quot;"
+    end
+
+    test "ignores agent events for non-selected agents", %{conn: conn, agent: agent} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Select the agent
+      render_hook(view, "select-agent", %{"id" => agent.id})
+
+      # Create a different agent
+      {:ok, other_agent} = Agents.create_agent(%{recipe: valid_recipe("Other Agent")})
+
+      # Broadcast an event for the OTHER agent on the selected agent's topic
+      # This uses the new 3-tuple format with agent_id
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "agent:#{agent.id}",
+        {:agent_event, other_agent.id,
+         %{"type" => "text_delta", "payload" => %{"delta" => "Hello"}}}
+      )
+
+      # Should not update streaming text for wrong agent
+      html = render(view)
+      refute html =~ "agent_streaming"
+    end
   end
 end
