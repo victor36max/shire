@@ -80,13 +80,12 @@ defmodule Shire.Agent.Coordinator do
               "Failed to route message from #{from_agent_name} to #{to_agent_name}: #{inspect(reason)}"
             )
 
-            broadcast_to_agent(
+            broadcast_agent_event(
               from_agent_name,
-              {:agent_event,
-               %{
-                 "type" => "agent_message_failed",
-                 "payload" => %{"to_agent" => to_agent_name, "reason" => "delivery_failed"}
-               }}
+              %{
+                "type" => "agent_message_failed",
+                "payload" => %{"to_agent" => to_agent_name, "reason" => "delivery_failed"}
+              }
             )
 
             {:error, :delivery_failed}
@@ -95,13 +94,12 @@ defmodule Shire.Agent.Coordinator do
       {:error, :not_found} ->
         Logger.warning("Agent #{to_agent_name} not found for message from #{from_agent_name}")
 
-        broadcast_to_agent(
+        broadcast_agent_event(
           from_agent_name,
-          {:agent_event,
-           %{
-             "type" => "agent_message_failed",
-             "payload" => %{"to_agent" => to_agent_name, "reason" => "not_running"}
-           }}
+          %{
+            "type" => "agent_message_failed",
+            "payload" => %{"to_agent" => to_agent_name, "reason" => "not_running"}
+          }
         )
 
         {:error, :not_running}
@@ -389,10 +387,14 @@ defmodule Shire.Agent.Coordinator do
     %{state | broadcast_timer: timer}
   end
 
-  defp broadcast_to_agent(name, message) do
+  defp broadcast_agent_event(name, event) do
     case lookup_by_name(name) do
       {:ok, agent_id} ->
-        Phoenix.PubSub.broadcast(Shire.PubSub, "agent:#{agent_id}", message)
+        Phoenix.PubSub.broadcast(
+          Shire.PubSub,
+          "agent:#{agent_id}",
+          {:agent_event, agent_id, event}
+        )
 
       _ ->
         :ok

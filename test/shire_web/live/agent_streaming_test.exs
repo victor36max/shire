@@ -1,0 +1,180 @@
+defmodule ShireWeb.AgentLive.AgentStreamingTest do
+  use Shire.DataCase, async: true
+
+  alias ShireWeb.AgentLive.AgentStreaming
+
+  defp socket_assigns(overrides) do
+    defaults = %{
+      messages: [],
+      streaming_text: nil
+    }
+
+    Map.merge(defaults, overrides)
+  end
+
+  defp mock_socket(overrides \\ %{}) do
+    assigns = socket_assigns(overrides)
+    %Phoenix.LiveView.Socket{assigns: Map.merge(%{__changed__: %{}}, assigns)}
+  end
+
+  describe "process_agent_event/2 with text_delta" do
+    test "accumulates streaming text" do
+      socket = mock_socket()
+      event = %{"type" => "text_delta", "payload" => %{"delta" => "Hello "}}
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert socket.assigns.streaming_text == "Hello "
+
+      event2 = %{"type" => "text_delta", "payload" => %{"delta" => "world"}}
+      socket = AgentStreaming.process_agent_event(socket, event2)
+      assert socket.assigns.streaming_text == "Hello world"
+    end
+
+    test "adds ephemeral agent_streaming entry" do
+      socket = mock_socket()
+      event = %{"type" => "text_delta", "payload" => %{"delta" => "Hello"}}
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      streaming_msg = List.last(socket.assigns.messages)
+      assert streaming_msg[:role] == "agent_streaming"
+      assert streaming_msg[:text] == "Hello"
+    end
+  end
+
+  describe "process_agent_event/2 with text (persisted by AgentManager)" do
+    test "appends message from broadcast and clears streaming" do
+      msg = %{id: 1, role: "agent", text: "Hello world", ts: "2024-01-01T00:00:00Z"}
+      socket = mock_socket(%{streaming_text: "Hello "})
+      event = %{"type" => "text", "payload" => %{"text" => "Hello world"}, "message" => msg}
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert socket.assigns.streaming_text == nil
+      assert List.last(socket.assigns.messages) == msg
+    end
+  end
+
+  describe "process_agent_event/2 with tool_use started" do
+    test "appends tool_use message from broadcast" do
+      msg = %{
+        id: 2,
+        role: "tool_use",
+        tool: "Read",
+        tool_use_id: "tu_123",
+        input: %{},
+        output: nil,
+        is_error: false,
+        ts: "2024-01-01T00:00:00Z"
+      }
+
+      socket = mock_socket()
+
+      event = %{
+        "type" => "tool_use",
+        "payload" => %{"status" => "started", "tool" => "Read", "tool_use_id" => "tu_123"},
+        "message" => msg
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert List.last(socket.assigns.messages) == msg
+      assert socket.assigns.streaming_text == nil
+    end
+
+    test "creates fallback message when no message in broadcast" do
+      socket = mock_socket()
+
+      event = %{
+        "type" => "tool_use",
+        "payload" => %{
+          "status" => "started",
+          "tool" => "Read",
+          "tool_use_id" => "tu_123",
+          "input" => %{"path" => "/foo"}
+        }
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      tool_msg = List.last(socket.assigns.messages)
+      assert tool_msg[:role] == "tool_use"
+      assert tool_msg[:tool] == "Read"
+      assert tool_msg[:tool_use_id] == "tu_123"
+    end
+  end
+
+  describe "process_agent_event/2 with tool_result" do
+    test "updates matching tool_use in message list" do
+      existing_msg = %{
+        id: 2,
+        role: "tool_use",
+        tool: "Read",
+        tool_use_id: "tu_123",
+        input: %{},
+        output: nil,
+        is_error: false,
+        ts: "2024-01-01T00:00:00Z"
+      }
+
+      socket = mock_socket(%{messages: [existing_msg]})
+
+      event = %{
+        "type" => "tool_result",
+        "payload" => %{
+          "tool_use_id" => "tu_123",
+          "output" => "file contents",
+          "is_error" => false
+        }
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      updated_msg = List.last(socket.assigns.messages)
+      assert updated_msg[:output] == "file contents"
+      assert updated_msg[:is_error] == false
+    end
+  end
+
+  describe "process_agent_event/2 with turn_complete" do
+    test "clears streaming text" do
+      socket = mock_socket(%{streaming_text: "partial text"})
+      event = %{"type" => "turn_complete"}
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert socket.assigns.streaming_text == nil
+    end
+  end
+
+  describe "display-only (no DB calls)" do
+    test "does not create messages in DB for text events" do
+      msg = %{id: 999, role: "agent", text: "Hello", ts: "2024-01-01T00:00:00Z"}
+      socket = mock_socket()
+      event = %{"type" => "text", "payload" => %{"text" => "Hello"}, "message" => msg}
+
+      initial_count = Shire.Repo.aggregate(Shire.Agents.Message, :count)
+      AgentStreaming.process_agent_event(socket, event)
+      assert Shire.Repo.aggregate(Shire.Agents.Message, :count) == initial_count
+    end
+
+    test "does not create messages in DB for tool_use events" do
+      msg = %{
+        id: 999,
+        role: "tool_use",
+        tool: "Read",
+        tool_use_id: "tu_1",
+        input: %{},
+        output: nil,
+        is_error: false,
+        ts: "2024-01-01T00:00:00Z"
+      }
+
+      socket = mock_socket()
+
+      event = %{
+        "type" => "tool_use",
+        "payload" => %{"status" => "started", "tool" => "Read", "tool_use_id" => "tu_1"},
+        "message" => msg
+      }
+
+      initial_count = Shire.Repo.aggregate(Shire.Agents.Message, :count)
+      AgentStreaming.process_agent_event(socket, event)
+      assert Shire.Repo.aggregate(Shire.Agents.Message, :count) == initial_count
+    end
+  end
+end

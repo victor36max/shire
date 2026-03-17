@@ -68,6 +68,16 @@ describe("ChatPanel", () => {
     expect(pushEvent).toHaveBeenCalledWith("send-message", { text: "test message" });
   });
 
+  it("does not send on shift+enter (allows newline)", () => {
+    const pushEvent = vi.fn();
+    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={pushEvent} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Type a message..."), { target: { value: "line one" } });
+    fireEvent.keyDown(screen.getByPlaceholderText("Type a message..."), { key: "Enter", shiftKey: true });
+
+    expect(pushEvent).not.toHaveBeenCalled();
+  });
+
   it("does not send empty message", async () => {
     const pushEvent = vi.fn();
     render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={pushEvent} />);

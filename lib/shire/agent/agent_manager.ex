@@ -74,7 +74,9 @@ defmodule Shire.Agent.AgentManager do
     :command_ref,
     :pubsub_topic,
     phase: :idle,
-    buffer: ""
+    buffer: "",
+    streaming_text: nil,
+    tool_use_ids: %{}
   ]
 
   # --- Public API ---
@@ -256,35 +258,41 @@ defmodule Shire.Agent.AgentManager do
   def handle_info({:stdout, %{ref: ref}, data}, %{command_ref: ref} = state) do
     {lines, buffer} = split_lines(state.buffer <> data)
 
-    Enum.each(lines, fn line ->
-      case Mailbox.parse_stdout_line(line) do
-        {:ok, %{"type" => "agent_message", "payload" => %{"to_agent" => to, "text" => text}}} ->
-          # Route inter-agent message via Coordinator
-          Shire.Agent.Coordinator.route_agent_message(state.agent_name, to, text)
+    state =
+      Enum.reduce(lines, state, fn line, acc ->
+        case Mailbox.parse_stdout_line(line) do
+          {:ok, %{"type" => "agent_message", "payload" => %{"to_agent" => to, "text" => text}}} ->
+            Shire.Agent.Coordinator.route_agent_message(acc.agent_name, to, text)
+            acc
 
-        {:ok, %{"type" => "drive_write", "payload" => %{"path" => path, "content" => content}}} ->
-          DriveSync.file_changed(state.agent_id, path, Base.decode64!(content))
+          {:ok, %{"type" => "drive_write", "payload" => %{"path" => path, "content" => content}}} ->
+            DriveSync.file_changed(acc.agent_id, path, Base.decode64!(content))
+            acc
 
-        {:ok, %{"type" => "drive_delete", "payload" => %{"path" => path}}} ->
-          DriveSync.file_deleted(state.agent_id, path)
+          {:ok, %{"type" => "drive_delete", "payload" => %{"path" => path}}} ->
+            DriveSync.file_deleted(acc.agent_id, path)
+            acc
 
-        {:ok, %{"type" => "processing", "payload" => %{"active" => active}}} ->
-          Phoenix.PubSub.broadcast(
-            Shire.PubSub,
-            "agents:lobby",
-            {:agent_busy, state.agent_id, active}
-          )
+          {:ok, %{"type" => "processing", "payload" => %{"active" => active}}} ->
+            Phoenix.PubSub.broadcast(
+              Shire.PubSub,
+              "agents:lobby",
+              {:agent_busy, acc.agent_id, active}
+            )
 
-        {:ok, event} ->
-          broadcast(state, {:agent_event, event})
+            acc
 
-        :ignore ->
-          :ok
+          {:ok, event} ->
+            persist_and_broadcast(acc, event)
 
-        {:error, _} ->
-          Logger.warning("Unparseable stdout from #{state.agent_name}: #{inspect(line)}")
-      end
-    end)
+          :ignore ->
+            acc
+
+          {:error, _} ->
+            Logger.warning("Unparseable stdout from #{acc.agent_name}: #{inspect(line)}")
+            acc
+        end
+      end)
 
     {:noreply, %{state | buffer: buffer}}
   end
@@ -594,6 +602,189 @@ defmodule Shire.Agent.AgentManager do
       else
         raise e
       end
+  end
+
+  # --- Event persistence (persists once in AgentManager, broadcasts to LiveViews) ---
+
+  defp persist_and_broadcast(state, %{"type" => "text_delta"} = event) do
+    delta = get_in(event, ["payload", "delta"]) || ""
+    state = %{state | streaming_text: (state.streaming_text || "") <> delta}
+    broadcast(state, {:agent_event, state.agent_id, event})
+    state
+  end
+
+  defp persist_and_broadcast(
+         state,
+         %{"type" => "tool_use", "payload" => %{"status" => "started"} = payload} = event
+       ) do
+    # Flush accumulated streaming text first
+    state = flush_and_broadcast_streaming(state)
+
+    tool = Map.get(payload, "tool", "unknown")
+    tool_use_id = Map.get(payload, "tool_use_id", "")
+    input = Map.get(payload, "input", %{})
+
+    case Agents.create_message(%{
+           agent_id: state.agent_id,
+           role: "tool_use",
+           content: %{
+             "tool" => tool,
+             "tool_use_id" => tool_use_id,
+             "input" => input,
+             "output" => nil,
+             "is_error" => false
+           }
+         }) do
+      {:ok, msg} ->
+        tool_use_ids = Map.put(state.tool_use_ids, tool_use_id, msg.id)
+        enriched = put_in(event, ["message"], serialize_message(msg))
+        broadcast(state, {:agent_event, state.agent_id, enriched})
+        %{state | tool_use_ids: tool_use_ids}
+
+      {:error, reason} ->
+        Logger.warning("Failed to persist tool_use message: #{inspect(reason)}")
+        broadcast(state, {:agent_event, state.agent_id, event})
+        state
+    end
+  end
+
+  defp persist_and_broadcast(
+         state,
+         %{"type" => "tool_use", "payload" => %{"status" => "input_ready"} = payload} = event
+       ) do
+    tool_use_id = Map.get(payload, "tool_use_id", "")
+    input = Map.get(payload, "input", %{})
+
+    case Map.get(state.tool_use_ids, tool_use_id) do
+      nil ->
+        # No matching tool_use found — create a new one
+        state = flush_and_broadcast_streaming(state)
+        tool = Map.get(payload, "tool", "unknown")
+
+        case Agents.create_message(%{
+               agent_id: state.agent_id,
+               role: "tool_use",
+               content: %{
+                 "tool" => tool,
+                 "tool_use_id" => tool_use_id,
+                 "input" => input,
+                 "output" => nil,
+                 "is_error" => false
+               }
+             }) do
+          {:ok, msg} ->
+            tool_use_ids = Map.put(state.tool_use_ids, tool_use_id, msg.id)
+            enriched = put_in(event, ["message"], serialize_message(msg))
+            broadcast(state, {:agent_event, state.agent_id, enriched})
+            %{state | tool_use_ids: tool_use_ids}
+
+          {:error, _} ->
+            broadcast(state, {:agent_event, state.agent_id, event})
+            state
+        end
+
+      db_id ->
+        db_msg = Agents.get_message!(db_id)
+        Agents.update_message(db_msg, %{content: Map.merge(db_msg.content, %{"input" => input})})
+        broadcast(state, {:agent_event, state.agent_id, event})
+        state
+    end
+  end
+
+  defp persist_and_broadcast(state, %{"type" => "tool_result", "payload" => payload} = event) do
+    tool_use_id = Map.get(payload, "tool_use_id", "")
+    output = Map.get(payload, "output", "")
+    is_error = Map.get(payload, "is_error", false)
+
+    case Map.get(state.tool_use_ids, tool_use_id) do
+      nil ->
+        :ok
+
+      db_id ->
+        db_msg = Agents.get_message!(db_id)
+
+        Agents.update_message(db_msg, %{
+          content: Map.merge(db_msg.content, %{"output" => output, "is_error" => is_error})
+        })
+    end
+
+    broadcast(state, {:agent_event, state.agent_id, event})
+    state
+  end
+
+  defp persist_and_broadcast(state, %{"type" => "text", "payload" => %{"text" => text}} = event) do
+    state = flush_and_broadcast_streaming(state)
+
+    case Agents.create_message(%{
+           agent_id: state.agent_id,
+           role: "agent",
+           content: %{"text" => text}
+         }) do
+      {:ok, msg} ->
+        enriched = put_in(event, ["message"], serialize_message(msg))
+        broadcast(state, {:agent_event, state.agent_id, enriched})
+
+      {:error, _} ->
+        broadcast(state, {:agent_event, state.agent_id, event})
+    end
+
+    state
+  end
+
+  defp persist_and_broadcast(state, %{"type" => "turn_complete"} = event) do
+    state = flush_and_broadcast_streaming(state)
+    broadcast(state, {:agent_event, state.agent_id, event})
+    state
+  end
+
+  defp persist_and_broadcast(state, event) do
+    broadcast(state, {:agent_event, state.agent_id, event})
+    state
+  end
+
+  defp flush_and_broadcast_streaming(%{streaming_text: nil} = state), do: state
+
+  defp flush_and_broadcast_streaming(%{streaming_text: ""} = state),
+    do: %{state | streaming_text: nil}
+
+  defp flush_and_broadcast_streaming(state) do
+    case Agents.create_message(%{
+           agent_id: state.agent_id,
+           role: "agent",
+           content: %{"text" => state.streaming_text}
+         }) do
+      {:ok, msg} ->
+        flush_event = %{
+          "type" => "text",
+          "payload" => %{"text" => state.streaming_text},
+          "message" => serialize_message(msg)
+        }
+
+        broadcast(state, {:agent_event, state.agent_id, flush_event})
+
+      {:error, _} ->
+        :ok
+    end
+
+    %{state | streaming_text: nil}
+  end
+
+  defp serialize_message(msg) do
+    base = %{id: msg.id, role: msg.role, ts: msg.inserted_at |> to_string()}
+
+    case msg.role do
+      "tool_use" ->
+        Map.merge(base, %{
+          tool: msg.content["tool"],
+          tool_use_id: msg.content["tool_use_id"],
+          input: msg.content["input"],
+          output: msg.content["output"],
+          is_error: msg.content["is_error"] || false
+        })
+
+      _ ->
+        Map.put(base, :text, msg.content["text"])
+    end
   end
 
   defp load_env_vars(sprite) do

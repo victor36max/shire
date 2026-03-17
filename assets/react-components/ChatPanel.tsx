@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
-import { Input } from "./components/ui/input";
+import { Textarea } from "./components/ui/textarea";
 import Markdown from "./components/Markdown";
 import { type Agent } from "./types";
 
@@ -81,6 +81,7 @@ export default function ChatPanel({
   pushEvent,
 }: ChatPanelProps) {
   const [input, setInput] = React.useState("");
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = React.useRef(0);
@@ -141,6 +142,9 @@ export default function ChatPanel({
     if (!text) return;
     pushEvent("send-message", { text });
     setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
   };
 
   const hasMessages = messages.length > 0;
@@ -183,12 +187,24 @@ export default function ChatPanel({
       </div>
       {agent.status === "active" && (
         <div className="border-t border-border p-4">
-          <div className="flex gap-2">
-            <Input
+          <div className="flex gap-2 items-end">
+            <Textarea
+              ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px";
+              }}
               placeholder="Type a message..."
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              rows={1}
+              className="min-h-0 resize-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
             />
             <Button onClick={handleSend}>Send</Button>
           </div>
