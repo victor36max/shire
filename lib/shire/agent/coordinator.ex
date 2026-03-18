@@ -11,9 +11,6 @@ defmodule Shire.Agent.Coordinator do
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
-  @ping_interval 2_000
-  @default_ping_duration :timer.minutes(30)
-
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -49,7 +46,6 @@ defmodule Shire.Agent.Coordinator do
   end
 
   def send_message(agent_name, text) do
-    GenServer.cast(__MODULE__, :start_ping)
     AgentManager.send_message(agent_name, text, :user)
   end
 
@@ -89,9 +85,7 @@ defmodule Shire.Agent.Coordinator do
 
     state = %{
       monitors: %{},
-      statuses: %{},
-      ping_timer: nil,
-      ping_until: nil
+      statuses: %{}
     }
 
     {:ok, state, {:continue, :deploy_and_scan}}
@@ -280,30 +274,6 @@ defmodule Shire.Agent.Coordinator do
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
-    end
-  end
-
-  @impl true
-  def handle_cast(:start_ping, state) do
-    ping_until = System.monotonic_time(:millisecond) + @default_ping_duration
-    state = %{state | ping_until: ping_until}
-
-    if state.ping_timer do
-      {:noreply, state}
-    else
-      {:noreply, schedule_ping(state)}
-    end
-  end
-
-  @impl true
-  def handle_info(:ping_vm, state) do
-    now = System.monotonic_time(:millisecond)
-
-    if state.ping_until && now < state.ping_until do
-      Task.start(fn -> @vm.cmd("echo", ["ping"], []) end)
-      {:noreply, schedule_ping(state)}
-    else
-      {:noreply, %{state | ping_timer: nil, ping_until: nil}}
     end
   end
 
@@ -541,11 +511,6 @@ defmodule Shire.Agent.Coordinator do
       {:error, reason} ->
         {:reply, {:error, reason}, state}
     end
-  end
-
-  defp schedule_ping(state) do
-    timer = Process.send_after(self(), :ping_vm, @ping_interval)
-    %{state | ping_timer: timer}
   end
 
   defp start_agent_manager(agent_name, monitors) do

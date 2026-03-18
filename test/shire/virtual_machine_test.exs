@@ -69,6 +69,58 @@ defmodule Shire.VirtualMachineImplTest do
     end
   end
 
+  describe "VM keep-alive ping" do
+    test "handle_info(:ping_vm) stops when ping_until has expired" do
+      state = %{
+        sprite: nil,
+        fs: nil,
+        ping_timer: make_ref(),
+        ping_until: System.monotonic_time(:millisecond) - 1_000
+      }
+
+      assert {:noreply, new_state} = VM.handle_info(:ping_vm, state)
+      assert new_state.ping_timer == nil
+      assert new_state.ping_until == nil
+    end
+
+    test "handle_info(:ping_vm) stops when sprite is nil" do
+      state = %{
+        sprite: nil,
+        fs: nil,
+        ping_timer: make_ref(),
+        ping_until: System.monotonic_time(:millisecond) + 60_000
+      }
+
+      assert {:noreply, new_state} = VM.handle_info(:ping_vm, state)
+      assert new_state.ping_timer == nil
+      assert new_state.ping_until == nil
+    end
+
+    test "touch_keepalive is triggered by VM calls (via get_sprite)" do
+      pid = start_supervised!({VM, []}, id: :keepalive_test_vm)
+
+      _sprite = GenServer.call(pid, :get_sprite)
+
+      state = :sys.get_state(pid)
+      assert state.ping_until != nil
+      assert state.ping_timer != nil
+    end
+
+    test "subsequent VM calls extend ping_until" do
+      pid = start_supervised!({VM, []}, id: :keepalive_extend_vm)
+
+      GenServer.call(pid, :get_sprite)
+      state1 = :sys.get_state(pid)
+
+      Process.sleep(10)
+
+      GenServer.call(pid, :get_sprite)
+      state2 = :sys.get_state(pid)
+
+      assert state2.ping_until > state1.ping_until
+    end
+  end
+
   describe "resize/3" do
     test "returns :ok even when process is dead (SDK silently succeeds)" do
       dead_pid = spawn(fn -> :ok end)
