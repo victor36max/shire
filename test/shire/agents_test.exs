@@ -92,6 +92,41 @@ defmodule Shire.AgentsTest do
       refute has_more2
     end
 
+    test "rename_agent_messages/2 updates agent_name on all messages" do
+      {:ok, _} =
+        Agents.create_message(%{
+          agent_name: "old-agent",
+          role: "user",
+          content: %{"text" => "hello"}
+        })
+
+      {:ok, _} =
+        Agents.create_message(%{
+          agent_name: "old-agent",
+          role: "agent",
+          content: %{"text" => "reply"}
+        })
+
+      {:ok, _} =
+        Agents.create_message(%{
+          agent_name: "unrelated-agent",
+          role: "user",
+          content: %{"text" => "keep me"}
+        })
+
+      {count, _} = Agents.rename_agent_messages("old-agent", "new-agent")
+      assert count == 2
+
+      {old_msgs, _} = Agents.list_messages_for_agent("old-agent")
+      assert old_msgs == []
+
+      {new_msgs, _} = Agents.list_messages_for_agent("new-agent")
+      assert length(new_msgs) == 2
+
+      {unrelated_msgs, _} = Agents.list_messages_for_agent("unrelated-agent")
+      assert length(unrelated_msgs) == 1
+    end
+
     test "delete_messages_for_agent/1 deletes all messages for an agent" do
       {:ok, _} =
         Agents.create_message(%{
