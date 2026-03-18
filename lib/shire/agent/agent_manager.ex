@@ -31,7 +31,7 @@ defmodule Shire.Agent.AgentManager do
     ## Sending Messages
     To message another agent, write a JSON file to your **outbox**:
 
-    **Path:** `/workspace/agents/#{agent_name}/outbox/<timestamp>.json`
+    **Path:** `/workspace/agents/#{agent_name}/outbox/<any-name>.json`
 
     **Format:**
     ```json
@@ -43,10 +43,10 @@ defmodule Shire.Agent.AgentManager do
 
     Example using Bash:
     ```bash
-    echo '{"to":"target-agent","text":"Hello, can you help me with X?"}' > /workspace/agents/#{agent_name}/outbox/$(date +%s%3N)-$RANDOM.json
+    echo '{"to":"target-agent","text":"Hello, can you help me with X?"}' > /workspace/agents/#{agent_name}/outbox/msg.json
     ```
 
-    The system picks up the message and delivers it to the target agent automatically.
+    The system delivers the message to the target agent automatically.
 
     ## Receiving Messages
     Messages arrive in your conversation automatically:
@@ -72,17 +72,11 @@ defmodule Shire.Agent.AgentManager do
     """
   end
 
-  @outbox_poll_interval 2_000
-  # 15 minutes
-  @idle_threshold_ms 60_000 * 15
-
   defstruct [
     :agent_name,
     :command,
     :command_ref,
     :pubsub_topic,
-    :outbox_timer,
-    :last_activity,
     status: :idle,
     buffer: "",
     streaming_text: nil,
@@ -171,53 +165,29 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
-  def handle_call({:send_message, text, from}, _from_pid, %{status: :active} = state) do
-    {type, from_str} =
-      case from do
-        :user -> {"user_message", "user"}
-        {:agent, name} -> {"agent_message", name}
-      end
-
+  def handle_call({:send_message, text, _from}, _from_pid, %{status: :active} = state) do
     envelope = %{
       "ts" => System.system_time(:millisecond),
-      "type" => type,
-      "from" => from_str,
+      "type" => "user_message",
+      "from" => "user",
       "payload" => %{"text" => text}
     }
 
     inbox_dir = "/workspace/agents/#{state.agent_name}/inbox"
     filename = "#{envelope["ts"]}-#{random_suffix()}.json"
 
-    state = %{state | last_activity: System.monotonic_time(:millisecond)}
-
     case write_inbox_file("#{inbox_dir}/#{filename}", envelope) do
       :ok ->
-        case from do
-          :user ->
-            case Agents.create_message(%{
-                   agent_name: state.agent_name,
-                   role: "user",
-                   content: %{"text" => text}
-                 }) do
-              {:ok, msg} ->
-                {:reply, {:ok, msg}, state}
+        case Agents.create_message(%{
+               agent_name: state.agent_name,
+               role: "user",
+               content: %{"text" => text}
+             }) do
+          {:ok, msg} ->
+            {:reply, {:ok, msg}, state}
 
-              {:error, reason} ->
-                Logger.warning("Failed to persist user message: #{inspect(reason)}")
-                {:reply, :ok, state}
-            end
-
-          {:agent, from_name} ->
-            Agents.create_message(%{
-              agent_name: state.agent_name,
-              role: "inter_agent",
-              content: %{
-                "text" => text,
-                "from_agent" => from_name,
-                "to_agent" => state.agent_name
-              }
-            })
-
+          {:error, reason} ->
+            Logger.warning("Failed to persist user message: #{inspect(reason)}")
             {:reply, :ok, state}
         end
 
@@ -260,8 +230,21 @@ defmodule Shire.Agent.AgentManager do
     state =
       Enum.reduce(lines, state, fn line, acc ->
         case parse_stdout_line(line) do
-          {:ok, %{"type" => "agent_message", "payload" => %{"to_agent" => to, "text" => text}}} ->
-            __MODULE__.send_message(to, text, {:agent, acc.agent_name})
+          {:ok,
+           %{
+             "type" => "agent_message_received",
+             "payload" => %{"from_agent" => from_agent, "text" => text}
+           }} ->
+            Agents.create_message(%{
+              agent_name: acc.agent_name,
+              role: "inter_agent",
+              content: %{
+                "text" => text,
+                "from_agent" => from_agent,
+                "to_agent" => acc.agent_name
+              }
+            })
+
             acc
 
           {:ok, %{"type" => "spawn_agent", "payload" => %{"name" => new_name}}} ->
@@ -321,67 +304,6 @@ defmodule Shire.Agent.AgentManager do
     {:noreply, state}
   end
 
-  # Host-side outbox polling — reads agent's outbox via VM filesystem API
-  # and routes messages to target agents. This bypasses unreliable intra-VM
-  # file detection (fs.watch/polling don't work for files written by child processes).
-  @impl true
-  def handle_info(:poll_outbox, %{status: :active} = state) do
-    idle? =
-      state.last_activity == nil or
-        System.monotonic_time(:millisecond) - state.last_activity >= @idle_threshold_ms
-
-    if idle? do
-      {:noreply, %{state | outbox_timer: schedule_outbox_poll()}}
-    else
-      outbox_dir = "/workspace/agents/#{state.agent_name}/outbox"
-
-      case @vm.ls(outbox_dir) do
-        {:ok, entries} ->
-          (entries || [])
-          |> Enum.filter(&String.ends_with?(&1["name"] || "", ".json"))
-          |> Enum.sort_by(& &1["name"])
-          |> Enum.each(fn entry ->
-            path = "#{outbox_dir}/#{entry["name"]}"
-
-            case @vm.read(path) do
-              {:ok, content} ->
-                sanitized = Regex.replace(~r/\\([^"\\\/bfnrtu])/, content, "\\1")
-
-                case Jason.decode(sanitized) do
-                  {:ok, %{"to" => to, "text" => text}} ->
-                    try do
-                      __MODULE__.send_message(to, text, {:agent, state.agent_name})
-                    catch
-                      :exit, reason ->
-                        Logger.warning(
-                          "Failed to deliver outbox message to #{to}: #{inspect(reason)}"
-                        )
-                    end
-
-                    @vm.rm(path)
-
-                  other ->
-                    Logger.warning("Invalid outbox message in #{path}: #{inspect(other)}")
-                    @vm.rm(path)
-                end
-
-              {:error, reason} ->
-                Logger.warning("Failed to read outbox file #{path}: #{inspect(reason)}")
-            end
-          end)
-
-        {:error, _} ->
-          :ok
-      end
-
-      {:noreply, %{state | outbox_timer: schedule_outbox_poll()}}
-    end
-  end
-
-  def handle_info(:poll_outbox, state) do
-    {:noreply, %{state | outbox_timer: nil}}
-  end
-
   @impl true
   def handle_info(msg, state) do
     Logger.debug("AgentManager #{state.agent_name} unexpected message: #{inspect(msg)}")
@@ -408,21 +330,6 @@ defmodule Shire.Agent.AgentManager do
   # --- Private ---
 
   defp transition_status(state, status) do
-    state =
-      if state.outbox_timer do
-        Process.cancel_timer(state.outbox_timer)
-        %{state | outbox_timer: nil}
-      else
-        state
-      end
-
-    state =
-      if status == :active do
-        %{state | outbox_timer: schedule_outbox_poll()}
-      else
-        state
-      end
-
     state = %{state | status: status}
 
     Phoenix.PubSub.broadcast(
@@ -438,10 +345,6 @@ defmodule Shire.Agent.AgentManager do
     )
 
     state
-  end
-
-  defp schedule_outbox_poll do
-    Process.send_after(self(), :poll_outbox, @outbox_poll_interval)
   end
 
   defp setup_agent_workspace(agent_name) do
