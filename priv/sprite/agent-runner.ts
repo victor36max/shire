@@ -1,9 +1,10 @@
 // agent-runner.ts — Bun daemon that watches the inbox and dispatches to configured harness.
 // Each agent runs in its own workspace directory under /workspace/agents/{name}/.
 import { watch } from "fs";
-import { readFile, readdir, unlink, mkdir, writeFile } from "fs/promises";
+import { readFile, readdir, unlink } from "fs/promises";
 import { join } from "path";
 import { parseArgs } from "util";
+import yaml from "js-yaml";
 import { createHarness, type Harness, type HarnessType } from "./harness";
 
 // Parse --agent-dir CLI argument
@@ -15,10 +16,9 @@ const { values } = parseArgs({
   strict: false,
 });
 
-const AGENT_DIR = values["agent-dir"] || "/workspace/agents/default";
-const INBOX_DIR = join(AGENT_DIR, "mailbox/inbox");
-const CONFIG_PATH = join(AGENT_DIR, "agent-config.json");
-const AGENTS_ROOT = "/workspace/agents";
+const AGENT_DIR = (typeof values["agent-dir"] === "string" ? values["agent-dir"] : null) || "/workspace/agents/default";
+const INBOX_DIR = join(AGENT_DIR, "inbox");
+const RECIPE_PATH = join(AGENT_DIR, "recipe.yaml");
 
 export interface AgentConfig {
   harness: HarnessType;
@@ -40,40 +40,18 @@ export function emit(type: string, payload: Record<string, unknown> = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Inter-agent messaging
-// ---------------------------------------------------------------------------
-
-export async function sendToAgent(
-  toAgentName: string,
-  text: string,
-  fromAgentName: string,
-  agentsRoot = AGENTS_ROOT,
-): Promise<void> {
-  const targetInbox = join(agentsRoot, toAgentName, "mailbox/inbox");
-  const ts = Date.now();
-  const filename = `${ts}-${Math.floor(Math.random() * 9999)}.json`;
-
-  const envelope: MessageEnvelope = {
-    ts,
-    type: "agent_message",
-    from: fromAgentName,
-    payload: { text },
-  };
-
-  await mkdir(targetInbox, { recursive: true });
-  await writeFile(join(targetInbox, filename), JSON.stringify(envelope));
-
-  // Emit stdout event for DB persistence by AgentManager
-  emit("agent_message", { to_agent: toAgentName, text });
-}
-
-// ---------------------------------------------------------------------------
 // Message processing
 // ---------------------------------------------------------------------------
 
-export async function loadConfig(path = CONFIG_PATH): Promise<AgentConfig> {
+export async function loadConfig(path = RECIPE_PATH): Promise<AgentConfig> {
   const raw = await readFile(path, "utf-8");
-  return JSON.parse(raw);
+  const recipe = yaml.load(raw) as Record<string, unknown>;
+  return {
+    harness: (recipe.harness as HarnessType) || "claude_code",
+    model: (recipe.model as string) || "claude-sonnet-4-6",
+    system_prompt: (recipe.system_prompt as string) || "",
+    max_tokens: (recipe.max_tokens as number) || 16384,
+  };
 }
 
 export async function processMessage(harness: Harness, envelope: MessageEnvelope): Promise<void> {

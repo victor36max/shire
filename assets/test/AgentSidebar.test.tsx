@@ -6,34 +6,20 @@ import { type Agent } from "../react-components/types";
 
 const agents: Agent[] = [
   {
-    id: 1,
     name: "Active Agent",
     status: "active",
     model: "claude-sonnet-4-6",
-    system_prompt: null,
     harness: "claude_code",
-    recipe: "version: 1\nname: Active Agent\nharness: claude_code",
-    is_base: false,
   },
   {
-    id: 2,
     name: "Created Agent",
     status: "created",
-    model: null,
-    system_prompt: null,
     harness: "claude_code",
-    recipe: "version: 1\nname: Created Agent\nharness: claude_code",
-    is_base: false,
   },
   {
-    id: 3,
     name: "Failed Agent",
     status: "failed",
-    model: null,
-    system_prompt: null,
     harness: "claude_code",
-    recipe: "version: 1\nname: Failed Agent\nharness: claude_code",
-    is_base: false,
   },
 ];
 
@@ -42,7 +28,7 @@ describe("AgentSidebar", () => {
     render(
       <AgentSidebar
         agents={agents}
-        selectedAgentId={null}
+        selectedAgentName={null}
         onSelectAgent={vi.fn()}
         onNewAgent={vi.fn()}
         onDeleteAgent={vi.fn()}
@@ -57,7 +43,7 @@ describe("AgentSidebar", () => {
     render(
       <AgentSidebar
         agents={[]}
-        selectedAgentId={null}
+        selectedAgentName={null}
         onSelectAgent={vi.fn()}
         onNewAgent={vi.fn()}
         onDeleteAgent={vi.fn()}
@@ -66,12 +52,12 @@ describe("AgentSidebar", () => {
     expect(screen.getByText("No agents yet")).toBeInTheDocument();
   });
 
-  it("calls onSelectAgent when clicking an agent", async () => {
+  it("calls onSelectAgent with name when clicking an agent", async () => {
     const onSelectAgent = vi.fn();
     render(
       <AgentSidebar
         agents={agents}
-        selectedAgentId={null}
+        selectedAgentName={null}
         onSelectAgent={onSelectAgent}
         onNewAgent={vi.fn()}
         onDeleteAgent={vi.fn()}
@@ -79,7 +65,7 @@ describe("AgentSidebar", () => {
     );
 
     await userEvent.click(screen.getByText("Active Agent"));
-    expect(onSelectAgent).toHaveBeenCalledWith(1);
+    expect(onSelectAgent).toHaveBeenCalledWith("Active Agent");
   });
 
   it("calls onNewAgent when clicking New Agent button", async () => {
@@ -87,7 +73,7 @@ describe("AgentSidebar", () => {
     render(
       <AgentSidebar
         agents={agents}
-        selectedAgentId={null}
+        selectedAgentName={null}
         onSelectAgent={vi.fn()}
         onNewAgent={onNewAgent}
         onDeleteAgent={vi.fn()}
@@ -98,25 +84,24 @@ describe("AgentSidebar", () => {
     expect(onNewAgent).toHaveBeenCalled();
   });
 
-  it("renders Settings and Shared Drive links", () => {
+  it("renders Settings link", () => {
     render(
       <AgentSidebar
         agents={agents}
-        selectedAgentId={null}
+        selectedAgentName={null}
         onSelectAgent={vi.fn()}
         onNewAgent={vi.fn()}
         onDeleteAgent={vi.fn()}
       />,
     );
     expect(screen.getByText("Settings")).toBeInTheDocument();
-    expect(screen.getByText("Shared Drive")).toBeInTheDocument();
   });
 
   it("shows status dots with correct colors", () => {
     const { container } = render(
       <AgentSidebar
         agents={agents}
-        selectedAgentId={null}
+        selectedAgentName={null}
         onSelectAgent={vi.fn()}
         onNewAgent={vi.fn()}
         onDeleteAgent={vi.fn()}
@@ -137,7 +122,7 @@ describe("AgentSidebar", () => {
     const { container } = render(
       <AgentSidebar
         agents={busyAgents}
-        selectedAgentId={null}
+        selectedAgentName={null}
         onSelectAgent={vi.fn()}
         onNewAgent={vi.fn()}
         onDeleteAgent={vi.fn()}

@@ -5,14 +5,10 @@ import ChatPanel, { type Message } from "../react-components/ChatPanel";
 import { type Agent } from "../react-components/types";
 
 const activeAgent: Agent = {
-  id: 1,
   name: "Test Agent",
   status: "active",
   model: "claude-sonnet-4-6",
-  system_prompt: null,
   harness: "claude_code",
-  recipe: "version: 1\nname: Test Agent\nharness: claude_code",
-  is_base: false,
 };
 
 const createdAgent: Agent = {

@@ -68,7 +68,8 @@ defmodule Shire.MixProject do
       {:sprites, git: "https://github.com/superfly/sprites-ex.git"},
       {:live_react, "~> 1.0.1"},
       {:dotenv_parser, "~> 2.0", only: [:dev, :test]},
-      {:yaml_elixir, "~> 2.11"}
+      {:yaml_elixir, "~> 2.11"},
+      {:mox, "~> 1.1", only: :test}
     ]
   end
 

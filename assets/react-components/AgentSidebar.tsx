@@ -35,15 +35,15 @@ function statusDotColor(status: AgentStatus): string {
 
 interface AgentSidebarProps {
   agents: Agent[];
-  selectedAgentId: number | null;
-  onSelectAgent: (id: number) => void;
+  selectedAgentName: string | null;
+  onSelectAgent: (name: string) => void;
   onNewAgent: () => void;
   onDeleteAgent: (agent: Agent) => void;
 }
 
 export default function AgentSidebar({
   agents,
-  selectedAgentId,
+  selectedAgentName,
   onSelectAgent,
   onNewAgent,
   onDeleteAgent,
@@ -66,11 +66,11 @@ export default function AgentSidebar({
       <div className="flex-1 overflow-y-auto py-1">
         {agents.map((agent) => (
           <div
-            key={agent.id}
+            key={agent.name}
             className={`group flex items-center gap-2 px-3 py-2 mx-1 rounded-md cursor-pointer text-sm ${
-              selectedAgentId === agent.id ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
+              selectedAgentName === agent.name ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
             }`}
-            onClick={() => onSelectAgent(agent.id)}
+            onClick={() => onSelectAgent(agent.name)}
           >
             <span
               className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
@@ -91,7 +91,7 @@ export default function AgentSidebar({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => window.location.assign(`/agents/${agent.id}`)}>
+                <DropdownMenuItem onClick={() => window.location.assign(`/agents/${agent.name}`)}>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem

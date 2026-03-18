@@ -1,22 +1,28 @@
 defmodule ShireWeb.AgentLive.Show do
   use ShireWeb, :live_view
 
-  alias Shire.Agent.{AgentManager, Coordinator, TerminalSession}
-  alias ShireWeb.AgentLive.Helpers
+  alias Shire.Agent.Coordinator
 
   @impl true
-  def mount(%{"id" => id}, _session, socket) do
-    agent_status = Coordinator.agent_status(id)
+  def mount(%{"name" => name}, _session, socket) do
+    agent =
+      try do
+        case Coordinator.get_agent(name) do
+          {:ok, data} -> data
+          {:error, _} -> %{name: name, status: Coordinator.agent_status(name)}
+        end
+      catch
+        :exit, _ -> %{name: name, status: :created}
+      end
 
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{id}")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{name}")
     end
 
     {:ok,
      assign(socket,
-       agent: %{id: id},
-       agent_status: agent_status,
-       terminal_subscribed: false
+       agent: agent,
+       agent_status: agent.status
      )}
   end
 
@@ -27,16 +33,13 @@ defmodule ShireWeb.AgentLive.Show do
 
   @impl true
   def handle_event("start-agent", _params, socket) do
-    agent = socket.assigns.agent
+    name = socket.assigns.agent.name
 
-    case Coordinator.start_agent(agent.id) do
-      {:ok, _pid} ->
+    case Coordinator.restart_agent(name) do
+      :ok ->
         {:noreply, put_flash(socket, :info, "Agent starting...")}
 
-      {:error, :already_running} ->
-        {:noreply, put_flash(socket, :error, "Agent is already running")}
-
-      {:error, :no_sprites_token} ->
+      {:error, :no_vm} ->
         {:noreply, put_flash(socket, :error, "SPRITES_TOKEN not configured")}
 
       {:error, reason} ->
@@ -45,34 +48,50 @@ defmodule ShireWeb.AgentLive.Show do
   end
 
   @impl true
-  def handle_event("kill-agent", _params, socket) do
-    agent = socket.assigns.agent
+  def handle_event("delete-agent", _params, socket) do
+    name = socket.assigns.agent.name
 
-    case Coordinator.kill_agent(agent.id) do
+    case Coordinator.delete_agent(name) do
       :ok ->
         {:noreply,
          socket
-         |> put_flash(:info, "Agent killed — VM destroyed")
+         |> put_flash(:info, "Agent deleted")
          |> redirect(to: ~p"/")}
 
-      {:error, :not_found} ->
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to delete: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
+  def handle_event("update-agent", params, socket) do
+    name = socket.assigns.agent.name
+
+    case Coordinator.update_agent(name, params) do
+      :ok ->
+        agent =
+          case Coordinator.get_agent(name) do
+            {:ok, data} -> data
+            _ -> socket.assigns.agent
+          end
+
         {:noreply,
          socket
-         |> put_flash(:info, "Agent not found")
-         |> redirect(to: ~p"/")}
+         |> assign(:agent, agent)
+         |> put_flash(:info, "Agent updated")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to update: #{inspect(reason)}")}
     end
   end
 
   @impl true
   def handle_event("restart-agent", _params, socket) do
-    agent = socket.assigns.agent
+    name = socket.assigns.agent.name
 
-    case Coordinator.restart_agent(agent.id) do
+    case Coordinator.restart_agent(name) do
       :ok ->
         {:noreply, put_flash(socket, :info, "Agent restarting...")}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Agent is not running")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to restart: #{inspect(reason)}")}
@@ -80,122 +99,23 @@ defmodule ShireWeb.AgentLive.Show do
   end
 
   @impl true
-  def handle_event("update-agent", _params, socket) do
-    {:noreply, socket}
-  end
-
-  # Secret handlers — stubbed out, will be rewritten in Phase 4
-
-  @impl true
-  def handle_event("create-agent-secret", _params, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("update-agent-secret", _params, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("delete-agent-secret", _params, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("connect-terminal", _params, socket) do
-    agent = socket.assigns.agent
-
-    case TerminalSession.find(agent.id) do
-      {:ok, _pid} ->
-        socket = subscribe_terminal(socket, agent.id)
-        {:noreply, socket}
-
-      :error ->
-        try do
-          case AgentManager.get_sprite(agent.id) do
-            {:ok, sprite} when not is_nil(sprite) ->
-              case TerminalSession.start_link(agent_id: agent.id, sprite: sprite) do
-                {:ok, _pid} ->
-                  socket = subscribe_terminal(socket, agent.id)
-                  {:noreply, socket}
-
-                {:error, reason} ->
-                  {:noreply,
-                   push_event(socket, "terminal-exit", %{code: 1, error: inspect(reason)})}
-              end
-
-            _ ->
-              {:noreply,
-               push_event(socket, "terminal-exit", %{code: 1, error: "No sprite available"})}
-          end
-        catch
-          :exit, _ ->
-            {:noreply,
-             push_event(socket, "terminal-exit", %{code: 1, error: "Agent is not running"})}
-        end
-    end
-  end
-
-  @impl true
-  def handle_event("disconnect-terminal", _params, socket) do
-    agent = socket.assigns.agent
-
-    if socket.assigns.terminal_subscribed do
-      Phoenix.PubSub.unsubscribe(Shire.PubSub, "terminal:#{agent.id}")
-    end
-
-    {:noreply, assign(socket, :terminal_subscribed, false)}
-  end
-
-  @impl true
-  def handle_event("terminal-input", %{"data" => data}, socket) do
-    agent = socket.assigns.agent
-
-    case TerminalSession.find(agent.id) do
-      {:ok, pid} -> TerminalSession.write(pid, data)
-      :error -> :ok
-    end
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("terminal-resize", %{"rows" => rows, "cols" => cols}, socket) do
-    agent = socket.assigns.agent
-
-    case TerminalSession.find(agent.id) do
-      {:ok, pid} -> TerminalSession.resize(pid, rows, cols)
-      :error -> :ok
-    end
-
-    {:noreply, socket}
-  end
-
-  defp subscribe_terminal(socket, agent_id) do
-    unless socket.assigns.terminal_subscribed do
-      Phoenix.PubSub.subscribe(Shire.PubSub, "terminal:#{agent_id}")
-    end
-
-    assign(socket, :terminal_subscribed, true)
-  end
-
-  @impl true
-  def handle_info({:terminal_output, data}, socket) do
-    {:noreply, push_event(socket, "terminal-output", %{data: Base.encode64(data)})}
-  end
-
-  @impl true
-  def handle_info({:terminal_exit, code}, socket) do
-    {:noreply, push_event(socket, "terminal-exit", %{code: code})}
-  end
-
-  @impl true
   def handle_info({:status, status}, socket) do
-    {:noreply, assign(socket, :agent_status, status)}
+    agent = Map.put(socket.assigns.agent, :status, status)
+
+    {:noreply,
+     socket
+     |> assign(:agent, agent)
+     |> assign(:agent_status, status)}
   end
 
   @impl true
-  def handle_info({:agent_event, _agent_id, _event}, socket) do
+  def handle_info({:agent_busy, _agent_name, active}, socket) do
+    agent = Map.put(socket.assigns.agent, :busy, active)
+    {:noreply, assign(socket, :agent, agent)}
+  end
+
+  @impl true
+  def handle_info({:agent_event, _agent_name, _event}, socket) do
     {:noreply, socket}
   end
 
@@ -204,9 +124,7 @@ defmodule ShireWeb.AgentLive.Show do
     ~H"""
     <.react
       name="AgentShow"
-      agent={Helpers.serialize_agent(@agent)}
-      secrets={[]}
-      baseRecipes={[]}
+      agent={@agent}
       socket={@socket}
     />
     """

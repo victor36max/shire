@@ -1,7 +1,7 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
 import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, writeFileSync, rmSync, readdirSync, readFileSync } from "fs";
-import { emit, processMessage, processInbox, sendToAgent, type MessageEnvelope } from "./agent-runner";
+import { mkdirSync, writeFileSync, rmSync, readdirSync } from "fs";
+import { emit, loadConfig, processMessage, processInbox, type MessageEnvelope } from "./agent-runner";
 import type { Harness } from "./harness";
 import { createHarness } from "./harness";
 
@@ -98,7 +98,7 @@ describe("emit()", () => {
 
 describe("createHarness()", () => {
   test("throws on unknown harness type", () => {
-    expect(() => createHarness("unknown")).toThrow("Unknown harness type: unknown");
+    expect(() => createHarness("unknown" as never)).toThrow("Unknown harness type: unknown");
   });
 
   test("returns a harness for 'pi'", () => {
@@ -250,38 +250,45 @@ describe("processInbox()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// sendToAgent() — direct inbox write + stdout event
+// loadConfig() — reads recipe.yaml
 // ---------------------------------------------------------------------------
 
-const TEST_AGENTS_ROOT = "/tmp/test-agents-" + process.pid;
+const TEST_AGENT_DIR = "/tmp/test-agent-dir-" + process.pid;
 
-describe("sendToAgent()", () => {
+describe("loadConfig()", () => {
   beforeEach(() => {
-    mkdirSync(TEST_AGENTS_ROOT, { recursive: true });
+    mkdirSync(TEST_AGENT_DIR, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(TEST_AGENTS_ROOT, { recursive: true, force: true });
+    rmSync(TEST_AGENT_DIR, { recursive: true, force: true });
   });
 
-  test("writes envelope to target agent's inbox and emits agent_message event", async () => {
-    const events = await captureEmits(async () => {
-      await sendToAgent("target-bot", "Hello from me", "sender-bot", TEST_AGENTS_ROOT);
-    });
+  test("parses recipe.yaml into AgentConfig", async () => {
+    const yaml = `version: 1
+name: test-agent
+description: A test agent
+harness: pi
+model: anthropic/claude-sonnet-4-6
+system_prompt: You are helpful.
+max_tokens: 8192
+`;
+    writeFileSync(`${TEST_AGENT_DIR}/recipe.yaml`, yaml);
 
-    // Verify the file was written to the target's inbox
-    const inboxDir = `${TEST_AGENTS_ROOT}/target-bot/mailbox/inbox`;
-    const files = readdirSync(inboxDir).filter((f) => f.endsWith(".json"));
-    expect(files).toHaveLength(1);
+    const config = await loadConfig(`${TEST_AGENT_DIR}/recipe.yaml`);
+    expect(config.harness).toBe("pi");
+    expect(config.model).toBe("anthropic/claude-sonnet-4-6");
+    expect(config.system_prompt).toBe("You are helpful.");
+    expect(config.max_tokens).toBe(8192);
+  });
 
-    const envelope = JSON.parse(readFileSync(`${inboxDir}/${files[0]}`, "utf-8"));
-    expect(envelope.type).toBe("agent_message");
-    expect(envelope.from).toBe("sender-bot");
-    expect(envelope.payload.text).toBe("Hello from me");
+  test("applies defaults for missing fields", async () => {
+    writeFileSync(`${TEST_AGENT_DIR}/recipe.yaml`, "version: 1\nname: minimal\n");
 
-    // Verify the stdout event was emitted for DB persistence
-    expect(events).toHaveLength(1);
-    expect(events[0].type).toBe("agent_message");
-    expect(events[0].payload).toEqual({ to_agent: "target-bot", text: "Hello from me" });
+    const config = await loadConfig(`${TEST_AGENT_DIR}/recipe.yaml`);
+    expect(config.harness).toBe("claude_code");
+    expect(config.model).toBe("claude-sonnet-4-6");
+    expect(config.system_prompt).toBe("");
+    expect(config.max_tokens).toBe(16384);
   });
 });

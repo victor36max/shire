@@ -4,7 +4,7 @@ import AgentForm from "./AgentForm";
 import ChatHeader from "./ChatHeader";
 import ChatPanel, { type Message } from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
-import { type Agent, type BaseRecipe } from "./types";
+import { type Agent } from "./types";
 
 interface AgentDashboardProps {
   agents: Agent[];
@@ -13,7 +13,6 @@ interface AgentDashboardProps {
   hasMore?: boolean;
   loadingMore?: boolean;
   editAgent: Agent | null;
-  baseRecipes?: BaseRecipe[];
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }
 
@@ -24,18 +23,17 @@ export default function AgentDashboard({
   hasMore = false,
   loadingMore = false,
   editAgent,
-  baseRecipes = [],
   pushEvent,
 }: AgentDashboardProps) {
   const [formOpen, setFormOpen] = React.useState(false);
   const [formTitle, setFormTitle] = React.useState("New Agent");
-  const [editingId, setEditingId] = React.useState<number | null>(null);
+  const [editingName, setEditingName] = React.useState<string | null>(null);
   const [currentAgent, setCurrentAgent] = React.useState<Agent | null>(null);
 
   React.useEffect(() => {
     if (editAgent) {
       setCurrentAgent(editAgent);
-      setEditingId(editAgent.id ?? null);
+      setEditingName(editAgent.name ?? null);
       setFormTitle("Edit Agent");
       setFormOpen(true);
     }
@@ -43,17 +41,17 @@ export default function AgentDashboard({
 
   const handleNew = () => {
     setCurrentAgent(null);
-    setEditingId(null);
+    setEditingName(null);
     setFormTitle("New Agent");
     setFormOpen(true);
   };
 
-  const handleSelectAgent = (id: number) => {
-    pushEvent("select-agent", { id });
+  const handleSelectAgent = (name: string) => {
+    pushEvent("select-agent", { name });
   };
 
   const handleDeleteAgent = (agent: Agent) => {
-    pushEvent("delete-agent", { id: agent.id });
+    pushEvent("delete-agent", { name: agent.name });
   };
 
   const handleFormClose = () => {
@@ -62,8 +60,8 @@ export default function AgentDashboard({
 
   const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
     setFormOpen(false);
-    if (editingId) {
-      pushEvent("update-agent", { id: editingId, ...payload });
+    if (editingName) {
+      pushEvent("update-agent", { name: editingName, ...payload });
     } else {
       pushEvent("create-agent", payload);
     }
@@ -73,7 +71,7 @@ export default function AgentDashboard({
     <div className="flex h-screen bg-background">
       <AgentSidebar
         agents={agents}
-        selectedAgentId={selectedAgent?.id ?? null}
+        selectedAgentName={selectedAgent?.name ?? null}
         onSelectAgent={handleSelectAgent}
         onNewAgent={handleNew}
         onDeleteAgent={handleDeleteAgent}
@@ -102,7 +100,6 @@ export default function AgentDashboard({
         open={formOpen}
         title={formTitle}
         agent={currentAgent}
-        baseRecipes={baseRecipes}
         pushEvent={handleFormSave}
         onClose={handleFormClose}
       />

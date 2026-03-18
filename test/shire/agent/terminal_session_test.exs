@@ -3,25 +3,21 @@ defmodule Shire.Agent.TerminalSessionTest do
 
   alias Shire.Agent.TerminalSession
 
-  describe "find/1" do
+  describe "find/0" do
     test "returns :error when no session exists" do
-      assert :error = TerminalSession.find(999_999)
+      assert :error = TerminalSession.find()
     end
   end
 
-  describe "write/2" do
-    test "does not crash when called with valid pid" do
-      # We can't fully test without a real Sprites connection,
-      # but we can verify the module compiles and the API is callable
+  describe "write/1" do
+    test "module compiles and API is callable" do
       assert is_atom(TerminalSession)
     end
   end
 
   describe "registry" do
-    test "uses {:terminal, agent_id} as registry key" do
-      # Verify the registry key pattern is distinct from AgentManager's key
-      # AgentManager uses agent_id directly, TerminalSession uses {:terminal, agent_id}
-      assert [] = Registry.lookup(Shire.AgentRegistry, {:terminal, 12345})
+    test "uses :global_terminal as registry key" do
+      assert [] = Registry.lookup(Shire.AgentRegistry, :global_terminal)
     end
   end
 end

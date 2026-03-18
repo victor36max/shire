@@ -6,24 +6,15 @@ import { type Agent } from "../react-components/types";
 
 const agents: Agent[] = [
   {
-    id: 1,
     name: "Agent One",
     status: "active",
     model: "claude-sonnet-4-6",
-    system_prompt: null,
     harness: "claude_code",
-    recipe: "version: 1\nname: Agent One\nharness: claude_code\nmodel: claude-sonnet-4-6",
-    is_base: false,
   },
   {
-    id: 2,
     name: "Agent Two",
     status: "created",
-    model: null,
-    system_prompt: null,
     harness: "claude_code",
-    recipe: "version: 1\nname: Agent Two\nharness: claude_code",
-    is_base: false,
   },
 ];
 
@@ -61,7 +52,7 @@ describe("AgentDashboard", () => {
     render(<AgentDashboard agents={agents} selectedAgent={null} editAgent={null} pushEvent={pushEvent} />);
 
     await userEvent.click(screen.getByText("Agent One"));
-    expect(pushEvent).toHaveBeenCalledWith("select-agent", { id: 1 });
+    expect(pushEvent).toHaveBeenCalledWith("select-agent", { name: "Agent One" });
   });
 
   it("opens new agent dialog from sidebar", async () => {

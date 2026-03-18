@@ -2,11 +2,6 @@ export type HarnessType = "pi" | "claude_code";
 
 export type AgentStatus = "created" | "starting" | "bootstrapping" | "active" | "sleeping" | "failed" | "crashed";
 
-export interface Script {
-  name: string;
-  run: string;
-}
-
 export interface SkillReference {
   name: string;
   content: string;
@@ -20,24 +15,14 @@ export interface Skill {
 }
 
 export interface Agent {
-  id: number;
   name: string;
   description?: string;
   status: AgentStatus;
   busy?: boolean;
-  model: string | null;
-  system_prompt: string | null;
-  harness: HarnessType;
-  recipe: string;
-  is_base: boolean;
-  scripts?: Script[];
+  model?: string;
+  system_prompt?: string;
+  harness?: HarnessType;
   skills?: Skill[];
-}
-
-export interface BaseRecipe {
-  id: number;
-  name: string;
-  description?: string;
 }
 
 export const statusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
@@ -68,13 +53,6 @@ export interface InterAgentMessage {
   to_agent: string;
   text: string;
   ts: string;
-}
-
-export interface SharedDriveFile {
-  name: string;
-  path: string;
-  type: "file" | "directory";
-  size: number;
 }
 
 export const harnessLabel = (harness: HarnessType): string => {

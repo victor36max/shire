@@ -13,13 +13,12 @@ import {
   DialogDescription,
 } from "./components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
-import type { Agent, BaseRecipe, HarnessType, Script, Skill, SkillReference } from "./types";
+import type { Agent, HarnessType, Skill, SkillReference } from "./types";
 
 interface AgentFormProps {
   open: boolean;
   title: string;
   agent: Agent | null;
-  baseRecipes?: BaseRecipe[];
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
   onClose: () => void;
 }
@@ -27,21 +26,17 @@ interface AgentFormProps {
 function buildRecipeYaml(fields: {
   name: string;
   description: string;
-  extends: string;
   harness: string;
   model: string;
   systemPrompt: string;
-  scripts: Script[];
   skills: Skill[];
 }): string {
   const doc: Record<string, unknown> = { version: 1, name: fields.name };
   if (fields.description) doc.description = fields.description;
-  if (fields.extends) doc.extends = fields.extends;
   if (fields.harness) doc.harness = fields.harness;
   if (fields.model) doc.model = fields.model;
   if (fields.systemPrompt) doc.system_prompt = fields.systemPrompt;
   if (fields.skills.length > 0) doc.skills = fields.skills;
-  if (fields.scripts.length > 0) doc.scripts = fields.scripts;
   return stringify(doc, { lineWidth: 0 });
 }
 
@@ -51,11 +46,9 @@ function parseRecipeYaml(yaml: string) {
     return {
       name: (doc.name as string) || "",
       description: (doc.description as string) || "",
-      extends: (doc.extends as string) || "",
       harness: (doc.harness as string) || "claude_code",
       model: (doc.model as string) || "",
       systemPrompt: (doc.system_prompt as string) || "",
-      scripts: (doc.scripts as Script[]) || [],
       skills: (doc.skills as Skill[]) || [],
     };
   } catch {
@@ -63,56 +56,47 @@ function parseRecipeYaml(yaml: string) {
   }
 }
 
-export default function AgentForm({ open, title, agent, baseRecipes = [], pushEvent, onClose }: AgentFormProps) {
+export default function AgentForm({ open, title, agent, pushEvent, onClose }: AgentFormProps) {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [extendsRecipe, setExtendsRecipe] = React.useState("");
   const [model, setModel] = React.useState("");
   const [systemPrompt, setSystemPrompt] = React.useState("");
   const [harness, setHarness] = React.useState<HarnessType>("claude_code");
-  const [scripts, setScripts] = React.useState<Script[]>([]);
   const [skills, setSkills] = React.useState<Skill[]>([]);
   const [rawMode, setRawMode] = React.useState(false);
   const [rawYaml, setRawYaml] = React.useState("");
 
   React.useEffect(() => {
-    if (agent?.recipe) {
-      const parsed = parseRecipeYaml(agent.recipe);
-      if (parsed) {
-        setName(parsed.name);
-        setDescription(parsed.description);
-        setExtendsRecipe(parsed.extends);
-        setModel(parsed.model);
-        setSystemPrompt(parsed.systemPrompt);
-        setHarness((parsed.harness as HarnessType) || "claude_code");
-        setScripts(parsed.scripts);
-        setSkills(parsed.skills);
-        setRawYaml(agent.recipe);
-      }
-    } else {
-      setName(agent?.name || "");
-      setDescription(agent?.description || "");
-      setExtendsRecipe("");
-      setModel(agent?.model || "");
-      setSystemPrompt(agent?.system_prompt || "");
-      setHarness(agent?.harness || "claude_code");
-      setScripts(agent?.scripts || []);
-      setSkills(agent?.skills || []);
-      setRawYaml("");
-    }
+    setName(agent?.name || "");
+    setDescription(agent?.description || "");
+    setModel(agent?.model || "");
+    setSystemPrompt(agent?.system_prompt || "");
+    setHarness(agent?.harness || "claude_code");
+    setSkills(agent?.skills || []);
     setRawMode(false);
+    setRawYaml("");
   }, [agent]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const recipe = rawMode
-      ? rawYaml
-      : buildRecipeYaml({ name, description, extends: extendsRecipe, harness, model, systemPrompt, scripts, skills });
+    let finalName = name;
+    let recipeYaml: string;
 
-    const event = agent?.id ? "update-agent" : "create-agent";
-    const payload: Record<string, unknown> = { recipe };
-    if (agent?.id) payload.id = agent.id;
+    if (rawMode) {
+      const parsed = parseRecipeYaml(rawYaml);
+      if (!parsed) return;
+      finalName = parsed.name || name;
+      recipeYaml = rawYaml;
+    } else {
+      recipeYaml = buildRecipeYaml({ name, description, harness, model, systemPrompt, skills });
+    }
+
+    const event = agent ? "update-agent" : "create-agent";
+    const payload: Record<string, unknown> = {
+      name: agent ? agent.name : finalName,
+      recipe_yaml: recipeYaml,
+    };
 
     pushEvent(event, payload);
     onClose();
@@ -120,33 +104,19 @@ export default function AgentForm({ open, title, agent, baseRecipes = [], pushEv
 
   const handleToggleRaw = () => {
     if (rawMode) {
-      // Switching to structured: parse raw YAML
       const parsed = parseRecipeYaml(rawYaml);
       if (parsed) {
         setName(parsed.name);
         setDescription(parsed.description);
-        setExtendsRecipe(parsed.extends);
         setModel(parsed.model);
         setSystemPrompt(parsed.systemPrompt);
         setHarness((parsed.harness as HarnessType) || "claude_code");
-        setScripts(parsed.scripts);
         setSkills(parsed.skills);
       }
     } else {
-      // Switching to raw: serialize current fields
-      setRawYaml(
-        buildRecipeYaml({ name, description, extends: extendsRecipe, harness, model, systemPrompt, scripts, skills }),
-      );
+      setRawYaml(buildRecipeYaml({ name, description, harness, model, systemPrompt, skills }));
     }
     setRawMode(!rawMode);
-  };
-
-  const addScript = () => setScripts([...scripts, { name: "", run: "" }]);
-  const removeScript = (idx: number) => setScripts(scripts.filter((_, i) => i !== idx));
-  const updateScript = (idx: number, field: keyof Script, value: string) => {
-    const updated = [...scripts];
-    updated[idx] = { ...updated[idx], [field]: value };
-    setScripts(updated);
   };
 
   const addSkill = () => setSkills([...skills, { name: "", description: "", content: "" }]);
@@ -229,25 +199,6 @@ export default function AgentForm({ open, title, agent, baseRecipes = [], pushEv
                   placeholder="What does this agent do?"
                 />
               </div>
-              {baseRecipes.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="extends">Extends</Label>
-                  <Select value={extendsRecipe} onValueChange={setExtendsRecipe}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="None (no base recipe)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {baseRecipes.map((r) => (
-                        <SelectItem key={r.id} value={r.name}>
-                          {r.name}
-                          {r.description && ` — ${r.description}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
               <div className="space-y-2">
                 <Label htmlFor="harness">Harness</Label>
                 <Select value={harness} onValueChange={(v) => setHarness(v as HarnessType)}>
@@ -351,41 +302,6 @@ export default function AgentForm({ open, title, agent, baseRecipes = [], pushEv
                 {skills.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     No skills defined. Add skills to give the agent specialized knowledge.
-                  </p>
-                )}
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Scripts</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addScript}>
-                    Add Script
-                  </Button>
-                </div>
-                {scripts.map((script, idx) => (
-                  <div key={idx} className="rounded-lg border border-border p-3 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={script.name}
-                        onChange={(e) => updateScript(idx, "name", e.target.value)}
-                        placeholder="Script name (e.g. install-python)"
-                        className="flex-1"
-                      />
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeScript(idx)}>
-                        Remove
-                      </Button>
-                    </div>
-                    <Textarea
-                      value={script.run}
-                      onChange={(e) => updateScript(idx, "run", e.target.value)}
-                      placeholder="apt-get install -y python3"
-                      rows={2}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                ))}
-                {scripts.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    No setup scripts. Add scripts to install dependencies when the agent starts.
                   </p>
                 )}
               </div>
