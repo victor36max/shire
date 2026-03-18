@@ -98,22 +98,10 @@ defmodule ShireWeb.AgentLive.Index do
 
     case Coordinator.update_agent(name, params) do
       :ok ->
-        agents = Coordinator.list_agents()
-
-        selected_agent =
-          if socket.assigns.selected_agent_name == name do
-            case Coordinator.get_agent(name) do
-              {:ok, agent} -> agent
-              _ -> socket.assigns.selected_agent
-            end
-          else
-            socket.assigns.selected_agent
-          end
-
+        # The rename broadcast will handle agent list refresh,
+        # but we still need to update local state for the editing_agent close
         {:noreply,
          socket
-         |> assign(:agents, agents)
-         |> assign(:selected_agent, selected_agent)
          |> assign(:editing_agent, nil)
          |> put_flash(:info, "Agent updated")}
 
@@ -251,6 +239,34 @@ defmodule ShireWeb.AgentLive.Index do
       end
 
     {:noreply, assign(socket, agents: agents, selected_agent: selected_agent)}
+  end
+
+  @impl true
+  def handle_info({:agent_renamed, old_name, new_name}, socket) do
+    agents = Coordinator.list_agents()
+
+    if socket.assigns.selected_agent_name == old_name do
+      case Coordinator.get_agent(new_name) do
+        {:ok, agent} ->
+          # Re-subscribe to the new agent's PubSub topic
+          if connected?(socket) do
+            Phoenix.PubSub.unsubscribe(Shire.PubSub, "agent:#{old_name}")
+            Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{new_name}")
+          end
+
+          {:noreply,
+           assign(socket,
+             agents: agents,
+             selected_agent_name: new_name,
+             selected_agent: agent
+           )}
+
+        _ ->
+          {:noreply, assign(socket, agents: agents)}
+      end
+    else
+      {:noreply, assign(socket, :agents, agents)}
+    end
   end
 
   @impl true

@@ -96,7 +96,8 @@ defmodule Shire.WorkspaceSettingsTest do
         :ok
       end)
 
-      expect(Shire.VirtualMachineMock, :cmd, fn "chmod", ["+x", "/workspace/.scripts/setup.sh"],
+      expect(Shire.VirtualMachineMock, :cmd, fn "chmod",
+                                                ["+x", "/workspace/.scripts/setup.sh"],
                                                 _opts ->
         {:ok, ""}
       end)
@@ -107,7 +108,8 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "delete_script/1" do
     test "deletes the script file" do
-      expect(Shire.VirtualMachineMock, :cmd, fn "rm", ["-f", "/workspace/.scripts/setup.sh"],
+      expect(Shire.VirtualMachineMock, :cmd, fn "rm",
+                                                ["-f", "/workspace/.scripts/setup.sh"],
                                                 _opts ->
         {:ok, ""}
       end)

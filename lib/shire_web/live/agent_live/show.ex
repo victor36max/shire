@@ -66,19 +66,27 @@ defmodule ShireWeb.AgentLive.Show do
   @impl true
   def handle_event("update-agent", params, socket) do
     name = socket.assigns.agent.name
+    new_name = extract_name_from_recipe(params["recipe_yaml"])
 
     case Coordinator.update_agent(name, params) do
       :ok ->
-        agent =
-          case Coordinator.get_agent(name) do
-            {:ok, data} -> data
-            _ -> socket.assigns.agent
-          end
+        if new_name && new_name != name do
+          {:noreply,
+           socket
+           |> put_flash(:info, "Agent renamed to #{new_name}")
+           |> push_navigate(to: ~p"/agents/#{new_name}")}
+        else
+          agent =
+            case Coordinator.get_agent(name) do
+              {:ok, data} -> data
+              _ -> socket.assigns.agent
+            end
 
-        {:noreply,
-         socket
-         |> assign(:agent, agent)
-         |> put_flash(:info, "Agent updated")}
+          {:noreply,
+           socket
+           |> assign(:agent, agent)
+           |> put_flash(:info, "Agent updated")}
+        end
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to update: #{inspect(reason)}")}
@@ -117,6 +125,15 @@ defmodule ShireWeb.AgentLive.Show do
   @impl true
   def handle_info({:agent_event, _agent_name, _event}, socket) do
     {:noreply, socket}
+  end
+
+  defp extract_name_from_recipe(nil), do: nil
+
+  defp extract_name_from_recipe(recipe_yaml) do
+    case YamlElixir.read_from_string(recipe_yaml) do
+      {:ok, %{"name" => name}} when is_binary(name) -> name
+      _ -> nil
+    end
   end
 
   @impl true
