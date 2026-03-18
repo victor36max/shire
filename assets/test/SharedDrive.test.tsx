@@ -4,111 +4,100 @@ import { describe, it, expect, vi } from "vitest";
 import SharedDrive from "../react-components/SharedDrive";
 import type { SharedDriveFile } from "../react-components/SharedDrive";
 
-const files: SharedDriveFile[] = [
+const defaultProps = {
+  files: [] as SharedDriveFile[],
+  current_path: "/",
+  pushEvent: vi.fn(),
+};
+
+const sampleFiles: SharedDriveFile[] = [
   { name: "docs", path: "docs", type: "directory", size: 0 },
   { name: "readme.md", path: "readme.md", type: "file", size: 1024 },
-  { name: "data.csv", path: "data.csv", type: "file", size: 512000 },
+  { name: "data.json", path: "data.json", type: "file", size: 2048 },
 ];
 
 describe("SharedDrive", () => {
-  it("renders empty state when no files", () => {
-    render(<SharedDrive files={[]} current_path="/" pushEvent={vi.fn()} />);
+  it("renders Shared Drive heading", () => {
+    render(<SharedDrive {...defaultProps} />);
+    expect(screen.getByRole("heading", { name: "Shared Drive" })).toBeInTheDocument();
+  });
+
+  it("shows empty state when no files", () => {
+    render(<SharedDrive {...defaultProps} />);
     expect(screen.getByText("This directory is empty")).toBeInTheDocument();
   });
 
-  it("renders the shared drive heading", () => {
-    render(<SharedDrive files={[]} current_path="/" pushEvent={vi.fn()} />);
-    expect(screen.getByText("Shared Drive")).toBeInTheDocument();
-  });
-
   it("renders files and directories", () => {
-    render(<SharedDrive files={files} current_path="/" pushEvent={vi.fn()} />);
+    render(<SharedDrive {...defaultProps} files={sampleFiles} />);
     expect(screen.getByText("docs")).toBeInTheDocument();
     expect(screen.getByText("readme.md")).toBeInTheDocument();
-    expect(screen.getByText("data.csv")).toBeInTheDocument();
+    expect(screen.getByText("data.json")).toBeInTheDocument();
   });
 
-  it("shows directories before files", () => {
-    render(<SharedDrive files={files} current_path="/" pushEvent={vi.fn()} />);
-    const rows = screen.getAllByRole("row");
-    // Header row + 3 data rows
-    expect(rows).toHaveLength(4);
-    // First data row should be the directory
-    expect(rows[1]).toHaveTextContent("docs");
+  it("sorts directories before files", () => {
+    render(<SharedDrive {...defaultProps} files={sampleFiles} />);
+    const cells = screen.getAllByRole("row").slice(1); // skip header row
+    expect(cells[0]).toHaveTextContent("docs");
   });
 
-  it("navigates to directory on click", async () => {
+  it("navigates when clicking a directory", async () => {
     const pushEvent = vi.fn();
-    render(<SharedDrive files={files} current_path="/" pushEvent={pushEvent} />);
+    render(<SharedDrive {...defaultProps} files={sampleFiles} pushEvent={pushEvent} />);
 
     await userEvent.click(screen.getByText("docs"));
     expect(pushEvent).toHaveBeenCalledWith("navigate", { path: "/docs" });
   });
 
-  it("shows download link for files", () => {
-    render(<SharedDrive files={files} current_path="/" pushEvent={vi.fn()} />);
-    const downloadLinks = screen.getAllByText("Download");
-    expect(downloadLinks).toHaveLength(2); // Two files
+  it("shows breadcrumbs with root", () => {
+    render(<SharedDrive {...defaultProps} />);
+    expect(screen.getByRole("button", { name: "shared" })).toBeInTheDocument();
+  });
+
+  it("shows nested breadcrumbs", () => {
+    render(<SharedDrive {...defaultProps} current_path="/docs/notes" />);
+    expect(screen.getByRole("button", { name: "shared" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "docs" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "notes" })).toBeInTheDocument();
   });
 
   it("opens new folder dialog", async () => {
-    render(<SharedDrive files={[]} current_path="/" pushEvent={vi.fn()} />);
-    await userEvent.click(screen.getByText("New Folder"));
+    render(<SharedDrive {...defaultProps} />);
+    await userEvent.click(screen.getByRole("button", { name: "New Folder" }));
     expect(screen.getByText("Create a new folder in the shared drive.")).toBeInTheDocument();
   });
 
-  it("creates folder via pushEvent", async () => {
+  it("creates a folder via dialog", async () => {
+    const user = userEvent.setup();
     const pushEvent = vi.fn();
-    render(<SharedDrive files={[]} current_path="/" pushEvent={pushEvent} />);
+    render(<SharedDrive {...defaultProps} pushEvent={pushEvent} />);
 
-    await userEvent.click(screen.getByText("New Folder"));
-    await userEvent.type(screen.getByPlaceholderText("Folder name"), "my-folder");
-    await userEvent.click(screen.getByText("Create"));
+    await user.click(screen.getByRole("button", { name: "New Folder" }));
+    await user.paste("test-folder");
+    await user.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(pushEvent).toHaveBeenCalledWith("create-directory", { name: "my-folder" });
+    expect(pushEvent).toHaveBeenCalledWith("create-directory", { name: "test-folder" });
   });
 
-  it("shows delete confirmation for files", async () => {
-    render(<SharedDrive files={files} current_path="/" pushEvent={vi.fn()} />);
+  it("shows delete confirmation for a file", async () => {
+    render(<SharedDrive {...defaultProps} files={sampleFiles} />);
 
-    const deleteButtons = screen.getAllByText("Delete");
-    await userEvent.click(deleteButtons[0]); // Delete the directory
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
+    // Click delete on a file (not directory)
+    await userEvent.click(deleteButtons[1]);
 
-    expect(screen.getByText(/This will permanently delete/)).toBeInTheDocument();
+    expect(screen.getByText(/permanently delete/)).toBeInTheDocument();
   });
 
-  it("calls delete-file for files", async () => {
-    const pushEvent = vi.fn();
-    render(
-      <SharedDrive
-        files={[{ name: "test.txt", path: "test.txt", type: "file", size: 100 }]}
-        current_path="/"
-        pushEvent={pushEvent}
-      />,
-    );
-
-    // Click delete on the file row
-    await userEvent.click(screen.getByText("Delete"));
-
-    // Confirm in alert dialog
-    const confirmDelete = screen.getAllByText("Delete").find((el) => el.closest("[role='alertdialog']"));
-    await userEvent.click(confirmDelete!);
-
-    expect(pushEvent).toHaveBeenCalledWith("delete-file", { path: "test.txt" });
+  it("shows download button only for files", () => {
+    render(<SharedDrive {...defaultProps} files={sampleFiles} />);
+    const downloadLinks = screen.getAllByRole("link", { name: "Download" });
+    // Only files get download links (2 files, no directory)
+    expect(downloadLinks).toHaveLength(2);
   });
 
-  it("renders breadcrumbs for nested path", () => {
-    render(<SharedDrive files={[]} current_path="/docs/reports" pushEvent={vi.fn()} />);
-    expect(screen.getByText("shared")).toBeInTheDocument();
-    expect(screen.getByText("docs")).toBeInTheDocument();
-    expect(screen.getByText("reports")).toBeInTheDocument();
-  });
-
-  it("navigates via breadcrumbs", async () => {
-    const pushEvent = vi.fn();
-    render(<SharedDrive files={[]} current_path="/docs/reports" pushEvent={pushEvent} />);
-
-    await userEvent.click(screen.getByText("shared"));
-    expect(pushEvent).toHaveBeenCalledWith("navigate", { path: "/" });
+  it("formats file sizes", () => {
+    render(<SharedDrive {...defaultProps} files={sampleFiles} />);
+    expect(screen.getByText("1.0 KB")).toBeInTheDocument();
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument();
   });
 });

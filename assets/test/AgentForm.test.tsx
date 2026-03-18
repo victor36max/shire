@@ -10,11 +10,11 @@ function renderForm(agent: Agent | null = null) {
   return render(<AgentForm open={true} title="New Agent" agent={agent} pushEvent={pushEvent} onClose={vi.fn()} />);
 }
 
-describe("AgentForm skills", () => {
-  it("renders skills section with empty state", async () => {
+describe("AgentForm", () => {
+  it("renders skills section with empty state", () => {
     renderForm();
     expect(
-      await screen.findByText("No skills defined. Add skills to give the agent specialized knowledge."),
+      screen.getByText("No skills defined. Add skills to give the agent specialized knowledge."),
     ).toBeInTheDocument();
     expect(screen.getByText("Add Skill")).toBeInTheDocument();
   });
@@ -32,55 +32,52 @@ describe("AgentForm skills", () => {
     await userEvent.click(screen.getByText("Add Skill"));
     expect(screen.getByPlaceholderText("e.g. web-scraping")).toBeInTheDocument();
 
-    // The Remove buttons — find the one in the skill card (not script card)
     const removeButtons = screen.getAllByText("Remove");
     await userEvent.click(removeButtons[0]);
     expect(screen.queryByPlaceholderText("e.g. web-scraping")).not.toBeInTheDocument();
   });
 
-  it("includes skills in the submitted recipe YAML", async () => {
+  it("includes skills in recipe_yaml payload", async () => {
+    const user = userEvent.setup();
     renderForm();
 
     // Fill required name field
-    await userEvent.type(screen.getByLabelText("Name"), "test-agent");
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.paste("test-agent");
 
     // Add and fill a skill
-    await userEvent.click(screen.getByText("Add Skill"));
-    await userEvent.type(screen.getByPlaceholderText("e.g. web-scraping"), "my-skill");
-    await userEvent.type(screen.getByPlaceholderText("When to use this skill..."), "Use for testing");
-    await userEvent.type(screen.getByPlaceholderText("Markdown instructions..."), "# Test Skill");
+    await user.click(screen.getByText("Add Skill"));
 
-    await userEvent.click(screen.getByText("Save Agent"));
+    const skillName = screen.getByPlaceholderText("e.g. web-scraping");
+    await user.clear(skillName);
+    await user.paste("my-skill");
 
-    expect(pushEvent).toHaveBeenCalledWith(
-      "create-agent",
-      expect.objectContaining({
-        recipe: expect.stringContaining("my-skill"),
-      }),
-    );
+    const skillDesc = screen.getByPlaceholderText("When to use this skill...");
+    await user.clear(skillDesc);
+    await user.paste("Use for testing");
 
-    const recipe = pushEvent.mock.calls[0][1].recipe as string;
-    expect(recipe).toContain("skills:");
-    expect(recipe).toContain("my-skill");
-    expect(recipe).toContain("Use for testing");
-    expect(recipe).toContain("# Test Skill");
+    const skillContent = screen.getByPlaceholderText("Markdown instructions...");
+    await user.clear(skillContent);
+    await user.paste("# Test Skill");
+
+    await user.click(screen.getByText("Save Agent"));
+
+    expect(pushEvent).toHaveBeenCalledWith("create-agent", expect.objectContaining({ name: "test-agent" }));
+
+    const payload = pushEvent.mock.calls[pushEvent.mock.calls.length - 1][1];
+    expect(payload.recipe_yaml).toBeDefined();
+    expect(payload.recipe_yaml).toContain("my-skill");
+    expect(payload.recipe_yaml).toContain("Use for testing");
+    expect(payload.recipe_yaml).toContain("# Test Skill");
   });
 
-  it("loads skills from existing agent recipe", () => {
+  it("loads skills from existing agent", () => {
     const agent: Agent = {
-      id: 1,
       name: "test",
       status: "created",
-      model: null,
-      system_prompt: null,
       harness: "claude_code",
-      is_base: false,
-      recipe: `version: 1
-name: test
-skills:
-  - name: existing-skill
-    description: An existing skill
-    content: Some instructions`,
+      skills: [{ name: "existing-skill", description: "An existing skill", content: "Some instructions" }],
     };
 
     renderForm(agent);
@@ -94,5 +91,26 @@ skills:
     await userEvent.click(screen.getByText("Add Reference"));
     expect(screen.getByPlaceholderText("e.g. api-patterns.md")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Reference content...")).toBeInTheDocument();
+  });
+
+  it("submits update-agent event with recipe_yaml for existing agent", async () => {
+    const agent: Agent = {
+      name: "existing-agent",
+      status: "active",
+      harness: "claude_code",
+      model: "claude-sonnet-4-6",
+    };
+
+    render(<AgentForm open={true} title="Edit Agent" agent={agent} pushEvent={pushEvent} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByText("Save Agent"));
+
+    expect(pushEvent).toHaveBeenCalledWith(
+      "update-agent",
+      expect.objectContaining({
+        name: "existing-agent",
+        recipe_yaml: expect.any(String),
+      }),
+    );
   });
 });

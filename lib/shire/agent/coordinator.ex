@@ -1,28 +1,21 @@
 defmodule Shire.Agent.Coordinator do
   @moduledoc """
-  Manages the single shared Sprite VM and agent lifecycle.
+  Manages agent lifecycle on the shared Sprite VM.
   Starts/stops AgentManagers via DynamicSupervisor.
+  VM initialization is handled by Shire.VirtualMachine.
   """
   use GenServer
   require Logger
 
   alias Shire.Agent.AgentManager
 
-  @vm_name Application.compile_env(:shire, :sprite_vm_name, "shire-vm")
-  @cmd_timeout 30_000
-  @ready_retries 6
-  @ready_backoff 5_000
+  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   # --- Public API ---
-
-  @doc "Start an agent by name. Creates workspace dir and spawns runner."
-  def start_agent(agent_name, opts \\ []) do
-    GenServer.call(__MODULE__, {:start_agent, agent_name, opts}, 60_000)
-  end
 
   @doc "Returns the current status for an agent (defaults to :created if not tracked)."
   def agent_status(agent_name) do
@@ -34,13 +27,18 @@ defmodule Shire.Agent.Coordinator do
     GenServer.call(__MODULE__, {:agent_statuses, agent_names})
   end
 
-  @doc "Called by AgentManager to notify status changes."
-  def notify_status(agent_name, status) do
-    GenServer.cast(__MODULE__, {:agent_status_changed, agent_name, status})
+  @doc "Creates a new agent: writes recipe.yaml on VM and starts runner."
+  def create_agent(attrs) do
+    GenServer.call(__MODULE__, {:create_agent, attrs}, 60_000)
   end
 
-  def kill_agent(agent_name) do
-    GenServer.call(__MODULE__, {:kill_agent, agent_name})
+  @doc "Updates an agent's recipe.yaml on the VM."
+  def update_agent(agent_name, attrs) do
+    GenServer.call(__MODULE__, {:update_agent, agent_name, attrs}, 30_000)
+  end
+
+  def delete_agent(agent_name) do
+    GenServer.call(__MODULE__, {:delete_agent, agent_name}, 30_000)
   end
 
   def restart_agent(agent_name) do
@@ -51,14 +49,39 @@ defmodule Shire.Agent.Coordinator do
     AgentManager.send_message(agent_name, text, :user)
   end
 
-  @doc "Returns the shared Sprite VM reference."
-  def get_sprite do
-    GenServer.call(__MODULE__, :get_sprite)
+  @doc "Reads `/workspace/.env` from the VM and returns it as a string."
+  def read_env do
+    GenServer.call(__MODULE__, :read_env, 15_000)
   end
 
-  @doc "Returns a Sprites.Filesystem handle for the shared VM."
-  def get_filesystem do
-    GenServer.call(__MODULE__, :get_filesystem)
+  @doc "Writes the given string to `/workspace/.env` on the VM."
+  def write_env(content) do
+    GenServer.call(__MODULE__, {:write_env, content}, 15_000)
+  end
+
+  @doc "Lists script filenames in `/workspace/.scripts/`."
+  def list_scripts do
+    GenServer.call(__MODULE__, :list_scripts, 15_000)
+  end
+
+  @doc "Reads a script file from `/workspace/.scripts/{name}`."
+  def read_script(name) do
+    GenServer.call(__MODULE__, {:read_script, name}, 15_000)
+  end
+
+  @doc "Writes a script file to `/workspace/.scripts/{name}`."
+  def write_script(name, content) do
+    GenServer.call(__MODULE__, {:write_script, name, content}, 15_000)
+  end
+
+  @doc "Deletes a script file from `/workspace/.scripts/{name}`."
+  def delete_script(name) do
+    GenServer.call(__MODULE__, {:delete_script, name}, 15_000)
+  end
+
+  @doc "Runs a script from `/workspace/.scripts/{name}` and returns output."
+  def run_script(name) do
+    GenServer.call(__MODULE__, {:run_script, name}, 120_000)
   end
 
   @doc "Look up a running agent's pid by name."
@@ -93,46 +116,33 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def init(_opts) do
+    Phoenix.PubSub.subscribe(Shire.PubSub, "agents:lobby")
+
     state = %{
-      sprite: nil,
-      fs: nil,
       monitors: %{},
       statuses: %{}
     }
 
-    {:ok, state, {:continue, :init_vm}}
+    {:ok, state, {:continue, :deploy_and_scan}}
   end
 
   @impl true
-  def handle_continue(:init_vm, state) do
-    token = Application.get_env(:shire, :sprites_token)
-
-    if token do
-      case init_shared_vm(token) do
-        {:ok, sprite, fs} ->
-          Logger.info("Shared VM #{@vm_name} ready")
-          state = %{state | sprite: sprite, fs: fs}
-          {:noreply, state, {:continue, :scan_agents}}
-
-        {:error, reason} ->
-          Logger.error("Failed to initialize shared VM: #{inspect(reason)}")
-          {:noreply, state}
-      end
-    else
-      Logger.warning("No SPRITES_TOKEN configured — VM features disabled")
-      {:noreply, state}
+  def handle_continue(:deploy_and_scan, state) do
+    case run_bootstrap() do
+      :ok -> :ok
+      {:error, reason} -> Logger.error("Bootstrap failed: #{inspect(reason)}")
     end
-  end
 
-  @impl true
-  def handle_continue(:scan_agents, %{sprite: nil} = state), do: {:noreply, state}
+    case deploy_runner() do
+      :ok -> :ok
+      {:error, reason} -> Logger.error("Runner deployment failed: #{inspect(reason)}")
+    end
 
-  def handle_continue(:scan_agents, state) do
-    {:ok, agent_names} = scan_agent_dirs(state.sprite)
+    {:ok, agent_names} = scan_agent_dirs()
 
     monitors =
       Enum.reduce(agent_names, state.monitors, fn name, acc ->
-        case start_agent_manager(name, %{state | monitors: acc}) do
+        case start_agent_manager(name, acc) do
           {:ok, _pid, updated_monitors} -> updated_monitors
           {:error, _} -> acc
         end
@@ -143,62 +153,74 @@ defmodule Shire.Agent.Coordinator do
   end
 
   @impl true
-  def handle_call({:start_agent, agent_name, _opts}, _from, state) do
-    case lookup(agent_name) do
-      {:ok, _pid} ->
-        # Agent process exists — restart if failed, reject if active
-        case Map.get(state.statuses, agent_name) do
-          :failed ->
-            case AgentManager.restart(agent_name) do
-              :ok ->
-                Logger.info("Restarting failed agent #{agent_name}")
-                {:reply, {:ok, :restarted}, state}
+  def handle_call({:create_agent, %{"name" => name, "recipe_yaml" => recipe_yaml}}, _from, state) do
+    agent_dir = "/workspace/agents/#{name}"
 
-              {:error, reason} ->
-                {:reply, {:error, reason}, state}
-            end
+    # Check if agent already exists (exit codes unreliable via Sprites, use echo)
+    case @vm.cmd("bash", ["-c", "test -d #{agent_dir} && echo exists || echo missing"], []) do
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
 
-          _ ->
-            {:reply, {:error, :already_running}, state}
-        end
-
-      {:error, :not_found} ->
-        # New agent — requires VM
-        if state.sprite do
-          case start_agent_manager(agent_name, state) do
-            {:ok, pid, monitors} ->
-              {:reply, {:ok, pid}, %{state | monitors: monitors}}
-
-            {:error, reason} ->
-              {:reply, {:error, reason}, state}
-          end
+      {:ok, output} ->
+        if String.trim(output) == "exists" do
+          {:reply, {:error, :already_exists}, state}
         else
-          {:reply, {:error, :no_vm}, state}
+          create_agent_on_vm(name, agent_dir, recipe_yaml, state)
         end
     end
   end
 
   @impl true
-  def handle_call({:kill_agent, agent_name}, _from, state) do
+  def handle_call({:create_agent, _attrs}, _from, state) do
+    {:reply, {:error, :missing_name_or_recipe}, state}
+  end
+
+  @impl true
+  def handle_call({:update_agent, name, %{"recipe_yaml" => recipe_yaml}}, _from, state) do
+    agent_dir = "/workspace/agents/#{name}"
+
+    case @vm.write("#{agent_dir}/recipe.yaml", recipe_yaml) do
+      :ok -> {:reply, :ok, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:update_agent, _name, _attrs}, _from, state) do
+    {:reply, {:error, :missing_recipe_yaml}, state}
+  end
+
+  @impl true
+  def handle_call({:delete_agent, agent_name}, _from, state) do
+    # Stop the process if running
     case lookup(agent_name) do
       {:ok, pid} ->
         DynamicSupervisor.terminate_child(Shire.AgentSupervisor, pid)
 
-        # Clean up monitor for this agent
-        {ref, monitors} =
-          Enum.find_value(state.monitors, {nil, state.monitors}, fn {ref, name} ->
-            if name == agent_name, do: {ref, Map.delete(state.monitors, ref)}
-          end)
-
-        if ref, do: Process.demonitor(ref, [:flush])
-
-        statuses = Map.delete(state.statuses, agent_name)
-        Logger.info("Killed agent #{agent_name}")
-        {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
-
       {:error, :not_found} ->
-        {:reply, {:error, :not_found}, state}
+        :ok
     end
+
+    # Clean up monitor
+    {ref, monitors} =
+      Enum.find_value(state.monitors, {nil, state.monitors}, fn {ref, name} ->
+        if name == agent_name, do: {ref, Map.delete(state.monitors, ref)}
+      end)
+
+    if ref, do: Process.demonitor(ref, [:flush])
+
+    # Remove agent directory from VM
+    case @vm.cmd("rm", ["-rf", "/workspace/agents/#{agent_name}"], []) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to remove agent dir for #{agent_name}: #{inspect(reason)}")
+    end
+
+    statuses = Map.delete(state.statuses, agent_name)
+    Logger.info("Deleted agent #{agent_name}")
+    {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
   end
 
   @impl true
@@ -215,7 +237,15 @@ defmodule Shire.Agent.Coordinator do
         end
 
       {:error, :not_found} ->
-        {:reply, {:error, :not_found}, state}
+        # No process exists — spawn a fresh AgentManager
+        case start_agent_manager(agent_name, state.monitors) do
+          {:ok, _pid, monitors} ->
+            Logger.info("Started agent #{agent_name} (was not running)")
+            {:reply, :ok, %{state | monitors: monitors}}
+
+          {:error, reason} ->
+            {:reply, {:error, reason}, state}
+        end
     end
   end
 
@@ -230,23 +260,100 @@ defmodule Shire.Agent.Coordinator do
     {:reply, result, state}
   end
 
+  # --- Env / Scripts ---
+
   @impl true
-  def handle_call(:get_sprite, _from, state) do
-    {:reply, state.sprite, state}
+  def handle_call(:read_env, _from, state) do
+    # Use bash -c to handle missing file (exit codes unreliable via Sprites)
+    case @vm.cmd("bash", ["-c", "test -f /workspace/.env && cat /workspace/.env || echo ''"], []) do
+      {:ok, output} -> {:reply, {:ok, output}, state}
+      {:error, _} -> {:reply, {:ok, ""}, state}
+    end
   end
 
   @impl true
-  def handle_call(:get_filesystem, _from, state) do
-    {:reply, state.fs, state}
+  def handle_call({:write_env, content}, _from, state) do
+    case @vm.write("/workspace/.env", content) do
+      :ok -> {:reply, :ok, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
   end
 
   @impl true
-  def handle_call(:list_agents, _from, %{sprite: nil} = state) do
-    {:reply, [], state}
+  def handle_call(:list_scripts, _from, state) do
+    # Use bash -c to handle missing dir (exit codes unreliable via Sprites)
+    case @vm.cmd(
+           "bash",
+           ["-c", "test -d /workspace/.scripts && ls /workspace/.scripts || echo ''"],
+           []
+         ) do
+      {:ok, output} ->
+        names =
+          output
+          |> String.split("\n", trim: true)
+          |> Enum.filter(&String.ends_with?(&1, ".sh"))
+
+        {:reply, {:ok, names}, state}
+
+      {:error, _} ->
+        {:reply, {:ok, []}, state}
+    end
   end
 
+  @impl true
+  def handle_call({:read_script, name}, _from, state) do
+    path = "/workspace/.scripts/#{name}"
+
+    case @vm.cmd("bash", ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"], []) do
+      {:ok, output} ->
+        result =
+          if String.trim(output) == "__NOT_FOUND__" do
+            {:error, :not_found}
+          else
+            {:ok, output}
+          end
+
+        {:reply, result, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:write_script, name, content}, _from, state) do
+    path = "/workspace/.scripts/#{name}"
+
+    with :ok <- @vm.write(path, content),
+         {:ok, _} <- @vm.cmd("chmod", ["+x", path], []) do
+      {:reply, :ok, state}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:delete_script, name}, _from, state) do
+    path = "/workspace/.scripts/#{name}"
+    @vm.cmd("rm", ["-f", path], [])
+    {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call({:run_script, name}, _from, state) do
+    path = "/workspace/.scripts/#{name}"
+    # Source .env before running the script so env vars are available
+    script_cmd = "[ -f /workspace/.env ] && set -a && . /workspace/.env && set +a; bash #{path}"
+
+    case @vm.cmd("bash", ["-c", script_cmd], timeout: 120_000) do
+      {:ok, output} -> {:reply, {:ok, output}, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
   def handle_call(:list_agents, _from, state) do
-    {:ok, names} = scan_agent_dirs(state.sprite)
+    {:ok, names} = scan_agent_dirs()
 
     agents =
       Enum.map(names, fn name ->
@@ -258,15 +365,22 @@ defmodule Shire.Agent.Coordinator do
   end
 
   @impl true
-  def handle_call({:get_agent, _agent_name}, _from, %{sprite: nil} = state) do
-    {:reply, {:error, :no_vm}, state}
-  end
-
   def handle_call({:get_agent, agent_name}, _from, state) do
-    case read_agent_recipe(state.sprite, agent_name) do
+    case read_agent_recipe(agent_name) do
       {:ok, recipe} ->
         status = Map.get(state.statuses, agent_name, :created)
-        {:reply, {:ok, Map.put(recipe, :status, status)}, state}
+
+        agent = %{
+          name: recipe["name"] || agent_name,
+          description: recipe["description"],
+          harness: recipe["harness"] || "claude_code",
+          model: recipe["model"],
+          system_prompt: recipe["system_prompt"],
+          skills: recipe["skills"] || [],
+          status: status
+        }
+
+        {:reply, {:ok, agent}, state}
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
@@ -300,147 +414,141 @@ defmodule Shire.Agent.Coordinator do
     end
   end
 
+  @impl true
+  def handle_info({:agent_status, agent_name, status}, state) do
+    statuses = Map.put(state.statuses, agent_name, status)
+    {:noreply, %{state | statuses: statuses}}
+  end
+
+  @impl true
+  def handle_info({:agent_busy, _agent_name, _active}, state) do
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:agent_created, _name}, state) do
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info(msg, state) do
     Logger.debug("Coordinator unexpected message: #{inspect(msg)}")
     {:noreply, state}
   end
 
-  @impl true
-  def handle_cast({:agent_status_changed, agent_name, status}, state) do
-    statuses = Map.put(state.statuses, agent_name, status)
-
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "agent:#{agent_name}",
-      {:status, status}
-    )
-
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "agents:lobby",
-      {:agent_status, agent_name, status}
-    )
-
-    {:noreply, %{state | statuses: statuses}}
-  end
-
   # --- Private ---
 
-  defp init_shared_vm(token) do
-    client = Sprites.new(token)
+  defp run_bootstrap do
+    script = File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
 
-    sprite =
-      case Sprites.get_sprite(client, @vm_name) do
-        {:ok, _info} -> Sprites.sprite(client, @vm_name)
-        {:error, {:not_found, _}} -> elem(Sprites.create(client, @vm_name), 1)
-      end
-
-    wait_for_ready(sprite)
-    run_bootstrap(sprite)
-    deploy_runner(sprite)
-
-    fs = Sprites.Filesystem.new(sprite)
-    {:ok, sprite, fs}
-  rescue
-    e -> {:error, e}
+    case @vm.cmd("bash", ["-c", script], timeout: 120_000) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp wait_for_ready(sprite, attempt \\ 1) do
-    Sprites.cmd(sprite, "echo", ["ready"], timeout: 10_000)
-    :ok
-  rescue
-    e ->
-      if attempt < @ready_retries do
-        Logger.info(
-          "VM not ready (attempt #{attempt}/#{@ready_retries}), retrying in #{@ready_backoff}ms..."
-        )
-
-        Process.sleep(@ready_backoff)
-        wait_for_ready(sprite, attempt + 1)
-      else
-        raise e
-      end
-  end
-
-  defp run_bootstrap(sprite) do
-    bootstrap_script =
-      File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
-
-    {_, 0} = Sprites.cmd(sprite, "bash", ["-c", bootstrap_script], timeout: 120_000)
-  end
-
-  defp deploy_runner(sprite) do
-    fs = Sprites.Filesystem.new(sprite)
+  defp deploy_runner do
     runner_dir = Application.app_dir(:shire, "priv/sprite")
 
-    # Deploy agent-runner.ts and harness files
-    for file <- ["agent-runner.ts"] do
-      content = File.read!(Path.join(runner_dir, file))
-      Sprites.Filesystem.write!(fs, "/workspace/.runner/#{file}", content)
-    end
+    # Deploy agent-runner.ts
+    content = File.read!(Path.join(runner_dir, "agent-runner.ts"))
 
-    # Deploy harness directory
+    with :ok <- @vm.write("/workspace/.runner/agent-runner.ts", content),
+         :ok <- deploy_harness(runner_dir),
+         {:ok, _} <-
+           @vm.cmd("bash", ["-c", "cd /workspace/.runner && bun install"], timeout: 120_000) do
+      :ok
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp deploy_harness(runner_dir) do
     harness_dir = Path.join(runner_dir, "harness")
 
     if File.dir?(harness_dir) do
-      Sprites.cmd(sprite, "mkdir", ["-p", "/workspace/.runner/harness"], timeout: @cmd_timeout)
+      with {:ok, _} <- @vm.cmd("mkdir", ["-p", "/workspace/.runner/harness"], []) do
+        Enum.reduce_while(File.ls!(harness_dir), :ok, fn file, :ok ->
+          content = File.read!(Path.join(harness_dir, file))
 
-      for file <- File.ls!(harness_dir) do
-        content = File.read!(Path.join(harness_dir, file))
-        Sprites.Filesystem.write!(fs, "/workspace/.runner/harness/#{file}", content)
+          case @vm.write("/workspace/.runner/harness/#{file}", content) do
+            :ok -> {:cont, :ok}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+        end)
       end
+    else
+      :ok
     end
-
-    # Install runner dependencies
-    Sprites.cmd(sprite, "bash", ["-c", "cd /workspace/.runner && bun install"], timeout: 120_000)
   end
 
-  defp scan_agent_dirs(sprite) do
-    case Sprites.cmd(sprite, "ls", ["/workspace/agents"], timeout: @cmd_timeout) do
-      {output, 0} ->
-        names =
-          output
-          |> String.split("\n", trim: true)
-          |> Enum.filter(fn name ->
-            # Only include dirs that have a recipe.yaml
-            case Sprites.cmd(sprite, "test", ["-f", "/workspace/agents/#{name}/recipe.yaml"],
-                   timeout: @cmd_timeout
-                 ) do
-              {_, 0} -> true
-              _ -> false
-            end
-          end)
+  defp scan_agent_dirs do
+    cmd = ~s(for d in /workspace/agents/*/; do test -f "$d/recipe.yaml" && basename "$d"; done)
 
+    case @vm.cmd("bash", ["-c", cmd], []) do
+      {:ok, output} ->
+        names = String.split(output, "\n", trim: true)
         {:ok, names}
 
-      {_, _} ->
+      {:error, _} ->
         {:ok, []}
     end
   rescue
-    _ -> {:ok, []}
+    e ->
+      Logger.error("scan_agent_dirs crashed: #{inspect(e)}")
+      {:ok, []}
   end
 
-  defp read_agent_recipe(sprite, agent_name) do
+  defp read_agent_recipe(agent_name) do
     path = "/workspace/agents/#{agent_name}/recipe.yaml"
 
-    case Sprites.cmd(sprite, "cat", [path], timeout: @cmd_timeout) do
-      {content, 0} ->
-        case YamlElixir.read_from_string(content) do
-          {:ok, recipe} -> {:ok, recipe}
-          {:error, reason} -> {:error, reason}
-        end
+    case @vm.cmd("bash", ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"], []) do
+      {:error, reason} ->
+        {:error, reason}
 
-      {_, _} ->
-        {:error, :not_found}
+      {:ok, output} ->
+        if String.trim(output) == "__NOT_FOUND__" do
+          {:error, :not_found}
+        else
+          case YamlElixir.read_from_string(output) do
+            {:ok, recipe} -> {:ok, recipe}
+            {:error, reason} -> {:error, reason}
+          end
+        end
     end
   end
 
-  defp start_agent_manager(agent_name, state) do
-    opts = [
-      agent_name: agent_name,
-      sprite: state.sprite,
-      fs: state.fs
-    ]
+  defp create_agent_on_vm(name, agent_dir, recipe_yaml, state) do
+    # Create directory structure
+    mkdir_results =
+      Enum.map(["inbox", "outbox", "scripts", "documents"], fn subdir ->
+        @vm.cmd("mkdir", ["-p", "#{agent_dir}/#{subdir}"], [])
+      end)
+
+    case Enum.find(mkdir_results, &match?({:error, _}, &1)) do
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+
+      nil ->
+        case @vm.write("#{agent_dir}/recipe.yaml", recipe_yaml) do
+          :ok ->
+            case start_agent_manager(name, state.monitors) do
+              {:ok, pid, monitors} ->
+                Phoenix.PubSub.broadcast(Shire.PubSub, "agents:lobby", {:agent_created, name})
+                {:reply, {:ok, pid}, %{state | monitors: monitors}}
+
+              {:error, reason} ->
+                {:reply, {:error, reason}, state}
+            end
+
+          {:error, reason} ->
+            {:reply, {:error, reason}, state}
+        end
+    end
+  end
+
+  defp start_agent_manager(agent_name, monitors) do
+    opts = [agent_name: agent_name]
 
     case DynamicSupervisor.start_child(
            Shire.AgentSupervisor,
@@ -448,7 +556,7 @@ defmodule Shire.Agent.Coordinator do
          ) do
       {:ok, pid} ->
         ref = Process.monitor(pid)
-        monitors = Map.put(state.monitors, ref, agent_name)
+        monitors = Map.put(monitors, ref, agent_name)
         Logger.info("Started agent #{agent_name}")
         {:ok, pid, monitors}
 

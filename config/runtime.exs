@@ -28,12 +28,17 @@ config :shire, ShireWeb.Endpoint, http: [port: String.to_integer(System.get_env(
 
 # Sprites — optional in dev, required in prod
 sprites_token = System.get_env("SPRITES_TOKEN")
+sprite_vm_name = System.get_env("SPRITE_VM_NAME")
 
 if config_env() == :prod && is_nil(sprites_token) do
   raise "environment variable SPRITES_TOKEN is missing."
 end
 
-config :shire, :sprites_token, sprites_token
+# Don't connect to real VMs in test — Coordinator will run with sprite: nil
+if config_env() != :test do
+  config :shire, :sprites_token, sprites_token
+  config :shire, :sprite_vm_name, sprite_vm_name
+end
 
 if config_env() == :prod do
   database_url =

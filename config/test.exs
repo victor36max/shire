@@ -36,6 +36,10 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
+# Use mock VM in tests, skip auto-boot of VM + Coordinator
+config :shire, :vm, Shire.VirtualMachineMock
+config :shire, :skip_vm_boot, true
+
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true

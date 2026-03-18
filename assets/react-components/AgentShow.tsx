@@ -2,7 +2,6 @@ import * as React from "react";
 import { Badge } from "./components/ui/badge";
 import { Button, buttonVariants } from "./components/ui/button";
 import { Card, CardContent } from "./components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -15,31 +14,18 @@ import {
   AlertDialogCancel,
 } from "./components/ui/alert-dialog";
 import AppLayout from "./components/AppLayout";
-import Terminal from "./Terminal";
-import SecretList from "./SecretList";
 import AgentForm from "./AgentForm";
 import { ChevronLeft, Pencil } from "lucide-react";
-import { type Agent, type BaseRecipe, type Secret, statusVariant, harnessLabel } from "./types";
-
-const agentSecretEvents = {
-  create: "create-agent-secret",
-  update: "update-agent-secret",
-  delete: "delete-agent-secret",
-};
+import { type Agent, statusVariant, harnessLabel } from "./types";
 
 export default function AgentShow({
   agent,
-  secrets,
-  baseRecipes = [],
   pushEvent,
 }: {
   agent: Agent;
-  secrets: Secret[];
-  baseRecipes?: BaseRecipe[];
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }) {
   const [editOpen, setEditOpen] = React.useState(false);
-  const showTerminal = agent.status === "active" || agent.status === "sleeping";
 
   return (
     <AppLayout>
@@ -66,8 +52,7 @@ export default function AgentShow({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Restart Agent</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will stop the current runner, re-run recipe scripts, and restart the agent. The VM will be
-                      preserved.
+                      This will stop the current runner and restart the agent. The VM will be preserved.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -82,22 +67,22 @@ export default function AgentShow({
             )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">Kill Agent</Button>
+                <Button variant="destructive">Delete Agent</Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Kill Agent</AlertDialogTitle>
+                  <AlertDialogTitle>Delete Agent</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will destroy the agent's VM entirely. The agent will need a full re-bootstrap on next start.
+                    This will stop the agent and permanently remove its workspace directory. This cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     className={buttonVariants({ variant: "destructive" })}
-                    onClick={() => pushEvent("kill-agent", {})}
+                    onClick={() => pushEvent("delete-agent", {})}
                   >
-                    Kill
+                    Delete
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -122,12 +107,14 @@ export default function AgentShow({
                 <dt className="text-sm font-medium text-muted-foreground">Model</dt>
                 <dd className="text-sm col-span-2">{agent.model || "Not set"}</dd>
               </div>
-              <div className="py-3 grid grid-cols-3 gap-4">
-                <dt className="text-sm font-medium text-muted-foreground">Harness</dt>
-                <dd className="text-sm col-span-2">
-                  <Badge variant="outline">{harnessLabel(agent.harness)}</Badge>
-                </dd>
-              </div>
+              {agent.harness && (
+                <div className="py-3 grid grid-cols-3 gap-4">
+                  <dt className="text-sm font-medium text-muted-foreground">Harness</dt>
+                  <dd className="text-sm col-span-2">
+                    <Badge variant="outline">{harnessLabel(agent.harness)}</Badge>
+                  </dd>
+                </div>
+              )}
               <div className="py-3 grid grid-cols-3 gap-4">
                 <dt className="text-sm font-medium text-muted-foreground">Status</dt>
                 <dd className="text-sm col-span-2">
@@ -140,59 +127,15 @@ export default function AgentShow({
                   <pre className="whitespace-pre-wrap font-sans">{agent.system_prompt || "Not set"}</pre>
                 </dd>
               </div>
-              {agent.scripts && agent.scripts.length > 0 && (
-                <div className="py-3 grid grid-cols-3 gap-4">
-                  <dt className="text-sm font-medium text-muted-foreground">Scripts</dt>
-                  <dd className="text-sm col-span-2 space-y-1">
-                    {agent.scripts.map((s) => (
-                      <div key={s.name} className="flex items-center gap-2">
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {s.name}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground font-mono truncate">{s.run}</span>
-                      </div>
-                    ))}
-                  </dd>
-                </div>
-              )}
             </dl>
           </CardContent>
         </Card>
-
-        <Tabs defaultValue={showTerminal ? "terminal" : "environment"}>
-          <TabsList>
-            <TabsTrigger value="terminal">Terminal</TabsTrigger>
-            <TabsTrigger value="environment">Environment</TabsTrigger>
-          </TabsList>
-          {showTerminal && (
-            <TabsContent value="terminal" forceMount className="data-[state=inactive]:hidden">
-              <Card>
-                <CardContent className="pt-6">
-                  <Terminal pushEvent={pushEvent} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
-          <TabsContent value="environment">
-            <Card>
-              <CardContent className="pt-6">
-                <SecretList
-                  secrets={secrets}
-                  pushEvent={pushEvent}
-                  events={agentSecretEvents}
-                  description="Environment variables specific to this agent. These override global secrets with the same key."
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
       </div>
 
       <AgentForm
         open={editOpen}
         title="Edit Agent"
         agent={agent}
-        baseRecipes={baseRecipes}
         pushEvent={pushEvent}
         onClose={() => setEditOpen(false)}
       />
