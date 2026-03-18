@@ -8,6 +8,7 @@ defmodule Shire.Agent.AgentManager do
   require Logger
 
   alias Shire.Agents
+  alias Shire.Constants
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
@@ -73,8 +74,8 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @outbox_poll_interval 2_000
-  # 15 minutes
-  @idle_threshold_ms 60_000 * 15
+  # 15 minutes (matches Constants.idle_threshold_ms/0)
+  @idle_threshold_ms 900_000
 
   defstruct [
     :agent_name,
@@ -147,7 +148,7 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def handle_continue(:spawn_runner, state) do
-    agent_dir = "/workspace/agents/#{state.agent_name}"
+    agent_dir = "#{Constants.agents_dir()}/#{state.agent_name}"
     kill_existing_runner(state.agent_name)
     env = load_env_vars()
 
@@ -185,7 +186,7 @@ defmodule Shire.Agent.AgentManager do
       "payload" => %{"text" => text}
     }
 
-    inbox_dir = "/workspace/agents/#{state.agent_name}/inbox"
+    inbox_dir = "#{Constants.agents_dir()}/#{state.agent_name}/inbox"
     filename = "#{envelope["ts"]}-#{random_suffix()}.json"
 
     state = %{state | last_activity: System.monotonic_time(:millisecond)}
@@ -333,7 +334,7 @@ defmodule Shire.Agent.AgentManager do
     if idle? do
       {:noreply, %{state | outbox_timer: schedule_outbox_poll()}}
     else
-      outbox_dir = "/workspace/agents/#{state.agent_name}/outbox"
+      outbox_dir = "#{Constants.agents_dir()}/#{state.agent_name}/outbox"
 
       case @vm.ls(outbox_dir) do
         {:ok, entries} ->
@@ -445,7 +446,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp setup_agent_workspace(agent_name) do
-    agent_dir = "/workspace/agents/#{agent_name}"
+    agent_dir = "#{Constants.agents_dir()}/#{agent_name}"
 
     # Create agent directory structure
     for subdir <- ["inbox", "outbox", "scripts", "documents", ".claude/skills"] do
@@ -479,7 +480,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp read_recipe(agent_name) do
-    path = "/workspace/agents/#{agent_name}/recipe.yaml"
+    path = "#{Constants.agents_dir()}/#{agent_name}/recipe.yaml"
 
     case @vm.cmd("cat", [path], []) do
       {:ok, content} ->
@@ -545,7 +546,7 @@ defmodule Shire.Agent.AgentManager do
     # Kill only this agent's runner process, not all runners on the shared VM
     @vm.cmd(
       "pkill",
-      ["-f", "agent-runner.ts --agent-dir /workspace/agents/#{agent_name}"],
+      ["-f", "agent-runner.ts --agent-dir #{Constants.agents_dir()}/#{agent_name}"],
       []
     )
 
@@ -577,7 +578,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp load_env_vars do
-    case @vm.cmd("cat", ["/workspace/.env"], []) do
+    case @vm.cmd("cat", [Constants.env_file()], []) do
       {:ok, content} ->
         content
         |> String.split("\n", trim: true)
@@ -731,10 +732,10 @@ defmodule Shire.Agent.AgentManager do
     state
   end
 
-  defp flush_and_broadcast_streaming(%{streaming_text: nil} = state), do: state
-
-  defp flush_and_broadcast_streaming(%{streaming_text: ""} = state),
-    do: %{state | streaming_text: nil}
+  defp flush_and_broadcast_streaming(%{streaming_text: text} = state)
+       when is_nil(text) or text == "" do
+    %{state | streaming_text: nil}
+  end
 
   defp flush_and_broadcast_streaming(state) do
     case Agents.create_message(%{
@@ -759,20 +760,6 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp serialize_message(msg) do
-    base = %{id: msg.id, role: msg.role, ts: msg.inserted_at |> to_string()}
-
-    case msg.role do
-      "tool_use" ->
-        Map.merge(base, %{
-          tool: msg.content["tool"],
-          tool_use_id: msg.content["tool_use_id"],
-          input: msg.content["input"],
-          output: msg.content["output"],
-          is_error: msg.content["is_error"] || false
-        })
-
-      _ ->
-        Map.put(base, :text, msg.content["text"])
-    end
+    Shire.Agents.Message.serialize(msg)
   end
 end

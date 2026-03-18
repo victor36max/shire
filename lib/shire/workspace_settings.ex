@@ -4,13 +4,15 @@ defmodule Shire.WorkspaceSettings do
   Talks directly to the VM module — no GenServer, no blocking the Coordinator.
   """
 
+  alias Shire.Constants
+
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
   # --- Environment ---
 
   @doc "Reads `/workspace/.env` from the VM and returns it as a string."
   def read_env do
-    case @vm.cmd("bash", ["-c", "test -f /workspace/.env && cat /workspace/.env || echo ''"], []) do
+    case @vm.cmd("cat", [Constants.env_file()], []) do
       {:ok, output} -> {:ok, output}
       {:error, _} -> {:ok, ""}
     end
@@ -18,7 +20,7 @@ defmodule Shire.WorkspaceSettings do
 
   @doc "Writes the given string to `/workspace/.env` on the VM."
   def write_env(content) do
-    case @vm.write("/workspace/.env", content) do
+    case @vm.write(Constants.env_file(), content) do
       :ok -> :ok
       {:error, reason} -> {:error, reason}
     end
@@ -28,11 +30,7 @@ defmodule Shire.WorkspaceSettings do
 
   @doc "Lists script filenames in `/workspace/.scripts/`."
   def list_scripts do
-    case @vm.cmd(
-           "bash",
-           ["-c", "test -d /workspace/.scripts && ls /workspace/.scripts || echo ''"],
-           []
-         ) do
+    case @vm.cmd("ls", [Constants.scripts_dir()], []) do
       {:ok, output} ->
         names =
           output
@@ -66,24 +64,20 @@ defmodule Shire.WorkspaceSettings do
 
   @doc "Reads a script file from `/workspace/.scripts/{name}`."
   def read_script(name) do
-    path = "/workspace/.scripts/#{name}"
+    path = "#{Constants.scripts_dir()}/#{name}"
 
-    case @vm.cmd("bash", ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"], []) do
+    case @vm.cmd("cat", [path], []) do
       {:ok, output} ->
-        if String.trim(output) == "__NOT_FOUND__" do
-          {:error, :not_found}
-        else
-          {:ok, output}
-        end
+        {:ok, output}
 
-      {:error, reason} ->
-        {:error, reason}
+      {:error, _reason} ->
+        {:error, :not_found}
     end
   end
 
   @doc "Writes a script file to `/workspace/.scripts/{name}`."
   def write_script(name, content) do
-    path = "/workspace/.scripts/#{name}"
+    path = "#{Constants.scripts_dir()}/#{name}"
 
     with :ok <- @vm.write(path, content),
          {:ok, _} <- @vm.cmd("chmod", ["+x", path], []) do
@@ -95,17 +89,23 @@ defmodule Shire.WorkspaceSettings do
 
   @doc "Deletes a script file from `/workspace/.scripts/{name}`."
   def delete_script(name) do
-    path = "/workspace/.scripts/#{name}"
+    path = "#{Constants.scripts_dir()}/#{name}"
     @vm.cmd("rm", ["-f", path], [])
     :ok
   end
 
   @doc "Runs a script from `/workspace/.scripts/{name}` and returns output."
   def run_script(name) do
-    path = "/workspace/.scripts/#{name}"
-    script_cmd = "[ -f /workspace/.env ] && set -a && . /workspace/.env && set +a; bash #{path}"
+    path = "#{Constants.scripts_dir()}/#{name}"
 
-    case @vm.cmd("bash", ["-c", script_cmd], timeout: 120_000) do
+    env_file = Constants.env_file()
+
+    # Source .env if present, then execute the script directly — no interpolation into the shell string
+    case @vm.cmd(
+           "bash",
+           ["-c", "[ -f \"$1\" ] && set -a && . \"$1\" && set +a; exec \"$2\"", "--", env_file, path],
+           timeout: 120_000
+         ) do
       {:ok, output} -> {:ok, output}
       {:error, reason} -> {:error, reason}
     end

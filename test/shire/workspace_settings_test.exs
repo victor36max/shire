@@ -12,7 +12,7 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "read_env/0" do
     test "returns {:ok, string} with VM content" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts ->
+      stub(Shire.VirtualMachineMock, :cmd, fn "cat", ["/workspace/.env"], _opts ->
         {:ok, "MY_VAR=hello\n"}
       end)
 
@@ -21,8 +21,8 @@ defmodule Shire.WorkspaceSettingsTest do
     end
 
     test "returns {:ok, empty string} when .env does not exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts ->
-        {:ok, ""}
+      stub(Shire.VirtualMachineMock, :cmd, fn "cat", ["/workspace/.env"], _opts ->
+        {:error, :not_found}
       end)
 
       assert {:ok, ""} = WorkspaceSettings.read_env()
@@ -47,13 +47,15 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "list_scripts/0" do
     test "returns {:ok, []} when no scripts exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :cmd, fn "ls", ["/workspace/.scripts"], _opts ->
+        {:error, :not_found}
+      end)
 
       assert {:ok, []} = WorkspaceSettings.list_scripts()
     end
 
     test "returns {:ok, list} with .sh filenames when scripts exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts ->
+      stub(Shire.VirtualMachineMock, :cmd, fn "ls", ["/workspace/.scripts"], _opts ->
         {:ok, "deploy.sh\nsetup.sh\nreadme.txt\n"}
       end)
 
@@ -66,15 +68,15 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "read_all_scripts/0" do
     test "returns scripts with content" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", ["-c", cmd], _opts ->
-        cond do
-          String.contains?(cmd, "ls /workspace/.scripts") ->
+      stub(Shire.VirtualMachineMock, :cmd, fn cmd, args, _opts ->
+        case {cmd, args} do
+          {"ls", ["/workspace/.scripts"]} ->
             {:ok, "setup.sh\n"}
 
-          String.contains?(cmd, "cat /workspace/.scripts/setup.sh") ->
+          {"cat", ["/workspace/.scripts/setup.sh"]} ->
             {:ok, "#!/bin/bash\necho hi"}
 
-          true ->
+          _ ->
             {:ok, ""}
         end
       end)
@@ -84,7 +86,9 @@ defmodule Shire.WorkspaceSettingsTest do
     end
 
     test "returns empty list when no scripts" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :cmd, fn "ls", ["/workspace/.scripts"], _opts ->
+        {:error, :not_found}
+      end)
 
       assert {:ok, []} = WorkspaceSettings.read_all_scripts()
     end
@@ -118,8 +122,9 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "run_script/1" do
     test "runs script and returns output" do
-      expect(Shire.VirtualMachineMock, :cmd, fn "bash", ["-c", cmd], _opts ->
-        assert String.contains?(cmd, "/workspace/.scripts/setup.sh")
+      expect(Shire.VirtualMachineMock, :cmd, fn "bash", ["-c", _script, "--", _env_file, path],
+                                                _opts ->
+        assert String.ends_with?(path, "/workspace/.scripts/setup.sh")
         {:ok, "done\n"}
       end)
 

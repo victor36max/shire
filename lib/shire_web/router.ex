@@ -33,6 +33,12 @@ defmodule ShireWeb.Router do
     get "/shared/download", SharedDriveController, :download
   end
 
+  scope "/", ShireWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :index
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", ShireWeb do
   #   pipe_through :api

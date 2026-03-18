@@ -195,8 +195,8 @@ defmodule Shire.Agent.CoordinatorTest do
 
   describe "get_agent/1" do
     test "returns {:error, :not_found} when agent does not exist on VM" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts ->
-        {:ok, "__NOT_FOUND__"}
+      stub(Shire.VirtualMachineMock, :cmd, fn "cat", _args, _opts ->
+        {:error, :not_found}
       end)
 
       result = Coordinator.get_agent("coord-get-test-nonexistent")
@@ -212,7 +212,7 @@ defmodule Shire.Agent.CoordinatorTest do
       system_prompt: You are helpful.
       """
 
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts ->
+      stub(Shire.VirtualMachineMock, :cmd, fn "cat", _args, _opts ->
         {:ok, recipe_yaml}
       end)
 
@@ -263,7 +263,8 @@ defmodule Shire.Agent.CoordinatorTest do
 
       stub(Shire.VirtualMachineMock, :cmd, fn cmd, args, _opts ->
         case {cmd, args} do
-          {"bash", ["-c", "test -d " <> _]} -> {:ok, "missing\n"}
+          # test -d: exit code non-zero means directory does not exist
+          {"test", ["-d", _dir]} -> {:error, :not_found}
           {"mkdir", _} -> {:ok, ""}
           _ -> {:ok, ""}
         end
@@ -288,16 +289,16 @@ defmodule Shire.Agent.CoordinatorTest do
       unique_name = "coord-dup-test-#{System.unique_integer([:positive])}"
       agent_dir = "/workspace/agents/#{unique_name}"
 
-      # First call: agent does not exist
-      # Second call: agent already exists
+      # First call: agent does not exist (error = not found)
+      # Second call: agent already exists (ok = directory exists)
       call_count = :counters.new(1, [])
 
       stub(Shire.VirtualMachineMock, :cmd, fn cmd, args, _opts ->
         case {cmd, args} do
-          {"bash", ["-c", "test -d " <> _]} ->
+          {"test", ["-d", _dir]} ->
             :counters.add(call_count, 1, 1)
             n = :counters.get(call_count, 1)
-            if n <= 1, do: {:ok, "missing\n"}, else: {:ok, "exists\n"}
+            if n <= 1, do: {:error, :not_found}, else: {:ok, ""}
 
           {"mkdir", _} ->
             {:ok, ""}

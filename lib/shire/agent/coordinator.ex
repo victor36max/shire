@@ -8,6 +8,7 @@ defmodule Shire.Agent.Coordinator do
   require Logger
 
   alias Shire.Agent.AgentManager
+  alias Shire.Constants
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
@@ -94,44 +95,48 @@ defmodule Shire.Agent.Coordinator do
   @impl true
   def handle_continue(:deploy_and_scan, state) do
     case Shire.WorkspaceSettings.bootstrap_workspace() do
-      :ok -> :ok
-      {:error, reason} -> Logger.error("Bootstrap failed: #{inspect(reason)}")
-    end
-
-    case deploy_runner() do
-      :ok -> :ok
-      {:error, reason} -> Logger.error("Runner deployment failed: #{inspect(reason)}")
-    end
-
-    {:ok, agent_names} = scan_agent_dirs()
-
-    monitors =
-      Enum.reduce(agent_names, state.monitors, fn name, acc ->
-        case start_agent_manager(name, acc) do
-          {:ok, _pid, updated_monitors} -> updated_monitors
-          {:error, _} -> acc
+      :ok ->
+        case deploy_runner() do
+          :ok -> :ok
+          {:error, reason} -> Logger.error("Runner deployment failed: #{inspect(reason)}")
         end
-      end)
 
-    Logger.info("Scanned and started #{length(agent_names)} agents")
-    {:noreply, %{state | monitors: monitors}}
+        agent_names =
+          case scan_agent_dirs() do
+            {:ok, names} -> names
+            {:error, reason} ->
+              Logger.error("scan_agent_dirs failed: #{inspect(reason)}")
+              []
+          end
+
+        monitors =
+          Enum.reduce(agent_names, state.monitors, fn name, acc ->
+            case start_agent_manager(name, acc) do
+              {:ok, _pid, updated_monitors} -> updated_monitors
+              {:error, _} -> acc
+            end
+          end)
+
+        Logger.info("Scanned and started #{length(agent_names)} agents")
+        {:noreply, %{state | monitors: monitors}}
+
+      {:error, reason} ->
+        Logger.error("Bootstrap failed: #{inspect(reason)}")
+        {:stop, {:bootstrap_failed, reason}, state}
+    end
   end
 
   @impl true
   def handle_call({:create_agent, %{"name" => name, "recipe_yaml" => recipe_yaml}}, _from, state) do
-    agent_dir = "/workspace/agents/#{name}"
+    agent_dir = "#{Constants.agents_dir()}/#{name}"
 
-    # Check if agent already exists (exit codes unreliable via Sprites, use echo)
-    case @vm.cmd("bash", ["-c", "test -d #{agent_dir} && echo exists || echo missing"], []) do
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
+    # Check if agent already exists using direct test command (exit code 0 = exists)
+    case @vm.cmd("test", ["-d", agent_dir], []) do
+      {:ok, _} ->
+        {:reply, {:error, :already_exists}, state}
 
-      {:ok, output} ->
-        if String.trim(output) == "exists" do
-          {:reply, {:error, :already_exists}, state}
-        else
-          create_agent_on_vm(name, agent_dir, recipe_yaml, state)
-        end
+      {:error, _} ->
+        create_agent_on_vm(name, agent_dir, recipe_yaml, state)
     end
   end
 
@@ -142,7 +147,7 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_call({:update_agent, name, %{"recipe_yaml" => recipe_yaml}}, _from, state) do
-    agent_dir = "/workspace/agents/#{name}"
+    agent_dir = "#{Constants.agents_dir()}/#{name}"
 
     case @vm.write("#{agent_dir}/recipe.yaml", recipe_yaml) do
       :ok ->
@@ -184,7 +189,7 @@ defmodule Shire.Agent.Coordinator do
     if ref, do: Process.demonitor(ref, [:flush])
 
     # Remove agent directory from VM
-    case @vm.cmd("rm", ["-rf", "/workspace/agents/#{agent_name}"], []) do
+    case @vm.cmd("rm", ["-rf", "#{Constants.agents_dir()}/#{agent_name}"], []) do
       {:ok, _} ->
         :ok
 
@@ -237,7 +242,11 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_call(:list_agents, _from, state) do
-    {:ok, names} = scan_agent_dirs()
+    names =
+      case scan_agent_dirs() do
+        {:ok, n} -> n
+        {:error, _reason} -> []
+      end
 
     agents =
       Enum.map(names, fn name ->
@@ -358,37 +367,30 @@ defmodule Shire.Agent.Coordinator do
   end
 
   defp scan_agent_dirs do
-    cmd = ~s(for d in /workspace/agents/*/; do test -f "$d/recipe.yaml" && basename "$d"; done)
+    agents_dir = Constants.agents_dir()
+    cmd = "for d in #{agents_dir}/*/; do test -f \"$d/recipe.yaml\" && basename \"$d\"; done"
 
     case @vm.cmd("bash", ["-c", cmd], []) do
       {:ok, output} ->
         names = String.split(output, "\n", trim: true)
         {:ok, names}
 
-      {:error, _} ->
-        {:ok, []}
+      {:error, reason} ->
+        {:error, reason}
     end
-  rescue
-    e ->
-      Logger.error("scan_agent_dirs crashed: #{inspect(e)}")
-      {:ok, []}
   end
 
   defp read_agent_recipe(agent_name) do
-    path = "/workspace/agents/#{agent_name}/recipe.yaml"
+    path = "#{Constants.agents_dir()}/#{agent_name}/recipe.yaml"
 
-    case @vm.cmd("bash", ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"], []) do
-      {:error, reason} ->
-        {:error, reason}
+    case @vm.cmd("cat", [path], []) do
+      {:error, _reason} ->
+        {:error, :not_found}
 
       {:ok, output} ->
-        if String.trim(output) == "__NOT_FOUND__" do
-          {:error, :not_found}
-        else
-          case YamlElixir.read_from_string(output) do
-            {:ok, recipe} -> {:ok, recipe}
-            {:error, reason} -> {:error, reason}
-          end
+        case YamlElixir.read_from_string(output) do
+          {:ok, recipe} -> {:ok, recipe}
+          {:error, reason} -> {:error, reason}
         end
     end
   end
