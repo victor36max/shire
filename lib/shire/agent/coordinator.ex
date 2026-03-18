@@ -470,42 +470,46 @@ defmodule Shire.Agent.Coordinator do
 
     if ref, do: Process.demonitor(ref, [:flush])
 
-    # Rename directory on VM
-    case @vm.cmd("mv", [old_dir, new_dir], []) do
-      {:ok, _} ->
-        # Write updated recipe
-        @vm.write("#{new_dir}/recipe.yaml", recipe_yaml)
+    # Rename directory on VM (use bash + echo since exit codes are unreliable via Sprites)
+    case @vm.cmd("bash", ["-c", "mv #{old_dir} #{new_dir} && echo OK || echo FAIL"], []) do
+      {:ok, output} ->
+        if String.trim(output) != "OK" do
+          {:reply, {:error, :rename_failed}, %{state | monitors: monitors}}
+        else
+          # Write updated recipe
+          @vm.write("#{new_dir}/recipe.yaml", recipe_yaml)
 
-        # Migrate messages in DB
-        Shire.Agents.rename_agent_messages(old_name, new_name)
+          # Migrate messages in DB
+          Shire.Agents.rename_agent_messages(old_name, new_name)
 
-        # Clean up old status
-        statuses = state.statuses |> Map.delete(old_name)
+          # Clean up old status
+          statuses = state.statuses |> Map.delete(old_name)
 
-        # Start new AgentManager under new name
-        case start_agent_manager(new_name, monitors) do
-          {:ok, _pid, monitors} ->
-            Phoenix.PubSub.broadcast(
-              Shire.PubSub,
-              "agents:lobby",
-              {:agent_renamed, old_name, new_name}
-            )
+          # Start new AgentManager under new name
+          case start_agent_manager(new_name, monitors) do
+            {:ok, _pid, monitors} ->
+              Phoenix.PubSub.broadcast(
+                Shire.PubSub,
+                "agents:lobby",
+                {:agent_renamed, old_name, new_name}
+              )
 
-            {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
+              {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
 
-          {:error, reason} ->
-            # Agent was renamed on disk but couldn't start — still report success
-            Logger.warning(
-              "Renamed #{old_name} -> #{new_name} but failed to start: #{inspect(reason)}"
-            )
+            {:error, reason} ->
+              # Agent was renamed on disk but couldn't start — still report success
+              Logger.warning(
+                "Renamed #{old_name} -> #{new_name} but failed to start: #{inspect(reason)}"
+              )
 
-            Phoenix.PubSub.broadcast(
-              Shire.PubSub,
-              "agents:lobby",
-              {:agent_renamed, old_name, new_name}
-            )
+              Phoenix.PubSub.broadcast(
+                Shire.PubSub,
+                "agents:lobby",
+                {:agent_renamed, old_name, new_name}
+              )
 
-            {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
+              {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
+          end
         end
 
       {:error, reason} ->
