@@ -1,6 +1,6 @@
 import Config
 
-if config_env() in [:dev, :test] do
+if config_env() in [:dev, :test] and File.exists?(".env") do
   DotenvParser.load_file(".env")
 end
 
