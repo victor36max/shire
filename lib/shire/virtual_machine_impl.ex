@@ -20,6 +20,8 @@ defmodule Shire.VirtualMachineImpl do
   @default_cmd_timeout 30_000
   @ready_retries 6
   @ready_backoff 5_000
+  @ping_interval 2_000
+  @keepalive_duration :timer.minutes(30)
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -152,7 +154,7 @@ defmodule Shire.VirtualMachineImpl do
       case init_shared_vm(token) do
         {:ok, sprite, fs} ->
           Logger.info("Shared VM #{get_sprite_name()} ready")
-          {:ok, %{sprite: sprite, fs: fs}}
+          {:ok, %{sprite: sprite, fs: fs, ping_timer: nil, ping_until: nil}}
 
         {:error, reason} ->
           Logger.error("Failed to initialize shared VM: #{inspect(reason)}")
@@ -160,7 +162,7 @@ defmodule Shire.VirtualMachineImpl do
       end
     else
       Logger.warning("No SPRITES_TOKEN configured — VM features disabled")
-      {:ok, %{sprite: nil, fs: nil}}
+      {:ok, %{sprite: nil, fs: nil, ping_timer: nil, ping_until: nil}}
     end
   end
 
@@ -191,7 +193,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, state}
+    {:reply, result, touch_keepalive(state)}
   end
 
   def handle_call({:read, _path}, _from, %{fs: nil} = state) do
@@ -209,7 +211,7 @@ defmodule Shire.VirtualMachineImpl do
           err
       end
 
-    {:reply, result, state}
+    {:reply, result, touch_keepalive(state)}
   end
 
   def handle_call({:write, _path, _content}, _from, %{fs: nil} = state) do
@@ -227,7 +229,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, state}
+    {:reply, result, touch_keepalive(state)}
   end
 
   def handle_call({:mkdir_p, _path}, _from, %{fs: nil} = state) do
@@ -245,7 +247,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, state}
+    {:reply, result, touch_keepalive(state)}
   end
 
   def handle_call({:rm, _path}, _from, %{fs: nil} = state) do
@@ -263,7 +265,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, state}
+    {:reply, result, touch_keepalive(state)}
   end
 
   def handle_call({:rm_rf, _path}, _from, %{fs: nil} = state) do
@@ -281,7 +283,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, state}
+    {:reply, result, touch_keepalive(state)}
   end
 
   def handle_call({:ls, _path}, _from, %{fs: nil} = state) do
@@ -299,7 +301,7 @@ defmodule Shire.VirtualMachineImpl do
           err
       end
 
-    {:reply, result, state}
+    {:reply, result, touch_keepalive(state)}
   end
 
   def handle_call({:stat, _path}, _from, %{fs: nil} = state) do
@@ -317,11 +319,34 @@ defmodule Shire.VirtualMachineImpl do
           err
       end
 
-    {:reply, result, state}
+    {:reply, result, touch_keepalive(state)}
   end
 
   def handle_call(:get_sprite, _from, state) do
-    {:reply, state.sprite, state}
+    {:reply, state.sprite, touch_keepalive(state)}
+  end
+
+  @impl GenServer
+  def handle_info(:ping_vm, %{sprite: nil} = state) do
+    {:noreply, %{state | ping_timer: nil, ping_until: nil}}
+  end
+
+  def handle_info(:ping_vm, state) do
+    now = System.monotonic_time(:millisecond)
+
+    if state.ping_until && now < state.ping_until do
+      Task.start(fn ->
+        try do
+          Sprites.cmd(state.sprite, "echo", ["ping"], timeout: 5_000)
+        rescue
+          _ -> :ok
+        end
+      end)
+
+      {:noreply, schedule_ping(state)}
+    else
+      {:noreply, %{state | ping_timer: nil, ping_until: nil}}
+    end
   end
 
   @impl GenServer
@@ -392,5 +417,21 @@ defmodule Shire.VirtualMachineImpl do
   # GenServer call timeout: use the command timeout + 5s buffer
   defp call_timeout(opts) do
     (Keyword.get(opts, :timeout, @default_cmd_timeout) || @default_cmd_timeout) + 5_000
+  end
+
+  defp schedule_ping(state) do
+    timer = Process.send_after(self(), :ping_vm, @ping_interval)
+    %{state | ping_timer: timer}
+  end
+
+  defp touch_keepalive(state) do
+    ping_until = System.monotonic_time(:millisecond) + @keepalive_duration
+    state = %{state | ping_until: ping_until}
+
+    if state.ping_timer do
+      state
+    else
+      schedule_ping(state)
+    end
   end
 end
