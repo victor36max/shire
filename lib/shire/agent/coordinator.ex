@@ -49,41 +49,6 @@ defmodule Shire.Agent.Coordinator do
     AgentManager.send_message(agent_name, text, :user)
   end
 
-  @doc "Reads `/workspace/.env` from the VM and returns it as a string."
-  def read_env do
-    GenServer.call(__MODULE__, :read_env, 15_000)
-  end
-
-  @doc "Writes the given string to `/workspace/.env` on the VM."
-  def write_env(content) do
-    GenServer.call(__MODULE__, {:write_env, content}, 15_000)
-  end
-
-  @doc "Lists script filenames in `/workspace/.scripts/`."
-  def list_scripts do
-    GenServer.call(__MODULE__, :list_scripts, 15_000)
-  end
-
-  @doc "Reads a script file from `/workspace/.scripts/{name}`."
-  def read_script(name) do
-    GenServer.call(__MODULE__, {:read_script, name}, 15_000)
-  end
-
-  @doc "Writes a script file to `/workspace/.scripts/{name}`."
-  def write_script(name, content) do
-    GenServer.call(__MODULE__, {:write_script, name, content}, 15_000)
-  end
-
-  @doc "Deletes a script file from `/workspace/.scripts/{name}`."
-  def delete_script(name) do
-    GenServer.call(__MODULE__, {:delete_script, name}, 15_000)
-  end
-
-  @doc "Runs a script from `/workspace/.scripts/{name}` and returns output."
-  def run_script(name) do
-    GenServer.call(__MODULE__, {:run_script, name}, 120_000)
-  end
-
   @doc "Look up a running agent's pid by name."
   def lookup(agent_name) do
     case Registry.lookup(Shire.AgentRegistry, agent_name) do
@@ -128,7 +93,7 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_continue(:deploy_and_scan, state) do
-    case run_bootstrap() do
+    case Shire.WorkspaceSettings.bootstrap_workspace() do
       :ok -> :ok
       {:error, reason} -> Logger.error("Bootstrap failed: #{inspect(reason)}")
     end
@@ -270,97 +235,6 @@ defmodule Shire.Agent.Coordinator do
     {:reply, result, state}
   end
 
-  # --- Env / Scripts ---
-
-  @impl true
-  def handle_call(:read_env, _from, state) do
-    # Use bash -c to handle missing file (exit codes unreliable via Sprites)
-    case @vm.cmd("bash", ["-c", "test -f /workspace/.env && cat /workspace/.env || echo ''"], []) do
-      {:ok, output} -> {:reply, {:ok, output}, state}
-      {:error, _} -> {:reply, {:ok, ""}, state}
-    end
-  end
-
-  @impl true
-  def handle_call({:write_env, content}, _from, state) do
-    case @vm.write("/workspace/.env", content) do
-      :ok -> {:reply, :ok, state}
-      {:error, reason} -> {:reply, {:error, reason}, state}
-    end
-  end
-
-  @impl true
-  def handle_call(:list_scripts, _from, state) do
-    # Use bash -c to handle missing dir (exit codes unreliable via Sprites)
-    case @vm.cmd(
-           "bash",
-           ["-c", "test -d /workspace/.scripts && ls /workspace/.scripts || echo ''"],
-           []
-         ) do
-      {:ok, output} ->
-        names =
-          output
-          |> String.split("\n", trim: true)
-          |> Enum.filter(&String.ends_with?(&1, ".sh"))
-
-        {:reply, {:ok, names}, state}
-
-      {:error, _} ->
-        {:reply, {:ok, []}, state}
-    end
-  end
-
-  @impl true
-  def handle_call({:read_script, name}, _from, state) do
-    path = "/workspace/.scripts/#{name}"
-
-    case @vm.cmd("bash", ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"], []) do
-      {:ok, output} ->
-        result =
-          if String.trim(output) == "__NOT_FOUND__" do
-            {:error, :not_found}
-          else
-            {:ok, output}
-          end
-
-        {:reply, result, state}
-
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
-    end
-  end
-
-  @impl true
-  def handle_call({:write_script, name, content}, _from, state) do
-    path = "/workspace/.scripts/#{name}"
-
-    with :ok <- @vm.write(path, content),
-         {:ok, _} <- @vm.cmd("chmod", ["+x", path], []) do
-      {:reply, :ok, state}
-    else
-      {:error, reason} -> {:reply, {:error, reason}, state}
-    end
-  end
-
-  @impl true
-  def handle_call({:delete_script, name}, _from, state) do
-    path = "/workspace/.scripts/#{name}"
-    @vm.cmd("rm", ["-f", path], [])
-    {:reply, :ok, state}
-  end
-
-  @impl true
-  def handle_call({:run_script, name}, _from, state) do
-    path = "/workspace/.scripts/#{name}"
-    # Source .env before running the script so env vars are available
-    script_cmd = "[ -f /workspace/.env ] && set -a && . /workspace/.env && set +a; bash #{path}"
-
-    case @vm.cmd("bash", ["-c", script_cmd], timeout: 120_000) do
-      {:ok, output} -> {:reply, {:ok, output}, state}
-      {:error, reason} -> {:reply, {:error, reason}, state}
-    end
-  end
-
   @impl true
   def handle_call(:list_agents, _from, state) do
     {:ok, names} = scan_agent_dirs()
@@ -447,15 +321,6 @@ defmodule Shire.Agent.Coordinator do
   end
 
   # --- Private ---
-
-  defp run_bootstrap do
-    script = File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
-
-    case @vm.cmd("bash", ["-c", script], timeout: 120_000) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
-  end
 
   defp deploy_runner do
     runner_dir = Application.app_dir(:shire, "priv/sprite")

@@ -73,7 +73,8 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @outbox_poll_interval 2_000
-  @idle_threshold_ms 60_000 * 15 # 15 minutes
+  # 15 minutes
+  @idle_threshold_ms 60_000 * 15
 
   defstruct [
     :agent_name,

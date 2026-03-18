@@ -113,6 +113,48 @@ describe("ChatPanel", () => {
     expect(screen.getByText("thinking...")).toBeInTheDocument();
   });
 
+  it("renders inter-agent message collapsed by default", () => {
+    const interAgentMsg: Message = {
+      id: 10,
+      role: "inter_agent",
+      text: "Here is the analysis result",
+      from_agent: "researcher",
+      ts: "2026-03-17T00:00:03Z",
+    };
+    render(<ChatPanel agent={activeAgent} messages={[interAgentMsg]} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Message from researcher")).toBeInTheDocument();
+    expect(screen.queryByText("Here is the analysis result")).not.toBeInTheDocument();
+  });
+
+  it("expands inter-agent message on click", async () => {
+    const interAgentMsg: Message = {
+      id: 10,
+      role: "inter_agent",
+      text: "Here is the analysis result",
+      from_agent: "researcher",
+      ts: "2026-03-17T00:00:03Z",
+    };
+    render(<ChatPanel agent={activeAgent} messages={[interAgentMsg]} pushEvent={vi.fn()} />);
+    await userEvent.click(screen.getByText("Message from researcher"));
+    expect(screen.getByText("Here is the analysis result")).toBeInTheDocument();
+  });
+
+  it("collapses inter-agent message on second click", async () => {
+    const interAgentMsg: Message = {
+      id: 10,
+      role: "inter_agent",
+      text: "Here is the analysis result",
+      from_agent: "researcher",
+      ts: "2026-03-17T00:00:03Z",
+    };
+    render(<ChatPanel agent={activeAgent} messages={[interAgentMsg]} pushEvent={vi.fn()} />);
+    const toggle = screen.getByText("Message from researcher");
+    await userEvent.click(toggle);
+    expect(screen.getByText("Here is the analysis result")).toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(screen.queryByText("Here is the analysis result")).not.toBeInTheDocument();
+  });
+
   it("shows thinking indicator when agent is busy", () => {
     const busyAgent = { ...activeAgent, busy: true };
     render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
