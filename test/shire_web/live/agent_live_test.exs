@@ -25,19 +25,6 @@ defmodule ShireWeb.AgentLiveTest do
       assert html =~ "AgentDashboard"
     end
 
-    test "handles {:status, _} from agent topic without crashing", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      Phoenix.PubSub.broadcast(
-        Shire.PubSub,
-        "agent:some-agent",
-        {:status, :active}
-      )
-
-      html = render(view)
-      assert html =~ "AgentDashboard"
-    end
-
     test "handles {:agent_status, agent_name, status} from lobby", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
@@ -172,6 +159,36 @@ defmodule ShireWeb.AgentLiveTest do
       )
 
       # Give it a moment to process
+      html = render(view)
+      assert html =~ "AgentDashboard"
+    end
+
+    # --- PubSub: agent_updated refreshes agents list ---
+
+    test "agent_updated broadcast refreshes agents list", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "agents:lobby",
+        {:agent_updated, "some-agent"}
+      )
+
+      html = render(view)
+      assert html =~ "AgentDashboard"
+    end
+
+    # --- PubSub: agent_deleted refreshes agents list ---
+
+    test "agent_deleted broadcast refreshes agents list", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "agents:lobby",
+        {:agent_deleted, "some-agent"}
+      )
+
       html = render(view)
       assert html =~ "AgentDashboard"
     end

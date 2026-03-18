@@ -207,11 +207,6 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
-  def handle_info({:status, _status}, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
   def handle_info({:agent_busy, agent_name, active}, socket) do
     busy_agents =
       if active do
@@ -242,16 +237,62 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
+  def handle_info({:agent_updated, name}, socket) do
+    agents = Coordinator.list_agents()
+
+    selected_agent =
+      if socket.assigns.selected_agent_name == name do
+        case Coordinator.get_agent(name) do
+          {:ok, agent} -> agent
+          _ -> socket.assigns.selected_agent
+        end
+      else
+        socket.assigns.selected_agent
+      end
+
+    {:noreply, assign(socket, agents: agents, selected_agent: selected_agent)}
+  end
+
+  @impl true
+  def handle_info({:agent_deleted, name}, socket) do
+    agents = Coordinator.list_agents()
+
+    if socket.assigns.selected_agent_name == name do
+      {:noreply,
+       assign(socket,
+         agents: agents,
+         selected_agent_name: nil,
+         selected_agent: nil,
+         messages: []
+       )}
+    else
+      {:noreply, assign(socket, :agents, agents)}
+    end
+  end
+
+  @impl true
   def handle_info({:agent_status, agent_name, status}, socket) do
     statuses = Map.put(socket.assigns.agent_statuses, agent_name, status)
-    {:noreply, assign(socket, :agent_statuses, statuses)}
+
+    selected_agent =
+      if socket.assigns.selected_agent && socket.assigns.selected_agent_name == agent_name do
+        Map.put(socket.assigns.selected_agent, :status, status)
+      else
+        socket.assigns.selected_agent
+      end
+
+    {:noreply, assign(socket, agent_statuses: statuses, selected_agent: selected_agent)}
   end
 
   @impl true
   def render(assigns) do
     agents_with_busy =
       Enum.map(assigns.agents, fn agent ->
-        Map.put(agent, :busy, MapSet.member?(assigns.busy_agents, agent.name))
+        status = Map.get(assigns.agent_statuses, agent.name, agent.status)
+
+        agent
+        |> Map.put(:busy, MapSet.member?(assigns.busy_agents, agent.name))
+        |> Map.put(:status, status)
       end)
 
     assigns = assign(assigns, :agents_with_busy, agents_with_busy)

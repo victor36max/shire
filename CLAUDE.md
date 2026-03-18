@@ -5,12 +5,12 @@
 - **Backend:** Elixir / Phoenix 1.8 / Ecto / PostgreSQL
 - **Frontend:** LiveReact (React components inside Phoenix LiveView) + shadcn/ui (Radix + Tailwind v4)
 - **Build:** Vite (not esbuild), Bun (not npm/node)
-- **Encryption:** Cloak/CloakEcto for secrets at rest
 - **CSS:** Tailwind v4 with `@theme inline` + oklch CSS variables (shadcn default)
+- **VM:** Sprite VM (Firecracker), managed via `VirtualMachineImpl` GenServer
 - **Agent runtime:** Bun + multi-harness adapter pattern (Pi SDK, Claude Code CLI)
-- **Agent deployment:** Recipe-based (YAML recipes defining setup scripts per agent)
-- **Inter-agent comms:** Mailbox system with inbox/outbox directories + peer discovery via `peers.json`
-- **Shared drive:** Dedicated Sprite VM for shared files, synced to all agents
+- **Agent deployment:** Recipe-based (YAML recipes on the VM filesystem, no DB schema)
+- **Inter-agent comms:** File-based inbox/outbox directories + host-side outbox polling + peer discovery via `peers.json`
+- **Shared drive:** `/drive` on the VM, synced to all agents at `/workspace/shared/`
 
 ## Architecture: LiveView + React Split
 
@@ -25,7 +25,7 @@
 - Layout and rendering via shadcn/ui components
 
 **Key patterns:**
-- One page-level React component per LiveView (e.g., `AgentDashboard`, `AgentShow`, `SecretList`, `SettingsPage`, `SharedDrive`)
+- One page-level React component per LiveView (e.g., `AgentDashboard`, `AgentShow`, `SettingsPage`, `SharedDrive`)
 - React receives `pushEvent` as a prop from LiveReact to send events back to LiveView
 - Use specific event names like `create-agent`, `update-agent` instead of generic `save` (avoids dependency on `live_action`)
 - Shared `AppLayout` component wraps all pages with consistent padding/max-width
@@ -33,35 +33,35 @@
 
 ## Key Concepts
 
-**Recipe system:** Agents are defined by YAML recipes containing `name`, `description`, and `scripts` (array of `{name, run}` steps). Recipes are deployed to `/workspace/recipe.json` in the Sprite VM and executed idempotently by the agent runner with marker-file tracking in `/workspace/.recipe-state/`.
+**Sprite VM:** All agents run on a Sprite VM (Firecracker). The `Coordinator` bootstraps the VM on startup (runs `bootstrap.sh`, deploys the agent runner), then scans `/workspace/agents/` for existing recipes. Each agent gets its own directory under `/workspace/agents/{name}/`.
 
-**Inter-agent messaging:** The Coordinator routes messages between agents. Each agent has a mailbox with inbox/outbox directories on its Sprite VM. Peers are discovered via `peers.json`. Messages are delivered as files to `/workspace/mailbox/inbox/`.
+**Recipe system:** Agents are defined by YAML recipes containing `name`, `description`, `harness`, and `scripts` (array of `{name, run}` steps). Recipes live on the VM filesystem as `/workspace/agents/{name}/recipe.yaml` — no database schema. The agent runner executes setup scripts idempotently.
 
-**Shared drive:** A dedicated Sprite VM managed by `DriveSync` provides shared file storage at `/drive`. All agents sync to `/workspace/shared/`. File changes are broadcast via PubSub.
+**Agent lifecycle:** The `Coordinator` manages agent CRUD. Creating an agent writes `recipe.yaml` to the VM and starts an `AgentManager` under a `DynamicSupervisor`. Agents are registered by name in a `Registry`. The `AgentManager` bootstraps the agent workspace (inbox, outbox, scripts, documents dirs), writes communication prompts, and spawns the `agent-runner.ts` daemon.
 
-**Terminal sessions:** Interactive TTY sessions (`bash -i`) on Sprite VMs, bridged to LiveView via PubSub and rendered with xterm.js in React.
+**Inter-agent messaging:** File-based. Agents write JSON envelopes to their outbox directory. The `AgentManager` polls outbox every 2s (idle-aware — pauses after 15 min inactivity), reads messages, and routes them to the target agent's inbox via `AgentManager.send_message/3`. Messages are persisted to the DB with role `"inter_agent"`.
+
+**Shared drive:** `/drive` on the VM, synced to each agent at `/workspace/shared/`.
+
+**Terminal sessions:** Interactive TTY session (`bash -i`) on the VM, bridged to LiveView via PubSub and rendered with xterm.js in React.
 
 ## Folder Structure
 
 ```
 lib/
   shire/
-    application.ex           # OTP application (supervises DriveSync, Coordinator, DynamicSupervisor)
-    agents.ex                # Context: Agent + Secret + Message CRUD
+    application.ex           # OTP supervision tree (Registry, DynamicSupervisor, VirtualMachineImpl, Coordinator)
+    agents.ex                # Context: Message CRUD
     agents/
-      agent.ex               # Agent schema (recipe-based: recipe, is_base)
-      secret.ex              # Secret schema (Cloak-encrypted value)
-      message.ex             # Message schema (inter-agent communication)
+      message.ex             # Message schema (agent chat + inter-agent communication)
     agent/
-      agent_manager.ex       # Agent deployment, recipe execution, lifecycle management
-      coordinator.ex         # Agent lifecycle coordination, inter-agent message routing
-      drive_sync.ex          # Shared drive Sprite VM management + file sync
-      terminal_session.ex    # Interactive TTY sessions on Sprite VMs
-      sprite_helpers.ex      # Shared helpers for Sprites SDK filesystem operations
-    mailbox.ex               # Mailbox message envelope encoding/decoding, inbox writing
-    vault.ex                 # Cloak vault
-    encrypted/binary.ex      # Custom encrypted binary type
+      agent_manager.ex       # Per-agent GenServer: lifecycle, runner process, outbox polling, event persistence
+      coordinator.ex         # Central orchestrator: VM bootstrap, agent CRUD, message routing, env/scripts API
+      terminal_session.ex    # Interactive TTY session on the VM
+    virtual_machine.ex       # Behaviour defining VM operations (cmd, read, write, spawn_command, etc.)
+    virtual_machine_impl.ex  # GenServer wrapping Sprites SDK with error handling and timeouts
     mailer.ex
+    release.ex
     repo.ex
   shire_web/
     router.ex
@@ -83,10 +83,8 @@ lib/
       agent_live/
         index.ex             # Renders <.react name="AgentDashboard" />
         show.ex              # Renders <.react name="AgentShow" />
-        agent_streaming.ex   # Agent streaming support (SSE/PubSub bridge)
-        helpers.ex           # Shared LiveView helper functions
-      secret_live/
-        index.ex             # Renders <.react name="SecretList" />
+        agent_streaming.ex   # Agent event processing (JSONL parsing, PubSub bridge)
+        helpers.ex           # Message serialization helpers
       settings_live/
         index.ex             # Renders <.react name="SettingsPage" />
       shared_drive_live/
@@ -99,14 +97,13 @@ assets/
   react-components/
     AgentDashboard.tsx        # Main dashboard with agent sidebar + chat/welcome panel
     AgentSidebar.tsx          # Agent list sidebar for dashboard
-    AgentShow.tsx             # Agent detail page
+    AgentShow.tsx             # Agent detail page with edit form
     AgentForm.tsx             # Dialog form (controlled via open/onClose props)
-    ChatHeader.tsx            # Chat panel header with agent info
+    ChatHeader.tsx            # Chat panel header with agent info + status badge
     ChatPanel.tsx             # Chat/message panel for agent interaction
     WelcomePanel.tsx          # Welcome/empty state panel
-    ActivityLog.tsx           # Activity log display
-    SecretList.tsx            # Secrets page
-    SettingsPage.tsx          # Settings page
+    ActivityLog.tsx           # Inter-agent message timeline
+    SettingsPage.tsx          # Settings page (env, scripts, terminal, activity)
     SharedDrive.tsx           # Shared drive file browser (upload/delete/navigate)
     Terminal.tsx              # xterm.js interactive terminal via WebSocket bridge
     types.ts                 # Shared TypeScript type definitions
@@ -114,7 +111,7 @@ assets/
     components/
       AppLayout.tsx           # Shared layout wrapper
       Markdown.tsx            # React Markdown renderer (GitHub-flavored)
-      ui/                     # shadcn/ui components (button, card, dialog, alert-dialog, dropdown-menu, select, tabs, textarea, badge, table, etc.)
+      ui/                     # shadcn/ui components (button, card, dialog, alert-dialog, dropdown-menu, select, tabs, textarea, badge, table, input, label, etc.)
     lib/
       utils.ts                # cn() utility
   test/
@@ -125,20 +122,19 @@ assets/
     AgentSidebar.test.tsx
     ActivityLog.test.tsx
     ChatPanel.test.tsx
-    SecretList.test.tsx
     SettingsPage.test.tsx
     SharedDrive.test.tsx
     Terminal.test.tsx
 
 priv/sprite/                  # Agent runtime (Bun/TypeScript), deployed to /workspace/.runner/
-  agent-runner.ts             # Main agent runner (recipe execution + multi-harness daemon)
+  agent-runner.ts             # Main daemon: watches inbox, dispatches to harness, emits JSONL events
   bootstrap.sh                # VM bootstrap script (creates /workspace dirs)
   harness/
     types.ts                  # Harness interface definition
     index.ts                  # Harness factory (creates harness by type)
     pi-harness.ts             # Pi SDK harness adapter
     claude-code-harness.ts    # Claude Code CLI harness adapter
-  agent-runner.test.ts        # Agent runner tests (includes recipe execution tests)
+  agent-runner.test.ts        # Agent runner tests
   harness/
     pi-harness.test.ts        # Pi harness tests
     claude-code-harness.test.ts # Claude Code harness tests
