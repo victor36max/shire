@@ -338,6 +338,67 @@ defmodule Shire.Agent.CoordinatorTest do
     end
   end
 
+  describe "VM keep-alive ping" do
+    test "send_message starts pinging the VM" do
+      # Track cmd calls to detect pings
+      ping_count = :counters.new(1, [])
+
+      stub(Shire.VirtualMachineMock, :cmd, fn cmd, args, _opts ->
+        if cmd == "echo" and args == ["ping"] do
+          :counters.add(ping_count, 1, 1)
+        end
+
+        {:ok, ""}
+      end)
+
+      {:ok, _pid} = start_agent_manager(@agent_name)
+
+      # Put agent in active state so send_message works
+      {:ok, agent_pid} = Coordinator.lookup(@agent_name)
+      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), agent_pid)
+
+      ref = make_ref()
+
+      :sys.replace_state(agent_pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      # Send a message — this should trigger pinging
+      Coordinator.send_message(@agent_name, "hello")
+
+      # Wait for a few ping cycles (2s interval)
+      Process.sleep(5_000)
+
+      assert :counters.get(ping_count, 1) >= 2
+    end
+
+    test "new send_message extends the ping period" do
+      {:ok, _pid} = start_agent_manager(@agent_name)
+      {:ok, agent_pid} = Coordinator.lookup(@agent_name)
+      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), agent_pid)
+
+      ref = make_ref()
+
+      :sys.replace_state(agent_pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      Coordinator.send_message(@agent_name, "first")
+
+      # Get the initial ping_until
+      state1 = :sys.get_state(GenServer.whereis(Coordinator))
+      assert state1.ping_until != nil
+
+      Process.sleep(100)
+
+      Coordinator.send_message(@agent_name, "second")
+
+      # The ping_until should have been extended
+      state2 = :sys.get_state(GenServer.whereis(Coordinator))
+      assert state2.ping_until > state1.ping_until
+    end
+  end
+
   describe "create_agent/1" do
     test "creates agent directory structure on VM and starts AgentManager" do
       unique_name = "coord-create-test-#{System.unique_integer([:positive])}"
