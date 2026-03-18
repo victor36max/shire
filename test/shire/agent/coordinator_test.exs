@@ -261,12 +261,10 @@ defmodule Shire.Agent.CoordinatorTest do
       old_name = "coord-rename-old-#{System.unique_integer([:positive])}"
       new_name = "coord-rename-new-#{System.unique_integer([:positive])}"
 
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", ["-c", cmd_str], _opts ->
-        cond do
-          String.starts_with?(cmd_str, "test -d ") -> {:ok, "missing\n"}
-          String.starts_with?(cmd_str, "mv ") -> {:ok, "OK\n"}
-          true -> {:ok, ""}
-        end
+      stub(Shire.VirtualMachineMock, :cmd, fn
+        "bash", ["-c", "test -d " <> _], _opts -> {:ok, "missing\n"}
+        "bash", ["-c", "mv " <> _], _opts -> {:ok, "OK\n"}
+        _, _, _ -> {:ok, ""}
       end)
 
       stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
@@ -312,18 +310,10 @@ defmodule Shire.Agent.CoordinatorTest do
           content: %{"text" => "hello"}
         })
 
-      stub(Shire.VirtualMachineMock, :cmd, fn cmd, args, _opts ->
-        case {cmd, args} do
-          {"bash", ["-c", cmd_str]} ->
-            cond do
-              String.starts_with?(cmd_str, "test -d ") -> {:ok, "missing\n"}
-              String.starts_with?(cmd_str, "mv ") -> {:ok, "OK\n"}
-              true -> {:ok, ""}
-            end
-
-          _ ->
-            {:ok, ""}
-        end
+      stub(Shire.VirtualMachineMock, :cmd, fn
+        "bash", ["-c", "test -d " <> _], _opts -> {:ok, "missing\n"}
+        "bash", ["-c", "mv " <> _], _opts -> {:ok, "OK\n"}
+        _, _, _ -> {:ok, ""}
       end)
 
       stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
