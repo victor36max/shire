@@ -55,7 +55,8 @@ defmodule Shire.Agent.AgentManagerTest do
         %{state | command: %{ref: ref}, command_ref: ref, status: :active}
       end)
 
-      assert {:ok, %Shire.Agents.Message{}} = GenServer.call(pid, {:send_message, "hello from user", :user})
+      assert {:ok, %Shire.Agents.Message{}} =
+               GenServer.call(pid, {:send_message, "hello from user", :user})
 
       {messages, _} = Agents.list_messages_for_agent(@agent_name)
       user_msgs = Enum.filter(messages, &(&1.role == "user"))
@@ -445,11 +446,12 @@ defmodule Shire.Agent.AgentManagerTest do
       ref = make_ref()
 
       :sys.replace_state(pid, fn state ->
-        %{state |
-          command: %{ref: ref},
-          command_ref: ref,
-          status: :active,
-          last_activity: System.monotonic_time(:millisecond)
+        %{
+          state
+          | command: %{ref: ref},
+            command_ref: ref,
+            status: :active,
+            last_activity: System.monotonic_time(:millisecond)
         }
       end)
 
@@ -510,11 +512,12 @@ defmodule Shire.Agent.AgentManagerTest do
       ref = make_ref()
 
       :sys.replace_state(pid, fn state ->
-        %{state |
-          command: %{ref: ref},
-          command_ref: ref,
-          status: :active,
-          last_activity: System.monotonic_time(:millisecond)
+        %{
+          state
+          | command: %{ref: ref},
+            command_ref: ref,
+            status: :active,
+            last_activity: System.monotonic_time(:millisecond)
         }
       end)
 
@@ -537,11 +540,12 @@ defmodule Shire.Agent.AgentManagerTest do
       ref = make_ref()
 
       :sys.replace_state(pid, fn state ->
-        %{state |
-          command: %{ref: ref},
-          command_ref: ref,
-          status: :active,
-          last_activity: System.monotonic_time(:millisecond)
+        %{
+          state
+          | command: %{ref: ref},
+            command_ref: ref,
+            status: :active,
+            last_activity: System.monotonic_time(:millisecond)
         }
       end)
 
@@ -578,11 +582,12 @@ defmodule Shire.Agent.AgentManagerTest do
       ref = make_ref()
 
       :sys.replace_state(pid, fn state ->
-        %{state |
-          command: %{ref: ref},
-          command_ref: ref,
-          status: :active,
-          last_activity: System.monotonic_time(:millisecond) - 120_000
+        %{
+          state
+          | command: %{ref: ref},
+            command_ref: ref,
+            status: :active,
+            last_activity: System.monotonic_time(:millisecond) - 960_000
         }
       end)
 

@@ -2,7 +2,8 @@ defmodule ShireWeb.SettingsLive.Index do
   use ShireWeb, :live_view
 
   alias Shire.Agents
-  alias Shire.Agent.{Coordinator, TerminalSession}
+  alias Shire.Agent.TerminalSession
+  alias Shire.WorkspaceSettings
 
   @impl true
   def mount(_params, _session, socket) do
@@ -10,14 +11,14 @@ defmodule ShireWeb.SettingsLive.Index do
 
     # Load env and scripts from VM (best-effort, empty on failure)
     env_content =
-      case Coordinator.read_env() do
+      case WorkspaceSettings.read_env() do
         {:ok, content} -> content
         _ -> ""
       end
 
     scripts =
-      case Coordinator.list_scripts() do
-        {:ok, names} -> names
+      case WorkspaceSettings.read_all_scripts() do
+        {:ok, list} -> list
         _ -> []
       end
 
@@ -40,7 +41,7 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("save-env", %{"content" => content}, socket) do
-    case Coordinator.write_env(content) do
+    case WorkspaceSettings.write_env(content) do
       :ok ->
         {:noreply,
          socket
@@ -56,7 +57,7 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("save-script", %{"name" => name, "content" => content}, socket) do
-    case Coordinator.write_script(name, content) do
+    case WorkspaceSettings.write_script(name, content) do
       :ok ->
         scripts = refresh_scripts()
 
@@ -72,23 +73,17 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("delete-script", %{"name" => name}, socket) do
-    case Coordinator.delete_script(name) do
-      :ok ->
-        scripts = refresh_scripts()
+    :ok = WorkspaceSettings.delete_script(name)
 
-        {:noreply,
-         socket
-         |> assign(:scripts, scripts)
-         |> put_flash(:info, "Script deleted")}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete script: #{inspect(reason)}")}
-    end
+    {:noreply,
+     socket
+     |> assign(:scripts, refresh_scripts())
+     |> put_flash(:info, "Script deleted")}
   end
 
   @impl true
   def handle_event("run-script", %{"name" => name}, socket) do
-    case Coordinator.run_script(name) do
+    case WorkspaceSettings.run_script(name) do
       {:ok, output} ->
         {:noreply, put_flash(socket, :info, "Script output:\n#{String.slice(output, 0, 500)}")}
 
@@ -98,13 +93,20 @@ defmodule ShireWeb.SettingsLive.Index do
   end
 
   @impl true
-  def handle_event("read-script", %{"name" => name}, socket) do
-    case Coordinator.read_script(name) do
-      {:ok, content} ->
-        {:noreply, push_event(socket, "script-content", %{name: name, content: content})}
-
-      {:error, _} ->
-        {:noreply, push_event(socket, "script-content", %{name: name, content: ""})}
+  def handle_event(
+        "rename-script",
+        %{"old_name" => old_name, "new_name" => new_name, "content" => content},
+        socket
+      ) do
+    with :ok <- WorkspaceSettings.write_script(new_name, content),
+         :ok <- WorkspaceSettings.delete_script(old_name) do
+      {:noreply,
+       socket
+       |> assign(:scripts, refresh_scripts())
+       |> put_flash(:info, "Script renamed")}
+    else
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to rename script: #{inspect(reason)}")}
     end
   end
 
@@ -215,8 +217,8 @@ defmodule ShireWeb.SettingsLive.Index do
   end
 
   defp refresh_scripts do
-    case Coordinator.list_scripts() do
-      {:ok, names} -> names
+    case WorkspaceSettings.read_all_scripts() do
+      {:ok, list} -> list
       _ -> []
     end
   end

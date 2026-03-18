@@ -326,41 +326,4 @@ defmodule Shire.Agent.CoordinatorTest do
     end
   end
 
-  describe "read_env/0" do
-    test "returns {:ok, string} with VM content" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts ->
-        {:ok, "MY_VAR=hello\n"}
-      end)
-
-      assert {:ok, content} = Coordinator.read_env()
-      assert content == "MY_VAR=hello\n"
-    end
-
-    test "returns {:ok, empty string} when .env does not exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts ->
-        {:ok, ""}
-      end)
-
-      assert {:ok, ""} = Coordinator.read_env()
-    end
-  end
-
-  describe "list_scripts/0" do
-    test "returns {:ok, []} when no scripts exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts -> {:ok, ""} end)
-
-      assert {:ok, []} = Coordinator.list_scripts()
-    end
-
-    test "returns {:ok, list} with .sh filenames when scripts exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn "bash", _args, _opts ->
-        {:ok, "deploy.sh\nsetup.sh\nreadme.txt\n"}
-      end)
-
-      assert {:ok, scripts} = Coordinator.list_scripts()
-      assert "deploy.sh" in scripts
-      assert "setup.sh" in scripts
-      refute "readme.txt" in scripts
-    end
-  end
 end

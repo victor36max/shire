@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
@@ -15,6 +16,7 @@ export interface Message {
   input?: Record<string, unknown>;
   output?: string | null;
   is_error?: boolean;
+  from_agent?: string;
 }
 
 function ToolCallMessage({ msg }: { msg: Message }) {
@@ -23,7 +25,7 @@ function ToolCallMessage({ msg }: { msg: Message }) {
   const hasOutput = msg.output != null;
 
   return (
-    <div className="max-w-[80%] rounded-lg border border-border text-sm">
+    <div className="max-w-[80%] rounded-lg border border-border text-sm w-fit">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -59,6 +61,32 @@ function ToolCallMessage({ msg }: { msg: Message }) {
               </pre>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InterAgentMessage({ msg }: { msg: Message }) {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <div className="max-w-[80%] rounded-lg border border-border text-sm w-fit">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 rounded-lg italic"
+      >
+        <span className="text-muted-foreground">Message from {msg.from_agent}</span>
+        {open ? (
+          <ChevronUp className="h-4 w-4 text-muted-foreground ml-auto" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
+        )}
+      </button>
+      {open && (
+        <div className="border-t border-border px-3 py-2">
+          <Markdown>{msg.text ?? ""}</Markdown>
         </div>
       )}
     </div>
@@ -165,6 +193,8 @@ export default function ChatPanel({
         {messages.map((msg, i) =>
           msg.role === "tool_use" ? (
             <ToolCallMessage key={msg.id ?? `msg-${i}`} msg={msg} />
+          ) : msg.role === "inter_agent" ? (
+            <InterAgentMessage key={msg.id ?? `msg-${i}`} msg={msg} />
           ) : (
             <div key={msg.id ?? `msg-${i}`} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div

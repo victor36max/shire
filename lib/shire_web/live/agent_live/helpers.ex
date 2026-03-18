@@ -18,6 +18,12 @@ defmodule ShireWeb.AgentLive.Helpers do
           is_error: msg.content["is_error"] || false
         })
 
+      "inter_agent" ->
+        Map.merge(base, %{
+          text: msg.content["text"],
+          from_agent: msg.content["from_agent"]
+        })
+
       _ ->
         Map.put(base, :text, msg.content["text"])
     end
