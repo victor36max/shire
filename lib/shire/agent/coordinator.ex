@@ -142,20 +142,26 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_call({:update_agent, name, %{"recipe_yaml" => recipe_yaml}}, _from, state) do
-    agent_dir = "/workspace/agents/#{name}"
+    new_name = extract_name_from_yaml(recipe_yaml)
 
-    case @vm.write("#{agent_dir}/recipe.yaml", recipe_yaml) do
-      :ok ->
-        case lookup(name) do
-          {:ok, _pid} -> AgentManager.restart(name)
-          {:error, :not_found} -> :ok
-        end
+    if new_name && new_name != name do
+      rename_agent(name, new_name, recipe_yaml, state)
+    else
+      agent_dir = "/workspace/agents/#{name}"
 
-        Phoenix.PubSub.broadcast(Shire.PubSub, "agents:lobby", {:agent_updated, name})
-        {:reply, :ok, state}
+      case @vm.write("#{agent_dir}/recipe.yaml", recipe_yaml) do
+        :ok ->
+          case lookup(name) do
+            {:ok, _pid} -> AgentManager.restart(name)
+            {:error, :not_found} -> :ok
+          end
 
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
+          Phoenix.PubSub.broadcast(Shire.PubSub, "agents:lobby", {:agent_updated, name})
+          {:reply, :ok, state}
+
+        {:error, reason} ->
+          {:reply, {:error, reason}, state}
+      end
     end
   end
 
@@ -419,6 +425,91 @@ defmodule Shire.Agent.Coordinator do
           {:error, reason} ->
             {:reply, {:error, reason}, state}
         end
+    end
+  end
+
+  defp extract_name_from_yaml(recipe_yaml) do
+    case YamlElixir.read_from_string(recipe_yaml) do
+      {:ok, %{"name" => name}} when is_binary(name) -> name
+      _ -> nil
+    end
+  end
+
+  defp rename_agent(old_name, new_name, recipe_yaml, state) do
+    new_dir = "/workspace/agents/#{new_name}"
+
+    # Check if target name already exists
+    case @vm.cmd("bash", ["-c", "test -d #{new_dir} && echo exists || echo missing"], []) do
+      {:ok, output} ->
+        if String.trim(output) == "exists" do
+          {:reply, {:error, :already_exists}, state}
+        else
+          do_rename_agent(old_name, new_name, recipe_yaml, state)
+        end
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  defp do_rename_agent(old_name, new_name, recipe_yaml, state) do
+    old_dir = "/workspace/agents/#{old_name}"
+    new_dir = "/workspace/agents/#{new_name}"
+
+    # Stop old AgentManager if running
+    case lookup(old_name) do
+      {:ok, pid} -> DynamicSupervisor.terminate_child(Shire.AgentSupervisor, pid)
+      {:error, :not_found} -> :ok
+    end
+
+    # Clean up old monitor
+    {ref, monitors} =
+      Enum.find_value(state.monitors, {nil, state.monitors}, fn {ref, name} ->
+        if name == old_name, do: {ref, Map.delete(state.monitors, ref)}
+      end)
+
+    if ref, do: Process.demonitor(ref, [:flush])
+
+    # Rename directory on VM
+    case @vm.cmd("mv", [old_dir, new_dir], []) do
+      {:ok, _} ->
+        # Write updated recipe
+        @vm.write("#{new_dir}/recipe.yaml", recipe_yaml)
+
+        # Migrate messages in DB
+        Shire.Agents.rename_agent_messages(old_name, new_name)
+
+        # Clean up old status
+        statuses = state.statuses |> Map.delete(old_name)
+
+        # Start new AgentManager under new name
+        case start_agent_manager(new_name, monitors) do
+          {:ok, _pid, monitors} ->
+            Phoenix.PubSub.broadcast(
+              Shire.PubSub,
+              "agents:lobby",
+              {:agent_renamed, old_name, new_name}
+            )
+
+            {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
+
+          {:error, reason} ->
+            # Agent was renamed on disk but couldn't start — still report success
+            Logger.warning(
+              "Renamed #{old_name} -> #{new_name} but failed to start: #{inspect(reason)}"
+            )
+
+            Phoenix.PubSub.broadcast(
+              Shire.PubSub,
+              "agents:lobby",
+              {:agent_renamed, old_name, new_name}
+            )
+
+            {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
+        end
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 

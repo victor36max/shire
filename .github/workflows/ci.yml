@@ -65,6 +65,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.3.4"
+          elixir-version: "1.18.3"
+
+      - uses: actions/cache@v4
+        with:
+          path: deps
+          key: mix-deps-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+          restore-keys: mix-deps-${{ runner.os }}-
+
+      - run: mix deps.get
+        working-directory: .
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.10"
@@ -75,7 +89,7 @@ jobs:
           key: bun-frontend-${{ runner.os }}-${{ hashFiles('assets/bun.lock') }}
           restore-keys: bun-frontend-${{ runner.os }}-
 
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - run: bun run tsc --noEmit
       - run: bun run lint
       - run: bun run format:check
@@ -102,6 +116,6 @@ jobs:
           key: bun-sprite-${{ runner.os }}-${{ hashFiles('priv/sprite/bun.lock') }}
           restore-keys: bun-sprite-${{ runner.os }}-
 
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - run: bun run lint
       - run: bun run format:check

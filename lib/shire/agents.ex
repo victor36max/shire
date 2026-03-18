@@ -70,6 +70,11 @@ defmodule Shire.Agents do
     {messages, has_more}
   end
 
+  def rename_agent_messages(old_name, new_name) do
+    from(m in Message, where: m.agent_name == ^old_name)
+    |> Repo.update_all(set: [agent_name: new_name])
+  end
+
   def delete_messages_for_agent(agent_name) do
     from(m in Message, where: m.agent_name == ^agent_name)
     |> Repo.delete_all()
