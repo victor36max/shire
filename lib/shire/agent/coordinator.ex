@@ -180,8 +180,17 @@ defmodule Shire.Agent.Coordinator do
     agent_dir = "/workspace/agents/#{name}"
 
     case @vm.write("#{agent_dir}/recipe.yaml", recipe_yaml) do
-      :ok -> {:reply, :ok, state}
-      {:error, reason} -> {:reply, {:error, reason}, state}
+      :ok ->
+        case lookup(name) do
+          {:ok, _pid} -> AgentManager.restart(name)
+          {:error, :not_found} -> :ok
+        end
+
+        Phoenix.PubSub.broadcast(Shire.PubSub, "agents:lobby", {:agent_updated, name})
+        {:reply, :ok, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
@@ -220,6 +229,7 @@ defmodule Shire.Agent.Coordinator do
 
     statuses = Map.delete(state.statuses, agent_name)
     Logger.info("Deleted agent #{agent_name}")
+    Phoenix.PubSub.broadcast(Shire.PubSub, "agents:lobby", {:agent_deleted, agent_name})
     {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
   end
 

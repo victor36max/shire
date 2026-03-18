@@ -2,64 +2,75 @@
 
 **Where agents live, and flourish.** 🌿
 
-Shire is an open platform for deploying, orchestrating, and collaborating with AI agents. Give each agent its own isolated environment, connect them through a shared mailbox system, and watch them work together — all from a single dashboard.
+Shire is an open platform for deploying, orchestrating, and collaborating with AI agents. Give each agent its own workspace, connect them through a built-in mailbox system, and watch them work together — all from a single dashboard.
 
 ---
 
 ## ✨ Why Shire?
 
-Most agent platforms treat agents as stateless API calls. Shire gives every agent a **home** — a fully isolated VM with its own filesystem, tools, and persistent workspace. Agents don't just run. They *live* here.
+Most agent platforms treat agents as stateless API calls. Shire gives every agent a **home** — a persistent workspace with its own filesystem, tools, and mailbox, all running on a Sprite VM. Agents don't just run. They *live* here.
 
-- 🏠 **Isolated environments** — Each agent runs in its own Sprite VM with a dedicated workspace, filesystem, and terminal access.
+- 🏠 **Persistent workspaces** — Each agent gets its own workspace directory with inbox/outbox, scripts, and documents — all backed by a Firecracker VM with a 100GB NVMe volume.
 - 🔌 **Multi-harness architecture** — Bring your own runtime. Shire supports multiple agent harnesses (Pi SDK, Claude Code CLI) through a unified adapter pattern.
-- 📜 **Recipe-based deployment** — Define agents as simple YAML recipes with setup scripts that run idempotently. No Dockerfiles, no complex configs.
-- 💬 **Inter-agent communication** — Agents discover peers and exchange messages through a built-in mailbox system with inbox/outbox directories.
+- 📜 **Recipe-based deployment** — Define agents as simple YAML recipes with setup scripts that run idempotently. No Dockerfiles, no complex configs, no database schemas.
+- 💬 **Inter-agent communication** — Agents discover peers and exchange messages through a file-based mailbox system with automatic delivery.
 - 📂 **Shared drive** — A communal filesystem synced across all agents for collaborative work.
 - 📊 **Real-time dashboard** — Monitor, chat with, and manage all your agents from a live web UI with streaming updates.
-- 🔐 **Encrypted secrets** — Inject API keys and credentials securely with Cloak encryption at rest.
-- 🖥️ **Interactive terminals** — Drop into any agent's VM with a full xterm.js terminal, right from your browser.
+- 🖥️ **Interactive terminal** — Drop into the VM with a full xterm.js terminal, right from your browser.
 
 ## 🏗️ Architecture
 
 ```
-+-------------------------------------------------------+
-|                    Shire Dashboard                    |
-|             (Phoenix LiveView + React UI)             |
-+-----------------+-----------------+-------------------+
-|   Agent Mgmt    |   Chat/Stream   | Secrets, Settings |
-|     Sidebar     |     Panel       |   Shared Drive    |
-+--------+--------+--------+-------+--------+----------+
-         |                 |                 |
-         v                 v                 v
-+-------------------------------------------------------+
-|                Coordinator + Mailbox                  |
-|          (Lifecycle, Routing, Peer Discovery)         |
-+-----------+------------------+------------------------+
-            |                  |                  |
-            v                  v                  v
-  +---------------+  +---------------+  +---------------+
-  |    Agent A    |  |    Agent B    |  |  Shared Drive |
-  |   Sprite VM   |  |   Sprite VM   |  |   Sprite VM   |
-  |               |  |               |  |               |
-  |  +---------+  |  |  +---------+  |  |    /drive     |
-  |  | Harness |  |  |  | Harness |  |  |               |
-  |  +---------+  |  |  +---------+  |  +---------------+
-  |               |  |               |
-  |  /workspace   |  |  /workspace   |
-  |  /mailbox     |  |  /mailbox     |
-  +---------------+  +---------------+
+┌───────────────────────────────────────────────────────┐
+│                    Shire Dashboard                    │
+│             (Phoenix LiveView + React UI)             │
+├───────────────┬──────────────────┬────────────────────┤
+│  Agent Mgmt   │   Chat/Stream    │     Settings       │
+│   Sidebar     │     Panel        │   Shared Drive     │
+└───────┬───────┴────────┬─────────┴────────┬───────────┘
+        │                │                  │
+        ▼                ▼                  ▼
+┌───────────────────────────────────────────────────────┐
+│                    Coordinator                        │
+│       (Lifecycle, CRUD, Message Routing)              │
+└───────┬───────────────────────────────┬───────────────┘
+        │                               │
+        ▼                               ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  AgentMgr A  │  │  AgentMgr B  │  │   Terminal   │
+│  (GenServer) │  │  (GenServer) │  │   Session    │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │
+       ▼                 ▼                 ▼
+┌───────────────────────────────────────────────────────┐
+│                    Sprite VM                          │
+│  (Firecracker · persistent NVMe · auto-sleep)         │
+│                                                       │
+│  /workspace/                                          │
+│  ├── agents/                                          │
+│  │   ├── researcher/                                  │
+│  │   │   ├── recipe.yaml    ┌─────────────────────┐   │
+│  │   │   ├── inbox/         │  agent-runner.ts    │   │
+│  │   │   ├── outbox/        │  (per-agent daemon) │   │
+│  │   │   ├── scripts/       │  ┌───────────────┐  │   │
+│  │   │   └── documents/     │  │   Harness     │  │   │
+│  │   └── coder/             │  │ (Pi / Claude) │  │   │
+│  │       └── ...            │  └───────────────┘  │   │
+│  ├── shared/  ←── /drive    └─────────────────────┘   │
+│  └── .runner/                                         │
+└───────────────────────────────────────────────────────┘
 ```
 
 ## 🧚 Powered by Fly.io Sprites
 
-Shire is built on top of [**Fly.io Sprites**](https://sprites.dev) — lightweight, persistent virtual machines powered by [Firecracker](https://firecracker-microvm.github.io/). Sprites aren't containers. They're real Linux VMs that give each agent a proper home.
+Shire is built on top of [**Fly.io Sprites**](https://sprites.dev) — lightweight, persistent virtual machines powered by [Firecracker](https://firecracker-microvm.github.io/). Sprites aren't containers. They're real Linux VMs that give your agents a proper home.
 
 **What Sprites give us:**
 
 - ⚡ **Sub-second boot** — Sprite VMs spin up in under a second, so agents are ready almost instantly.
 - 💾 **Persistent filesystems** — Each Sprite has a sparse 100GB NVMe volume. Installed packages, data, and workspace state survive across sessions — even when the VM sleeps.
 - 📸 **Instant checkpointing** — Checkpoint and restore an entire VM environment in ~300ms. Only changed blocks are saved, keeping costs low.
-- 🔒 **True isolation** — Firecracker VMs provide hardware-level isolation. Each agent runs in its own kernel with its own network — nothing can connect to a Sprite directly.
+- 🔒 **True isolation** — Firecracker VMs provide hardware-level isolation. The VM runs in its own kernel with its own network — nothing can connect to a Sprite directly.
 - 💤 **Auto-sleep & wake** — Idle Sprites automatically sleep and resume on demand with full state intact. You only pay for what you use.
 - 💪 **Serious resources** — Up to 8 CPUs and 16GB of RAM per Sprite. These aren't toy sandboxes.
 
@@ -73,8 +84,7 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 | Frontend | LiveReact (React inside Phoenix LiveView), shadcn/ui, Tailwind v4 |
 | Build | Vite, Bun |
 | Agent Runtime | Bun + TypeScript, multi-harness adapter pattern |
-| Agent VMs | [Fly.io Sprites](https://sprites.dev) (Firecracker VMs) |
-| Encryption | Cloak / CloakEcto |
+| VM | [Fly.io Sprites](https://sprites.dev) (Firecracker) |
 
 ## 🚀 Getting Started
 
@@ -94,7 +104,6 @@ Create a `.env` file in the project root. It's automatically loaded in dev/test 
 | Variable | Description |
 |----------|-------------|
 | `SPRITES_TOKEN` | Sprites SDK authentication token from [sprites.dev](https://sprites.dev) |
-| `CLOAK_KEY` | AES-GCM encryption key for secrets at rest. Generate with: ``:crypto.strong_rand_bytes(32) \|> Base.encode64()`` |
 | `DATABASE_URL` | PostgreSQL connection string (production only — dev uses local defaults) |
 | `SECRET_KEY_BASE` | Phoenix cookie/session secret. Generate with: `mix phx.gen.secret` |
 
@@ -157,15 +166,15 @@ scripts:
 
 ### 2. Deploy
 
-Hit "Create Agent" in the dashboard, paste your recipe, and Shire handles the rest — spinning up a Sprite VM in under a second, executing setup scripts idempotently, and connecting the agent to the mesh. ⚡
+Hit "Create Agent" in the dashboard, paste your recipe, and Shire handles the rest — bootstrapping the workspace, executing setup scripts idempotently, and spawning the agent runner. ⚡
 
 ### 3. Collaborate
 
-Agents discover each other through `peers.json` and communicate via the mailbox system. Drop files in the shared drive for all agents to access. Chat with any agent directly from the dashboard. 🤝
+Agents discover each other through `peers.json` and communicate via the file-based mailbox system. Drop files in the shared drive for all agents to access. Chat with any agent directly from the dashboard. 🤝
 
 ### 4. Sleep & Resume
 
-When agents go idle, their Sprite VMs auto-sleep — preserving the full environment including installed packages, running services, and workspace state. When you need them again, they wake up instantly right where they left off. No rebuilding, no lost context. 💤
+When agents go idle, the VM auto-sleeps — preserving installed packages, workspaces, and all state. When you need them again, everything wakes up instantly right where it left off. No rebuilding, no lost context. 💤
 
 ## 📄 License
 

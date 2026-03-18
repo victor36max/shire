@@ -59,6 +59,15 @@ defmodule Shire.Agent.CoordinatorTest do
     test "succeeds even when agent is not running (deletes dir only)" do
       assert :ok = Coordinator.delete_agent("nonexistent")
     end
+
+    test "broadcasts {:agent_deleted, name} on lobby" do
+      Phoenix.PubSub.subscribe(Shire.PubSub, "agents:lobby")
+
+      unique_name = "coord-delete-broadcast-#{System.unique_integer([:positive])}"
+      Coordinator.delete_agent(unique_name)
+
+      assert_receive {:agent_deleted, ^unique_name}, 500
+    end
   end
 
   describe "restart_agent/1" do
@@ -151,6 +160,36 @@ defmodule Shire.Agent.CoordinatorTest do
 
       assert result == :ok
       assert Process.alive?(GenServer.whereis(Coordinator))
+    end
+
+    test "restarts agent if it is running" do
+      stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
+
+      {:ok, _pid} = start_agent_manager(@agent_name)
+
+      # Mark as active so restart is meaningful
+      broadcast_status(@agent_name, :active)
+
+      result =
+        Coordinator.update_agent(@agent_name, %{
+          "recipe_yaml" => "version: 1\nname: #{@agent_name}\n"
+        })
+
+      assert result == :ok
+    end
+
+    test "broadcasts {:agent_updated, name} on lobby" do
+      stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
+
+      Phoenix.PubSub.subscribe(Shire.PubSub, "agents:lobby")
+
+      unique_name = "coord-update-broadcast-#{System.unique_integer([:positive])}"
+
+      Coordinator.update_agent(unique_name, %{
+        "recipe_yaml" => "version: 1\nname: #{unique_name}\n"
+      })
+
+      assert_receive {:agent_updated, ^unique_name}, 500
     end
   end
 
