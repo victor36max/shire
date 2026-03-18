@@ -1,7 +1,7 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
 import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
 import { mkdirSync, writeFileSync, rmSync, readdirSync } from "fs";
-import { emit, loadConfig, processMessage, processInbox, type MessageEnvelope } from "./agent-runner";
+import { emit, loadConfig, processMessage, processInbox, processOutbox, type MessageEnvelope } from "./agent-runner";
 import type { Harness } from "./harness";
 import { createHarness } from "./harness";
 
@@ -147,6 +147,34 @@ describe("processMessage() — agent_message", () => {
 
     expect(harness.sendMessage).toHaveBeenCalledWith("Here is data.", "researcher-bot");
   });
+
+  test("emits agent_message_received event with from_agent and text", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({
+      type: "agent_message",
+      from: "researcher-bot",
+      payload: { text: "Here is data." },
+    });
+
+    const events = await captureEmits(async () => {
+      await processMessage(harness, envelope);
+    });
+
+    const received = events.find((e) => e.type === "agent_message_received");
+    expect(received).toBeDefined();
+    expect(received!.payload).toEqual({ from_agent: "researcher-bot", text: "Here is data." });
+  });
+
+  test("does not emit agent_message_received for user messages", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({ type: "user_message", payload: { text: "Hi" } });
+
+    const events = await captureEmits(async () => {
+      await processMessage(harness, envelope);
+    });
+
+    expect(events.find((e) => e.type === "agent_message_received")).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -290,5 +318,68 @@ max_tokens: 8192
     expect(config.model).toBe("claude-sonnet-4-6");
     expect(config.system_prompt).toBe("");
     expect(config.max_tokens).toBe(16384);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// processOutbox() — routes outbox messages to target agent inboxes
+// ---------------------------------------------------------------------------
+
+const TEST_OUTBOX = "/tmp/test-outbox-" + process.pid;
+const TEST_AGENTS_ROOT = "/tmp/test-agents-root-" + process.pid;
+
+describe("processOutbox()", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_OUTBOX, { recursive: true });
+    mkdirSync(`${TEST_AGENTS_ROOT}/target-agent/inbox`, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_OUTBOX, { recursive: true, force: true });
+    rmSync(TEST_AGENTS_ROOT, { recursive: true, force: true });
+  });
+
+  test("returns 0 when outbox is empty", async () => {
+    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT);
+    expect(count).toBe(0);
+  });
+
+  test("routes message to target agent inbox and removes outbox file", async () => {
+    const msg = { to: "target-agent", text: "hello there" };
+    writeFileSync(`${TEST_OUTBOX}/msg.json`, JSON.stringify(msg));
+
+    const events = await captureEmits(async () => {
+      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT);
+    });
+
+    // Outbox file removed
+    const remaining = readdirSync(TEST_OUTBOX).filter((f) => f.endsWith(".json"));
+    expect(remaining).toHaveLength(0);
+
+    // Envelope written to target inbox
+    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/target-agent/inbox`).filter((f) => f.endsWith(".json"));
+    expect(inboxFiles).toHaveLength(1);
+
+    const raw = Bun.file(`${TEST_AGENTS_ROOT}/target-agent/inbox/${inboxFiles[0]}`);
+    const envelope = JSON.parse(await raw.text());
+    expect(envelope.type).toBe("agent_message");
+    expect(envelope.payload.text).toBe("hello there");
+    expect(typeof envelope.ts).toBe("number");
+
+    // Emits agent_message_sent event
+    const sent = events.find((e) => e.type === "agent_message_sent");
+    expect(sent).toBeDefined();
+    expect(sent!.payload).toEqual({ to_agent: "target-agent", text: "hello there" });
+  });
+
+  test("processes multiple outbox files", async () => {
+    writeFileSync(`${TEST_OUTBOX}/a.json`, JSON.stringify({ to: "target-agent", text: "first" }));
+    writeFileSync(`${TEST_OUTBOX}/b.json`, JSON.stringify({ to: "target-agent", text: "second" }));
+
+    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT);
+    expect(count).toBe(2);
+
+    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/target-agent/inbox`).filter((f) => f.endsWith(".json"));
+    expect(inboxFiles).toHaveLength(2);
   });
 });

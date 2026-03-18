@@ -325,15 +325,9 @@ defmodule Shire.Agent.AgentManagerTest do
     end
   end
 
-  describe "send_message with agent from" do
-    test "writes agent message envelope to inbox and persists" do
+  describe "agent_message_received stdout event" do
+    test "persists inter_agent message to DB" do
       Mox.set_mox_global()
-      test_pid = self()
-
-      stub(Shire.VirtualMachineMock, :write, fn path, content ->
-        send(test_pid, {:vm_write, path, content})
-        :ok
-      end)
 
       {:ok, pid} = start_manager()
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
@@ -344,14 +338,23 @@ defmodule Shire.Agent.AgentManagerTest do
         %{state | command: %{ref: ref}, command_ref: ref, status: :active}
       end)
 
-      assert :ok = GenServer.call(pid, {:send_message, "hello", {:agent, "other-agent"}})
+      event =
+        Jason.encode!(%{
+          "type" => "agent_message_received",
+          "payload" => %{"from_agent" => "other-agent", "text" => "hello from other"}
+        })
 
-      assert_receive {:vm_write, path, content}, 1_000
-      assert path =~ "/workspace/agents/#{@agent_name}/inbox/"
-      decoded = Jason.decode!(content)
-      assert decoded["type"] == "agent_message"
-      assert decoded["from"] == "other-agent"
-      assert decoded["payload"]["text"] == "hello"
+      send(pid, {:stdout, %{ref: ref}, event <> "\n"})
+
+      # Give it a moment to process
+      Process.sleep(50)
+
+      {messages, _has_more} = Agents.list_messages_for_agent(@agent_name)
+      inter_agent = Enum.find(messages, &(&1.role == "inter_agent"))
+      assert inter_agent != nil
+      assert inter_agent.content["text"] == "hello from other"
+      assert inter_agent.content["from_agent"] == "other-agent"
+      assert inter_agent.content["to_agent"] == @agent_name
     end
   end
 
@@ -398,204 +401,6 @@ defmodule Shire.Agent.AgentManagerTest do
       assert :ok = AgentManager.restart(@agent_name)
 
       assert_receive {:status, :bootstrapping}, 1_000
-    end
-  end
-
-  describe "outbox polling" do
-    test "polls outbox and delivers agent messages when active" do
-      Mox.set_mox_global()
-      test_pid = self()
-
-      stub(Shire.VirtualMachineMock, :ls, fn path ->
-        if String.ends_with?(path, "/outbox") do
-          {:ok, [%{"name" => "1234.json"}]}
-        else
-          {:ok, []}
-        end
-      end)
-
-      stub(Shire.VirtualMachineMock, :read, fn _path ->
-        {:ok, Jason.encode!(%{"to" => "target-agent", "text" => "hello from outbox"})}
-      end)
-
-      stub(Shire.VirtualMachineMock, :rm, fn path ->
-        send(test_pid, {:vm_rm, path})
-        :ok
-      end)
-
-      stub(Shire.VirtualMachineMock, :write, fn path, content ->
-        send(test_pid, {:vm_write, path, content})
-        :ok
-      end)
-
-      # Start target agent so send_message can reach it
-      {:ok, target_pid} =
-        AgentManager.start_link(agent_name: "target-agent", skip_sprite: true)
-
-      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), target_pid)
-
-      target_ref = make_ref()
-
-      :sys.replace_state(target_pid, fn state ->
-        %{state | command: %{ref: target_ref}, command_ref: target_ref, status: :active}
-      end)
-
-      {:ok, pid} = start_manager()
-      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
-
-      ref = make_ref()
-
-      :sys.replace_state(pid, fn state ->
-        %{
-          state
-          | command: %{ref: ref},
-            command_ref: ref,
-            status: :active,
-            last_activity: System.monotonic_time(:millisecond)
-        }
-      end)
-
-      send(pid, :poll_outbox)
-
-      # Message delivered to target agent via send_message
-      assert_receive {:vm_write, path, content}, 2_000
-      assert path =~ "/workspace/agents/target-agent/inbox/"
-      decoded = Jason.decode!(content)
-      assert decoded["type"] == "agent_message"
-      assert decoded["from"] == @agent_name
-      assert decoded["payload"]["text"] == "hello from outbox"
-
-      # Outbox file removed after delivery
-      assert_receive {:vm_rm, rm_path}, 1_000
-      assert rm_path =~ "/outbox/1234.json"
-    end
-
-    test "handles shell-escaped JSON in outbox messages" do
-      Mox.set_mox_global()
-      test_pid = self()
-
-      stub(Shire.VirtualMachineMock, :ls, fn path ->
-        if String.ends_with?(path, "/outbox") do
-          {:ok, [%{"name" => "1234.json"}]}
-        else
-          {:ok, []}
-        end
-      end)
-
-      # Simulate shell adding backslash escapes (e.g. \! from bash history expansion)
-      stub(Shire.VirtualMachineMock, :read, fn _path ->
-        {:ok, ~s|{"to":"target-agent","text":"Hello\\! How are you\\?"}|}
-      end)
-
-      stub(Shire.VirtualMachineMock, :rm, fn _path -> :ok end)
-
-      stub(Shire.VirtualMachineMock, :write, fn path, content ->
-        send(test_pid, {:vm_write, path, content})
-        :ok
-      end)
-
-      # Start target agent
-      {:ok, target_pid} =
-        AgentManager.start_link(agent_name: "target-agent", skip_sprite: true)
-
-      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), target_pid)
-
-      target_ref = make_ref()
-
-      :sys.replace_state(target_pid, fn state ->
-        %{state | command: %{ref: target_ref}, command_ref: target_ref, status: :active}
-      end)
-
-      {:ok, pid} = start_manager()
-      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
-
-      ref = make_ref()
-
-      :sys.replace_state(pid, fn state ->
-        %{
-          state
-          | command: %{ref: ref},
-            command_ref: ref,
-            status: :active,
-            last_activity: System.monotonic_time(:millisecond)
-        }
-      end)
-
-      send(pid, :poll_outbox)
-
-      assert_receive {:vm_write, path, content}, 2_000
-      assert path =~ "/workspace/agents/target-agent/inbox/"
-      decoded = Jason.decode!(content)
-      assert decoded["payload"]["text"] == "Hello! How are you?"
-    end
-
-    test "handles nil entries from ls gracefully" do
-      Mox.set_mox_global()
-
-      stub(Shire.VirtualMachineMock, :ls, fn _path -> {:ok, nil} end)
-
-      {:ok, pid} = start_manager()
-      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
-
-      ref = make_ref()
-
-      :sys.replace_state(pid, fn state ->
-        %{
-          state
-          | command: %{ref: ref},
-            command_ref: ref,
-            status: :active,
-            last_activity: System.monotonic_time(:millisecond)
-        }
-      end)
-
-      send(pid, :poll_outbox)
-
-      # Should not crash — verify process is still alive
-      assert Process.alive?(pid)
-      state = AgentManager.get_state(pid)
-      assert state.status == :active
-    end
-
-    test "does not poll when not active" do
-      {:ok, pid} = start_manager()
-
-      send(pid, :poll_outbox)
-
-      state = AgentManager.get_state(pid)
-      assert state.status == :idle
-      assert state.outbox_timer == nil
-    end
-
-    test "skips outbox poll when idle" do
-      Mox.set_mox_global()
-      test_pid = self()
-
-      stub(Shire.VirtualMachineMock, :ls, fn _path ->
-        send(test_pid, :ls_called)
-        {:ok, []}
-      end)
-
-      {:ok, pid} = start_manager()
-      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
-
-      ref = make_ref()
-
-      :sys.replace_state(pid, fn state ->
-        %{
-          state
-          | command: %{ref: ref},
-            command_ref: ref,
-            status: :active,
-            last_activity: System.monotonic_time(:millisecond) - 960_000
-        }
-      end)
-
-      send(pid, :poll_outbox)
-
-      # Give it a moment to process
-      Process.sleep(50)
-      refute_received :ls_called
     end
   end
 end
