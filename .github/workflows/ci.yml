@@ -75,7 +75,7 @@ jobs:
           key: bun-frontend-${{ runner.os }}-${{ hashFiles('assets/bun.lock') }}
           restore-keys: bun-frontend-${{ runner.os }}-
 
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - run: bun run tsc --noEmit
       - run: bun run lint
       - run: bun run format:check
@@ -102,6 +102,6 @@ jobs:
           key: bun-sprite-${{ runner.os }}-${{ hashFiles('priv/sprite/bun.lock') }}
           restore-keys: bun-sprite-${{ runner.os }}-
 
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - run: bun run lint
       - run: bun run format:check
