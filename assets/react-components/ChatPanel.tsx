@@ -1,5 +1,4 @@
 import * as React from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
@@ -77,12 +76,8 @@ function InterAgentMessage({ msg }: { msg: Message }) {
         onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 rounded-lg italic"
       >
+        <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
         <span className="text-muted-foreground">Message from {msg.from_agent}</span>
-        {open ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground ml-auto" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
-        )}
       </button>
       {open && (
         <div className="border-t border-border px-3 py-2">
