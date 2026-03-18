@@ -256,6 +256,88 @@ defmodule Shire.Agent.CoordinatorTest do
     end
   end
 
+  describe "update_agent/2 with rename" do
+    test "renames workspace folder when recipe name differs from current name" do
+      old_name = "coord-rename-old-#{System.unique_integer([:positive])}"
+      new_name = "coord-rename-new-#{System.unique_integer([:positive])}"
+
+      stub(Shire.VirtualMachineMock, :cmd, fn cmd, args, _opts ->
+        case {cmd, args} do
+          {"bash", ["-c", "test -d " <> _]} -> {:ok, "missing\n"}
+          {"mv", _} -> {:ok, ""}
+          _ -> {:ok, ""}
+        end
+      end)
+
+      stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
+
+      Phoenix.PubSub.subscribe(Shire.PubSub, "agents:lobby")
+
+      result =
+        Coordinator.update_agent(old_name, %{
+          "recipe_yaml" => "version: 1\nname: #{new_name}\nharness: claude_code\n"
+        })
+
+      assert result == :ok
+      assert_receive {:agent_renamed, ^old_name, ^new_name}, 500
+    end
+
+    test "returns error when target name already exists" do
+      old_name = "coord-rename-conflict-old-#{System.unique_integer([:positive])}"
+      new_name = "coord-rename-conflict-new-#{System.unique_integer([:positive])}"
+
+      stub(Shire.VirtualMachineMock, :cmd, fn "bash", ["-c", "test -d " <> _], _opts ->
+        {:ok, "exists\n"}
+      end)
+
+      stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
+
+      result =
+        Coordinator.update_agent(old_name, %{
+          "recipe_yaml" => "version: 1\nname: #{new_name}\n"
+        })
+
+      assert {:error, :already_exists} = result
+    end
+
+    test "migrates messages to new agent name" do
+      old_name = "coord-rename-msg-old-#{System.unique_integer([:positive])}"
+      new_name = "coord-rename-msg-new-#{System.unique_integer([:positive])}"
+
+      # Create a message under the old name
+      {:ok, _msg} =
+        Shire.Agents.create_message(%{
+          agent_name: old_name,
+          role: "user",
+          content: %{"text" => "hello"}
+        })
+
+      stub(Shire.VirtualMachineMock, :cmd, fn cmd, _args, _opts ->
+        case cmd do
+          "bash" -> {:ok, "missing\n"}
+          "mv" -> {:ok, ""}
+          _ -> {:ok, ""}
+        end
+      end)
+
+      stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
+
+      assert :ok =
+               Coordinator.update_agent(old_name, %{
+                 "recipe_yaml" => "version: 1\nname: #{new_name}\n"
+               })
+
+      # Old name should have no messages
+      {old_messages, _} = Shire.Agents.list_messages_for_agent(old_name)
+      assert old_messages == []
+
+      # New name should have the message
+      {new_messages, _} = Shire.Agents.list_messages_for_agent(new_name)
+      assert length(new_messages) == 1
+      assert hd(new_messages).agent_name == new_name
+    end
+  end
+
   describe "create_agent/1" do
     test "creates agent directory structure on VM and starts AgentManager" do
       unique_name = "coord-create-test-#{System.unique_integer([:positive])}"
@@ -325,5 +407,4 @@ defmodule Shire.Agent.CoordinatorTest do
       assert {:error, :missing_name_or_recipe} = result
     end
   end
-
 end
