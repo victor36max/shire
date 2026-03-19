@@ -468,6 +468,27 @@ defmodule Shire.Agent.AgentManagerTest do
                AgentManager.auto_restart(ctx.project_id, ctx.agent_id)
     end
 
+    test "skips workspace setup on auto_restart (fast path)", ctx do
+      Mox.set_mox_global()
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+
+      # write should NOT be called — fast path skips setup_agent_workspace
+      Mox.expect(Shire.VirtualMachineMock, :write, 0, fn _project, _path, _content -> :ok end)
+
+      stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
+        {:ok, %{ref: make_ref()}}
+      end)
+
+      {:ok, pid} = start_manager(ctx)
+      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
+
+      assert :ok = AgentManager.auto_restart(ctx.project_id, ctx.agent_id)
+
+      # Give spawn_runner time to execute
+      Process.sleep(100)
+      Mox.verify!(Shire.VirtualMachineMock)
+    end
+
     test "resets auto_restart_count when agent becomes active", ctx do
       {:ok, pid} = start_manager(ctx)
 
