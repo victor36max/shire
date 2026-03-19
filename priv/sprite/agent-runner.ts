@@ -108,12 +108,12 @@ export async function processMessage(harness: Harness, envelope: MessageEnvelope
     const text = envelope.payload.text as string;
     const from = envelope.type === "agent_message" ? envelope.from : undefined;
     const prefix = envelope.type === "system_message" ? "[System] " : "";
-    await harness.sendMessage(prefix + text, from);
     if (envelope.type === "agent_message") {
       emit("agent_message_received", { from_agent: envelope.from, text });
     } else if (envelope.type === "system_message") {
       emit("system_message_received", { text });
     }
+    await harness.sendMessage(prefix + text, from);
   } else if (envelope.type === "interrupt") {
     await harness.interrupt();
     emit("interrupted", {});

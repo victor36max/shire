@@ -133,8 +133,6 @@ export default function ChatPanel({
   const prevScrollHeightRef = React.useRef(0);
   const initialScrollDone = React.useRef(false);
 
-  const sortedMessages = React.useMemo(() => [...messages].sort((a, b) => (a.id ?? 0) - (b.id ?? 0)), [messages]);
-
   // Auto-scroll to bottom on initial load and new messages
   React.useEffect(() => {
     const prevLen = prevMessagesLengthRef.current;
@@ -179,13 +177,13 @@ export default function ChatPanel({
   const handleScroll = React.useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container || !hasMore || loadingMore) return;
-    if (container.scrollTop === 0 && sortedMessages.length > 0) {
-      const oldest = sortedMessages[0];
+    if (container.scrollTop === 0 && messages.length > 0) {
+      const oldest = messages[0];
       if (oldest.id != null) {
         pushEvent("load-more", { before: oldest.id });
       }
     }
-  }, [hasMore, loadingMore, pushEvent, sortedMessages]);
+  }, [hasMore, loadingMore, pushEvent, messages]);
 
   const handleSend = () => {
     const text = input.trim();
@@ -212,7 +210,7 @@ export default function ChatPanel({
             <p className="text-sm text-muted-foreground">No messages yet. Send a message to talk to the agent.</p>
           </div>
         )}
-        {sortedMessages.map((msg, i) =>
+        {messages.map((msg, i) =>
           msg.role === "tool_use" ? (
             <ToolCallMessage key={msg.id ?? `msg-${i}`} msg={msg} />
           ) : msg.role === "inter_agent" ? (
