@@ -131,11 +131,11 @@ describe("AgentShow", () => {
     expect(screen.queryByText("Start Agent")).not.toBeInTheDocument();
   });
 
-  it("shows Delete button for failed agent", () => {
+  it("shows Delete button for idle agent", () => {
     render(
       <AgentShow
         project={{ id: "p1", name: "test-project" }}
-        agent={{ ...agent, status: "failed" }}
+        agent={{ ...agent, status: "idle" }}
         pushEvent={vi.fn()}
       />,
     );

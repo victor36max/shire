@@ -20,8 +20,8 @@ const agents: Agent[] = [
   },
   {
     id: "a3",
-    name: "Failed Agent",
-    status: "failed",
+    name: "Idle Agent",
+    status: "idle",
     harness: "claude_code",
   },
 ];
@@ -45,7 +45,7 @@ describe("AgentSidebar", () => {
     render(<AgentSidebar {...defaultProps} agents={agents} />);
     expect(screen.getByText("Active Agent")).toBeInTheDocument();
     expect(screen.getByText("Created Agent")).toBeInTheDocument();
-    expect(screen.getByText("Failed Agent")).toBeInTheDocument();
+    expect(screen.getByText("Idle Agent")).toBeInTheDocument();
   });
 
   it("renders empty state when no agents", () => {
@@ -80,7 +80,7 @@ describe("AgentSidebar", () => {
     const dots = container.querySelectorAll(".rounded-full");
     expect(dots[0]).toHaveClass("bg-green-500"); // active
     expect(dots[1]).toHaveClass("bg-gray-400"); // created
-    expect(dots[2]).toHaveClass("bg-red-500"); // failed
+    expect(dots[2]).toHaveClass("bg-gray-400"); // idle
   });
 
   it("pulses the status dot when agent is active and busy", () => {
