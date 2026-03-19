@@ -201,6 +201,10 @@ defmodule ShireWeb.AgentLive.Index do
     end
   end
 
+  def handle_event("load-more", _params, socket) do
+    {:noreply, socket}
+  end
+
   @impl true
   def handle_event("restart-agent", _params, socket) do
     project_id = socket.assigns.project.id

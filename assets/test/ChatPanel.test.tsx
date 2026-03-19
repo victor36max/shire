@@ -100,6 +100,28 @@ describe("ChatPanel", () => {
     expect(screen.getByText("done")).toBeInTheDocument();
   });
 
+  it("sends load-more with before param when scrolled to top", () => {
+    const pushEvent = vi.fn();
+    const { container } = render(<ChatPanel agent={activeAgent} messages={messages} hasMore pushEvent={pushEvent} />);
+
+    const scrollContainer = container.querySelector(".overflow-y-auto")!;
+    Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
+    fireEvent.scroll(scrollContainer);
+
+    expect(pushEvent).toHaveBeenCalledWith("load-more", { before: 1 });
+  });
+
+  it("does not send load-more when no messages", () => {
+    const pushEvent = vi.fn();
+    const { container } = render(<ChatPanel agent={activeAgent} messages={[]} hasMore pushEvent={pushEvent} />);
+
+    const scrollContainer = container.querySelector(".overflow-y-auto")!;
+    Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
+    fireEvent.scroll(scrollContainer);
+
+    expect(pushEvent).not.toHaveBeenCalled();
+  });
+
   it("shows loading indicator when loadingMore", () => {
     render(<ChatPanel agent={activeAgent} messages={messages} hasMore loadingMore pushEvent={vi.fn()} />);
     expect(screen.getByText("Loading older messages...")).toBeInTheDocument();
