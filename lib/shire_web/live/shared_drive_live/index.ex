@@ -1,23 +1,26 @@
 defmodule ShireWeb.SharedDriveLive.Index do
   use ShireWeb, :live_view
 
+  alias Shire.Projects
   alias Shire.ProjectManager
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
   @drive_path "/workspace/shared"
 
   @impl true
-  def mount(%{"project" => project}, _session, socket) do
-    case ProjectManager.lookup_coordinator(project) do
+  def mount(%{"project_id" => project_id}, _session, socket) do
+    case ProjectManager.lookup_coordinator(project_id) do
       {:error, :not_found} ->
         {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
 
       {:ok, _pid} ->
+        project = Projects.get_project!(project_id)
+
         {:ok,
          socket
-         |> assign(:project, project)
+         |> assign(:project, %{id: project.id, name: project.name})
          |> assign(:current_path, "/")
-         |> assign(:files, list_files(project, "/"))}
+         |> assign(:files, list_files(project_id, "/"))}
     end
   end
 
@@ -28,24 +31,24 @@ defmodule ShireWeb.SharedDriveLive.Index do
 
   @impl true
   def handle_event("navigate", %{"path" => path}, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
     {:noreply,
      socket
      |> assign(:current_path, path)
-     |> assign(:files, list_files(project, path))}
+     |> assign(:files, list_files(project_id, path))}
   end
 
   def handle_event("create-directory", %{"name" => name}, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
     path = join_path(socket.assigns.current_path, name)
 
-    case @vm.mkdir_p(project, to_vm_path(path)) do
+    case @vm.mkdir_p(project_id, to_vm_path(path)) do
       :ok ->
         {:noreply,
          socket
          |> put_flash(:info, "Directory created")
-         |> assign(:files, list_files(project, socket.assigns.current_path))}
+         |> assign(:files, list_files(project_id, socket.assigns.current_path))}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed: #{inspect(reason)}")}
@@ -53,11 +56,11 @@ defmodule ShireWeb.SharedDriveLive.Index do
   end
 
   def handle_event("delete-file", %{"path" => path}, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
-    case @vm.rm(project, to_vm_path(path)) do
+    case @vm.rm(project_id, to_vm_path(path)) do
       :ok ->
-        {:noreply, assign(socket, :files, list_files(project, socket.assigns.current_path))}
+        {:noreply, assign(socket, :files, list_files(project_id, socket.assigns.current_path))}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed: #{inspect(reason)}")}
@@ -65,11 +68,11 @@ defmodule ShireWeb.SharedDriveLive.Index do
   end
 
   def handle_event("delete-directory", %{"path" => path}, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
-    case @vm.rm_rf(project, to_vm_path(path)) do
+    case @vm.rm_rf(project_id, to_vm_path(path)) do
       :ok ->
-        {:noreply, assign(socket, :files, list_files(project, socket.assigns.current_path))}
+        {:noreply, assign(socket, :files, list_files(project_id, socket.assigns.current_path))}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed: #{inspect(reason)}")}
@@ -77,19 +80,19 @@ defmodule ShireWeb.SharedDriveLive.Index do
   end
 
   def handle_event("upload-file", %{"name" => name, "content" => content}, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
     path = join_path(socket.assigns.current_path, name)
 
     case Base.decode64(content) do
       {:ok, decoded} ->
         vm_path = to_vm_path(path)
 
-        with :ok <- @vm.mkdir_p(project, Path.dirname(vm_path)),
-             :ok <- @vm.write(project, vm_path, decoded) do
+        with :ok <- @vm.mkdir_p(project_id, Path.dirname(vm_path)),
+             :ok <- @vm.write(project_id, vm_path, decoded) do
           {:noreply,
            socket
            |> put_flash(:info, "File uploaded")
-           |> assign(:files, list_files(project, socket.assigns.current_path))}
+           |> assign(:files, list_files(project_id, socket.assigns.current_path))}
         else
           {:error, reason} ->
             {:noreply, put_flash(socket, :error, "Upload failed: #{inspect(reason)}")}
@@ -100,10 +103,10 @@ defmodule ShireWeb.SharedDriveLive.Index do
     end
   end
 
-  defp list_files(project, path) do
+  defp list_files(project_id, path) do
     vm_path = to_vm_path(path)
 
-    case @vm.ls(project, vm_path) do
+    case @vm.ls(project_id, vm_path) do
       {:ok, entries} when is_list(entries) ->
         entries
         |> Enum.sort_by(fn entry -> entry["name"] || to_string(entry) end)

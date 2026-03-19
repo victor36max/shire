@@ -1,7 +1,15 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
 import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
 import { mkdirSync, writeFileSync, rmSync, readdirSync } from "fs";
-import { emit, loadConfig, processMessage, processInbox, processOutbox, type MessageEnvelope } from "./agent-runner";
+import {
+  emit,
+  loadConfig,
+  loadPeers,
+  processMessage,
+  processInbox,
+  processOutbox,
+  type MessageEnvelope,
+} from "./agent-runner";
 import type { Harness } from "./harness";
 import { createHarness } from "./harness";
 
@@ -327,20 +335,32 @@ max_tokens: 8192
 
 const TEST_OUTBOX = "/tmp/test-outbox-" + process.pid;
 const TEST_AGENTS_ROOT = "/tmp/test-agents-root-" + process.pid;
+const TEST_PEERS_PATH = `${TEST_AGENTS_ROOT}/../peers.yaml`;
+const TARGET_AGENT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
 describe("processOutbox()", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mkdirSync(TEST_OUTBOX, { recursive: true });
-    mkdirSync(`${TEST_AGENTS_ROOT}/target-agent/inbox`, { recursive: true });
+    mkdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`, { recursive: true });
+    // Write peers.yaml mapping name → UUID
+    const peersYaml = `- id: "${TARGET_AGENT_ID}"\n  name: "target-agent"\n  description: "test"\n`;
+    mkdirSync(`${TEST_AGENTS_ROOT}/..`, { recursive: true });
+    writeFileSync(TEST_PEERS_PATH, peersYaml);
+    await loadPeers(TEST_PEERS_PATH);
   });
 
   afterEach(() => {
     rmSync(TEST_OUTBOX, { recursive: true, force: true });
     rmSync(TEST_AGENTS_ROOT, { recursive: true, force: true });
+    try {
+      rmSync(TEST_PEERS_PATH);
+    } catch {
+      // ignore
+    }
   });
 
   test("returns 0 when outbox is empty", async () => {
-    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT);
+    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
     expect(count).toBe(0);
   });
 
@@ -349,18 +369,18 @@ describe("processOutbox()", () => {
     writeFileSync(`${TEST_OUTBOX}/msg.json`, JSON.stringify(msg));
 
     const events = await captureEmits(async () => {
-      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT);
+      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
     });
 
     // Outbox file removed
     const remaining = readdirSync(TEST_OUTBOX).filter((f) => f.endsWith(".json"));
     expect(remaining).toHaveLength(0);
 
-    // Envelope written to target inbox
-    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/target-agent/inbox`).filter((f) => f.endsWith(".json"));
+    // Envelope written to target inbox (by UUID)
+    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`).filter((f) => f.endsWith(".json"));
     expect(inboxFiles).toHaveLength(1);
 
-    const raw = Bun.file(`${TEST_AGENTS_ROOT}/target-agent/inbox/${inboxFiles[0]}`);
+    const raw = Bun.file(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox/${inboxFiles[0]}`);
     const envelope = JSON.parse(await raw.text());
     expect(envelope.type).toBe("agent_message");
     expect(envelope.payload.text).toBe("hello there");
@@ -369,17 +389,21 @@ describe("processOutbox()", () => {
     // Emits agent_message_sent event
     const sent = events.find((e) => e.type === "agent_message_sent");
     expect(sent).toBeDefined();
-    expect(sent!.payload).toEqual({ to_agent: "target-agent", text: "hello there" });
+    expect(sent!.payload).toEqual({
+      to_agent: "target-agent",
+      to_agent_id: TARGET_AGENT_ID,
+      text: "hello there",
+    });
   });
 
   test("processes multiple outbox files", async () => {
     writeFileSync(`${TEST_OUTBOX}/a.json`, JSON.stringify({ to: "target-agent", text: "first" }));
     writeFileSync(`${TEST_OUTBOX}/b.json`, JSON.stringify({ to: "target-agent", text: "second" }));
 
-    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT);
+    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
     expect(count).toBe(2);
 
-    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/target-agent/inbox`).filter((f) => f.endsWith(".json"));
+    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`).filter((f) => f.endsWith(".json"));
     expect(inboxFiles).toHaveLength(2);
   });
 });

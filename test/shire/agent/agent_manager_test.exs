@@ -5,21 +5,31 @@ defmodule Shire.Agent.AgentManagerTest do
 
   alias Shire.Agent.AgentManager
   alias Shire.Agents
+  alias Shire.Projects
 
-  @agent_name "test-agent"
-  @project "test-project"
+  @vm Shire.VirtualMachineStub
 
   setup :set_mox_from_context
 
-  defp start_manager(opts \\ []) do
-    name = Keyword.get(opts, :agent_name, @agent_name)
+  setup do
+    {:ok, project} = Projects.create_project("test-project-#{System.unique_integer([:positive])}")
+    {:ok, agent} = Agents.create_agent_with_vm(project.id, "test-agent", "version: 1\n", @vm)
 
-    start_supervised({AgentManager, project_name: @project, agent_name: name, skip_sprite: true})
+    %{project: project, agent: agent, project_id: project.id, agent_id: agent.id}
+  end
+
+  defp start_manager(ctx, opts \\ []) do
+    agent_id = Keyword.get(opts, :agent_id, ctx.agent_id)
+
+    start_supervised(
+      {AgentManager,
+       project_id: ctx.project_id, agent_id: agent_id, agent_name: "test-agent", skip_sprite: true}
+    )
   end
 
   describe "start_link/1" do
-    test "starts the GenServer and registers with the agent name" do
-      {:ok, pid} = start_manager()
+    test "starts the GenServer and registers with the agent id", ctx do
+      {:ok, pid} = start_manager(ctx)
 
       assert Process.alive?(pid)
       assert GenServer.call(pid, :get_state) |> Map.get(:status) == :idle
@@ -27,27 +37,27 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "state management" do
-    test "get_state returns current state" do
-      {:ok, pid} = start_manager()
+    test "get_state returns current state", ctx do
+      {:ok, pid} = start_manager(ctx)
 
       state = AgentManager.get_state(pid)
-      assert state.agent_name == @agent_name
+      assert state.agent_id == ctx.agent_id
       assert state.status == :idle
     end
   end
 
   describe "send_message/4" do
-    test "returns error when agent is not active" do
-      {:ok, pid} = start_manager()
+    test "returns error when agent is not active", ctx do
+      {:ok, pid} = start_manager(ctx)
 
       assert {:error, :not_active} = GenServer.call(pid, {:send_message, "hello", :user})
     end
 
-    test "persists user message to DB when from is :user" do
+    test "persists user message to DB when from is :user", ctx do
       Mox.set_mox_global()
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
-      {:ok, pid} = start_manager()
+      {:ok, pid} = start_manager(ctx)
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
       ref = make_ref()
@@ -59,7 +69,7 @@ defmodule Shire.Agent.AgentManagerTest do
       assert {:ok, %Shire.Agents.Message{}} =
                GenServer.call(pid, {:send_message, "hello from user", :user})
 
-      {messages, _} = Agents.list_messages_for_agent(@project, @agent_name)
+      {messages, _} = Agents.list_messages_for_agent(ctx.project_id, ctx.agent_id)
       user_msgs = Enum.filter(messages, &(&1.role == "user"))
       assert length(user_msgs) == 1
       assert hd(user_msgs).content["text"] == "hello from user"
@@ -67,8 +77,8 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "responsiveness" do
-    test "get_state responds immediately even during non-idle statuses" do
-      {:ok, pid} = start_manager()
+    test "get_state responds immediately even during non-idle statuses", ctx do
+      {:ok, pid} = start_manager(ctx)
 
       :sys.replace_state(pid, fn state ->
         %{state | status: :bootstrapping}
@@ -80,8 +90,8 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "error handling" do
-    test "transitions to failed on command error" do
-      {:ok, pid} = start_manager()
+    test "transitions to failed on command error", ctx do
+      {:ok, pid} = start_manager(ctx)
 
       ref = make_ref()
       command = %{ref: ref}
@@ -100,12 +110,15 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "persist_and_broadcast (stdout event persistence)" do
-    setup do
-      {:ok, pid} = start_manager()
+    setup ctx do
+      {:ok, pid} = start_manager(ctx)
 
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agent:#{@agent_name}")
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{ctx.project_id}:agent:#{ctx.agent_id}"
+      )
 
       ref = make_ref()
       command = %{ref: ref}
@@ -117,7 +130,7 @@ defmodule Shire.Agent.AgentManagerTest do
       %{pid: pid, ref: ref}
     end
 
-    test "persists text event as agent message in DB", %{pid: pid, ref: ref} do
+    test "persists text event as agent message in DB", %{pid: pid, ref: ref} = _ctx do
       line = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "Hello world"}})
       send(pid, {:stdout, %{ref: ref}, line <> "\n"})
 
@@ -128,7 +141,6 @@ defmodule Shire.Agent.AgentManagerTest do
 
       db_msg = Agents.get_message!(msg[:id])
       assert db_msg.content["text"] == "Hello world"
-      assert db_msg.agent_name == @agent_name
     end
 
     test "persists tool_use started event in DB", %{pid: pid, ref: ref} do
@@ -153,7 +165,6 @@ defmodule Shire.Agent.AgentManagerTest do
       db_msg = Agents.get_message!(msg[:id])
       assert db_msg.role == "tool_use"
       assert db_msg.content["tool"] == "Read"
-      assert db_msg.agent_name == @agent_name
     end
 
     test "updates tool_use with tool_result in DB", %{pid: pid, ref: ref} do
@@ -207,17 +218,17 @@ defmodule Shire.Agent.AgentManagerTest do
 
       db_msg = Agents.get_message!(msg[:id])
       assert db_msg.content["text"] == "Hello world"
-      assert db_msg.agent_name == @agent_name
 
       assert_receive {:agent_event, _, %{"type" => "turn_complete"}}, 1_000
     end
 
-    test "broadcasts include agent_name in 3-tuple", %{pid: pid, ref: ref} do
+    test "broadcasts include agent_id in 3-tuple", ctx do
+      %{pid: pid, ref: ref} = ctx
       line = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "test"}})
       send(pid, {:stdout, %{ref: ref}, line <> "\n"})
 
-      assert_receive {:agent_event, agent_name, _event}, 1_000
-      assert agent_name == @agent_name
+      assert_receive {:agent_event, agent_id, _event}, 1_000
+      assert agent_id == ctx.agent_id
     end
 
     test "cleans up tool_use_ids after tool_result", %{pid: pid, ref: ref} do
@@ -327,10 +338,10 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "agent_message_received stdout event" do
-    test "persists inter_agent message to DB" do
+    test "persists inter_agent message to DB", ctx do
       Mox.set_mox_global()
 
-      {:ok, pid} = start_manager()
+      {:ok, pid} = start_manager(ctx)
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
       ref = make_ref()
@@ -350,20 +361,23 @@ defmodule Shire.Agent.AgentManagerTest do
       # Give it a moment to process
       Process.sleep(50)
 
-      {messages, _has_more} = Agents.list_messages_for_agent(@project, @agent_name)
+      {messages, _has_more} = Agents.list_messages_for_agent(ctx.project_id, ctx.agent_id)
       inter_agent = Enum.find(messages, &(&1.role == "inter_agent"))
       assert inter_agent != nil
       assert inter_agent.content["text"] == "hello from other"
       assert inter_agent.content["from_agent"] == "other-agent"
-      assert inter_agent.content["to_agent"] == @agent_name
+      assert inter_agent.content["to_agent"] == "test-agent"
     end
   end
 
   describe "runner exit" do
-    test "transitions to failed when runner exits" do
-      {:ok, pid} = start_manager()
+    test "transitions to failed when runner exits", ctx do
+      {:ok, pid} = start_manager(ctx)
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agent:#{@agent_name}")
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{ctx.project_id}:agent:#{ctx.agent_id}"
+      )
 
       ref = make_ref()
 
@@ -383,15 +397,18 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "restart" do
-    test "resets state and transitions to bootstrapping" do
+    test "resets state and transitions to bootstrapping", ctx do
       Mox.set_mox_global()
       stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
-      {:ok, pid} = start_manager()
+      {:ok, pid} = start_manager(ctx)
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agent:#{@agent_name}")
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{ctx.project_id}:agent:#{ctx.agent_id}"
+      )
 
       ref = make_ref()
 
@@ -399,7 +416,7 @@ defmodule Shire.Agent.AgentManagerTest do
         %{state | command: %{ref: ref}, command_ref: ref, status: :active}
       end)
 
-      assert :ok = AgentManager.restart(@project, @agent_name)
+      assert :ok = AgentManager.restart(ctx.project_id, ctx.agent_id)
 
       assert_receive {:status, :bootstrapping}, 1_000
     end

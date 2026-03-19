@@ -20,19 +20,19 @@ defmodule ShireWeb.Router do
     live_session :default, layout: {ShireWeb.Layouts, :app} do
       live "/", ProjectLive.Index, :index
 
-      live "/projects/:project", AgentLive.Index, :index
-      live "/projects/:project/agents/:name", AgentLive.Show, :show
+      live "/projects/:project_id", AgentLive.Index, :index
+      live "/projects/:project_id/agents/:agent_id", AgentLive.Show, :show
 
-      live "/projects/:project/settings", SettingsLive.Index, :index
+      live "/projects/:project_id/settings", SettingsLive.Index, :index
 
-      live "/projects/:project/shared", SharedDriveLive.Index, :index
+      live "/projects/:project_id/shared", SharedDriveLive.Index, :index
     end
   end
 
   scope "/", ShireWeb do
     pipe_through :browser
 
-    get "/projects/:project/shared/download", SharedDriveController, :download
+    get "/projects/:project_id/shared/download", SharedDriveController, :download
   end
 
   # Other scopes may use custom stacks.

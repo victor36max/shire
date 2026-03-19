@@ -4,18 +4,18 @@ import ProjectSwitcher from "../react-components/ProjectSwitcher";
 import type { Project } from "../react-components/types";
 
 const projects: Project[] = [
-  { name: "test-project", status: "running" },
-  { name: "other-project", status: "running" },
+  { id: "p1", name: "test-project", status: "running" },
+  { id: "p2", name: "other-project", status: "running" },
 ];
 
 describe("ProjectSwitcher", () => {
   it("renders with current project selected", () => {
-    render(<ProjectSwitcher projects={projects} currentProject="test-project" />);
+    render(<ProjectSwitcher projects={projects} currentProjectId="p1" />);
     expect(screen.getByText("test-project")).toBeInTheDocument();
   });
 
   it("renders as a select trigger", () => {
-    render(<ProjectSwitcher projects={projects} currentProject="test-project" />);
+    render(<ProjectSwitcher projects={projects} currentProjectId="p1" />);
     expect(screen.getByRole("combobox")).toBeInTheDocument();
   });
 
@@ -26,7 +26,7 @@ describe("ProjectSwitcher", () => {
       writable: true,
     });
 
-    render(<ProjectSwitcher projects={projects} currentProject="test-project" />);
+    render(<ProjectSwitcher projects={projects} currentProjectId="p1" />);
     // The select component renders the current value; full interaction testing
     // of Radix Select in jsdom is limited, so we verify the component renders
     expect(screen.getByRole("combobox")).toBeInTheDocument();

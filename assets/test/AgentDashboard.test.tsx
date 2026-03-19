@@ -6,12 +6,14 @@ import { type Agent, type Project } from "../react-components/types";
 
 const agents: Agent[] = [
   {
+    id: "a1",
     name: "Agent One",
     status: "active",
     model: "claude-sonnet-4-6",
     harness: "claude_code",
   },
   {
+    id: "a2",
     name: "Agent Two",
     status: "created",
     harness: "claude_code",
@@ -19,12 +21,12 @@ const agents: Agent[] = [
 ];
 
 const projects: Project[] = [
-  { name: "test-project", status: "running" },
-  { name: "other-project", status: "running" },
+  { id: "p1", name: "test-project", status: "running" },
+  { id: "p2", name: "other-project", status: "running" },
 ];
 
 const defaultProps = {
-  project: "test-project",
+  project: { id: "p1", name: "test-project" },
   projects,
   editAgent: null,
   pushEvent: vi.fn(),
@@ -63,7 +65,7 @@ describe("AgentDashboard", () => {
     render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} pushEvent={pushEvent} />);
 
     await userEvent.click(screen.getByText("Agent One"));
-    expect(pushEvent).toHaveBeenCalledWith("select-agent", { name: "Agent One" });
+    expect(pushEvent).toHaveBeenCalledWith("select-agent", { id: "a1" });
   });
 
   it("opens new agent dialog from sidebar", async () => {

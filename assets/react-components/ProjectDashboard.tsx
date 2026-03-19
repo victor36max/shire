@@ -61,7 +61,7 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
 
   const handleDelete = () => {
     if (!deleteProject) return;
-    pushEvent("delete-project", { name: deleteProject.name });
+    pushEvent("delete-project", { id: deleteProject.id });
     setDeleteProject(null);
   };
 
@@ -82,9 +82,9 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects.map((project) => (
               <Card
-                key={project.name}
+                key={project.id}
                 className="cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => navigate(`/projects/${project.name}`)}
+                onClick={() => navigate(`/projects/${project.id}`)}
               >
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
