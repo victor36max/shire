@@ -338,11 +338,16 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "agent_message_received stdout event" do
-    test "persists inter_agent message to DB", ctx do
+    setup ctx do
       Mox.set_mox_global()
 
       {:ok, pid} = start_manager(ctx)
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
+
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{ctx.project_id}:agent:#{ctx.agent_id}"
+      )
 
       ref = make_ref()
 
@@ -350,13 +355,17 @@ defmodule Shire.Agent.AgentManagerTest do
         %{state | command: %{ref: ref}, command_ref: ref, status: :active}
       end)
 
+      %{pid: pid, ref: ref}
+    end
+
+    test "persists inter_agent message to DB", ctx do
       event =
         Jason.encode!(%{
           "type" => "agent_message_received",
           "payload" => %{"from_agent" => "other-agent", "text" => "hello from other"}
         })
 
-      send(pid, {:stdout, %{ref: ref}, event <> "\n"})
+      send(ctx.pid, {:stdout, %{ref: ctx.ref}, event <> "\n"})
 
       # Give it a moment to process
       Process.sleep(50)
@@ -367,6 +376,24 @@ defmodule Shire.Agent.AgentManagerTest do
       assert inter_agent.content["text"] == "hello from other"
       assert inter_agent.content["from_agent"] == "other-agent"
       assert inter_agent.content["to_agent"] == "test-agent"
+    end
+
+    test "broadcasts inter_agent_message event via PubSub", ctx do
+      event =
+        Jason.encode!(%{
+          "type" => "agent_message_received",
+          "payload" => %{"from_agent" => "other-agent", "text" => "hello from other"}
+        })
+
+      send(ctx.pid, {:stdout, %{ref: ctx.ref}, event <> "\n"})
+
+      assert_receive {:agent_event, _, %{"type" => "inter_agent_message", "message" => msg}},
+                     1_000
+
+      assert msg[:role] == "inter_agent"
+      assert msg[:text] == "hello from other"
+      assert msg[:from_agent] == "other-agent"
+      assert msg[:id]
     end
   end
 

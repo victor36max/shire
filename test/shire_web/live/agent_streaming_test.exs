@@ -131,6 +131,34 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
     end
   end
 
+  describe "process_agent_event/2 with inter_agent_message" do
+    test "appends inter-agent message and preserves streaming text" do
+      msg = %{
+        id: 5,
+        role: "inter_agent",
+        text: "hello from other",
+        from_agent: "other-agent",
+        ts: "2024-01-01T00:00:00Z"
+      }
+
+      socket = mock_socket(%{streaming_text: "partial"})
+
+      event = %{
+        "type" => "inter_agent_message",
+        "payload" => %{"from_agent" => "other-agent", "text" => "hello from other"},
+        "message" => msg
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      # Inter-agent message appended before the ephemeral streaming entry
+      inter_agent = Enum.find(socket.assigns.messages, &(&1[:role] == "inter_agent"))
+      assert inter_agent[:text] == "hello from other"
+      assert inter_agent[:from_agent] == "other-agent"
+      # Streaming text preserved
+      assert socket.assigns.streaming_text == "partial"
+    end
+  end
+
   describe "process_agent_event/2 with turn_complete" do
     test "clears streaming text" do
       socket = mock_socket(%{streaming_text: "partial text"})
