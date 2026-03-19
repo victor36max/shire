@@ -93,9 +93,10 @@ export default function AgentForm({ open, title, agent, pushEvent, onClose }: Ag
       finalName = parsed.name || name;
       recipeYaml = rawYaml;
     } else {
-      if (!SLUG_REGEX.test(name)) return;
       recipeYaml = buildRecipeYaml({ name, description, harness, model, systemPrompt, skills });
     }
+
+    if (!SLUG_REGEX.test(finalName)) return;
 
     const event = agent ? "update-agent" : "create-agent";
     const payload: Record<string, unknown> = {
