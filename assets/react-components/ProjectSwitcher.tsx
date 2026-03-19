@@ -1,4 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
+import { navigate } from "./lib/navigate";
 import type { Project } from "./types";
 
 interface ProjectSwitcherProps {
@@ -12,9 +13,9 @@ export default function ProjectSwitcher({ projects, currentProject }: ProjectSwi
       value={currentProject}
       onValueChange={(value) => {
         if (value === "__all__") {
-          window.location.assign("/");
+          navigate("/");
         } else {
-          window.location.assign(`/projects/${value}`);
+          navigate(`/projects/${value}`);
         }
       }}
     >

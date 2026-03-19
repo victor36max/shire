@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
 import AppLayout from "./components/AppLayout";
+import { navigate } from "./lib/navigate";
 import type { Project } from "./types";
 
 interface ProjectDashboardProps {
@@ -83,7 +84,7 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
               <Card
                 key={project.name}
                 className="cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => window.location.assign(`/projects/${project.name}`)}
+                onClick={() => navigate(`/projects/${project.name}`)}
               >
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
