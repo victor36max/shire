@@ -107,33 +107,37 @@ defmodule Shire.ProjectManager do
 
   @impl true
   def handle_call({:create_project, name}, _from, state) do
-    # Check DB first
-    if Projects.get_project_by_name(name) do
-      {:reply, {:error, :already_exists}, state}
+    unless Shire.Slug.valid?(name) do
+      {:reply, {:error, :invalid_name}, state}
     else
-      case Projects.create_project(name) do
-        {:ok, project} ->
-          case start_project_subtree(project.id) do
-            {:ok, pid} ->
-              Process.monitor(pid)
-              projects = Map.put(state.projects, project.id, pid)
+      # Check DB first
+      if Projects.get_project_by_name(name) do
+        {:reply, {:error, :already_exists}, state}
+      else
+        case Projects.create_project(name) do
+          {:ok, project} ->
+            case start_project_subtree(project.id) do
+              {:ok, pid} ->
+                Process.monitor(pid)
+                projects = Map.put(state.projects, project.id, pid)
 
-              Phoenix.PubSub.broadcast(
-                Shire.PubSub,
-                "projects:lobby",
-                {:project_created, project}
-              )
+                Phoenix.PubSub.broadcast(
+                  Shire.PubSub,
+                  "projects:lobby",
+                  {:project_created, project}
+                )
 
-              {:reply, {:ok, project}, %{state | projects: projects}}
+                {:reply, {:ok, project}, %{state | projects: projects}}
 
-            {:error, reason} ->
-              # Subtree failed — clean up DB record
-              Projects.delete_project(project)
-              {:reply, {:error, reason}, state}
-          end
+              {:error, reason} ->
+                # Subtree failed — clean up DB record
+                Projects.delete_project(project)
+                {:reply, {:error, reason}, state}
+            end
 
-        {:error, changeset} ->
-          {:reply, {:error, changeset}, state}
+          {:error, changeset} ->
+            {:reply, {:error, changeset}, state}
+        end
       end
     end
   end

@@ -94,6 +94,58 @@ describe("AgentForm", () => {
     expect(screen.getByPlaceholderText("Reference content...")).toBeInTheDocument();
   });
 
+  it("shows validation error for invalid agent name", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.paste("Invalid Name!");
+
+    expect(
+      screen.getByText("Use lowercase letters, numbers, and hyphens only. Must start and end with a letter or number."),
+    ).toBeInTheDocument();
+  });
+
+  it("auto-lowercases the name input", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "MyAgent");
+
+    expect(nameInput).toHaveValue("myagent");
+  });
+
+  it("does not submit when name is invalid", async () => {
+    const localPushEvent = vi.fn();
+    render(<AgentForm open={true} title="New Agent" agent={null} pushEvent={localPushEvent} onClose={vi.fn()} />);
+
+    const user = userEvent.setup();
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.paste("-invalid");
+    await user.click(screen.getByText("Save Agent"));
+
+    expect(localPushEvent).not.toHaveBeenCalled();
+  });
+
+  it("accepts valid slug names", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.paste("my-valid-agent");
+
+    expect(
+      screen.queryByText(
+        "Use lowercase letters, numbers, and hyphens only. Must start and end with a letter or number.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("submits update-agent event with recipe_yaml for existing agent", async () => {
     const agent: Agent = {
       id: "a-existing",
