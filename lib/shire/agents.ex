@@ -112,7 +112,7 @@ defmodule Shire.Agents do
       })
     )
     |> Multi.run(:write_inbox, fn _repo, _changes ->
-      case vm.write(project_id, inbox_path, Jason.encode!(envelope)) do
+      case vm.write(project_id, inbox_path, Ymlr.document!(envelope)) do
         :ok -> {:ok, :written}
         {:error, reason} -> {:error, reason}
       end

@@ -156,6 +156,45 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("Here is the analysis result")).not.toBeInTheDocument();
   });
 
+  it("renders system message collapsed by default", () => {
+    const sysMsg: Message = {
+      id: 20,
+      role: "system",
+      text: "Your outbox message was invalid",
+      ts: "2026-03-17T00:00:04Z",
+    };
+    render(<ChatPanel agent={activeAgent} messages={[sysMsg]} pushEvent={vi.fn()} />);
+    expect(screen.getByText("System notification")).toBeInTheDocument();
+    expect(screen.queryByText("Your outbox message was invalid")).not.toBeInTheDocument();
+  });
+
+  it("expands system message on click", async () => {
+    const sysMsg: Message = {
+      id: 20,
+      role: "system",
+      text: "Your outbox message was invalid",
+      ts: "2026-03-17T00:00:04Z",
+    };
+    render(<ChatPanel agent={activeAgent} messages={[sysMsg]} pushEvent={vi.fn()} />);
+    await userEvent.click(screen.getByText("System notification"));
+    expect(screen.getByText("Your outbox message was invalid")).toBeInTheDocument();
+  });
+
+  it("collapses system message on second click", async () => {
+    const sysMsg: Message = {
+      id: 20,
+      role: "system",
+      text: "Your outbox message was invalid",
+      ts: "2026-03-17T00:00:04Z",
+    };
+    render(<ChatPanel agent={activeAgent} messages={[sysMsg]} pushEvent={vi.fn()} />);
+    const toggle = screen.getByText("System notification");
+    await userEvent.click(toggle);
+    expect(screen.getByText("Your outbox message was invalid")).toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(screen.queryByText("Your outbox message was invalid")).not.toBeInTheDocument();
+  });
+
   it("shows thinking indicator when agent is busy", () => {
     const busyAgent = { ...activeAgent, busy: true };
     render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
