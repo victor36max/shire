@@ -210,7 +210,7 @@ export default function ChatPanel({
         )}
         <div ref={messagesEndRef} />
       </div>
-      {agent.status === "active" && (
+      {agent.status === "active" ? (
         <div className="border-t border-border p-4">
           <div className="flex gap-2 items-end">
             <Textarea
@@ -234,7 +234,18 @@ export default function ChatPanel({
             <Button onClick={handleSend}>Send</Button>
           </div>
         </div>
-      )}
+      ) : agent.status === "idle" ? (
+        <div className="border-t border-border p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Agent is idle. It will restart automatically when the VM wakes up.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => pushEvent("restart-agent", {})}>
+              Restart
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

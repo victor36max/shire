@@ -71,6 +71,8 @@ defmodule Shire.Agent.AgentManager do
     """
   end
 
+  @max_auto_restarts 3
+
   defstruct [
     :agent_id,
     :agent_name,
@@ -81,7 +83,8 @@ defmodule Shire.Agent.AgentManager do
     status: :idle,
     buffer: "",
     streaming_text: nil,
-    tool_use_ids: %{}
+    tool_use_ids: %{},
+    auto_restart_count: 0
   ]
 
   # --- Public API ---
@@ -103,6 +106,14 @@ defmodule Shire.Agent.AgentManager do
 
   def restart(project_id, agent_id) do
     GenServer.call(via(project_id, agent_id), :restart, 60_000)
+  end
+
+  @doc """
+  Attempts an automatic restart (e.g., after VM wake-up). Returns `{:error, :max_retries}`
+  if the agent has already failed too many consecutive restarts.
+  """
+  def auto_restart(project_id, agent_id) do
+    GenServer.call(via(project_id, agent_id), :auto_restart, 60_000)
   end
 
   defp via(project_id, agent_id) do
@@ -160,14 +171,14 @@ defmodule Shire.Agent.AgentManager do
          ) do
       {:ok, command} ->
         state =
-          %{state | command: command, command_ref: command.ref}
+          %{state | command: command, command_ref: command.ref, auto_restart_count: 0}
           |> transition_status(:active)
 
         {:noreply, state}
 
       {:error, reason} ->
         Logger.error("Failed to spawn agent runner for #{state.agent_name}: #{inspect(reason)}")
-        {:noreply, transition_status(state, :failed)}
+        {:noreply, transition_status(state, :idle)}
     end
   end
 
@@ -208,6 +219,21 @@ defmodule Shire.Agent.AgentManager do
   @impl true
   def handle_call(:get_state, _from, state) do
     {:reply, Map.from_struct(state), state}
+  end
+
+  @impl true
+  def handle_call(:auto_restart, _from, %{auto_restart_count: count} = state)
+      when count >= @max_auto_restarts do
+    Logger.warning(
+      "Skipping auto-restart for #{state.agent_name}: reached max retries (#{@max_auto_restarts})"
+    )
+
+    {:reply, {:error, :max_retries}, state}
+  end
+
+  @impl true
+  def handle_call(:auto_restart, from, state) do
+    handle_call(:restart, from, %{state | auto_restart_count: state.auto_restart_count + 1})
   end
 
   @impl true
@@ -308,7 +334,7 @@ defmodule Shire.Agent.AgentManager do
 
     state =
       %{state | command: nil, command_ref: nil}
-      |> transition_status(:failed)
+      |> transition_status(:idle)
 
     {:noreply, state}
   end
@@ -319,7 +345,7 @@ defmodule Shire.Agent.AgentManager do
 
     state =
       %{state | command: nil, command_ref: nil}
-      |> transition_status(:failed)
+      |> transition_status(:idle)
 
     {:noreply, state}
   end
@@ -344,7 +370,7 @@ defmodule Shire.Agent.AgentManager do
   @impl true
   def handle_cast({:bootstrap_complete, {:error, e}}, state) do
     Logger.error("Bootstrap failed for #{state.agent_name}: #{inspect(e)}")
-    {:noreply, transition_status(state, :failed)}
+    {:noreply, transition_status(state, :idle)}
   end
 
   # --- Private ---

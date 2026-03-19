@@ -103,10 +103,10 @@ defmodule Shire.Agent.CoordinatorTest do
       agent = create_db_agent(project_id)
       {:ok, _pid} = start_agent_manager(project_id, agent.id)
 
-      broadcast_status(project_id, agent.id, :failed)
-      assert :failed == Coordinator.agent_status(project_id, agent.id)
+      broadcast_status(project_id, agent.id, :idle)
+      assert :idle == Coordinator.agent_status(project_id, agent.id)
 
-      # Restart should succeed for a running (failed) agent
+      # Restart should succeed for a running (idle) agent
       result = Coordinator.restart_agent(project_id, agent.id)
       assert result == :ok
     end
@@ -334,6 +334,57 @@ defmodule Shire.Agent.CoordinatorTest do
         })
 
       assert {:error, _} = result
+    end
+  end
+
+  describe "vm_woke_up auto-restart" do
+    test "restarts idle agents when VM wakes up", %{project_id: project_id} do
+      agent = create_db_agent(project_id, "idle-agent-wake")
+      {:ok, _pid} = start_agent_manager(project_id, agent.id)
+
+      # Mark agent as idle (simulating VM sleep killed the runner)
+      broadcast_status(project_id, agent.id, :idle)
+      assert :idle == Coordinator.agent_status(project_id, agent.id)
+
+      # Subscribe to see the restart status change
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{project_id}:agent:#{agent.id}"
+      )
+
+      # Simulate VM waking up
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{project_id}:vm",
+        {:vm_woke_up, project_id}
+      )
+
+      # Should receive bootstrapping status (restart triggers bootstrap)
+      assert_receive {:status, :bootstrapping}, 1_000
+    end
+
+    test "does not restart non-idle agents when VM wakes up", %{project_id: project_id} do
+      agent = create_db_agent(project_id, "active-agent-wake")
+      {:ok, _pid} = start_agent_manager(project_id, agent.id)
+
+      # Mark agent as active
+      broadcast_status(project_id, agent.id, :active)
+
+      # Subscribe to see if status changes
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{project_id}:agent:#{agent.id}"
+      )
+
+      # Simulate VM waking up
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{project_id}:vm",
+        {:vm_woke_up, project_id}
+      )
+
+      # Should NOT receive any restart-related status change
+      refute_receive {:status, :bootstrapping}, 300
     end
   end
 

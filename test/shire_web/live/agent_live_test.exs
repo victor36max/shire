@@ -297,7 +297,7 @@ defmodule ShireWeb.AgentLiveTest do
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
         "project:#{project_id}:agent:#{agent.id}",
-        {:status, :failed}
+        {:status, :idle}
       )
 
       html = render(view)

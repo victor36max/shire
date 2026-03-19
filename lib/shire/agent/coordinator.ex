@@ -89,6 +89,7 @@ defmodule Shire.Agent.Coordinator do
     project_id = Keyword.fetch!(opts, :project_id)
 
     Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
+    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:vm")
 
     state = %{
       project_id: project_id,
@@ -400,6 +401,31 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_info({:agent_created, _id}, state) do
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:vm_woke_up, _project_id}, state) do
+    idle_agents =
+      Enum.filter(state.statuses, fn {_id, status} -> status == :idle end)
+
+    if idle_agents != [] do
+      Logger.info(
+        "VM woke up — restarting #{length(idle_agents)} idle agent(s) for project #{state.project_id}"
+      )
+
+      Enum.each(idle_agents, fn {agent_id, _} ->
+        project_id = state.project_id
+
+        Task.start(fn ->
+          case lookup(project_id, agent_id) do
+            {:ok, _pid} -> AgentManager.auto_restart(project_id, agent_id)
+            {:error, :not_found} -> :ok
+          end
+        end)
+      end)
+    end
+
     {:noreply, state}
   end
 

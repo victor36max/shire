@@ -166,4 +166,21 @@ describe("ChatPanel", () => {
     render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={vi.fn()} />);
     expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
   });
+
+  it("shows idle message and restart button when agent is idle", () => {
+    const idleAgent: Agent = { ...activeAgent, status: "idle" };
+    const pushEvent = vi.fn();
+    render(<ChatPanel agent={idleAgent} messages={messages} pushEvent={pushEvent} />);
+    expect(screen.getByText(/Agent is idle/)).toBeInTheDocument();
+    expect(screen.getByText("Restart")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Type a message...")).not.toBeInTheDocument();
+  });
+
+  it("sends restart-agent event when restart button is clicked", async () => {
+    const idleAgent: Agent = { ...activeAgent, status: "idle" };
+    const pushEvent = vi.fn();
+    render(<ChatPanel agent={idleAgent} messages={messages} pushEvent={pushEvent} />);
+    await userEvent.click(screen.getByText("Restart"));
+    expect(pushEvent).toHaveBeenCalledWith("restart-agent", {});
+  });
 });
