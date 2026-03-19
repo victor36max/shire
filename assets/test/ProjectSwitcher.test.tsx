@@ -10,12 +10,12 @@ const projects: Project[] = [
 
 describe("ProjectSwitcher", () => {
   it("renders with current project selected", () => {
-    render(<ProjectSwitcher projects={projects} currentProjectId="p1" />);
+    render(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
     expect(screen.getByText("test-project")).toBeInTheDocument();
   });
 
   it("renders as a select trigger", () => {
-    render(<ProjectSwitcher projects={projects} currentProjectId="p1" />);
+    render(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
     expect(screen.getByRole("combobox")).toBeInTheDocument();
   });
 
@@ -26,7 +26,7 @@ describe("ProjectSwitcher", () => {
       writable: true,
     });
 
-    render(<ProjectSwitcher projects={projects} currentProjectId="p1" />);
+    render(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
     // The select component renders the current value; full interaction testing
     // of Radix Select in jsdom is limited, so we verify the component renders
     expect(screen.getByRole("combobox")).toBeInTheDocument();

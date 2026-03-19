@@ -8,7 +8,10 @@ defmodule ShireWeb.AgentLive.Index do
   alias ShireWeb.AgentLive.{AgentStreaming, Helpers}
 
   @impl true
-  def mount(%{"project_id" => project_id}, _session, socket) do
+  def mount(%{"project_name" => project_name}, _session, socket) do
+    project = Projects.get_project_by_name!(project_name)
+    project_id = project.id
+
     case ProjectManager.lookup_coordinator(project_id) do
       {:error, :not_found} ->
         {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
@@ -18,7 +21,6 @@ defmodule ShireWeb.AgentLive.Index do
           Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
         end
 
-        project = Projects.get_project!(project_id)
         agents = Coordinator.list_agents(project_id)
         projects = ProjectManager.list_projects()
 

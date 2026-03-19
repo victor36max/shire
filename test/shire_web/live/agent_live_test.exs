@@ -33,25 +33,27 @@ defmodule ShireWeb.AgentLiveTest do
     start_supervised!({Shire.Agent.Coordinator, project_id: project_id})
     Process.sleep(50)
 
-    %{project_id: project_id}
+    %{project_id: project_id, project_name: "test-project"}
   end
 
   describe "Index" do
-    test "redirects to / for non-existent project", %{conn: conn} do
-      assert {:error, {:redirect, %{to: "/"}}} =
-               live(conn, ~p"/projects/nonexistent")
+    test "returns 404 for non-existent project", %{conn: conn} do
+      assert_raise Ecto.NoResultsError, fn ->
+        live(conn, ~p"/projects/nonexistent")
+      end
     end
 
-    test "renders agent list page", %{conn: conn, project_id: project_id} do
-      {:ok, _view, html} = live(conn, ~p"/projects/#{project_id}")
+    test "renders agent list page", %{conn: conn, project_name: project_name} do
+      {:ok, _view, html} = live(conn, ~p"/projects/#{project_name}")
       assert html =~ "AgentDashboard"
     end
 
     test "handles {:agent_status, agent_id, status} from lobby", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
@@ -65,9 +67,10 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "handles agent_busy broadcast without crashing", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
@@ -83,9 +86,9 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "select-agent with nonexistent agent shows error flash", %{
       conn: conn,
-      project_id: project_id
+      project_name: project_name
     } do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       render_hook(view, "select-agent", %{"id" => "00000000-0000-0000-0000-000000000000"})
 
@@ -95,8 +98,8 @@ defmodule ShireWeb.AgentLiveTest do
 
     # --- delete-agent ---
 
-    test "delete-agent does not crash the view", %{conn: conn, project_id: project_id} do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+    test "delete-agent does not crash the view", %{conn: conn, project_name: project_name} do
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       render_hook(view, "delete-agent", %{"id" => "00000000-0000-0000-0000-000000000000"})
 
@@ -106,8 +109,8 @@ defmodule ShireWeb.AgentLiveTest do
 
     # --- update-agent ---
 
-    test "update-agent does not crash the view", %{conn: conn, project_id: project_id} do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+    test "update-agent does not crash the view", %{conn: conn, project_name: project_name} do
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       render_hook(view, "update-agent", %{
         "id" => "00000000-0000-0000-0000-000000000000",
@@ -120,8 +123,8 @@ defmodule ShireWeb.AgentLiveTest do
 
     # --- create-agent ---
 
-    test "create-agent does not crash the view", %{conn: conn, project_id: project_id} do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+    test "create-agent does not crash the view", %{conn: conn, project_name: project_name} do
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       name = "create-test-#{System.unique_integer([:positive])}"
 
@@ -136,8 +139,8 @@ defmodule ShireWeb.AgentLiveTest do
 
     # --- load-more ---
 
-    test "load-more with no selected agent is a no-op", %{conn: conn, project_id: project_id} do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+    test "load-more with no selected agent is a no-op", %{conn: conn, project_name: project_name} do
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       render_hook(view, "load-more", %{"before" => "999"})
 
@@ -145,8 +148,8 @@ defmodule ShireWeb.AgentLiveTest do
       assert html =~ "AgentDashboard"
     end
 
-    test "load-more with empty params does not crash", %{conn: conn, project_id: project_id} do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+    test "load-more with empty params does not crash", %{conn: conn, project_name: project_name} do
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       render_hook(view, "load-more", %{})
 
@@ -158,9 +161,9 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "edit-agent with nonexistent agent shows error flash", %{
       conn: conn,
-      project_id: project_id
+      project_name: project_name
     } do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       render_hook(view, "edit-agent", %{"id" => "00000000-0000-0000-0000-000000000000"})
 
@@ -172,9 +175,10 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "agent_status broadcast updates agent_statuses assign", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
@@ -190,9 +194,10 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "agent_updated broadcast refreshes agents list", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
@@ -208,9 +213,10 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "agent_deleted broadcast refreshes agents list", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
@@ -224,9 +230,10 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "agent_event for non-selected agent is ignored", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
@@ -240,24 +247,33 @@ defmodule ShireWeb.AgentLiveTest do
   end
 
   describe "Show" do
-    test "renders agent show page", %{conn: conn, project_id: project_id} do
+    test "renders agent show page", %{
+      conn: conn,
+      project_id: project_id,
+      project_name: project_name
+    } do
       agent = create_db_agent(project_id, "test-agent-show")
-      {:ok, _view, html} = live(conn, ~p"/projects/#{project_id}/agents/#{agent.id}")
+      {:ok, _view, html} = live(conn, ~p"/projects/#{project_name}/agents/#{agent.name}")
       assert html =~ "AgentShow"
     end
 
-    test "mount sets agent with status", %{conn: conn, project_id: project_id} do
+    test "mount sets agent with status", %{
+      conn: conn,
+      project_id: project_id,
+      project_name: project_name
+    } do
       agent = create_db_agent(project_id, "my-agent-show")
-      {:ok, _view, html} = live(conn, ~p"/projects/#{project_id}/agents/#{agent.id}")
+      {:ok, _view, html} = live(conn, ~p"/projects/#{project_name}/agents/#{agent.name}")
       assert html =~ "AgentShow"
     end
 
     test "update-agent handler does not crash the view", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
       agent = create_db_agent(project_id, "test-agent-update")
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}/agents/#{agent.id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}/agents/#{agent.name}")
 
       render_hook(view, "update-agent", %{
         "recipe_yaml" =>
@@ -270,21 +286,23 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "delete-agent handler redirects to project index", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
       agent = create_db_agent(project_id, "delete-me")
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}/agents/#{agent.id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}/agents/#{agent.name}")
 
       render_hook(view, "delete-agent", %{})
-      assert_redirect(view, "/projects/#{project_id}")
+      assert_redirect(view, "/projects/#{project_name}")
     end
 
     test "status broadcast updates agent status assign", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
       agent = create_db_agent(project_id, "status-agent")
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}/agents/#{agent.id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}/agents/#{agent.name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
@@ -298,10 +316,11 @@ defmodule ShireWeb.AgentLiveTest do
 
     test "status broadcast updates the agent map with new status", %{
       conn: conn,
-      project_id: project_id
+      project_id: project_id,
+      project_name: project_name
     } do
       agent = create_db_agent(project_id, "status-agent-2")
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}/agents/#{agent.id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}/agents/#{agent.name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
@@ -313,9 +332,13 @@ defmodule ShireWeb.AgentLiveTest do
       assert html =~ "AgentShow"
     end
 
-    test "agent_event broadcast does not crash", %{conn: conn, project_id: project_id} do
+    test "agent_event broadcast does not crash", %{
+      conn: conn,
+      project_id: project_id,
+      project_name: project_name
+    } do
       agent = create_db_agent(project_id, "test-agent-event")
-      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}/agents/#{agent.id}")
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}/agents/#{agent.name}")
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
