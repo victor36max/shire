@@ -36,11 +36,11 @@ function statusDotColor(status: AgentStatus): string {
 }
 
 interface AgentSidebarProps {
-  project: string;
+  project: { id: string; name: string };
   projects: Project[];
   agents: Agent[];
-  selectedAgentName: string | null;
-  onSelectAgent: (name: string) => void;
+  selectedAgentId: string | null;
+  onSelectAgent: (id: string) => void;
   onNewAgent: () => void;
   onDeleteAgent: (agent: Agent) => void;
 }
@@ -49,7 +49,7 @@ export default function AgentSidebar({
   project,
   projects,
   agents,
-  selectedAgentName,
+  selectedAgentId,
   onSelectAgent,
   onNewAgent,
   onDeleteAgent,
@@ -66,7 +66,7 @@ export default function AgentSidebar({
   return (
     <div className="w-64 border-r border-border bg-muted/30 flex flex-col h-full">
       <div className="p-3 border-b border-border">
-        <ProjectSwitcher projects={projects} currentProject={project} />
+        <ProjectSwitcher projects={projects} currentProjectId={project.id} />
       </div>
 
       <div className="p-4 border-b border-border">
@@ -76,11 +76,11 @@ export default function AgentSidebar({
       <div className="flex-1 overflow-y-auto py-1">
         {agents.map((agent) => (
           <div
-            key={agent.name}
+            key={agent.id}
             className={`group flex items-center gap-2 px-3 py-2 mx-1 rounded-md cursor-pointer text-sm ${
-              selectedAgentName === agent.name ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
+              selectedAgentId === agent.id ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
             }`}
-            onClick={() => onSelectAgent(agent.name)}
+            onClick={() => onSelectAgent(agent.id)}
           >
             <span
               className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
@@ -101,7 +101,7 @@ export default function AgentSidebar({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate(`/projects/${project}/agents/${agent.name}`)}>
+                <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}/agents/${agent.id}`)}>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -124,7 +124,7 @@ export default function AgentSidebar({
         <button
           type="button"
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          onClick={() => navigate(`/projects/${project}/settings`)}
+          onClick={() => navigate(`/projects/${project.id}/settings`)}
         >
           <svg
             width="16"
@@ -144,7 +144,7 @@ export default function AgentSidebar({
         <button
           type="button"
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          onClick={() => navigate(`/projects/${project}/shared`)}
+          onClick={() => navigate(`/projects/${project.id}/shared`)}
         >
           <svg
             width="16"

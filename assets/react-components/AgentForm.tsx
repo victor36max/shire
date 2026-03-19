@@ -94,9 +94,13 @@ export default function AgentForm({ open, title, agent, pushEvent, onClose }: Ag
 
     const event = agent ? "update-agent" : "create-agent";
     const payload: Record<string, unknown> = {
-      name: agent ? agent.name : finalName,
       recipe_yaml: recipeYaml,
     };
+    if (agent) {
+      payload.id = agent.id;
+    } else {
+      payload.name = finalName;
+    }
 
     pushEvent(event, payload);
     onClose();

@@ -7,7 +7,7 @@ import WelcomePanel from "./WelcomePanel";
 import { type Agent, type Project } from "./types";
 
 interface AgentDashboardProps {
-  project: string;
+  project: { id: string; name: string };
   projects: Project[];
   agents: Agent[];
   selectedAgent: Agent | null;
@@ -31,13 +31,13 @@ export default function AgentDashboard({
 }: AgentDashboardProps) {
   const [formOpen, setFormOpen] = React.useState(false);
   const [formTitle, setFormTitle] = React.useState("New Agent");
-  const [editingName, setEditingName] = React.useState<string | null>(null);
+  const [editingAgent, setEditingAgent] = React.useState<Agent | null>(null);
   const [currentAgent, setCurrentAgent] = React.useState<Agent | null>(null);
 
   React.useEffect(() => {
     if (editAgent) {
       setCurrentAgent(editAgent);
-      setEditingName(editAgent.name ?? null);
+      setEditingAgent(editAgent);
       setFormTitle("Edit Agent");
       setFormOpen(true);
     }
@@ -45,17 +45,17 @@ export default function AgentDashboard({
 
   const handleNew = () => {
     setCurrentAgent(null);
-    setEditingName(null);
+    setEditingAgent(null);
     setFormTitle("New Agent");
     setFormOpen(true);
   };
 
-  const handleSelectAgent = (name: string) => {
-    pushEvent("select-agent", { name });
+  const handleSelectAgent = (id: string) => {
+    pushEvent("select-agent", { id });
   };
 
   const handleDeleteAgent = (agent: Agent) => {
-    pushEvent("delete-agent", { name: agent.name });
+    pushEvent("delete-agent", { id: agent.id });
   };
 
   const handleFormClose = () => {
@@ -64,8 +64,8 @@ export default function AgentDashboard({
 
   const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
     setFormOpen(false);
-    if (editingName) {
-      pushEvent("update-agent", { name: editingName, ...payload });
+    if (editingAgent) {
+      pushEvent("update-agent", { id: editingAgent.id, ...payload });
     } else {
       pushEvent("create-agent", payload);
     }
@@ -77,7 +77,7 @@ export default function AgentDashboard({
         project={project}
         projects={projects}
         agents={agents}
-        selectedAgentName={selectedAgent?.name ?? null}
+        selectedAgentId={selectedAgent?.id ?? null}
         onSelectAgent={handleSelectAgent}
         onNewAgent={handleNew}
         onDeleteAgent={handleDeleteAgent}

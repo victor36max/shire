@@ -4,10 +4,10 @@ defmodule ShireWeb.SharedDriveController do
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
   @drive_path "/workspace/shared"
 
-  def download(conn, %{"project" => project, "path" => path}) do
+  def download(conn, %{"project_id" => project_id, "path" => path}) do
     vm_path = to_vm_path(path)
 
-    case @vm.read(project, vm_path) do
+    case @vm.read(project_id, vm_path) do
       {:ok, content} ->
         filename = Path.basename(path)
         content_type = MIME.from_path(path)

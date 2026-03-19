@@ -6,8 +6,6 @@ defmodule ShireWeb.SettingsLiveTest do
 
   alias Shire.Agents
 
-  @project "test-project"
-
   setup do
     Mox.set_mox_global()
 
@@ -18,29 +16,42 @@ defmodule ShireWeb.SettingsLiveTest do
       {:error, :not_available_in_test}
     end)
 
+    # Create a DB-backed project
+    {:ok, project} = Shire.Projects.create_project("test-project-settings")
+    project_id = project.id
+
     start_supervised!(
       {DynamicSupervisor,
-       name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, @project}}},
+       name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
        strategy: :one_for_one},
       id: :agent_sup
     )
 
-    start_supervised!({Shire.Agent.Coordinator, project_name: @project})
+    start_supervised!({Shire.Agent.Coordinator, project_id: project_id})
     Process.sleep(50)
-    :ok
+
+    %{project_id: project_id}
   end
 
   describe "Index" do
-    test "renders settings page", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/projects/#{@project}/settings")
+    test "renders settings page", %{conn: conn, project_id: project_id} do
+      {:ok, _view, html} = live(conn, ~p"/projects/#{project_id}/settings")
       assert html =~ "SettingsPage"
     end
 
-    test "loads inter-agent messages", %{conn: conn} do
+    test "loads inter-agent messages", %{conn: conn, project_id: project_id} do
+      {:ok, agent} =
+        Agents.create_agent_with_vm(
+          project_id,
+          "test-agent",
+          "version: 1\n",
+          Shire.VirtualMachineStub
+        )
+
       {:ok, _msg} =
         Agents.create_message(%{
-          project_name: @project,
-          agent_name: "test-agent",
+          project_id: project_id,
+          agent_id: agent.id,
           role: "inter_agent",
           content: %{
             "text" => "Hello from Alice",
@@ -49,7 +60,7 @@ defmodule ShireWeb.SettingsLiveTest do
           }
         })
 
-      {:ok, _view, html} = live(conn, ~p"/projects/#{@project}/settings")
+      {:ok, _view, html} = live(conn, ~p"/projects/#{project_id}/settings")
       assert html =~ "Hello from Alice"
       assert html =~ "Alice"
     end

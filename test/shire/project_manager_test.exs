@@ -15,7 +15,6 @@ defmodule Shire.ProjectManagerTest do
       {:error, :not_available_in_test}
     end)
 
-    stub(Shire.VirtualMachineMock, :list_vms, fn -> {:ok, []} end)
     stub(Shire.VirtualMachineMock, :destroy_vm, fn _name -> :ok end)
 
     start_supervised!(ProjectManager)
@@ -37,97 +36,111 @@ defmodule Shire.ProjectManagerTest do
     end
 
     test "returns projects with :running status after creation" do
-      {:ok, _pid} = ProjectManager.create_project("my-project")
+      {:ok, project} = ProjectManager.create_project("my-project")
 
       projects = ProjectManager.list_projects()
       assert length(projects) == 1
       assert hd(projects).name == "my-project"
+      assert hd(projects).id == project.id
       assert hd(projects).status == :running
     end
   end
 
   describe "create_project/1" do
-    test "creates a project and returns {:ok, pid}" do
-      assert {:ok, pid} = ProjectManager.create_project("test-proj")
-      assert is_pid(pid)
+    test "creates a project and returns {:ok, project}" do
+      assert {:ok, project} = ProjectManager.create_project("test-proj")
+      assert is_binary(project.id)
+      assert project.name == "test-proj"
     end
 
     test "returns {:error, :already_exists} for duplicate name" do
-      {:ok, _pid} = ProjectManager.create_project("dup-proj")
+      {:ok, _project} = ProjectManager.create_project("dup-proj")
       assert {:error, :already_exists} = ProjectManager.create_project("dup-proj")
     end
 
-    test "broadcasts {:project_created, name} via PubSub" do
+    test "broadcasts {:project_created, project} via PubSub" do
       Phoenix.PubSub.subscribe(Shire.PubSub, "projects:lobby")
 
-      {:ok, _pid} = ProjectManager.create_project("broadcast-proj")
+      {:ok, project} = ProjectManager.create_project("broadcast-proj")
 
-      assert_receive {:project_created, "broadcast-proj"}
+      assert_receive {:project_created, ^project}
     end
   end
 
   describe "destroy_project/1" do
     test "removes a project from the list" do
-      {:ok, _pid} = ProjectManager.create_project("destroy-me")
-      assert :ok = ProjectManager.destroy_project("destroy-me")
+      {:ok, project} = ProjectManager.create_project("destroy-me")
+      assert :ok = ProjectManager.destroy_project(project.id)
       assert ProjectManager.list_projects() == []
     end
 
     test "returns {:error, :not_found} for non-existent project" do
-      assert {:error, :not_found} = ProjectManager.destroy_project("nope")
+      assert {:error, :not_found} =
+               ProjectManager.destroy_project("00000000-0000-0000-0000-000000000000")
     end
 
-    test "broadcasts {:project_destroyed, name} via PubSub" do
-      {:ok, _pid} = ProjectManager.create_project("destroy-broadcast")
+    test "broadcasts {:project_destroyed, project_id} via PubSub" do
+      {:ok, project} = ProjectManager.create_project("destroy-broadcast")
 
       Phoenix.PubSub.subscribe(Shire.PubSub, "projects:lobby")
 
-      :ok = ProjectManager.destroy_project("destroy-broadcast")
+      :ok = ProjectManager.destroy_project(project.id)
 
-      assert_receive {:project_destroyed, "destroy-broadcast"}
+      project_id = project.id
+      assert_receive {:project_destroyed, ^project_id}
     end
   end
 
   describe "lookup_coordinator/1" do
     test "returns {:ok, pid} for existing project" do
-      {:ok, _pid} = ProjectManager.create_project("lookup-proj")
+      {:ok, project} = ProjectManager.create_project("lookup-proj")
       Process.sleep(50)
 
-      assert {:ok, pid} = ProjectManager.lookup_coordinator("lookup-proj")
+      assert {:ok, pid} = ProjectManager.lookup_coordinator(project.id)
       assert is_pid(pid)
     end
 
     test "returns {:error, :not_found} for non-existent project" do
-      assert {:error, :not_found} = ProjectManager.lookup_coordinator("nope")
+      assert {:error, :not_found} =
+               ProjectManager.lookup_coordinator("00000000-0000-0000-0000-000000000000")
     end
   end
 
   describe "lookup_vm/1" do
     test "returns {:ok, pid} for existing project" do
-      {:ok, _pid} = ProjectManager.create_project("vm-proj")
+      {:ok, project} = ProjectManager.create_project("vm-proj")
       Process.sleep(50)
 
-      assert {:ok, pid} = ProjectManager.lookup_vm("vm-proj")
+      assert {:ok, pid} = ProjectManager.lookup_vm(project.id)
       assert is_pid(pid)
     end
 
     test "returns {:error, :not_found} for non-existent project" do
-      assert {:error, :not_found} = ProjectManager.lookup_vm("nope")
+      assert {:error, :not_found} =
+               ProjectManager.lookup_vm("00000000-0000-0000-0000-000000000000")
     end
   end
 
   describe "supervisor monitoring" do
-    test "removes project when supervisor goes down" do
-      {:ok, sup_pid} = ProjectManager.create_project("monitor-proj")
+    test "marks project as stopped when supervisor goes down" do
+      {:ok, project} = ProjectManager.create_project("monitor-proj")
 
       Phoenix.PubSub.subscribe(Shire.PubSub, "projects:lobby")
+
+      # Get the supervisor pid from the ProjectManager state
+      projects_state = :sys.get_state(ProjectManager)
+      sup_pid = Map.get(projects_state.projects, project.id)
 
       # Kill the supervisor
       Process.exit(sup_pid, :kill)
 
-      assert_receive {:project_destroyed, "monitor-proj"}, 1000
+      project_id = project.id
+      assert_receive {:project_destroyed, ^project_id}, 1000
 
-      assert ProjectManager.list_projects() == []
+      # DB record still exists but status is :stopped (no running supervisor)
+      projects = ProjectManager.list_projects()
+      assert length(projects) == 1
+      assert hd(projects).status == :stopped
     end
   end
 end

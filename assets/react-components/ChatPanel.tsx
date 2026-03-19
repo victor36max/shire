@@ -88,6 +88,28 @@ function InterAgentMessage({ msg }: { msg: Message }) {
   );
 }
 
+function SystemMessage({ msg }: { msg: Message }) {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <div className="max-w-[80%] rounded-lg border border-border text-sm w-fit">
+      <Button
+        variant="ghost"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left italic h-auto justify-start"
+      >
+        <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
+        <span className="text-muted-foreground">System notification</span>
+      </Button>
+      {open && (
+        <div className="border-t border-border px-3 py-2">
+          <Markdown>{msg.text ?? ""}</Markdown>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ChatPanelProps {
   agent: Agent;
   messages?: Message[];
@@ -190,6 +212,8 @@ export default function ChatPanel({
             <ToolCallMessage key={msg.id ?? `msg-${i}`} msg={msg} />
           ) : msg.role === "inter_agent" ? (
             <InterAgentMessage key={msg.id ?? `msg-${i}`} msg={msg} />
+          ) : msg.role === "system" ? (
+            <SystemMessage key={msg.id ?? `msg-${i}`} msg={msg} />
           ) : (
             <div key={msg.id ?? `msg-${i}`} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div

@@ -74,6 +74,7 @@ describe("AgentForm", () => {
 
   it("loads skills from existing agent", () => {
     const agent: Agent = {
+      id: "a-test",
       name: "test",
       status: "created",
       harness: "claude_code",
@@ -95,6 +96,7 @@ describe("AgentForm", () => {
 
   it("submits update-agent event with recipe_yaml for existing agent", async () => {
     const agent: Agent = {
+      id: "a-existing",
       name: "existing-agent",
       status: "active",
       harness: "claude_code",
@@ -108,7 +110,7 @@ describe("AgentForm", () => {
     expect(pushEvent).toHaveBeenCalledWith(
       "update-agent",
       expect.objectContaining({
-        name: "existing-agent",
+        id: "a-existing",
         recipe_yaml: expect.any(String),
       }),
     );
