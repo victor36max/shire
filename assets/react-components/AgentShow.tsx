@@ -14,6 +14,7 @@ import {
   AlertDialogCancel,
 } from "./components/ui/alert-dialog";
 import AppLayout from "./components/AppLayout";
+import { navigate } from "./lib/navigate";
 import AgentForm from "./AgentForm";
 import { ChevronLeft, Pencil } from "lucide-react";
 import { type Agent, statusVariant, harnessLabel } from "./types";
@@ -34,12 +35,7 @@ export default function AgentShow({
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Back"
-              onClick={() => window.location.assign(`/projects/${project}`)}
-            >
+            <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate(`/projects/${project}`)}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <h1 className="text-2xl font-bold">{agent.name}</h1>

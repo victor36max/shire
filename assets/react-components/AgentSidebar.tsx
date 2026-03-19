@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
 import ProjectSwitcher from "./ProjectSwitcher";
+import { navigate } from "./lib/navigate";
 import { type Agent, type AgentStatus, type Project } from "./types";
 
 function statusDotColor(status: AgentStatus): string {
@@ -100,7 +101,7 @@ export default function AgentSidebar({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => window.location.assign(`/projects/${project}/agents/${agent.name}`)}>
+                <DropdownMenuItem onClick={() => navigate(`/projects/${project}/agents/${agent.name}`)}>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -123,7 +124,7 @@ export default function AgentSidebar({
         <button
           type="button"
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          onClick={() => window.location.assign(`/projects/${project}/settings`)}
+          onClick={() => navigate(`/projects/${project}/settings`)}
         >
           <svg
             width="16"
@@ -143,7 +144,7 @@ export default function AgentSidebar({
         <button
           type="button"
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          onClick={() => window.location.assign(`/projects/${project}/shared`)}
+          onClick={() => navigate(`/projects/${project}/shared`)}
         >
           <svg
             width="16"
