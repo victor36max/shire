@@ -20,6 +20,10 @@ defmodule Shire.Projects do
     Repo.get_by(Project, name: name)
   end
 
+  def get_project_by_name!(name) do
+    Repo.get_by!(Project, name: name)
+  end
+
   def list_projects do
     Repo.all(from(p in Project, order_by: [asc: p.name]))
   end
