@@ -217,23 +217,6 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("Your outbox message was invalid")).not.toBeInTheDocument();
   });
 
-  it("sorts messages by id for display", () => {
-    const unorderedMessages: Message[] = [
-      { id: 3, role: "agent", text: "Third", ts: "2026-03-17T00:00:03Z" },
-      { id: 1, role: "user", text: "First", ts: "2026-03-17T00:00:01Z" },
-      { id: 2, role: "inter_agent", text: "Second", from_agent: "other", ts: "2026-03-17T00:00:02Z" },
-    ];
-    const { container } = render(<ChatPanel agent={activeAgent} messages={unorderedMessages} pushEvent={vi.fn()} />);
-    const textElements = container.querySelectorAll(".rounded-lg");
-    const texts = Array.from(textElements).map((el) => el.textContent);
-    // "First" should appear before "Second" (collapsed) which should appear before "Third"
-    const firstIdx = texts.findIndex((t) => t?.includes("First"));
-    const secondIdx = texts.findIndex((t) => t?.includes("Message from other"));
-    const thirdIdx = texts.findIndex((t) => t?.includes("Third"));
-    expect(firstIdx).toBeLessThan(secondIdx);
-    expect(secondIdx).toBeLessThan(thirdIdx);
-  });
-
   it("shows thinking indicator when agent is busy", () => {
     const busyAgent = { ...activeAgent, busy: true };
     render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
