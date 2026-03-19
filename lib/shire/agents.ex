@@ -84,6 +84,10 @@ defmodule Shire.Agents do
     Repo.get_by(Agent, project_id: project_id, name: name)
   end
 
+  def get_agent_by_name!(project_id, name) do
+    Repo.get_by!(Agent, project_id: project_id, name: name)
+  end
+
   def list_agents(project_id) do
     from(a in Agent, where: a.project_id == ^project_id, order_by: [asc: a.name])
     |> Repo.all()

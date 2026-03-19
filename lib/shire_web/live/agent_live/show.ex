@@ -6,14 +6,17 @@ defmodule ShireWeb.AgentLive.Show do
   alias Shire.ProjectManager
 
   @impl true
-  def mount(%{"project_id" => project_id, "agent_id" => agent_id}, _session, socket) do
+  def mount(%{"project_name" => project_name, "agent_name" => agent_name}, _session, socket) do
+    project = Projects.get_project_by_name!(project_name)
+    project_id = project.id
+    agent_record = Shire.Agents.get_agent_by_name!(project_id, agent_name)
+    agent_id = agent_record.id
+
     case ProjectManager.lookup_coordinator(project_id) do
       {:error, :not_found} ->
         {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
 
       {:ok, _pid} ->
-        project = Projects.get_project!(project_id)
-
         agent =
           try do
             case Coordinator.get_agent(project_id, agent_id) do
@@ -23,12 +26,12 @@ defmodule ShireWeb.AgentLive.Show do
               {:error, _} ->
                 %{
                   id: agent_id,
-                  name: agent_id,
+                  name: agent_name,
                   status: Coordinator.agent_status(project_id, agent_id)
                 }
             end
           catch
-            :exit, _ -> %{id: agent_id, name: agent_id, status: :created}
+            :exit, _ -> %{id: agent_id, name: agent_name, status: :created}
           end
 
         if connected?(socket) do
@@ -76,7 +79,7 @@ defmodule ShireWeb.AgentLive.Show do
         {:noreply,
          socket
          |> put_flash(:info, "Agent deleted")
-         |> redirect(to: ~p"/projects/#{project_id}")}
+         |> redirect(to: ~p"/projects/#{socket.assigns.project.name}")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to delete: #{inspect(reason)}")}

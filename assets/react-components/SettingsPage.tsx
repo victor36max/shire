@@ -139,7 +139,7 @@ export default function SettingsPage({
     <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate(`/projects/${project.id}`)}>
+          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate(`/projects/${project.name}`)}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-2xl font-bold">Settings</h1>

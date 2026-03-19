@@ -177,7 +177,7 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
                         {file.type === "file" && (
                           <Button variant="ghost" size="sm" asChild>
                             <a
-                              href={`/projects/${project.id}/shared/download?path=${encodeURIComponent(file.path)}`}
+                              href={`/projects/${project.name}/shared/download?path=${encodeURIComponent(file.path)}`}
                               download
                             >
                               Download

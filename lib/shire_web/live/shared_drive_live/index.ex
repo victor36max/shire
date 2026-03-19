@@ -8,14 +8,15 @@ defmodule ShireWeb.SharedDriveLive.Index do
   @drive_path "/workspace/shared"
 
   @impl true
-  def mount(%{"project_id" => project_id}, _session, socket) do
+  def mount(%{"project_name" => project_name}, _session, socket) do
+    project = Projects.get_project_by_name!(project_name)
+    project_id = project.id
+
     case ProjectManager.lookup_coordinator(project_id) do
       {:error, :not_found} ->
         {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
 
       {:ok, _pid} ->
-        project = Projects.get_project!(project_id)
-
         {:ok,
          socket
          |> assign(:project, %{id: project.id, name: project.name})

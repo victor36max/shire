@@ -4,13 +4,13 @@ import type { Project } from "./types";
 
 interface ProjectSwitcherProps {
   projects: Project[];
-  currentProjectId: string;
+  currentProjectName: string;
 }
 
-export default function ProjectSwitcher({ projects, currentProjectId }: ProjectSwitcherProps) {
+export default function ProjectSwitcher({ projects, currentProjectName }: ProjectSwitcherProps) {
   return (
     <Select
-      value={currentProjectId}
+      value={currentProjectName}
       onValueChange={(value) => {
         if (value === "__all__") {
           navigate("/");
@@ -24,7 +24,7 @@ export default function ProjectSwitcher({ projects, currentProjectId }: ProjectS
       </SelectTrigger>
       <SelectContent>
         {projects.map((project) => (
-          <SelectItem key={project.id} value={project.id}>
+          <SelectItem key={project.id} value={project.name}>
             {project.name}
           </SelectItem>
         ))}
