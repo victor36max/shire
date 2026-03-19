@@ -378,6 +378,29 @@ defmodule Shire.Agent.AgentManagerTest do
       assert inter_agent.content["to_agent"] == "test-agent"
     end
 
+    test "flushes streaming text before persisting inter_agent message", ctx do
+      # Send text_delta first to accumulate streaming text
+      delta = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "Hello "}})
+      send(ctx.pid, {:stdout, %{ref: ctx.ref}, delta <> "\n"})
+      assert_receive {:agent_event, _, %{"type" => "text_delta"}}, 1_000
+
+      # Now send inter-agent message — should flush "Hello " first
+      event =
+        Jason.encode!(%{
+          "type" => "agent_message_received",
+          "payload" => %{"from_agent" => "other-agent", "text" => "inter-agent msg"}
+        })
+
+      send(ctx.pid, {:stdout, %{ref: ctx.ref}, event <> "\n"})
+
+      # Should get the flushed text event first, then the inter-agent event
+      assert_receive {:agent_event, _, %{"type" => "text", "message" => text_msg}}, 1_000
+      assert_receive {:agent_event, _, %{"type" => "inter_agent_message", "message" => ia_msg}}, 1_000
+
+      # The flushed text should have a lower DB id than the inter-agent message
+      assert text_msg[:id] < ia_msg[:id]
+    end
+
     test "broadcasts inter_agent_message event via PubSub", ctx do
       event =
         Jason.encode!(%{

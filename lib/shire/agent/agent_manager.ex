@@ -287,6 +287,8 @@ defmodule Shire.Agent.AgentManager do
              "type" => "agent_message_received",
              "payload" => %{"from_agent" => from_agent, "text" => text}
            }} ->
+            acc = flush_and_broadcast_streaming(acc)
+
             case Agents.create_message(%{
                    project_id: acc.project_id,
                    agent_id: acc.agent_id,
@@ -317,6 +319,8 @@ defmodule Shire.Agent.AgentManager do
              "type" => "system_message_received",
              "payload" => %{"text" => text}
            }} ->
+            acc = flush_and_broadcast_streaming(acc)
+
             case Agents.create_message(%{
                    project_id: acc.project_id,
                    agent_id: acc.agent_id,
