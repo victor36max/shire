@@ -287,16 +287,28 @@ defmodule Shire.Agent.AgentManager do
              "type" => "agent_message_received",
              "payload" => %{"from_agent" => from_agent, "text" => text}
            }} ->
-            Agents.create_message(%{
-              project_id: acc.project_id,
-              agent_id: acc.agent_id,
-              role: "inter_agent",
-              content: %{
-                "text" => text,
-                "from_agent" => from_agent,
-                "to_agent" => acc.agent_name
-              }
-            })
+            case Agents.create_message(%{
+                   project_id: acc.project_id,
+                   agent_id: acc.agent_id,
+                   role: "inter_agent",
+                   content: %{
+                     "text" => text,
+                     "from_agent" => from_agent,
+                     "to_agent" => acc.agent_name
+                   }
+                 }) do
+              {:ok, msg} ->
+                event = %{
+                  "type" => "inter_agent_message",
+                  "payload" => %{"from_agent" => from_agent, "text" => text},
+                  "message" => serialize_message(msg)
+                }
+
+                broadcast(acc, {:agent_event, acc.agent_id, event})
+
+              {:error, _} ->
+                :ok
+            end
 
             acc
 
@@ -759,6 +771,12 @@ defmodule Shire.Agent.AgentManager do
           input: msg.content["input"],
           output: msg.content["output"],
           is_error: msg.content["is_error"] || false
+        })
+
+      "inter_agent" ->
+        Map.merge(base, %{
+          text: msg.content["text"],
+          from_agent: msg.content["from_agent"]
         })
 
       _ ->
