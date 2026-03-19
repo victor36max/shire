@@ -90,7 +90,7 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "error handling" do
-    test "transitions to failed on command error", ctx do
+    test "transitions to idle on command error", ctx do
       {:ok, pid} = start_manager(ctx)
 
       ref = make_ref()
@@ -103,7 +103,7 @@ defmodule Shire.Agent.AgentManagerTest do
       send(pid, {:error, %{ref: ref}, :closed})
 
       state = AgentManager.get_state(pid)
-      assert state.status == :failed
+      assert state.status == :idle
       assert state.command == nil
       assert state.command_ref == nil
     end
@@ -371,7 +371,7 @@ defmodule Shire.Agent.AgentManagerTest do
   end
 
   describe "runner exit" do
-    test "transitions to failed when runner exits", ctx do
+    test "transitions to idle when runner exits", ctx do
       {:ok, pid} = start_manager(ctx)
 
       Phoenix.PubSub.subscribe(
@@ -388,11 +388,27 @@ defmodule Shire.Agent.AgentManagerTest do
       send(pid, {:exit, %{ref: ref}, 1})
 
       state = AgentManager.get_state(pid)
-      assert state.status == :failed
+      assert state.status == :idle
       assert state.command == nil
       assert state.command_ref == nil
 
-      assert_receive {:status, :failed}, 1_000
+      assert_receive {:status, :idle}, 1_000
+    end
+
+    test "transitions to idle when runner errors", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      ref = make_ref()
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      send(pid, {:error, %{ref: ref}, :connection_closed})
+
+      state = AgentManager.get_state(pid)
+      assert state.status == :idle
+      assert state.command == nil
     end
   end
 
@@ -419,6 +435,55 @@ defmodule Shire.Agent.AgentManagerTest do
       assert :ok = AgentManager.restart(ctx.project_id, ctx.agent_id)
 
       assert_receive {:status, :bootstrapping}, 1_000
+    end
+  end
+
+  describe "auto_restart" do
+    test "works like restart on first attempt", ctx do
+      Mox.set_mox_global()
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+
+      {:ok, pid} = start_manager(ctx)
+      Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
+
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{ctx.project_id}:agent:#{ctx.agent_id}"
+      )
+
+      assert :ok = AgentManager.auto_restart(ctx.project_id, ctx.agent_id)
+      assert_receive {:status, :bootstrapping}, 1_000
+    end
+
+    test "returns {:error, :max_retries} after too many consecutive failures", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      # Simulate having hit the max restart count
+      :sys.replace_state(pid, fn state ->
+        %{state | auto_restart_count: 3}
+      end)
+
+      assert {:error, :max_retries} =
+               AgentManager.auto_restart(ctx.project_id, ctx.agent_id)
+    end
+
+    test "resets auto_restart_count when agent becomes active", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      :sys.replace_state(pid, fn state ->
+        %{state | auto_restart_count: 2}
+      end)
+
+      # Simulate successful spawn by directly setting active state with reset count
+      ref = make_ref()
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active, auto_restart_count: 0}
+      end)
+
+      state = AgentManager.get_state(pid)
+      assert state.auto_restart_count == 0
     end
   end
 end

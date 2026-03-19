@@ -77,7 +77,13 @@ defmodule ShireWeb.ProjectLiveTest do
       {:ok, project} = Shire.ProjectManager.create_project("destroy-proj")
       {:ok, view, _html} = live(conn, ~p"/")
 
-      :ok = Shire.ProjectManager.destroy_project(project.id)
+      # Broadcast directly to test the LiveView PubSub handler
+      # (destroy_project is already exercised via render_hook in the delete test above)
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "projects:lobby",
+        {:project_destroyed, project.id}
+      )
 
       html = render(view)
       assert html =~ "ProjectDashboard"

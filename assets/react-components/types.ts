@@ -6,7 +6,7 @@ export interface Project {
 
 export type HarnessType = "pi" | "claude_code";
 
-export type AgentStatus = "created" | "starting" | "bootstrapping" | "active" | "sleeping" | "failed" | "crashed";
+export type AgentStatus = "created" | "starting" | "bootstrapping" | "active" | "idle" | "crashed";
 
 export interface SkillReference {
   name: string;
@@ -39,11 +39,10 @@ export const statusVariant = (status: string): "default" | "secondary" | "destru
     case "starting":
     case "bootstrapping":
       return "secondary";
-    case "failed":
+    case "idle":
+      return "outline";
     case "crashed":
       return "destructive";
-    case "sleeping":
-      return "outline";
     default:
       return "secondary";
   }

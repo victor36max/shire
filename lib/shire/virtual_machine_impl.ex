@@ -440,12 +440,19 @@ defmodule Shire.VirtualMachineImpl do
 
   defp touch_keepalive(state) do
     ping_until = System.monotonic_time(:millisecond) + @keepalive_duration
+    was_idle = is_nil(state.ping_timer)
     state = %{state | ping_until: ping_until}
 
-    if state.ping_timer do
-      state
-    else
+    if was_idle do
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{state.project_id}:vm",
+        {:vm_woke_up, state.project_id}
+      )
+
       schedule_ping(state)
+    else
+      state
     end
   end
 end
