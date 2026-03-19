@@ -127,7 +127,7 @@ defmodule Shire.AgentsTest do
       project: project,
       agent: agent
     } do
-      inbox_path = "/workspace/agents/#{agent.id}/inbox/msg-1.json"
+      inbox_path = "/workspace/agents/#{agent.id}/inbox/msg-1.yaml"
       envelope = %{"role" => "user", "content" => "hello"}
 
       assert {:ok, msg} =
@@ -168,7 +168,7 @@ defmodule Shire.AgentsTest do
         def destroy_vm(_p), do: :ok
       end
 
-      inbox_path = "/workspace/agents/#{agent.id}/inbox/msg-2.json"
+      inbox_path = "/workspace/agents/#{agent.id}/inbox/msg-2.yaml"
       envelope = %{"role" => "user", "content" => "fail"}
 
       assert {:error, :disk_full} =

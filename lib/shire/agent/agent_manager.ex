@@ -28,24 +28,28 @@ defmodule Shire.Agent.AgentManager do
     Read `/workspace/peers.yaml` to see available agents and their descriptions.
 
     ## Sending Messages
-    To message another agent, write a JSON file to your **outbox**:
+    To message another agent, write a YAML file to your **outbox**:
 
-    **Path:** `/workspace/agents/#{agent_id}/outbox/<any-name>.json`
+    **Path:** `/workspace/agents/#{agent_id}/outbox/<any-name>.yaml`
 
     **Format:**
-    ```json
-    {
-      "to": "<target-agent-name>",
-      "text": "<your message>"
-    }
+    ```yaml
+    to: <target-agent-name>
+    text: "<your message>"
     ```
 
     Example using Bash:
     ```bash
-    echo '{"to":"target-agent","text":"Hello, can you help me with X?"}' > /workspace/agents/#{agent_id}/outbox/msg.json
+    cat > /workspace/agents/#{agent_id}/outbox/msg.yaml <<'EOF'
+    to: target-agent
+    text: "Hello, can you help me with X?"
+    EOF
     ```
 
+    **Note:** Always quote the `text` value if it contains special characters like `:`, `#`, `{`, `}`, or newlines.
+
     The system delivers the message to the target agent automatically.
+    If your message is invalid (unparseable YAML or missing required fields), you will receive a system notification with the error details.
 
     ## Receiving Messages
     Messages arrive in your conversation automatically:
@@ -181,7 +185,7 @@ defmodule Shire.Agent.AgentManager do
     }
 
     inbox_dir = "/workspace/agents/#{state.agent_id}/inbox"
-    filename = "#{envelope["ts"]}-#{random_suffix()}.json"
+    filename = "#{envelope["ts"]}-#{random_suffix()}.yaml"
     inbox_path = "#{inbox_dir}/#{filename}"
 
     case Agents.send_message_with_inbox(
@@ -256,6 +260,32 @@ defmodule Shire.Agent.AgentManager do
                 "to_agent" => acc.agent_name
               }
             })
+
+            acc
+
+          {:ok,
+           %{
+             "type" => "system_message_received",
+             "payload" => %{"text" => text}
+           }} ->
+            case Agents.create_message(%{
+                   project_id: acc.project_id,
+                   agent_id: acc.agent_id,
+                   role: "system",
+                   content: %{"text" => text}
+                 }) do
+              {:ok, msg} ->
+                event = %{
+                  "type" => "system_message",
+                  "payload" => %{"text" => text},
+                  "message" => serialize_message(msg)
+                }
+
+                broadcast(acc, {:agent_event, acc.agent_id, event})
+
+              {:error, _} ->
+                :ok
+            end
 
             acc
 

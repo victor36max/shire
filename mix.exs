@@ -69,6 +69,7 @@ defmodule Shire.MixProject do
       {:live_react, "~> 1.0.1"},
       {:dotenv_parser, "~> 2.0", only: [:dev, :test]},
       {:yaml_elixir, "~> 2.11"},
+      {:ymlr, "~> 5.0"},
       {:mox, "~> 1.1", only: :test}
     ]
   end

@@ -1,6 +1,7 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
 import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, writeFileSync, rmSync, readdirSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync, rmSync, readdirSync, existsSync, readFileSync } from "fs";
+import yaml from "js-yaml";
 import {
   emit,
   loadConfig,
@@ -8,6 +9,7 @@ import {
   processMessage,
   processInbox,
   processOutbox,
+  writeSystemMessage,
   type MessageEnvelope,
 } from "./agent-runner";
 import type { Harness } from "./harness";
@@ -64,6 +66,10 @@ function createMockHarness(): Harness & {
     onEvent: mock(() => {}),
     isProcessing: mock(() => false),
   };
+}
+
+function readYamlFile(path: string): unknown {
+  return yaml.load(readFileSync(path, "utf-8"));
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +192,57 @@ describe("processMessage() — agent_message", () => {
 });
 
 // ---------------------------------------------------------------------------
+// processMessage() — system_message
+// ---------------------------------------------------------------------------
+
+describe("processMessage() — system_message", () => {
+  test("sends text with [System] prefix to harness", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({
+      type: "system_message",
+      from: "system",
+      payload: { text: "Your message was invalid." },
+    });
+
+    await processMessage(harness, envelope);
+
+    expect(harness.sendMessage).toHaveBeenCalledWith("[System] Your message was invalid.", undefined);
+  });
+
+  test("emits system_message_received event", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({
+      type: "system_message",
+      from: "system",
+      payload: { text: "Error details here." },
+    });
+
+    const events = await captureEmits(async () => {
+      await processMessage(harness, envelope);
+    });
+
+    const received = events.find((e) => e.type === "system_message_received");
+    expect(received).toBeDefined();
+    expect(received!.payload).toEqual({ text: "Error details here." });
+  });
+
+  test("does not emit agent_message_received for system messages", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({
+      type: "system_message",
+      from: "system",
+      payload: { text: "Error." },
+    });
+
+    const events = await captureEmits(async () => {
+      await processMessage(harness, envelope);
+    });
+
+    expect(events.find((e) => e.type === "agent_message_received")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // processMessage() — interrupt
 // ---------------------------------------------------------------------------
 
@@ -266,8 +323,8 @@ describe("processInbox()", () => {
   test("returns count of processed messages", async () => {
     const harness = createMockHarness();
     const envelope = { ts: Date.now(), type: "user_message", from: "coordinator", payload: { text: "hi" } };
-    writeFileSync(`${TEST_INBOX}/1.json`, JSON.stringify(envelope));
-    writeFileSync(`${TEST_INBOX}/2.json`, JSON.stringify(envelope));
+    writeFileSync(`${TEST_INBOX}/1.yaml`, yaml.dump(envelope));
+    writeFileSync(`${TEST_INBOX}/2.yaml`, yaml.dump(envelope));
 
     const count = await processInbox(harness, TEST_INBOX);
     expect(count).toBe(2);
@@ -277,11 +334,31 @@ describe("processInbox()", () => {
   test("removes processed files from inbox", async () => {
     const harness = createMockHarness();
     const envelope = { ts: Date.now(), type: "user_message", from: "coordinator", payload: { text: "hi" } };
-    writeFileSync(`${TEST_INBOX}/1.json`, JSON.stringify(envelope));
+    writeFileSync(`${TEST_INBOX}/1.yaml`, yaml.dump(envelope));
 
     await processInbox(harness, TEST_INBOX);
-    const remaining = readdirSync(TEST_INBOX).filter((f) => f.endsWith(".json"));
+    const remaining = readdirSync(TEST_INBOX).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     expect(remaining).toHaveLength(0);
+  });
+
+  test("processes .yml files as well", async () => {
+    const harness = createMockHarness();
+    const envelope = { ts: Date.now(), type: "user_message", from: "coordinator", payload: { text: "hi" } };
+    writeFileSync(`${TEST_INBOX}/1.yml`, yaml.dump(envelope));
+
+    const count = await processInbox(harness, TEST_INBOX);
+    expect(count).toBe(1);
+    expect(harness.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  test("deletes broken inbox files to prevent infinite retry", async () => {
+    const harness = createMockHarness();
+    writeFileSync(`${TEST_INBOX}/broken.yaml`, "invalid: yaml: [unterminated");
+
+    await processInbox(harness, TEST_INBOX);
+
+    expect(existsSync(`${TEST_INBOX}/broken.yaml`)).toBe(false);
+    expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -301,7 +378,7 @@ describe("loadConfig()", () => {
   });
 
   test("parses recipe.yaml into AgentConfig", async () => {
-    const yaml = `version: 1
+    const recipeYaml = `version: 1
 name: test-agent
 description: A test agent
 harness: pi
@@ -309,7 +386,7 @@ model: anthropic/claude-sonnet-4-6
 system_prompt: You are helpful.
 max_tokens: 8192
 `;
-    writeFileSync(`${TEST_AGENT_DIR}/recipe.yaml`, yaml);
+    writeFileSync(`${TEST_AGENT_DIR}/recipe.yaml`, recipeYaml);
 
     const config = await loadConfig(`${TEST_AGENT_DIR}/recipe.yaml`);
     expect(config.harness).toBe("pi");
@@ -337,10 +414,12 @@ const TEST_OUTBOX = "/tmp/test-outbox-" + process.pid;
 const TEST_AGENTS_ROOT = "/tmp/test-agents-root-" + process.pid;
 const TEST_PEERS_PATH = `${TEST_AGENTS_ROOT}/../peers.yaml`;
 const TARGET_AGENT_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const TEST_SENDER_INBOX = "/tmp/test-sender-inbox-" + process.pid;
 
 describe("processOutbox()", () => {
   beforeEach(async () => {
     mkdirSync(TEST_OUTBOX, { recursive: true });
+    mkdirSync(TEST_SENDER_INBOX, { recursive: true });
     mkdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`, { recursive: true });
     // Write peers.yaml mapping name → UUID
     const peersYaml = `- id: "${TARGET_AGENT_ID}"\n  name: "target-agent"\n  description: "test"\n`;
@@ -351,6 +430,7 @@ describe("processOutbox()", () => {
 
   afterEach(() => {
     rmSync(TEST_OUTBOX, { recursive: true, force: true });
+    rmSync(TEST_SENDER_INBOX, { recursive: true, force: true });
     rmSync(TEST_AGENTS_ROOT, { recursive: true, force: true });
     try {
       rmSync(TEST_PEERS_PATH);
@@ -360,30 +440,33 @@ describe("processOutbox()", () => {
   });
 
   test("returns 0 when outbox is empty", async () => {
-    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
+    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH, TEST_SENDER_INBOX);
     expect(count).toBe(0);
   });
 
   test("routes message to target agent inbox and removes outbox file", async () => {
-    const msg = { to: "target-agent", text: "hello there" };
-    writeFileSync(`${TEST_OUTBOX}/msg.json`, JSON.stringify(msg));
+    writeFileSync(`${TEST_OUTBOX}/msg.yaml`, yaml.dump({ to: "target-agent", text: "hello there" }));
 
     const events = await captureEmits(async () => {
-      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
+      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH, TEST_SENDER_INBOX);
     });
 
     // Outbox file removed
-    const remaining = readdirSync(TEST_OUTBOX).filter((f) => f.endsWith(".json"));
+    const remaining = readdirSync(TEST_OUTBOX).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
     expect(remaining).toHaveLength(0);
 
-    // Envelope written to target inbox (by UUID)
-    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`).filter((f) => f.endsWith(".json"));
+    // Envelope written to target inbox as YAML
+    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`).filter(
+      (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
+    );
     expect(inboxFiles).toHaveLength(1);
 
-    const raw = Bun.file(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox/${inboxFiles[0]}`);
-    const envelope = JSON.parse(await raw.text());
+    const envelope = readYamlFile(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox/${inboxFiles[0]}`) as Record<
+      string,
+      unknown
+    >;
     expect(envelope.type).toBe("agent_message");
-    expect(envelope.payload.text).toBe("hello there");
+    expect((envelope.payload as Record<string, unknown>).text).toBe("hello there");
     expect(typeof envelope.ts).toBe("number");
 
     // Emits agent_message_sent event
@@ -396,50 +479,123 @@ describe("processOutbox()", () => {
     });
   });
 
-  test("sanitizes invalid JSON escape sequences and delivers message", async () => {
-    // Simulates bash writing \! into JSON (invalid escape)
-    writeFileSync(`${TEST_OUTBOX}/bad-escape.json`, '{"to":"target-agent","text":"Hello\\! world"}');
+  test("deletes unparseable outbox files and writes system_message to sender inbox", async () => {
+    writeFileSync(`${TEST_OUTBOX}/broken.yaml`, "invalid: yaml: [unterminated");
 
+    let count = 0;
     const events = await captureEmits(async () => {
-      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
+      count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH, TEST_SENDER_INBOX);
     });
 
-    // File should be removed from outbox (delivered successfully)
-    expect(existsSync(`${TEST_OUTBOX}/bad-escape.json`)).toBe(false);
+    // Invalid files should not count as routed
+    expect(count).toBe(0);
 
-    // Message should be delivered to target inbox
-    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`).filter((f) => f.endsWith(".json"));
-    expect(inboxFiles).toHaveLength(1);
-
-    const sent = events.find((e) => e.type === "agent_message_sent");
-    expect(sent).toBeDefined();
-    expect(sent!.payload.text).toBe("Hello\\! world");
-  });
-
-  test("skips unparseable outbox files without deleting them", async () => {
-    writeFileSync(`${TEST_OUTBOX}/broken.json`, "not json at all {{{");
-
-    const events = await captureEmits(async () => {
-      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
-    });
-
-    // File should still exist for debugging
-    expect(existsSync(`${TEST_OUTBOX}/broken.json`)).toBe(true);
+    // Outbox file should be deleted
+    expect(existsSync(`${TEST_OUTBOX}/broken.yaml`)).toBe(false);
 
     // Should emit an error
     const error = events.find((e) => e.type === "error");
     expect(error).toBeDefined();
     expect(error!.payload.message).toContain("Invalid outbox message");
+
+    // Should write system_message to sender inbox
+    const inboxFiles = readdirSync(TEST_SENDER_INBOX).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+    expect(inboxFiles).toHaveLength(1);
+    const sysMsg = readYamlFile(`${TEST_SENDER_INBOX}/${inboxFiles[0]}`) as Record<string, unknown>;
+    expect(sysMsg.type).toBe("system_message");
+    expect((sysMsg.payload as Record<string, unknown>).text).toContain("could not be parsed as YAML");
+  });
+
+  test("deletes outbox files missing required fields and writes system_message", async () => {
+    writeFileSync(`${TEST_OUTBOX}/no-to.yaml`, yaml.dump({ text: "hello" }));
+
+    const events = await captureEmits(async () => {
+      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH, TEST_SENDER_INBOX);
+    });
+
+    // Outbox file should be deleted
+    expect(existsSync(`${TEST_OUTBOX}/no-to.yaml`)).toBe(false);
+
+    // Should emit an error about missing fields
+    const error = events.find((e) => e.type === "error");
+    expect(error).toBeDefined();
+    expect(error!.payload.message).toContain("missing required fields");
+
+    // Should write system_message to sender inbox
+    const inboxFiles = readdirSync(TEST_SENDER_INBOX).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+    expect(inboxFiles).toHaveLength(1);
+    const sysMsg = readYamlFile(`${TEST_SENDER_INBOX}/${inboxFiles[0]}`) as Record<string, unknown>;
+    expect(sysMsg.type).toBe("system_message");
+    expect((sysMsg.payload as Record<string, unknown>).text).toContain('"to" (string)');
+  });
+
+  test("deletes outbox files with wrong field types and writes system_message", async () => {
+    writeFileSync(`${TEST_OUTBOX}/bad-types.yaml`, yaml.dump({ to: 123, text: true }));
+
+    await captureEmits(async () => {
+      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH, TEST_SENDER_INBOX);
+    });
+
+    expect(existsSync(`${TEST_OUTBOX}/bad-types.yaml`)).toBe(false);
+
+    const inboxFiles = readdirSync(TEST_SENDER_INBOX).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+    expect(inboxFiles).toHaveLength(1);
+    const sysMsg = readYamlFile(`${TEST_SENDER_INBOX}/${inboxFiles[0]}`) as Record<string, unknown>;
+    expect(sysMsg.type).toBe("system_message");
+  });
+
+  test("processes .yml outbox files", async () => {
+    writeFileSync(`${TEST_OUTBOX}/msg.yml`, yaml.dump({ to: "target-agent", text: "yml test" }));
+
+    const events = await captureEmits(async () => {
+      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH, TEST_SENDER_INBOX);
+    });
+
+    expect(existsSync(`${TEST_OUTBOX}/msg.yml`)).toBe(false);
+    const sent = events.find((e) => e.type === "agent_message_sent");
+    expect(sent).toBeDefined();
+    expect(sent!.payload.text).toBe("yml test");
   });
 
   test("processes multiple outbox files", async () => {
-    writeFileSync(`${TEST_OUTBOX}/a.json`, JSON.stringify({ to: "target-agent", text: "first" }));
-    writeFileSync(`${TEST_OUTBOX}/b.json`, JSON.stringify({ to: "target-agent", text: "second" }));
+    writeFileSync(`${TEST_OUTBOX}/a.yaml`, yaml.dump({ to: "target-agent", text: "first" }));
+    writeFileSync(`${TEST_OUTBOX}/b.yaml`, yaml.dump({ to: "target-agent", text: "second" }));
 
-    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
+    const count = await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH, TEST_SENDER_INBOX);
     expect(count).toBe(2);
 
-    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`).filter((f) => f.endsWith(".json"));
+    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`).filter(
+      (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
+    );
     expect(inboxFiles).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// writeSystemMessage() — writes system_message envelope to inbox
+// ---------------------------------------------------------------------------
+
+const TEST_SYS_INBOX = "/tmp/test-sys-inbox-" + process.pid;
+
+describe("writeSystemMessage()", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_SYS_INBOX, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_SYS_INBOX, { recursive: true, force: true });
+  });
+
+  test("writes a valid YAML system_message envelope", async () => {
+    await writeSystemMessage(TEST_SYS_INBOX, "Something went wrong.");
+
+    const files = readdirSync(TEST_SYS_INBOX).filter((f) => f.endsWith(".yaml"));
+    expect(files).toHaveLength(1);
+
+    const envelope = readYamlFile(`${TEST_SYS_INBOX}/${files[0]}`) as Record<string, unknown>;
+    expect(envelope.type).toBe("system_message");
+    expect(envelope.from).toBe("system");
+    expect(typeof envelope.ts).toBe("number");
+    expect((envelope.payload as Record<string, unknown>).text).toBe("Something went wrong.");
   });
 });
