@@ -65,7 +65,7 @@ export default function AgentSidebar({
   return (
     <div className="w-64 border-r border-border bg-muted/30 flex flex-col h-full">
       <div className="p-3 border-b border-border">
-        <ProjectSwitcher projects={projects} currentProjectId={project.id} />
+        <ProjectSwitcher projects={projects} currentProjectName={project.name} />
       </div>
 
       <div className="p-4 border-b border-border">
@@ -82,7 +82,7 @@ export default function AgentSidebar({
             onClick={() => onSelectAgent(agent.id)}
           >
             <span
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
+              className={`w-2 h-2 rounded-full shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
             />
             <span className="truncate flex-1">{agent.name}</span>
             <DropdownMenu>
@@ -100,7 +100,7 @@ export default function AgentSidebar({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate(`/projects/${project.id}/agents/${agent.id}`)}>
+                <DropdownMenuItem onClick={() => navigate(`/projects/${project.name}/agents/${agent.name}`)}>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -123,7 +123,7 @@ export default function AgentSidebar({
         <button
           type="button"
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          onClick={() => navigate(`/projects/${project.id}/settings`)}
+          onClick={() => navigate(`/projects/${project.name}/settings`)}
         >
           <svg
             width="16"
@@ -143,7 +143,7 @@ export default function AgentSidebar({
         <button
           type="button"
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          onClick={() => navigate(`/projects/${project.id}/shared`)}
+          onClick={() => navigate(`/projects/${project.name}/shared`)}
         >
           <svg
             width="16"

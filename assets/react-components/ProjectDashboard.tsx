@@ -84,7 +84,7 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
               <Card
                 key={project.id}
                 className="cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => navigate(`/projects/${project.id}`)}
+                onClick={() => navigate(`/projects/${project.name}`)}
               >
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">

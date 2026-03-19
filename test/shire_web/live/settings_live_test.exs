@@ -30,16 +30,20 @@ defmodule ShireWeb.SettingsLiveTest do
     start_supervised!({Shire.Agent.Coordinator, project_id: project_id})
     Process.sleep(50)
 
-    %{project_id: project_id}
+    %{project_id: project_id, project_name: "test-project-settings"}
   end
 
   describe "Index" do
-    test "renders settings page", %{conn: conn, project_id: project_id} do
-      {:ok, _view, html} = live(conn, ~p"/projects/#{project_id}/settings")
+    test "renders settings page", %{conn: conn, project_name: project_name} do
+      {:ok, _view, html} = live(conn, ~p"/projects/#{project_name}/settings")
       assert html =~ "SettingsPage"
     end
 
-    test "loads inter-agent messages", %{conn: conn, project_id: project_id} do
+    test "loads inter-agent messages", %{
+      conn: conn,
+      project_id: project_id,
+      project_name: project_name
+    } do
       {:ok, agent} =
         Agents.create_agent_with_vm(
           project_id,
@@ -60,7 +64,7 @@ defmodule ShireWeb.SettingsLiveTest do
           }
         })
 
-      {:ok, _view, html} = live(conn, ~p"/projects/#{project_id}/settings")
+      {:ok, _view, html} = live(conn, ~p"/projects/#{project_name}/settings")
       assert html =~ "Hello from Alice"
       assert html =~ "Alice"
     end
