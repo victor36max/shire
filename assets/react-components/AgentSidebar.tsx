@@ -27,7 +27,6 @@ function statusDotColor(status: AgentStatus): string {
     case "starting":
     case "bootstrapping":
       return "bg-yellow-500";
-    case "failed":
     case "crashed":
       return "bg-red-500";
     default:

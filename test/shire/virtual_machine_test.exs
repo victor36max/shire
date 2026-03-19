@@ -123,6 +123,41 @@ defmodule Shire.VirtualMachineImplTest do
     end
   end
 
+  describe "touch_keepalive broadcasts vm_woke_up" do
+    test "broadcasts {:vm_woke_up, project_id} when transitioning from idle to active" do
+      pid = start_supervised!({VM, [project_id: @project_id]}, id: :wakeup_broadcast_vm)
+
+      # Clear ping_timer to simulate idle VM
+      :sys.replace_state(pid, fn state ->
+        if state.ping_timer, do: Process.cancel_timer(state.ping_timer)
+        %{state | ping_timer: nil, ping_until: nil}
+      end)
+
+      # Subscribe to the VM PubSub topic
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project_id}:vm")
+
+      # Trigger touch_keepalive via a VM call
+      GenServer.call(pid, :get_sprite)
+
+      assert_receive {:vm_woke_up, @project_id}, 1_000
+    end
+
+    test "does not broadcast when VM is already active" do
+      pid = start_supervised!({VM, [project_id: @project_id]}, id: :no_wakeup_broadcast_vm)
+
+      # First call to activate
+      GenServer.call(pid, :get_sprite)
+
+      # Subscribe after first activation
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project_id}:vm")
+
+      # Second call should not broadcast
+      GenServer.call(pid, :get_sprite)
+
+      refute_receive {:vm_woke_up, _}, 200
+    end
+  end
+
   describe "resize/3" do
     test "returns :ok even when process is dead (SDK silently succeeds)" do
       dead_pid = spawn(fn -> :ok end)

@@ -201,6 +201,18 @@ defmodule ShireWeb.AgentLive.Index do
     end
   end
 
+  @impl true
+  def handle_event("restart-agent", _params, socket) do
+    project_id = socket.assigns.project.id
+    agent_id = socket.assigns.selected_agent_id
+
+    if agent_id do
+      Coordinator.restart_agent(project_id, agent_id)
+    end
+
+    {:noreply, socket}
+  end
+
   # PubSub handlers (agent-specific topic)
 
   @impl true
