@@ -1,6 +1,6 @@
 defmodule Shire.Agent.AgentManager do
   @moduledoc """
-  GenServer managing a single agent's lifecycle on the shared Sprite VM.
+  GenServer managing a single agent's lifecycle on a project's Sprite VM.
   One AgentManager per active agent. Uses Shire.VirtualMachine for all
   VM operations — does not hold sprite/fs references.
   """
@@ -74,6 +74,7 @@ defmodule Shire.Agent.AgentManager do
 
   defstruct [
     :agent_name,
+    :project_name,
     :command,
     :command_ref,
     :pubsub_topic,
@@ -86,12 +87,13 @@ defmodule Shire.Agent.AgentManager do
   # --- Public API ---
 
   def start_link(opts) do
+    project_name = Keyword.fetch!(opts, :project_name)
     agent_name = Keyword.fetch!(opts, :agent_name)
-    GenServer.start_link(__MODULE__, opts, name: via(agent_name))
+    GenServer.start_link(__MODULE__, opts, name: via(project_name, agent_name))
   end
 
-  def send_message(agent_name, text, from \\ :user) do
-    GenServer.call(via(agent_name), {:send_message, text, from}, 60_000)
+  def send_message(project_name, agent_name, text, from \\ :user) do
+    GenServer.call(via(project_name, agent_name), {:send_message, text, from}, 60_000)
   end
 
   @spec get_state(atom() | pid() | {atom(), any()} | {:via, atom(), any()}) :: any()
@@ -99,24 +101,26 @@ defmodule Shire.Agent.AgentManager do
     GenServer.call(server, :get_state, 60_000)
   end
 
-  def restart(agent_name) do
-    GenServer.call(via(agent_name), :restart, 60_000)
+  def restart(project_name, agent_name) do
+    GenServer.call(via(project_name, agent_name), :restart, 60_000)
   end
 
-  defp via(agent_name) do
-    {:via, Registry, {Shire.AgentRegistry, agent_name, agent_name}}
+  defp via(project_name, agent_name) do
+    {:via, Registry, {Shire.AgentRegistry, {project_name, agent_name}, agent_name}}
   end
 
   # --- Callbacks ---
 
   @impl true
   def init(opts) do
+    project_name = Keyword.fetch!(opts, :project_name)
     agent_name = Keyword.fetch!(opts, :agent_name)
     skip_sprite = Keyword.get(opts, :skip_sprite, false)
 
     state = %__MODULE__{
+      project_name: project_name,
       agent_name: agent_name,
-      pubsub_topic: "agent:#{agent_name}",
+      pubsub_topic: "project:#{project_name}:agent:#{agent_name}",
       status: :idle
     }
 
@@ -132,8 +136,8 @@ defmodule Shire.Agent.AgentManager do
     state = transition_status(state, :bootstrapping)
 
     Task.start_link(fn ->
-      result = setup_agent_workspace(state.agent_name)
-      GenServer.cast(via(state.agent_name), {:bootstrap_complete, result})
+      result = setup_agent_workspace(state.project_name, state.agent_name)
+      GenServer.cast(via(state.project_name, state.agent_name), {:bootstrap_complete, result})
     end)
 
     {:noreply, state}
@@ -142,10 +146,11 @@ defmodule Shire.Agent.AgentManager do
   @impl true
   def handle_continue(:spawn_runner, state) do
     agent_dir = "/workspace/agents/#{state.agent_name}"
-    kill_existing_runner(state.agent_name)
-    env = load_env_vars()
+    kill_existing_runner(state.project_name, state.agent_name)
+    env = load_env_vars(state.project_name)
 
     case @vm.spawn_command(
+           state.project_name,
            "bun",
            ["run", "/workspace/.runner/agent-runner.ts", "--agent-dir", agent_dir],
            env: env,
@@ -176,9 +181,10 @@ defmodule Shire.Agent.AgentManager do
     inbox_dir = "/workspace/agents/#{state.agent_name}/inbox"
     filename = "#{envelope["ts"]}-#{random_suffix()}.json"
 
-    case write_inbox_file("#{inbox_dir}/#{filename}", envelope) do
+    case write_inbox_file(state.project_name, "#{inbox_dir}/#{filename}", envelope) do
       :ok ->
         case Agents.create_message(%{
+               project_name: state.project_name,
                agent_name: state.agent_name,
                role: "user",
                content: %{"text" => text}
@@ -208,15 +214,15 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def handle_call(:restart, _from, state) do
-    kill_existing_runner(state.agent_name)
+    kill_existing_runner(state.project_name, state.agent_name)
 
     state =
       %{state | command: nil, command_ref: nil}
       |> transition_status(:bootstrapping)
 
     Task.start_link(fn ->
-      result = setup_agent_workspace(state.agent_name)
-      GenServer.cast(via(state.agent_name), {:bootstrap_complete, result})
+      result = setup_agent_workspace(state.project_name, state.agent_name)
+      GenServer.cast(via(state.project_name, state.agent_name), {:bootstrap_complete, result})
     end)
 
     {:reply, :ok, state}
@@ -236,6 +242,7 @@ defmodule Shire.Agent.AgentManager do
              "payload" => %{"from_agent" => from_agent, "text" => text}
            }} ->
             Agents.create_message(%{
+              project_name: acc.project_name,
               agent_name: acc.agent_name,
               role: "inter_agent",
               content: %{
@@ -248,19 +255,19 @@ defmodule Shire.Agent.AgentManager do
             acc
 
           {:ok, %{"type" => "spawn_agent", "payload" => %{"name" => new_name}}} ->
-            Shire.Agent.Coordinator.restart_agent(new_name)
+            Shire.Agent.Coordinator.restart_agent(acc.project_name, new_name)
             acc
 
           {:ok, %{"type" => "processing", "payload" => %{"active" => active}}} ->
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "agents:lobby",
+              "project:#{acc.project_name}:agents:lobby",
               {:agent_busy, acc.agent_name, active}
             )
 
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "agent:#{acc.agent_name}",
+              "project:#{acc.project_name}:agent:#{acc.agent_name}",
               {:agent_busy, acc.agent_name, active}
             )
 
@@ -311,8 +318,8 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
-  def terminate(_reason, %{agent_name: agent_name} = _state) do
-    kill_existing_runner(agent_name)
+  def terminate(_reason, %{project_name: project_name, agent_name: agent_name} = _state) do
+    kill_existing_runner(project_name, agent_name)
     :ok
   end
 
@@ -334,29 +341,29 @@ defmodule Shire.Agent.AgentManager do
 
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
-      "agent:#{state.agent_name}",
+      "project:#{state.project_name}:agent:#{state.agent_name}",
       {:status, status}
     )
 
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
-      "agents:lobby",
+      "project:#{state.project_name}:agents:lobby",
       {:agent_status, state.agent_name, status}
     )
 
     state
   end
 
-  defp setup_agent_workspace(agent_name) do
+  defp setup_agent_workspace(project_name, agent_name) do
     agent_dir = "/workspace/agents/#{agent_name}"
 
     # Create agent directory structure
     for subdir <- ["inbox", "outbox", "scripts", "documents", ".claude/skills"] do
-      @vm.cmd("mkdir", ["-p", "#{agent_dir}/#{subdir}"], [])
+      @vm.cmd(project_name, "mkdir", ["-p", "#{agent_dir}/#{subdir}"], [])
     end
 
     # Read recipe to determine harness type
-    recipe = read_recipe(agent_name)
+    recipe = read_recipe(project_name, agent_name)
     harness = recipe["harness"] || "claude_code"
 
     # Write comms instructions to the file the harness reads
@@ -366,10 +373,10 @@ defmodule Shire.Agent.AgentManager do
         _ -> "AGENTS.md"
       end
 
-    @vm.write("#{agent_dir}/#{comms_file}", comms_prompt(agent_name))
+    @vm.write(project_name, "#{agent_dir}/#{comms_file}", comms_prompt(agent_name))
 
     # Deploy skills from recipe
-    deploy_skills(recipe, agent_dir)
+    deploy_skills(project_name, recipe, agent_dir)
 
     :ok
   rescue
@@ -381,10 +388,10 @@ defmodule Shire.Agent.AgentManager do
       {:error, e}
   end
 
-  defp read_recipe(agent_name) do
+  defp read_recipe(project_name, agent_name) do
     path = "/workspace/agents/#{agent_name}/recipe.yaml"
 
-    case @vm.cmd("cat", [path], []) do
+    case @vm.cmd(project_name, "cat", [path], []) do
       {:ok, content} ->
         case YamlElixir.read_from_string(content) do
           {:ok, %{} = recipe} -> recipe
@@ -396,7 +403,7 @@ defmodule Shire.Agent.AgentManager do
     end
   end
 
-  defp deploy_skills(%{"skills" => [_ | _] = skills} = recipe, agent_dir) do
+  defp deploy_skills(project_name, %{"skills" => [_ | _] = skills} = recipe, agent_dir) do
     harness = recipe["harness"] || "claude_code"
 
     skill_base =
@@ -406,24 +413,24 @@ defmodule Shire.Agent.AgentManager do
       end
 
     # Clean stale skills from previous recipe versions
-    @vm.cmd("rm", ["-rf", skill_base], [])
+    @vm.cmd(project_name, "rm", ["-rf", skill_base], [])
 
     for skill <- skills do
       skill_dir = "#{skill_base}/#{skill["name"]}"
-      @vm.cmd("mkdir", ["-p", skill_dir], [])
+      @vm.cmd(project_name, "mkdir", ["-p", skill_dir], [])
 
       skill_md = build_skill_md(skill)
-      @vm.write("#{skill_dir}/SKILL.md", skill_md)
+      @vm.write(project_name, "#{skill_dir}/SKILL.md", skill_md)
 
       for ref <- skill["references"] || [] do
-        @vm.write("#{skill_dir}/#{ref["name"]}", ref["content"])
+        @vm.write(project_name, "#{skill_dir}/#{ref["name"]}", ref["content"])
       end
     end
 
     :ok
   end
 
-  defp deploy_skills(_recipe, _agent_dir), do: :ok
+  defp deploy_skills(_project_name, _recipe, _agent_dir), do: :ok
 
   defp build_skill_md(skill) do
     """
@@ -436,17 +443,17 @@ defmodule Shire.Agent.AgentManager do
     """
   end
 
-  defp write_inbox_file(path, envelope) do
-    @vm.write(path, Jason.encode!(envelope))
+  defp write_inbox_file(project_name, path, envelope) do
+    @vm.write(project_name, path, Jason.encode!(envelope))
   end
 
   defp random_suffix do
     :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
   end
 
-  defp kill_existing_runner(agent_name) do
-    # Kill only this agent's runner process, not all runners on the shared VM
+  defp kill_existing_runner(project_name, agent_name) do
     @vm.cmd(
+      project_name,
       "pkill",
       ["-f", "agent-runner.ts --agent-dir /workspace/agents/#{agent_name}"],
       []
@@ -479,8 +486,8 @@ defmodule Shire.Agent.AgentManager do
     Phoenix.PubSub.broadcast(Shire.PubSub, state.pubsub_topic, message)
   end
 
-  defp load_env_vars do
-    case @vm.cmd("cat", ["/workspace/.env"], []) do
+  defp load_env_vars(project_name) do
+    case @vm.cmd(project_name, "cat", ["/workspace/.env"], []) do
       {:ok, content} ->
         content
         |> String.split("\n", trim: true)
@@ -518,6 +525,7 @@ defmodule Shire.Agent.AgentManager do
     input = Map.get(payload, "input", %{})
 
     case Agents.create_message(%{
+           project_name: state.project_name,
            agent_name: state.agent_name,
            role: "tool_use",
            content: %{
@@ -554,6 +562,7 @@ defmodule Shire.Agent.AgentManager do
         tool = Map.get(payload, "tool", "unknown")
 
         case Agents.create_message(%{
+               project_name: state.project_name,
                agent_name: state.agent_name,
                role: "tool_use",
                content: %{
@@ -608,6 +617,7 @@ defmodule Shire.Agent.AgentManager do
     state = flush_and_broadcast_streaming(state)
 
     case Agents.create_message(%{
+           project_name: state.project_name,
            agent_name: state.agent_name,
            role: "agent",
            content: %{"text" => text}
@@ -641,6 +651,7 @@ defmodule Shire.Agent.AgentManager do
 
   defp flush_and_broadcast_streaming(state) do
     case Agents.create_message(%{
+           project_name: state.project_name,
            agent_name: state.agent_name,
            role: "agent",
            content: %{"text" => state.streaming_text}

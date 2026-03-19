@@ -1,16 +1,11 @@
 defmodule Shire.VirtualMachineImpl do
   @moduledoc """
-  GenServer owning the shared Sprite VM lifecycle. Provides consistent
+  Per-project GenServer owning a Sprite VM lifecycle. Provides consistent
   error handling, default timeouts, and failure logging for all VM operations.
 
-  Callers use `vm().cmd/3`, `vm().write/2`, etc. via the Shire.VirtualMachine
-  behaviour — this module is the production implementation.
-
-  Init is synchronous — the supervisor blocks until the VM is ready, so
-  downstream processes (Coordinator, AgentManager) are guaranteed a live VM.
-
-  Wrapped in a dedicated supervisor with generous restart tolerance so
-  transient network failures at boot don't permanently disable the VM.
+  Each project gets its own VirtualMachineImpl instance, registered dynamically
+  via Shire.ProjectRegistry. The VM name is derived from the configurable prefix
+  and the project name.
   """
   use GenServer
   require Logger
@@ -24,24 +19,24 @@ defmodule Shire.VirtualMachineImpl do
   @keepalive_duration :timer.minutes(30)
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    project_name = Keyword.fetch!(opts, :project_name)
+    GenServer.start_link(__MODULE__, opts, name: via(project_name))
+  end
+
+  defp via(project_name) do
+    {:via, Registry, {Shire.ProjectRegistry, {:vm, project_name}}}
   end
 
   # --- Public API: Command Execution ---
 
-  @doc """
-  Executes a command on the VM. Returns `{:ok, output}` or `{:error, reason}`.
-  Default timeout is #{@default_cmd_timeout}ms. Override with `timeout:` in opts.
-  """
   @impl Shire.VirtualMachine
-  def cmd(command, args \\ [], opts \\ []) do
-    GenServer.call(__MODULE__, {:cmd, command, args, opts}, call_timeout(opts))
+  def cmd(project_name, command, args \\ [], opts \\ []) do
+    GenServer.call(via(project_name), {:cmd, command, args, opts}, call_timeout(opts))
   end
 
-  @doc "Like `cmd/3` but raises on failure."
   @impl Shire.VirtualMachine
-  def cmd!(command, args \\ [], opts \\ []) do
-    case cmd(command, args, opts) do
+  def cmd!(project_name, command, args \\ [], opts \\ []) do
+    case cmd(project_name, command, args, opts) do
       {:ok, output} ->
         output
 
@@ -58,60 +53,46 @@ defmodule Shire.VirtualMachineImpl do
 
   # --- Public API: Filesystem ---
 
-  @doc "Reads a file from the VM filesystem."
   @impl Shire.VirtualMachine
-  def read(path) do
-    GenServer.call(__MODULE__, {:read, path})
+  def read(project_name, path) do
+    GenServer.call(via(project_name), {:read, path})
   end
 
-  @doc "Writes content to a file on the VM filesystem."
   @impl Shire.VirtualMachine
-  def write(path, content) do
-    GenServer.call(__MODULE__, {:write, path, content})
+  def write(project_name, path, content) do
+    GenServer.call(via(project_name), {:write, path, content})
   end
 
-  @doc "Creates a directory (and parents) on the VM filesystem."
   @impl Shire.VirtualMachine
-  def mkdir_p(path) do
-    GenServer.call(__MODULE__, {:mkdir_p, path})
+  def mkdir_p(project_name, path) do
+    GenServer.call(via(project_name), {:mkdir_p, path})
   end
 
-  @doc "Removes a file from the VM filesystem."
   @impl Shire.VirtualMachine
-  def rm(path) do
-    GenServer.call(__MODULE__, {:rm, path})
+  def rm(project_name, path) do
+    GenServer.call(via(project_name), {:rm, path})
   end
 
-  @doc "Recursively removes a file or directory from the VM filesystem."
   @impl Shire.VirtualMachine
-  def rm_rf(path) do
-    GenServer.call(__MODULE__, {:rm_rf, path})
+  def rm_rf(project_name, path) do
+    GenServer.call(via(project_name), {:rm_rf, path})
   end
 
-  @doc "Lists directory contents on the VM filesystem."
   @impl Shire.VirtualMachine
-  def ls(path) do
-    GenServer.call(__MODULE__, {:ls, path})
+  def ls(project_name, path) do
+    GenServer.call(via(project_name), {:ls, path})
   end
 
-  @doc "Gets file/directory stats from the VM filesystem."
   @impl Shire.VirtualMachine
-  def stat(path) do
-    GenServer.call(__MODULE__, {:stat, path})
+  def stat(project_name, path) do
+    GenServer.call(via(project_name), {:stat, path})
   end
 
   # --- Public API: Interactive Process ---
 
-  @doc """
-  Spawns an async command on the VM (for interactive/streaming use).
-
-  The spawn is executed in the **caller's** process so that stdout/stderr/exit
-  messages are delivered directly to the caller (e.g. AgentManager, TerminalSession)
-  rather than to this GenServer.
-  """
   @impl Shire.VirtualMachine
-  def spawn_command(command, args \\ [], opts \\ []) do
-    sprite = GenServer.call(__MODULE__, :get_sprite)
+  def spawn_command(project_name, command, args \\ [], opts \\ []) do
+    sprite = GenServer.call(via(project_name), :get_sprite)
 
     case sprite do
       nil ->
@@ -122,7 +103,6 @@ defmodule Shire.VirtualMachineImpl do
     end
   end
 
-  @doc "Writes data to a command's stdin. Returns `:ok` or `{:error, reason}` if the process is dead."
   @impl Shire.VirtualMachine
   @spec write_stdin(Sprites.Command.t(), binary()) :: :ok | {:error, term()}
   def write_stdin(command, data) do
@@ -133,7 +113,6 @@ defmodule Shire.VirtualMachineImpl do
       {:error, {:process_dead, reason}}
   end
 
-  @doc "Resizes a command's TTY. Returns `:ok` or `{:error, reason}` if the process is dead."
   @impl Shire.VirtualMachine
   @spec resize(Sprites.Command.t(), integer(), integer()) :: :ok | {:error, term()}
   def resize(command, rows, cols) do
@@ -144,25 +123,82 @@ defmodule Shire.VirtualMachineImpl do
       {:error, {:process_dead, reason}}
   end
 
-  # --- GenServer Callbacks ---
+  # --- VM Management (module-level, no GenServer) ---
 
-  @impl GenServer
-  def init(_opts) do
+  @impl Shire.VirtualMachine
+  def list_vms do
     token = Application.get_env(:shire, :sprites_token)
 
     if token do
-      case init_shared_vm(token) do
-        {:ok, sprite, fs} ->
-          Logger.info("Shared VM #{get_sprite_name()} ready")
-          {:ok, %{sprite: sprite, fs: fs, ping_timer: nil, ping_until: nil}}
+      client = Sprites.new(token)
+      prefix = Application.get_env(:shire, :sprite_vm_prefix, "shire-")
+
+      case Sprites.list(client, prefix: prefix) do
+        {:ok, sprites} ->
+          names =
+            sprites
+            |> Enum.map(fn info -> info["name"] || info[:name] end)
+            |> Enum.filter(&(&1 && String.starts_with?(&1, prefix)))
+
+          {:ok, names}
 
         {:error, reason} ->
-          Logger.error("Failed to initialize shared VM: #{inspect(reason)}")
+          {:error, reason}
+      end
+    else
+      {:ok, []}
+    end
+  end
+
+  @impl Shire.VirtualMachine
+  def destroy_vm(project_name) do
+    token = Application.get_env(:shire, :sprites_token)
+
+    if token do
+      client = Sprites.new(token)
+      name = vm_name(project_name)
+
+      case Sprites.get_sprite(client, name) do
+        {:ok, _} ->
+          sprite = Sprites.sprite(client, name)
+          Sprites.destroy(sprite)
+          :ok
+
+        {:error, {:not_found, _}} ->
+          :ok
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      {:error, :no_token}
+    end
+  end
+
+  # --- GenServer Callbacks ---
+
+  @impl GenServer
+  def init(opts) do
+    project_name = Keyword.fetch!(opts, :project_name)
+    token = Application.get_env(:shire, :sprites_token)
+
+    if token do
+      vm_name = vm_name(project_name)
+
+      case init_vm(token, vm_name) do
+        {:ok, sprite, fs} ->
+          Logger.info("VM #{vm_name} ready (project: #{project_name})")
+
+          {:ok,
+           %{sprite: sprite, fs: fs, project_name: project_name, ping_timer: nil, ping_until: nil}}
+
+        {:error, reason} ->
+          Logger.error("Failed to initialize VM #{vm_name}: #{inspect(reason)}")
           {:stop, {:init_failed, reason}}
       end
     else
       Logger.warning("No SPRITES_TOKEN configured — VM features disabled")
-      {:ok, %{sprite: nil, fs: nil, ping_timer: nil, ping_until: nil}}
+      {:ok, %{sprite: nil, fs: nil, project_name: project_name, ping_timer: nil, ping_until: nil}}
     end
   end
 
@@ -350,22 +386,26 @@ defmodule Shire.VirtualMachineImpl do
   end
 
   @impl GenServer
-  def terminate(reason, %{sprite: nil}),
-    do: Logger.warning("VirtualMachineImpl stopping (no VM): #{inspect(reason)}")
+  def terminate(reason, %{sprite: nil} = state),
+    do:
+      Logger.warning(
+        "VirtualMachineImpl stopping (no VM, project: #{state.project_name}): #{inspect(reason)}"
+      )
 
-  def terminate(reason, _state) do
-    Logger.warning("VirtualMachineImpl stopping: #{inspect(reason)}")
+  def terminate(reason, state) do
+    Logger.warning(
+      "VirtualMachineImpl stopping (project: #{state.project_name}): #{inspect(reason)}"
+    )
   end
 
   # --- Private: VM Initialization ---
 
-  defp get_sprite_name() do
-    Application.get_env(:shire, :sprite_vm_name, "shire-vm")
+  defp vm_name(project_name) do
+    "#{Application.get_env(:shire, :sprite_vm_prefix, "shire-")}#{project_name}"
   end
 
-  defp init_shared_vm(token) do
+  defp init_vm(token, vm_name) do
     client = Sprites.new(token)
-    vm_name = get_sprite_name()
 
     sprite =
       case Sprites.get_sprite(client, vm_name) do
@@ -414,7 +454,6 @@ defmodule Shire.VirtualMachineImpl do
     Sprites.filesystem(patched_sprite)
   end
 
-  # GenServer call timeout: use the command timeout + 5s buffer
   defp call_timeout(opts) do
     (Keyword.get(opts, :timeout, @default_cmd_timeout) || @default_cmd_timeout) + 5_000
   end

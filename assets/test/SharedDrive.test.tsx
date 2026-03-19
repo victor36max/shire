@@ -5,6 +5,7 @@ import SharedDrive from "../react-components/SharedDrive";
 import type { SharedDriveFile } from "../react-components/SharedDrive";
 
 const defaultProps = {
+  project: "test-project",
   files: [] as SharedDriveFile[],
   current_path: "/",
   pushEvent: vi.fn(),

@@ -7,13 +7,14 @@ defmodule Shire.Agent.AgentManagerTest do
   alias Shire.Agents
 
   @agent_name "test-agent"
+  @project "test-project"
 
   setup :set_mox_from_context
 
   defp start_manager(opts \\ []) do
     name = Keyword.get(opts, :agent_name, @agent_name)
 
-    start_supervised({AgentManager, agent_name: name, skip_sprite: true})
+    start_supervised({AgentManager, project_name: @project, agent_name: name, skip_sprite: true})
   end
 
   describe "start_link/1" do
@@ -35,7 +36,7 @@ defmodule Shire.Agent.AgentManagerTest do
     end
   end
 
-  describe "send_message/3" do
+  describe "send_message/4" do
     test "returns error when agent is not active" do
       {:ok, pid} = start_manager()
 
@@ -44,7 +45,7 @@ defmodule Shire.Agent.AgentManagerTest do
 
     test "persists user message to DB when from is :user" do
       Mox.set_mox_global()
-      stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       {:ok, pid} = start_manager()
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
@@ -58,7 +59,7 @@ defmodule Shire.Agent.AgentManagerTest do
       assert {:ok, %Shire.Agents.Message{}} =
                GenServer.call(pid, {:send_message, "hello from user", :user})
 
-      {messages, _} = Agents.list_messages_for_agent(@agent_name)
+      {messages, _} = Agents.list_messages_for_agent(@project, @agent_name)
       user_msgs = Enum.filter(messages, &(&1.role == "user"))
       assert length(user_msgs) == 1
       assert hd(user_msgs).content["text"] == "hello from user"
@@ -104,7 +105,7 @@ defmodule Shire.Agent.AgentManagerTest do
 
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{@agent_name}")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agent:#{@agent_name}")
 
       ref = make_ref()
       command = %{ref: ref}
@@ -349,7 +350,7 @@ defmodule Shire.Agent.AgentManagerTest do
       # Give it a moment to process
       Process.sleep(50)
 
-      {messages, _has_more} = Agents.list_messages_for_agent(@agent_name)
+      {messages, _has_more} = Agents.list_messages_for_agent(@project, @agent_name)
       inter_agent = Enum.find(messages, &(&1.role == "inter_agent"))
       assert inter_agent != nil
       assert inter_agent.content["text"] == "hello from other"
@@ -362,7 +363,7 @@ defmodule Shire.Agent.AgentManagerTest do
     test "transitions to failed when runner exits" do
       {:ok, pid} = start_manager()
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{@agent_name}")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agent:#{@agent_name}")
 
       ref = make_ref()
 
@@ -384,13 +385,13 @@ defmodule Shire.Agent.AgentManagerTest do
   describe "restart" do
     test "resets state and transitions to bootstrapping" do
       Mox.set_mox_global()
-      stub(Shire.VirtualMachineMock, :cmd, fn _cmd, _args, _opts -> {:ok, ""} end)
-      stub(Shire.VirtualMachineMock, :write, fn _path, _content -> :ok end)
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       {:ok, pid} = start_manager()
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{@agent_name}")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agent:#{@agent_name}")
 
       ref = make_ref()
 
@@ -398,7 +399,7 @@ defmodule Shire.Agent.AgentManagerTest do
         %{state | command: %{ref: ref}, command_ref: ref, status: :active}
       end)
 
-      assert :ok = AgentManager.restart(@agent_name)
+      assert :ok = AgentManager.restart(@project, @agent_name)
 
       assert_receive {:status, :bootstrapping}, 1_000
     end

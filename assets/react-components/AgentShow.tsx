@@ -19,9 +19,11 @@ import { ChevronLeft, Pencil } from "lucide-react";
 import { type Agent, statusVariant, harnessLabel } from "./types";
 
 export default function AgentShow({
+  project,
   agent,
   pushEvent,
 }: {
+  project: string;
   agent: Agent;
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }) {
@@ -32,7 +34,12 @@ export default function AgentShow({
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" aria-label="Back" onClick={() => window.location.assign("/")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back"
+              onClick={() => window.location.assign(`/projects/${project}`)}
+            >
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <h1 className="text-2xl font-bold">{agent.name}</h1>

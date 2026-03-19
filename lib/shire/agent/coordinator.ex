@@ -1,8 +1,8 @@
 defmodule Shire.Agent.Coordinator do
   @moduledoc """
-  Manages agent lifecycle on the shared Sprite VM.
-  Starts/stops AgentManagers via DynamicSupervisor.
-  VM initialization is handled by Shire.VirtualMachine.
+  Manages agent lifecycle on a project's Sprite VM.
+  Each project gets its own Coordinator, registered via ProjectRegistry.
+  Starts/stops AgentManagers via the project-scoped DynamicSupervisor.
   """
   use GenServer
   require Logger
@@ -12,55 +12,60 @@ defmodule Shire.Agent.Coordinator do
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    project_name = Keyword.fetch!(opts, :project_name)
+    GenServer.start_link(__MODULE__, opts, name: via(project_name))
+  end
+
+  defp via(project_name) do
+    {:via, Registry, {Shire.ProjectRegistry, {:coordinator, project_name}}}
   end
 
   # --- Public API ---
 
   @doc "Returns the current status for an agent (defaults to :created if not tracked)."
-  def agent_status(agent_name) do
-    GenServer.call(__MODULE__, {:agent_status, agent_name})
+  def agent_status(project_name, agent_name) do
+    GenServer.call(via(project_name), {:agent_status, agent_name})
   end
 
   @doc "Returns a map of `%{agent_name => status}` for the given agent names."
-  def agent_statuses(agent_names) do
-    GenServer.call(__MODULE__, {:agent_statuses, agent_names})
+  def agent_statuses(project_name, agent_names) do
+    GenServer.call(via(project_name), {:agent_statuses, agent_names})
   end
 
   @doc "Creates a new agent: writes recipe.yaml on VM and starts runner."
-  def create_agent(attrs) do
-    GenServer.call(__MODULE__, {:create_agent, attrs}, 60_000)
+  def create_agent(project_name, attrs) do
+    GenServer.call(via(project_name), {:create_agent, attrs}, 60_000)
   end
 
   @doc "Updates an agent's recipe.yaml on the VM."
-  def update_agent(agent_name, attrs) do
-    GenServer.call(__MODULE__, {:update_agent, agent_name, attrs}, 30_000)
+  def update_agent(project_name, agent_name, attrs) do
+    GenServer.call(via(project_name), {:update_agent, agent_name, attrs}, 30_000)
   end
 
-  def delete_agent(agent_name) do
-    GenServer.call(__MODULE__, {:delete_agent, agent_name}, 30_000)
+  def delete_agent(project_name, agent_name) do
+    GenServer.call(via(project_name), {:delete_agent, agent_name}, 30_000)
   end
 
-  def restart_agent(agent_name) do
-    GenServer.call(__MODULE__, {:restart_agent, agent_name}, 60_000)
+  def restart_agent(project_name, agent_name) do
+    GenServer.call(via(project_name), {:restart_agent, agent_name}, 60_000)
   end
 
-  def send_message(agent_name, text) do
-    AgentManager.send_message(agent_name, text, :user)
+  def send_message(project_name, agent_name, text) do
+    AgentManager.send_message(project_name, agent_name, text, :user)
   end
 
-  @doc "Look up a running agent's pid by name."
-  def lookup(agent_name) do
-    case Registry.lookup(Shire.AgentRegistry, agent_name) do
+  @doc "Look up a running agent's pid by name within a project."
+  def lookup(project_name, agent_name) do
+    case Registry.lookup(Shire.AgentRegistry, {project_name, agent_name}) do
       [{pid, _}] -> {:ok, pid}
       [] -> {:error, :not_found}
     end
   end
 
-  @doc "Returns all running agent names."
-  def list_running do
+  @doc "Returns all running agent names for a project."
+  def list_running(project_name) do
     Registry.select(Shire.AgentRegistry, [
-      {{:"$1", :"$2", :_}, [{:is_binary, :"$1"}], [:"$1"]}
+      {{{project_name, :"$1"}, :"$2", :_}, [], [:"$1"]}
     ])
   end
 
@@ -68,22 +73,25 @@ defmodule Shire.Agent.Coordinator do
   Lists agents by scanning `/workspace/agents/` on the VM.
   Returns `[%{name: name, ...}]` for each agent directory with a recipe.yaml.
   """
-  def list_agents do
-    GenServer.call(__MODULE__, :list_agents, 30_000)
+  def list_agents(project_name) do
+    GenServer.call(via(project_name), :list_agents, 30_000)
   end
 
   @doc "Reads an agent's recipe.yaml from the VM."
-  def get_agent(agent_name) do
-    GenServer.call(__MODULE__, {:get_agent, agent_name}, 15_000)
+  def get_agent(project_name, agent_name) do
+    GenServer.call(via(project_name), {:get_agent, agent_name}, 15_000)
   end
 
   # --- Callbacks ---
 
   @impl true
-  def init(_opts) do
-    Phoenix.PubSub.subscribe(Shire.PubSub, "agents:lobby")
+  def init(opts) do
+    project_name = Keyword.fetch!(opts, :project_name)
+
+    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_name}:agents:lobby")
 
     state = %{
+      project_name: project_name,
       monitors: %{},
       statuses: %{}
     }
@@ -93,27 +101,30 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_continue(:deploy_and_scan, state) do
-    case Shire.WorkspaceSettings.bootstrap_workspace() do
+    case Shire.WorkspaceSettings.bootstrap_workspace(state.project_name) do
       :ok -> :ok
       {:error, reason} -> Logger.error("Bootstrap failed: #{inspect(reason)}")
     end
 
-    case deploy_runner() do
+    case deploy_runner(state.project_name) do
       :ok -> :ok
       {:error, reason} -> Logger.error("Runner deployment failed: #{inspect(reason)}")
     end
 
-    {:ok, agent_names} = scan_agent_dirs()
+    {:ok, agent_names} = scan_agent_dirs(state.project_name)
 
     monitors =
       Enum.reduce(agent_names, state.monitors, fn name, acc ->
-        case start_agent_manager(name, acc) do
+        case start_agent_manager(state.project_name, name, acc) do
           {:ok, _pid, updated_monitors} -> updated_monitors
           {:error, _} -> acc
         end
       end)
 
-    Logger.info("Scanned and started #{length(agent_names)} agents")
+    Logger.info(
+      "Project #{state.project_name}: scanned and started #{length(agent_names)} agents"
+    )
+
     {:noreply, %{state | monitors: monitors}}
   end
 
@@ -121,8 +132,12 @@ defmodule Shire.Agent.Coordinator do
   def handle_call({:create_agent, %{"name" => name, "recipe_yaml" => recipe_yaml}}, _from, state) do
     agent_dir = "/workspace/agents/#{name}"
 
-    # Check if agent already exists (exit codes unreliable via Sprites, use echo)
-    case @vm.cmd("bash", ["-c", "test -d #{agent_dir} && echo exists || echo missing"], []) do
+    case @vm.cmd(
+           state.project_name,
+           "bash",
+           ["-c", "test -d #{agent_dir} && echo exists || echo missing"],
+           []
+         ) do
       {:error, reason} ->
         {:reply, {:error, reason}, state}
 
@@ -149,14 +164,19 @@ defmodule Shire.Agent.Coordinator do
     else
       agent_dir = "/workspace/agents/#{name}"
 
-      case @vm.write("#{agent_dir}/recipe.yaml", recipe_yaml) do
+      case @vm.write(state.project_name, "#{agent_dir}/recipe.yaml", recipe_yaml) do
         :ok ->
-          case lookup(name) do
-            {:ok, _pid} -> AgentManager.restart(name)
+          case lookup(state.project_name, name) do
+            {:ok, _pid} -> AgentManager.restart(state.project_name, name)
             {:error, :not_found} -> :ok
           end
 
-          Phoenix.PubSub.broadcast(Shire.PubSub, "agents:lobby", {:agent_updated, name})
+          Phoenix.PubSub.broadcast(
+            Shire.PubSub,
+            "project:#{state.project_name}:agents:lobby",
+            {:agent_updated, name}
+          )
+
           {:reply, :ok, state}
 
         {:error, reason} ->
@@ -173,9 +193,10 @@ defmodule Shire.Agent.Coordinator do
   @impl true
   def handle_call({:delete_agent, agent_name}, _from, state) do
     # Stop the process if running
-    case lookup(agent_name) do
+    case lookup(state.project_name, agent_name) do
       {:ok, pid} ->
-        DynamicSupervisor.terminate_child(Shire.AgentSupervisor, pid)
+        agent_sup = {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, state.project_name}}}
+        DynamicSupervisor.terminate_child(agent_sup, pid)
 
       {:error, :not_found} ->
         :ok
@@ -190,7 +211,7 @@ defmodule Shire.Agent.Coordinator do
     if ref, do: Process.demonitor(ref, [:flush])
 
     # Remove agent directory from VM
-    case @vm.cmd("rm", ["-rf", "/workspace/agents/#{agent_name}"], []) do
+    case @vm.cmd(state.project_name, "rm", ["-rf", "/workspace/agents/#{agent_name}"], []) do
       {:ok, _} ->
         :ok
 
@@ -200,15 +221,21 @@ defmodule Shire.Agent.Coordinator do
 
     statuses = Map.delete(state.statuses, agent_name)
     Logger.info("Deleted agent #{agent_name}")
-    Phoenix.PubSub.broadcast(Shire.PubSub, "agents:lobby", {:agent_deleted, agent_name})
+
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "project:#{state.project_name}:agents:lobby",
+      {:agent_deleted, agent_name}
+    )
+
     {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
   end
 
   @impl true
   def handle_call({:restart_agent, agent_name}, _from, state) do
-    case lookup(agent_name) do
+    case lookup(state.project_name, agent_name) do
       {:ok, _pid} ->
-        case AgentManager.restart(agent_name) do
+        case AgentManager.restart(state.project_name, agent_name) do
           :ok ->
             Logger.info("Restarting agent #{agent_name}")
             {:reply, :ok, state}
@@ -218,8 +245,7 @@ defmodule Shire.Agent.Coordinator do
         end
 
       {:error, :not_found} ->
-        # No process exists — spawn a fresh AgentManager
-        case start_agent_manager(agent_name, state.monitors) do
+        case start_agent_manager(state.project_name, agent_name, state.monitors) do
           {:ok, _pid, monitors} ->
             Logger.info("Started agent #{agent_name} (was not running)")
             {:reply, :ok, %{state | monitors: monitors}}
@@ -243,7 +269,7 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_call(:list_agents, _from, state) do
-    {:ok, names} = scan_agent_dirs()
+    {:ok, names} = scan_agent_dirs(state.project_name)
 
     agents =
       Enum.map(names, fn name ->
@@ -256,7 +282,7 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_call({:get_agent, agent_name}, _from, state) do
-    case read_agent_recipe(agent_name) do
+    case read_agent_recipe(state.project_name, agent_name) do
       {:ok, recipe} ->
         status = Map.get(state.statuses, agent_name, :created)
 
@@ -288,13 +314,13 @@ defmodule Shire.Agent.Coordinator do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "agent:#{agent_name}",
+        "project:#{state.project_name}:agent:#{agent_name}",
         {:status, :crashed}
       )
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "agents:lobby",
+        "project:#{state.project_name}:agents:lobby",
         {:agent_status, agent_name, :crashed}
       )
 
@@ -328,31 +354,32 @@ defmodule Shire.Agent.Coordinator do
 
   # --- Private ---
 
-  defp deploy_runner do
+  defp deploy_runner(project_name) do
     runner_dir = Application.app_dir(:shire, "priv/sprite")
 
-    # Deploy agent-runner.ts
     content = File.read!(Path.join(runner_dir, "agent-runner.ts"))
 
-    with :ok <- @vm.write("/workspace/.runner/agent-runner.ts", content),
-         :ok <- deploy_harness(runner_dir),
+    with :ok <- @vm.write(project_name, "/workspace/.runner/agent-runner.ts", content),
+         :ok <- deploy_harness(project_name, runner_dir),
          {:ok, _} <-
-           @vm.cmd("bash", ["-c", "cd /workspace/.runner && bun install"], timeout: 120_000) do
+           @vm.cmd(project_name, "bash", ["-c", "cd /workspace/.runner && bun install"],
+             timeout: 120_000
+           ) do
       :ok
     else
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp deploy_harness(runner_dir) do
+  defp deploy_harness(project_name, runner_dir) do
     harness_dir = Path.join(runner_dir, "harness")
 
     if File.dir?(harness_dir) do
-      with {:ok, _} <- @vm.cmd("mkdir", ["-p", "/workspace/.runner/harness"], []) do
+      with {:ok, _} <- @vm.cmd(project_name, "mkdir", ["-p", "/workspace/.runner/harness"], []) do
         Enum.reduce_while(File.ls!(harness_dir), :ok, fn file, :ok ->
           content = File.read!(Path.join(harness_dir, file))
 
-          case @vm.write("/workspace/.runner/harness/#{file}", content) do
+          case @vm.write(project_name, "/workspace/.runner/harness/#{file}", content) do
             :ok -> {:cont, :ok}
             {:error, reason} -> {:halt, {:error, reason}}
           end
@@ -363,10 +390,10 @@ defmodule Shire.Agent.Coordinator do
     end
   end
 
-  defp scan_agent_dirs do
+  defp scan_agent_dirs(project_name) do
     cmd = ~s(for d in /workspace/agents/*/; do test -f "$d/recipe.yaml" && basename "$d"; done)
 
-    case @vm.cmd("bash", ["-c", cmd], []) do
+    case @vm.cmd(project_name, "bash", ["-c", cmd], []) do
       {:ok, output} ->
         names = String.split(output, "\n", trim: true)
         {:ok, names}
@@ -380,10 +407,15 @@ defmodule Shire.Agent.Coordinator do
       {:ok, []}
   end
 
-  defp read_agent_recipe(agent_name) do
+  defp read_agent_recipe(project_name, agent_name) do
     path = "/workspace/agents/#{agent_name}/recipe.yaml"
 
-    case @vm.cmd("bash", ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"], []) do
+    case @vm.cmd(
+           project_name,
+           "bash",
+           ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"],
+           []
+         ) do
       {:error, reason} ->
         {:error, reason}
 
@@ -400,10 +432,9 @@ defmodule Shire.Agent.Coordinator do
   end
 
   defp create_agent_on_vm(name, agent_dir, recipe_yaml, state) do
-    # Create directory structure
     mkdir_results =
       Enum.map(["inbox", "outbox", "scripts", "documents"], fn subdir ->
-        @vm.cmd("mkdir", ["-p", "#{agent_dir}/#{subdir}"], [])
+        @vm.cmd(state.project_name, "mkdir", ["-p", "#{agent_dir}/#{subdir}"], [])
       end)
 
     case Enum.find(mkdir_results, &match?({:error, _}, &1)) do
@@ -411,11 +442,16 @@ defmodule Shire.Agent.Coordinator do
         {:reply, {:error, reason}, state}
 
       nil ->
-        case @vm.write("#{agent_dir}/recipe.yaml", recipe_yaml) do
+        case @vm.write(state.project_name, "#{agent_dir}/recipe.yaml", recipe_yaml) do
           :ok ->
-            case start_agent_manager(name, state.monitors) do
+            case start_agent_manager(state.project_name, name, state.monitors) do
               {:ok, pid, monitors} ->
-                Phoenix.PubSub.broadcast(Shire.PubSub, "agents:lobby", {:agent_created, name})
+                Phoenix.PubSub.broadcast(
+                  Shire.PubSub,
+                  "project:#{state.project_name}:agents:lobby",
+                  {:agent_created, name}
+                )
+
                 {:reply, {:ok, pid}, %{state | monitors: monitors}}
 
               {:error, reason} ->
@@ -438,8 +474,12 @@ defmodule Shire.Agent.Coordinator do
   defp rename_agent(old_name, new_name, recipe_yaml, state) do
     new_dir = "/workspace/agents/#{new_name}"
 
-    # Check if target name already exists
-    case @vm.cmd("bash", ["-c", "test -d #{new_dir} && echo exists || echo missing"], []) do
+    case @vm.cmd(
+           state.project_name,
+           "bash",
+           ["-c", "test -d #{new_dir} && echo exists || echo missing"],
+           []
+         ) do
       {:ok, output} ->
         if String.trim(output) == "exists" do
           {:reply, {:error, :already_exists}, state}
@@ -457,9 +497,13 @@ defmodule Shire.Agent.Coordinator do
     new_dir = "/workspace/agents/#{new_name}"
 
     # Stop old AgentManager if running
-    case lookup(old_name) do
-      {:ok, pid} -> DynamicSupervisor.terminate_child(Shire.AgentSupervisor, pid)
-      {:error, :not_found} -> :ok
+    case lookup(state.project_name, old_name) do
+      {:ok, pid} ->
+        agent_sup = {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, state.project_name}}}
+        DynamicSupervisor.terminate_child(agent_sup, pid)
+
+      {:error, :not_found} ->
+        :ok
     end
 
     # Clean up old monitor
@@ -471,37 +515,32 @@ defmodule Shire.Agent.Coordinator do
     if ref, do: Process.demonitor(ref, [:flush])
 
     # Rename directory on VM
-    case @vm.cmd("mv", [old_dir, new_dir], []) do
+    case @vm.cmd(state.project_name, "mv", [old_dir, new_dir], []) do
       {:ok, _} ->
-        # Write updated recipe
-        @vm.write("#{new_dir}/recipe.yaml", recipe_yaml)
+        @vm.write(state.project_name, "#{new_dir}/recipe.yaml", recipe_yaml)
 
-        # Migrate messages in DB
-        Shire.Agents.rename_agent_messages(old_name, new_name)
+        Shire.Agents.rename_agent_messages(state.project_name, old_name, new_name)
 
-        # Clean up old status
         statuses = state.statuses |> Map.delete(old_name)
 
-        # Start new AgentManager under new name
-        case start_agent_manager(new_name, monitors) do
+        case start_agent_manager(state.project_name, new_name, monitors) do
           {:ok, _pid, monitors} ->
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "agents:lobby",
+              "project:#{state.project_name}:agents:lobby",
               {:agent_renamed, old_name, new_name}
             )
 
             {:reply, :ok, %{state | monitors: monitors, statuses: statuses}}
 
           {:error, reason} ->
-            # Agent was renamed on disk but couldn't start — still report success
             Logger.warning(
               "Renamed #{old_name} -> #{new_name} but failed to start: #{inspect(reason)}"
             )
 
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "agents:lobby",
+              "project:#{state.project_name}:agents:lobby",
               {:agent_renamed, old_name, new_name}
             )
 
@@ -513,17 +552,15 @@ defmodule Shire.Agent.Coordinator do
     end
   end
 
-  defp start_agent_manager(agent_name, monitors) do
-    opts = [agent_name: agent_name]
+  defp start_agent_manager(project_name, agent_name, monitors) do
+    opts = [project_name: project_name, agent_name: agent_name]
+    agent_sup = {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_name}}}
 
-    case DynamicSupervisor.start_child(
-           Shire.AgentSupervisor,
-           {AgentManager, opts}
-         ) do
+    case DynamicSupervisor.start_child(agent_sup, {AgentManager, opts}) do
       {:ok, pid} ->
         ref = Process.monitor(pid)
         monitors = Map.put(monitors, ref, agent_name)
-        Logger.info("Started agent #{agent_name}")
+        Logger.info("Started agent #{agent_name} (project: #{project_name})")
         {:ok, pid, monitors}
 
       {:error, reason} ->
