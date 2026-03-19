@@ -179,6 +179,32 @@ describe("processMessage() — agent_message", () => {
     expect(received!.payload).toEqual({ from_agent: "researcher-bot", text: "Here is data." });
   });
 
+  test("emits agent_message_received before calling harness.sendMessage", async () => {
+    const callOrder: string[] = [];
+    const harness = createMockHarness();
+    harness.sendMessage = mock(async () => {
+      callOrder.push("sendMessage");
+    });
+    const origWrite = process.stdout.write.bind(process.stdout);
+    const spy = spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      if (typeof chunk === "string" && chunk.includes("agent_message_received")) {
+        callOrder.push("emit");
+      }
+      return origWrite(chunk as string);
+    });
+
+    const envelope = makeEnvelope({
+      type: "agent_message",
+      from: "researcher-bot",
+      payload: { text: "Here is data." },
+    });
+
+    await processMessage(harness, envelope);
+    spy.mockRestore();
+
+    expect(callOrder).toEqual(["emit", "sendMessage"]);
+  });
+
   test("does not emit agent_message_received for user messages", async () => {
     const harness = createMockHarness();
     const envelope = makeEnvelope({ type: "user_message", payload: { text: "Hi" } });
@@ -224,6 +250,32 @@ describe("processMessage() — system_message", () => {
     const received = events.find((e) => e.type === "system_message_received");
     expect(received).toBeDefined();
     expect(received!.payload).toEqual({ text: "Error details here." });
+  });
+
+  test("emits system_message_received before calling harness.sendMessage", async () => {
+    const callOrder: string[] = [];
+    const harness = createMockHarness();
+    harness.sendMessage = mock(async () => {
+      callOrder.push("sendMessage");
+    });
+    const origWrite = process.stdout.write.bind(process.stdout);
+    const spy = spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      if (typeof chunk === "string" && chunk.includes("system_message_received")) {
+        callOrder.push("emit");
+      }
+      return origWrite(chunk as string);
+    });
+
+    const envelope = makeEnvelope({
+      type: "system_message",
+      from: "system",
+      payload: { text: "Error details here." },
+    });
+
+    await processMessage(harness, envelope);
+    spy.mockRestore();
+
+    expect(callOrder).toEqual(["emit", "sendMessage"]);
   });
 
   test("does not emit agent_message_received for system messages", async () => {
