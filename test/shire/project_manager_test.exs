@@ -65,6 +65,30 @@ defmodule Shire.ProjectManagerTest do
 
       assert_receive {:project_created, ^project}
     end
+
+    test "rejects project name with uppercase letters" do
+      assert {:error, :invalid_name} = ProjectManager.create_project("MyProject")
+    end
+
+    test "rejects project name with spaces" do
+      assert {:error, :invalid_name} = ProjectManager.create_project("my project")
+    end
+
+    test "rejects project name with leading dash" do
+      assert {:error, :invalid_name} = ProjectManager.create_project("-invalid")
+    end
+
+    test "rejects project name with trailing dash" do
+      assert {:error, :invalid_name} = ProjectManager.create_project("invalid-")
+    end
+
+    test "rejects project name with underscores" do
+      assert {:error, :invalid_name} = ProjectManager.create_project("my_project")
+    end
+
+    test "rejects empty project name" do
+      assert {:error, :invalid_name} = ProjectManager.create_project("")
+    end
   end
 
   describe "destroy_project/1" do

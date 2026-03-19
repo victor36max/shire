@@ -430,5 +430,70 @@ defmodule Shire.Agent.CoordinatorTest do
       result = Coordinator.create_agent(project_id, %{"name" => "no-recipe"})
       assert {:error, :missing_name_or_recipe} = result
     end
+
+    test "rejects agent name with uppercase letters", %{project_id: project_id} do
+      result =
+        Coordinator.create_agent(project_id, %{
+          "name" => "MyAgent",
+          "recipe_yaml" => "version: 1\nname: MyAgent\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+
+    test "rejects agent name with spaces", %{project_id: project_id} do
+      result =
+        Coordinator.create_agent(project_id, %{
+          "name" => "my agent",
+          "recipe_yaml" => "version: 1\nname: my agent\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+
+    test "rejects agent name with leading dash", %{project_id: project_id} do
+      result =
+        Coordinator.create_agent(project_id, %{
+          "name" => "-invalid",
+          "recipe_yaml" => "version: 1\nname: -invalid\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+
+    test "rejects agent name with trailing dash", %{project_id: project_id} do
+      result =
+        Coordinator.create_agent(project_id, %{
+          "name" => "invalid-",
+          "recipe_yaml" => "version: 1\nname: invalid-\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+
+    test "rejects agent name with underscores", %{project_id: project_id} do
+      result =
+        Coordinator.create_agent(project_id, %{
+          "name" => "my_agent",
+          "recipe_yaml" => "version: 1\nname: my_agent\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+  end
+
+  describe "update_agent/3 with invalid new name" do
+    test "rejects rename to an invalid slug", %{project_id: project_id} do
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+
+      agent = create_db_agent(project_id, "coord-valid-slug")
+
+      result =
+        Coordinator.update_agent(project_id, agent.id, %{
+          "recipe_yaml" => "version: 1\nname: Invalid Name!\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
   end
 end
