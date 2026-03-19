@@ -177,10 +177,13 @@ export default function ChatPanel({
   const handleScroll = React.useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container || !hasMore || loadingMore) return;
-    if (container.scrollTop === 0) {
-      pushEvent("load-more", {});
+    if (container.scrollTop === 0 && messages.length > 0) {
+      const oldest = messages[0];
+      if (oldest.id != null) {
+        pushEvent("load-more", { before: oldest.id });
+      }
     }
-  }, [hasMore, loadingMore, pushEvent]);
+  }, [hasMore, loadingMore, pushEvent, messages]);
 
   const handleSend = () => {
     const text = input.trim();
