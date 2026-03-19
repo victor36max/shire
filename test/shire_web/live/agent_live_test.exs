@@ -145,6 +145,15 @@ defmodule ShireWeb.AgentLiveTest do
       assert html =~ "AgentDashboard"
     end
 
+    test "load-more with empty params does not crash", %{conn: conn, project_id: project_id} do
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_id}")
+
+      render_hook(view, "load-more", %{})
+
+      html = render(view)
+      assert html =~ "AgentDashboard"
+    end
+
     # --- edit-agent ---
 
     test "edit-agent with nonexistent agent shows error flash", %{
