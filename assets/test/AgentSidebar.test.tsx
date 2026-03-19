@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import AgentSidebar from "../react-components/AgentSidebar";
-import { type Agent } from "../react-components/types";
+import { type Agent, type Project } from "../react-components/types";
 
 const agents: Agent[] = [
   {
@@ -23,46 +23,36 @@ const agents: Agent[] = [
   },
 ];
 
+const projects: Project[] = [
+  { name: "test-project", status: "running" },
+  { name: "other-project", status: "running" },
+];
+
+const defaultProps = {
+  project: "test-project",
+  projects,
+  selectedAgentName: null as string | null,
+  onSelectAgent: vi.fn(),
+  onNewAgent: vi.fn(),
+  onDeleteAgent: vi.fn(),
+};
+
 describe("AgentSidebar", () => {
   it("renders agent list with names", () => {
-    render(
-      <AgentSidebar
-        agents={agents}
-        selectedAgentName={null}
-        onSelectAgent={vi.fn()}
-        onNewAgent={vi.fn()}
-        onDeleteAgent={vi.fn()}
-      />,
-    );
+    render(<AgentSidebar {...defaultProps} agents={agents} />);
     expect(screen.getByText("Active Agent")).toBeInTheDocument();
     expect(screen.getByText("Created Agent")).toBeInTheDocument();
     expect(screen.getByText("Failed Agent")).toBeInTheDocument();
   });
 
   it("renders empty state when no agents", () => {
-    render(
-      <AgentSidebar
-        agents={[]}
-        selectedAgentName={null}
-        onSelectAgent={vi.fn()}
-        onNewAgent={vi.fn()}
-        onDeleteAgent={vi.fn()}
-      />,
-    );
+    render(<AgentSidebar {...defaultProps} agents={[]} />);
     expect(screen.getByText("No agents yet")).toBeInTheDocument();
   });
 
   it("calls onSelectAgent with name when clicking an agent", async () => {
     const onSelectAgent = vi.fn();
-    render(
-      <AgentSidebar
-        agents={agents}
-        selectedAgentName={null}
-        onSelectAgent={onSelectAgent}
-        onNewAgent={vi.fn()}
-        onDeleteAgent={vi.fn()}
-      />,
-    );
+    render(<AgentSidebar {...defaultProps} agents={agents} onSelectAgent={onSelectAgent} />);
 
     await userEvent.click(screen.getByText("Active Agent"));
     expect(onSelectAgent).toHaveBeenCalledWith("Active Agent");
@@ -70,43 +60,19 @@ describe("AgentSidebar", () => {
 
   it("calls onNewAgent when clicking New Agent button", async () => {
     const onNewAgent = vi.fn();
-    render(
-      <AgentSidebar
-        agents={agents}
-        selectedAgentName={null}
-        onSelectAgent={vi.fn()}
-        onNewAgent={onNewAgent}
-        onDeleteAgent={vi.fn()}
-      />,
-    );
+    render(<AgentSidebar {...defaultProps} agents={agents} onNewAgent={onNewAgent} />);
 
     await userEvent.click(screen.getByText("+ New Agent"));
     expect(onNewAgent).toHaveBeenCalled();
   });
 
   it("renders Settings link", () => {
-    render(
-      <AgentSidebar
-        agents={agents}
-        selectedAgentName={null}
-        onSelectAgent={vi.fn()}
-        onNewAgent={vi.fn()}
-        onDeleteAgent={vi.fn()}
-      />,
-    );
+    render(<AgentSidebar {...defaultProps} agents={agents} />);
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
   it("shows status dots with correct colors", () => {
-    const { container } = render(
-      <AgentSidebar
-        agents={agents}
-        selectedAgentName={null}
-        onSelectAgent={vi.fn()}
-        onNewAgent={vi.fn()}
-        onDeleteAgent={vi.fn()}
-      />,
-    );
+    const { container } = render(<AgentSidebar {...defaultProps} agents={agents} />);
 
     const dots = container.querySelectorAll(".rounded-full");
     expect(dots[0]).toHaveClass("bg-green-500"); // active
@@ -119,15 +85,7 @@ describe("AgentSidebar", () => {
       { ...agents[0], busy: true },
       { ...agents[1], busy: false },
     ];
-    const { container } = render(
-      <AgentSidebar
-        agents={busyAgents}
-        selectedAgentName={null}
-        onSelectAgent={vi.fn()}
-        onNewAgent={vi.fn()}
-        onDeleteAgent={vi.fn()}
-      />,
-    );
+    const { container } = render(<AgentSidebar {...defaultProps} agents={busyAgents} />);
 
     const dots = container.querySelectorAll(".rounded-full");
     expect(dots[0]).toHaveClass("animate-pulse"); // active + busy

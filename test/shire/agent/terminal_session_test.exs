@@ -3,21 +3,23 @@ defmodule Shire.Agent.TerminalSessionTest do
 
   alias Shire.Agent.TerminalSession
 
-  describe "find/0" do
+  @project "test-project"
+
+  describe "find/1" do
     test "returns :error when no session exists" do
-      assert :error = TerminalSession.find()
+      assert :error = TerminalSession.find(@project)
     end
   end
 
-  describe "write/1" do
+  describe "write/2" do
     test "module compiles and API is callable" do
       assert is_atom(TerminalSession)
     end
   end
 
   describe "registry" do
-    test "uses :global_terminal as registry key" do
-      assert [] = Registry.lookup(Shire.AgentRegistry, :global_terminal)
+    test "uses {:terminal, project_name} as registry key" do
+      assert [] = Registry.lookup(Shire.ProjectRegistry, {:terminal, @project})
     end
   end
 end

@@ -30,6 +30,7 @@ export interface SharedDriveFile {
 }
 
 interface SharedDriveProps {
+  project: string;
   files: SharedDriveFile[];
   current_path: string;
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
@@ -65,7 +66,7 @@ function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: st
   );
 }
 
-export default function SharedDrive({ files, current_path, pushEvent }: SharedDriveProps) {
+export default function SharedDrive({ project, files, current_path, pushEvent }: SharedDriveProps) {
   const [newFolderOpen, setNewFolderOpen] = React.useState(false);
   const [newFolderName, setNewFolderName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
@@ -175,7 +176,10 @@ export default function SharedDrive({ files, current_path, pushEvent }: SharedDr
                       <div className="flex items-center justify-end gap-1">
                         {file.type === "file" && (
                           <Button variant="ghost" size="sm" asChild>
-                            <a href={`/shared/download?path=${encodeURIComponent(file.path)}`} download>
+                            <a
+                              href={`/projects/${project}/shared/download?path=${encodeURIComponent(file.path)}`}
+                              download
+                            >
                               Download
                             </a>
                           </Button>

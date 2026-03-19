@@ -3,6 +3,8 @@ defmodule Shire.VirtualMachineImplTest do
 
   alias Shire.VirtualMachineImpl, as: VM
 
+  @project "test-project"
+
   describe "build_filesystem/1 patches base_url" do
     test "adds /v1/sprites/{name} prefix to base_url" do
       # Build minimal sprite-like struct to test the patching logic
@@ -54,16 +56,16 @@ defmodule Shire.VirtualMachineImplTest do
       import ExUnit.CaptureLog
 
       assert capture_log([level: :info], fn ->
-               VM.terminate(:shutdown, %{sprite: nil, fs: nil})
+               VM.terminate(:shutdown, %{sprite: nil, fs: nil, project_name: @project})
                Logger.flush()
-             end) =~ "VirtualMachineImpl stopping (no VM)"
+             end) =~ "VirtualMachineImpl stopping (no VM"
     end
 
     test "handles active sprite state without crashing" do
       import ExUnit.CaptureLog
 
       assert capture_log([level: :info], fn ->
-               VM.terminate(:shutdown, %{sprite: :fake, fs: :fake})
+               VM.terminate(:shutdown, %{sprite: :fake, fs: :fake, project_name: @project})
                Logger.flush()
              end) =~ "VirtualMachineImpl stopping"
     end
@@ -97,7 +99,7 @@ defmodule Shire.VirtualMachineImplTest do
     end
 
     test "touch_keepalive is triggered by VM calls (via get_sprite)" do
-      pid = start_supervised!({VM, []}, id: :keepalive_test_vm)
+      pid = start_supervised!({VM, [project_name: @project]}, id: :keepalive_test_vm)
 
       _sprite = GenServer.call(pid, :get_sprite)
 
@@ -107,7 +109,7 @@ defmodule Shire.VirtualMachineImplTest do
     end
 
     test "subsequent VM calls extend ping_until" do
-      pid = start_supervised!({VM, []}, id: :keepalive_extend_vm)
+      pid = start_supervised!({VM, [project_name: @project]}, id: :keepalive_extend_vm)
 
       GenServer.call(pid, :get_sprite)
       state1 = :sys.get_state(pid)
