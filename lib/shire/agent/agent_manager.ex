@@ -34,19 +34,11 @@ defmodule Shire.Agent.AgentManager do
 
     **Format:**
     ```yaml
-    to: <target-agent-name>
-    text: "<your message>"
+    to: target-agent-name
+    text: Your message here
     ```
 
-    Example using Bash:
-    ```bash
-    cat > /workspace/agents/#{agent_id}/outbox/msg.yaml <<'EOF'
-    to: target-agent
-    text: "Hello, can you help me with X?"
-    EOF
-    ```
-
-    **Note:** Always quote the `text` value if it contains special characters like `:`, `#`, `{`, `}`, or newlines.
+    Quote the `text` value if it contains special YAML characters (`:`, `#`, `{`, `}`).
 
     The system delivers the message to the target agent automatically.
     If your message is invalid (unparseable YAML or missing required fields), you will receive a system notification with the error details.

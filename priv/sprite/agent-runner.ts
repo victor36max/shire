@@ -199,7 +199,7 @@ export async function processOutbox(
       emit("error", { message: `Invalid outbox message ${file}: missing required fields: ${missing.join(", ")}` });
       await writeSystemMessage(
         inboxDir,
-        `Your outbox message "${file}" is missing required fields: ${missing.join(", ")}. Each outbox message must have "to" (target agent name) and "text" (message content) as strings.`,
+        `Your outbox message "${file}" is missing required fields: ${missing.join(", ")}. Each outbox message must be a valid YAML file with "to" and "text" on separate lines. Example:\nto: agent-name\ntext: Your message here`,
       );
       await unlink(path);
       continue;
