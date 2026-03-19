@@ -73,7 +73,10 @@ defmodule Shire.ProjectManager do
             Map.put(acc, project.id, pid)
 
           {:error, reason} ->
-            Logger.error("Failed to start project #{project.name} (#{project.id}): #{inspect(reason)}")
+            Logger.error(
+              "Failed to start project #{project.name} (#{project.id}): #{inspect(reason)}"
+            )
+
             acc
         end
       end)
@@ -217,7 +220,6 @@ defmodule Shire.ProjectManager do
   end
 
   # --- Private ---
-
 
   defp start_project_subtree(project_id) do
     DynamicSupervisor.start_child(
