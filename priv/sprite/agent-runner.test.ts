@@ -1,6 +1,6 @@
 // agent-runner.test.ts — Tests for agent-runner with harness abstraction.
 import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, writeFileSync, rmSync, readdirSync } from "fs";
+import { mkdirSync, writeFileSync, rmSync, readdirSync, existsSync } from "fs";
 import {
   emit,
   loadConfig,
@@ -394,6 +394,42 @@ describe("processOutbox()", () => {
       to_agent_id: TARGET_AGENT_ID,
       text: "hello there",
     });
+  });
+
+  test("sanitizes invalid JSON escape sequences and delivers message", async () => {
+    // Simulates bash writing \! into JSON (invalid escape)
+    writeFileSync(`${TEST_OUTBOX}/bad-escape.json`, '{"to":"target-agent","text":"Hello\\! world"}');
+
+    const events = await captureEmits(async () => {
+      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
+    });
+
+    // File should be removed from outbox (delivered successfully)
+    expect(existsSync(`${TEST_OUTBOX}/bad-escape.json`)).toBe(false);
+
+    // Message should be delivered to target inbox
+    const inboxFiles = readdirSync(`${TEST_AGENTS_ROOT}/${TARGET_AGENT_ID}/inbox`).filter((f) => f.endsWith(".json"));
+    expect(inboxFiles).toHaveLength(1);
+
+    const sent = events.find((e) => e.type === "agent_message_sent");
+    expect(sent).toBeDefined();
+    expect(sent!.payload.text).toBe("Hello\\! world");
+  });
+
+  test("deletes truly unparseable outbox files", async () => {
+    writeFileSync(`${TEST_OUTBOX}/broken.json`, "not json at all {{{");
+
+    const events = await captureEmits(async () => {
+      await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
+    });
+
+    // File should be deleted
+    expect(existsSync(`${TEST_OUTBOX}/broken.json`)).toBe(false);
+
+    // Should emit an error
+    const error = events.find((e) => e.type === "error");
+    expect(error).toBeDefined();
+    expect(error!.payload.message).toContain("Invalid outbox message");
   });
 
   test("processes multiple outbox files", async () => {

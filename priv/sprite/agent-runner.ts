@@ -153,11 +153,21 @@ export async function processOutbox(
 
   for (const file of jsonFiles) {
     const path = join(outboxDir, file);
+
+    // Sanitize invalid escape sequences (e.g. \! from bash) before parsing
+    let msg: OutboxMessage;
     try {
       const raw = await readFile(path, "utf-8");
-      const msg: OutboxMessage = JSON.parse(raw);
+      const sanitized = raw.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+      msg = JSON.parse(sanitized);
+    } catch (err) {
+      emit("error", { message: `Invalid outbox message ${file}, deleting: ${err}` });
+      await unlink(path).catch(() => {});
+      continue;
+    }
 
-      // Resolve target name to UUID
+    // Route message — transient failures (peer not found, write error) keep file for retry
+    try {
       const targetId = peersNameToId.get(msg.to);
       if (!targetId) {
         emit("error", { message: `Peer not found: "${msg.to}". Skipping message, will retry.` });
