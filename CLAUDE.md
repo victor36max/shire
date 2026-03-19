@@ -33,11 +33,15 @@
 
 ## Key Concepts
 
-**Sprite VM:** All agents run on a Sprite VM (Firecracker). The `Coordinator` bootstraps the VM on startup (runs `bootstrap.sh`, deploys the agent runner), then scans `/workspace/agents/` for existing recipes. Each agent gets its own directory under `/workspace/agents/{name}/`.
+**Projects:** First-class DB-backed entities (`projects` table, UUID primary key). Each project owns a dedicated Sprite VM and a set of agents. The `ProjectManager` GenServer boots all project VMs on application startup. Projects are created/deleted from the `ProjectDashboard` UI at `/`.
 
-**Recipe system:** Agents are defined by YAML recipes containing `name`, `description`, `harness`, and `scripts` (array of `{name, run}` steps). Recipes live on the VM filesystem as `/workspace/agents/{name}/recipe.yaml` — no database schema. The agent runner executes setup scripts idempotently.
+**Sprite VM:** Each project gets its own Sprite VM (Firecracker). The VM name is derived from the project UUID. On boot, the `Coordinator` (started per-project) runs `bootstrap.sh`, deploys the agent runner, then scans `/workspace/agents/` for existing recipes. Each agent gets its own directory under `/workspace/agents/{name}/`.
 
-**Agent lifecycle:** The `Coordinator` manages agent CRUD. Creating an agent writes `recipe.yaml` to the VM and starts an `AgentManager` under a `DynamicSupervisor`. Agents are registered by name in a `Registry`. The `AgentManager` bootstraps the agent workspace (inbox, outbox, scripts, documents dirs), writes communication prompts, and spawns the `agent-runner.ts` daemon.
+**Supervision tree:** `ProjectManager` → `ProjectInstanceSupervisor` (one per project, `one_for_all` strategy) → `[VirtualMachineImpl, Coordinator, DynamicSupervisor]`. Two registries: `AgentRegistry` (agents by name) and `ProjectRegistry` (project supervisors by ID).
+
+**Recipe system:** Agents are defined by YAML recipes containing `name`, `description`, `harness`, and `scripts` (array of `{name, run}` steps). Recipes live on the VM filesystem as `/workspace/agents/{name}/recipe.yaml` — no database schema for recipes. Agents themselves are DB-backed (`agents` table) with a `belongs_to :project` relationship and a unique constraint on `(project_id, name)`. The agent runner executes setup scripts idempotently.
+
+**Agent lifecycle:** The `Coordinator` manages per-project agent CRUD. Creating an agent writes `recipe.yaml` to the project's VM and starts an `AgentManager` under the project's `DynamicSupervisor`. Agents are registered by name in `AgentRegistry`. The `AgentManager` bootstraps the agent workspace (inbox, outbox, scripts, documents dirs), writes communication prompts, and spawns the `agent-runner.ts` daemon.
 
 **Inter-agent messaging:** File-based. Agents write JSON envelopes to their outbox directory. The `AgentManager` polls outbox every 2s (idle-aware — pauses after 15 min inactivity), reads messages, and routes them to the target agent's inbox via `AgentManager.send_message/3`. Messages are persisted to the DB with role `"inter_agent"`.
 
@@ -45,19 +49,29 @@
 
 **Terminal sessions:** Interactive TTY session (`bash -i`) on the VM, bridged to LiveView via PubSub and rendered with xterm.js in React.
 
+**Slug validation:** Project and agent names must be valid slugs (lowercase alphanumeric + hyphens, 2-50 chars). Enforced by the `Slug` module.
+
 ## Folder Structure
 
 ```
 lib/
   shire/
-    application.ex           # OTP supervision tree (Registry, DynamicSupervisor, VirtualMachineImpl, Coordinator)
-    agents.ex                # Context: Message CRUD
+    application.ex           # OTP supervision tree (ProjectManager, ProjectRegistry, ProjectSupervisor, AgentRegistry)
+    project_manager.ex       # GenServer: boots all project VMs on startup, creates/deletes projects
+    project_instance_supervisor.ex  # Per-project supervisor (one_for_all): VirtualMachineImpl + Coordinator + DynamicSupervisor
+    projects.ex              # Context: Project CRUD
+    projects/
+      project.ex             # Project Ecto schema (UUID PK, unique name)
+    agents.ex                # Context: Agent + Message CRUD
     agents/
+      agent.ex               # Agent Ecto schema (belongs_to project, unique name per project)
       message.ex             # Message schema (agent chat + inter-agent communication)
     agent/
       agent_manager.ex       # Per-agent GenServer: lifecycle, runner process, outbox polling, event persistence
-      coordinator.ex         # Central orchestrator: VM bootstrap, agent CRUD, message routing, env/scripts API
+      coordinator.ex         # Per-project orchestrator: VM bootstrap, agent CRUD, message routing, env/scripts API
       terminal_session.ex    # Interactive TTY session on the VM
+    slug.ex                  # Slug validation for project/agent names
+    workspace_settings.ex    # Per-project environment variables and scripts management
     virtual_machine.ex       # Behaviour defining VM operations (cmd, read, write, spawn_command, etc.)
     virtual_machine_impl.ex  # GenServer wrapping Sprites SDK with error handling and timeouts
     mailer.ex
@@ -80,21 +94,25 @@ lib/
       error_json.ex
       shared_drive_controller.ex  # File download/stream endpoint
     live/
+      project_live/
+        index.ex             # Renders <.react name="ProjectDashboard" /> (root "/" route)
       agent_live/
-        index.ex             # Renders <.react name="AgentDashboard" />
+        index.ex             # Renders <.react name="AgentDashboard" /> (project-scoped)
         show.ex              # Renders <.react name="AgentShow" />
         agent_streaming.ex   # Agent event processing (JSONL parsing, PubSub bridge)
         helpers.ex           # Message serialization helpers
       settings_live/
-        index.ex             # Renders <.react name="SettingsPage" />
+        index.ex             # Renders <.react name="SettingsPage" /> (project-scoped)
       shared_drive_live/
-        index.ex             # Renders <.react name="SharedDrive" />
+        index.ex             # Renders <.react name="SharedDrive" /> (project-scoped)
 
 assets/
   js/app.js                  # LiveSocket + LiveReact hooks
   css/app.css                # Tailwind v4 + shadcn theme variables
   vite.config.js
   react-components/
+    ProjectDashboard.tsx      # Projects list page with create/delete dialogs
+    ProjectSwitcher.tsx       # Project selector dropdown for navigation
     AgentDashboard.tsx        # Main dashboard with agent sidebar + chat/welcome panel
     AgentSidebar.tsx          # Agent list sidebar for dashboard
     AgentShow.tsx             # Agent detail page with edit form
@@ -114,8 +132,11 @@ assets/
       ui/                     # shadcn/ui components (button, card, dialog, alert-dialog, dropdown-menu, select, tabs, textarea, badge, table, input, label, etc.)
     lib/
       utils.ts                # cn() utility
+      navigate.ts             # LiveView navigation utility (smooth navigation without full page reload)
   test/
     setup.ts                  # Vitest test setup
+    ProjectDashboard.test.tsx
+    ProjectSwitcher.test.tsx
     AgentDashboard.test.tsx
     AgentForm.test.tsx
     AgentShow.test.tsx
@@ -125,6 +146,7 @@ assets/
     SettingsPage.test.tsx
     SharedDrive.test.tsx
     Terminal.test.tsx
+    navigate.test.ts
 
 priv/sprite/                  # Agent runtime (Bun/TypeScript), deployed to /workspace/.runner/
   agent-runner.ts             # Main daemon: watches inbox, dispatches to harness, emits JSONL events

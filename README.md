@@ -10,55 +10,64 @@ Shire is an open platform for deploying, orchestrating, and collaborating with A
 
 Most agent platforms treat agents as stateless API calls. Shire gives every agent a **home** — a persistent workspace with its own filesystem, tools, and mailbox, all running on a Sprite VM. Agents don't just run. They *live* here.
 
+- 📁 **Multi-project architecture** — Organize agents into projects, each with its own dedicated Sprite VM, shared drive, and settings. Spin up as many isolated environments as you need.
 - 🏠 **Persistent workspaces** — Each agent gets its own workspace directory with inbox/outbox, scripts, and documents — all backed by a Firecracker VM with a 100GB NVMe volume.
 - 🔌 **Multi-harness architecture** — Bring your own runtime. Shire supports multiple agent harnesses (Pi SDK, Claude Code CLI) through a unified adapter pattern.
-- 📜 **Recipe-based deployment** — Define agents as simple YAML recipes with setup scripts that run idempotently. No Dockerfiles, no complex configs, no database schemas.
+- 📜 **Recipe-based deployment** — Define agents as simple YAML recipes with setup scripts that run idempotently. No Dockerfiles, no complex configs.
 - 💬 **Inter-agent communication** — Agents discover peers and exchange messages through a file-based mailbox system with automatic delivery.
-- 📂 **Shared drive** — A communal filesystem synced across all agents for collaborative work.
+- 📂 **Shared drive** — A communal filesystem synced across all agents within a project for collaborative work.
 - 📊 **Real-time dashboard** — Monitor, chat with, and manage all your agents from a live web UI with streaming updates.
 - 🖥️ **Interactive terminal** — Drop into the VM with a full xterm.js terminal, right from your browser.
 
 ## 🏗️ Architecture
 
 ```
-┌───────────────────────────────────────────────────────┐
-│                    Shire Dashboard                    │
-│             (Phoenix LiveView + React UI)             │
-├───────────────┬──────────────────┬────────────────────┤
-│  Agent Mgmt   │   Chat/Stream    │     Settings       │
-│   Sidebar     │     Panel        │   Shared Drive     │
-└───────┬───────┴────────┬─────────┴────────┬───────────┘
-        │                │                  │
-        ▼                ▼                  ▼
-┌───────────────────────────────────────────────────────┐
-│                    Coordinator                        │
-│       (Lifecycle, CRUD, Message Routing)              │
-└───────┬───────────────────────────────┬───────────────┘
-        │                               │
-        ▼                               ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│  AgentMgr A  │  │  AgentMgr B  │  │   Terminal   │
-│  (GenServer) │  │  (GenServer) │  │   Session    │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │
-       ▼                 ▼                 ▼
-┌───────────────────────────────────────────────────────┐
-│                    Sprite VM                          │
-│  (Firecracker · persistent NVMe · auto-sleep)         │
-│                                                       │
-│  /workspace/                                          │
-│  ├── agents/                                          │
-│  │   ├── researcher/                                  │
-│  │   │   ├── recipe.yaml    ┌─────────────────────┐   │
-│  │   │   ├── inbox/         │  agent-runner.ts    │   │
-│  │   │   ├── outbox/        │  (per-agent daemon) │   │
-│  │   │   ├── scripts/       │  ┌───────────────┐  │   │
-│  │   │   └── documents/     │  │   Harness     │  │   │
-│  │   └── coder/             │  │ (Pi / Claude) │  │   │
-│  │       └── ...            │  └───────────────┘  │   │
-│  ├── shared/  ←── /drive    └─────────────────────┘   │
-│  └── .runner/                                         │
-└───────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                       Shire Dashboard                       │
+│                (Phoenix LiveView + React UI)                │
+├─────────────────────────────────────────────────────────────┤
+│  ProjectDashboard (/)                                       │
+│  ├── AgentDashboard (/projects/:id)                         │
+│  │   ├── Agent Sidebar  │  Chat/Stream Panel                │
+│  ├── Settings (/projects/:id/settings)                      │
+│  └── Shared Drive (/projects/:id/shared)                    │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  ProjectManager (GenServer)                 │
+│             Boots all project VMs on startup                │
+└──────────────┬──────────────────────────┬───────────────────┘
+               │                          │
+               ▼                          ▼
+┌──────────────────────────────┐  ┌──────────────────────────────┐
+│  Project A                   │  │  Project B                   │
+│  (ProjectInstanceSupervisor) │  │  (ProjectInstanceSupervisor) │
+│  ┌────────────────────────┐  │  │  ┌────────────────────────┐  │
+│  │ VirtualMachineImpl     │  │  │  │ VirtualMachineImpl     │  │
+│  │ Coordinator            │  │  │  │ Coordinator            │  │
+│  │ AgentMgr A, B, ...     │  │  │  │ AgentMgr C, D, ...     │  │
+│  │ Terminal Session       │  │  │  │ Terminal Session       │  │
+│  └────────────────────────┘  │  │  └────────────────────────┘  │
+└──────────────┬───────────────┘  └──────────────┬───────────────┘
+               │                                 │
+               ▼                                 ▼
+┌──────────────────────────────┐  ┌──────────────────────────────┐
+│  Sprite VM (A)               │  │  Sprite VM (B)               │
+│  (1 VM per project)          │  │  (1 VM per project)          │
+│                              │  │                              │
+│  /workspace/                 │  │  /workspace/                 │
+│  ├── agents/                 │  │  ├── agents/                 │
+│  │   ├── researcher/         │  │  │   └── ...                 │
+│  │   │   ├── recipe.yaml     │  │  ├── shared/ ←── /drive      │
+│  │   │   ├── inbox/          │  │  └── .runner/                │
+│  │   │   ├── outbox/         │  └──────────────────────────────┘
+│  │   │   ├── scripts/        │
+│  │   │   └── documents/      │
+│  │   └── coder/              │
+│  ├── shared/ ←── /drive      │
+│  └── .runner/                │
+└──────────────────────────────┘
 ```
 
 ## 🧚 Powered by Fly.io Sprites
@@ -148,7 +157,11 @@ cd assets && bun run test          # Frontend tests
 
 ## 🧙 How It Works
 
-### 1. Define a Recipe
+### 1. Create a Project
+
+Projects are the top-level unit in Shire. Each project gets its own dedicated Sprite VM with isolated storage and networking. Create one from the dashboard at `/`. 📁
+
+### 2. Define a Recipe
 
 Agents are defined as YAML recipes — a name, description, and a list of setup scripts:
 
@@ -164,15 +177,15 @@ scripts:
       mkdir -p /workspace/research
 ```
 
-### 2. Deploy
+### 3. Deploy
 
-Hit "Create Agent" in the dashboard, paste your recipe, and Shire handles the rest — bootstrapping the workspace, executing setup scripts idempotently, and spawning the agent runner. ⚡
+Navigate into your project, hit "Create Agent", paste your recipe, and Shire handles the rest — bootstrapping the workspace, executing setup scripts idempotently, and spawning the agent runner. ⚡
 
-### 3. Collaborate
+### 4. Collaborate
 
-Agents discover each other through `peers.json` and communicate via the file-based mailbox system. Drop files in the shared drive for all agents to access. Chat with any agent directly from the dashboard. 🤝
+Agents within a project discover each other through `peers.json` and communicate via the file-based mailbox system. Drop files in the shared drive for all agents in the project to access. Chat with any agent directly from the dashboard. 🤝
 
-### 4. Sleep & Resume
+### 5. Sleep & Resume
 
 When agents go idle, the VM auto-sleeps — preserving installed packages, workspaces, and all state. When you need them again, everything wakes up instantly right where it left off. No rebuilding, no lost context. 💤
 
