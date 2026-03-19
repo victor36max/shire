@@ -17,6 +17,7 @@ import {
 } from "./components/ui/alert-dialog";
 import { ChevronLeft, Play, Trash2, Plus, X } from "lucide-react";
 import AppLayout from "./components/AppLayout";
+import { navigate } from "./lib/navigate";
 import ActivityLog from "./ActivityLog";
 import Terminal from "./Terminal";
 import type { InterAgentMessage } from "./types";
@@ -138,12 +139,7 @@ export default function SettingsPage({
     <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Back"
-            onClick={() => window.location.assign(`/projects/${project}`)}
-          >
+          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate(`/projects/${project}`)}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-2xl font-bold">Settings</h1>
