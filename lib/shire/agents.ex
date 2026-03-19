@@ -1,15 +1,129 @@
 defmodule Shire.Agents do
   import Ecto.Query
+  require Logger
+  alias Ecto.Multi
   alias Shire.Repo
-  alias Shire.Agents.Message
+  alias Shire.Agents.{Agent, Message}
 
-  # Message CRUD
+  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
+
+  # --- Agent CRUD ---
+
+  @doc """
+  Creates an agent record and sets up its workspace on the VM.
+  Uses Ecto.Multi to ensure DB and VM operations are atomic.
+  """
+  def create_agent_with_vm(project_id, name, recipe_yaml, vm \\ @vm) do
+    Multi.new()
+    |> Multi.insert(:agent, Agent.changeset(%Agent{}, %{name: name, project_id: project_id}))
+    |> Multi.run(:vm_setup, fn _repo, %{agent: agent} ->
+      agent_dir = "/workspace/agents/#{agent.id}"
+
+      with {:ok, _} <- vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/inbox"], []),
+           {:ok, _} <- vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/outbox"], []),
+           {:ok, _} <- vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/scripts"], []),
+           {:ok, _} <- vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/documents"], []),
+           :ok <- vm.write(project_id, "#{agent_dir}/recipe.yaml", recipe_yaml) do
+        {:ok, agent.id}
+      else
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{agent: agent}} -> {:ok, agent}
+      {:error, :agent, changeset, _} -> {:error, changeset}
+      {:error, :vm_setup, reason, _} -> {:error, reason}
+    end
+  end
+
+  @doc "Renames an agent in the database."
+  def rename_agent(%Agent{} = agent, new_name) do
+    agent
+    |> Agent.changeset(%{name: new_name})
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes an agent and removes its workspace from the VM.
+  Uses Ecto.Multi to ensure DB and VM operations are atomic.
+  """
+  def delete_agent_with_vm(project_id, %Agent{} = agent, vm \\ @vm) do
+    Multi.new()
+    |> Multi.delete(:agent, agent)
+    |> Multi.run(:rm_folder, fn _repo, _ ->
+      case vm.cmd(project_id, "rm", ["-rf", "/workspace/agents/#{agent.id}"], []) do
+        {:ok, _} ->
+          {:ok, :removed}
+
+        {:error, reason} ->
+          Logger.warning(
+            "Failed to remove agent directory /workspace/agents/#{agent.id}: #{inspect(reason)}"
+          )
+
+          {:ok, :cleanup_failed}
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, _} -> :ok
+      {:error, :agent, changeset, _} -> {:error, changeset}
+    end
+  end
+
+  def get_agent!(id), do: Repo.get!(Agent, id)
+
+  def get_agent(id) do
+    case Repo.get(Agent, id) do
+      nil -> {:error, :not_found}
+      agent -> {:ok, agent}
+    end
+  end
+
+  def get_agent_by_name(project_id, name) do
+    Repo.get_by(Agent, project_id: project_id, name: name)
+  end
+
+  def list_agents(project_id) do
+    from(a in Agent, where: a.project_id == ^project_id, order_by: [asc: a.name])
+    |> Repo.all()
+  end
+
+  # --- Message CRUD ---
 
   def create_message(attrs), do: %Message{} |> Message.changeset(attrs) |> Repo.insert()
   def get_message!(id), do: Repo.get!(Message, id)
 
   def update_message(%Message{} = message, attrs),
     do: message |> Message.changeset(attrs) |> Repo.update()
+
+  @doc """
+  Sends a message: inserts DB record and writes inbox file on VM atomically.
+  """
+  def send_message_with_inbox(project_id, agent_id, text, inbox_path, envelope, vm \\ @vm) do
+    Multi.new()
+    |> Multi.insert(
+      :message,
+      Message.changeset(%Message{}, %{
+        project_id: project_id,
+        agent_id: agent_id,
+        role: "user",
+        content: %{"text" => text}
+      })
+    )
+    |> Multi.run(:write_inbox, fn _repo, _changes ->
+      case vm.write(project_id, inbox_path, Jason.encode!(envelope)) do
+        :ok -> {:ok, :written}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{message: msg}} -> {:ok, msg}
+      {:error, :message, changeset, _} -> {:error, changeset}
+      {:error, :write_inbox, reason, _} -> {:error, reason}
+    end
+  end
 
   @doc """
   Lists messages for an agent within a project with cursor-based pagination.
@@ -20,13 +134,13 @@ defmodule Shire.Agents do
 
   Returns `{messages, has_more?}` where messages are ordered oldest-first.
   """
-  def list_messages_for_agent(project_name, agent_name, opts \\ []) do
+  def list_messages_for_agent(project_id, agent_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     before = Keyword.get(opts, :before)
 
     query =
       from m in Message,
-        where: m.project_name == ^project_name and m.agent_name == ^agent_name,
+        where: m.project_id == ^project_id and m.agent_id == ^agent_id,
         order_by: [desc: m.id],
         limit: ^limit
 
@@ -47,13 +161,13 @@ defmodule Shire.Agents do
   Lists inter-agent messages within a project with cursor-based pagination.
   Returns `{messages, has_more?}` where messages are ordered newest-first.
   """
-  def list_inter_agent_messages(project_name, opts \\ []) do
+  def list_inter_agent_messages(project_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     before = Keyword.get(opts, :before)
 
     query =
       from m in Message,
-        where: m.project_name == ^project_name and m.role == "inter_agent",
+        where: m.project_id == ^project_id and m.role == "inter_agent",
         order_by: [desc: m.id],
         limit: ^limit
 
@@ -68,19 +182,5 @@ defmodule Shire.Agents do
     has_more = length(messages) == limit
 
     {messages, has_more}
-  end
-
-  def rename_agent_messages(project_name, old_name, new_name) do
-    from(m in Message,
-      where: m.project_name == ^project_name and m.agent_name == ^old_name
-    )
-    |> Repo.update_all(set: [agent_name: new_name])
-  end
-
-  def delete_messages_for_agent(project_name, agent_name) do
-    from(m in Message,
-      where: m.project_name == ^project_name and m.agent_name == ^agent_name
-    )
-    |> Repo.delete_all()
   end
 end

@@ -11,7 +11,7 @@ defmodule Shire.Agent.AgentManager do
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
-  defp comms_prompt(agent_name) do
+  defp comms_prompt(agent_name, agent_id) do
     """
     # Inter-Agent Communication
 
@@ -25,13 +25,12 @@ defmodule Shire.Agent.AgentManager do
     - The user sees YOUR output, not the other agents' — always produce the complete response
 
     ## Discovering Peers
-    List `/workspace/agents/` to see other agents. Each subdirectory is an agent.
-    Read their `recipe.yaml` to see what they do.
+    Read `/workspace/peers.yaml` to see available agents and their descriptions.
 
     ## Sending Messages
     To message another agent, write a JSON file to your **outbox**:
 
-    **Path:** `/workspace/agents/#{agent_name}/outbox/<any-name>.json`
+    **Path:** `/workspace/agents/#{agent_id}/outbox/<any-name>.json`
 
     **Format:**
     ```json
@@ -43,7 +42,7 @@ defmodule Shire.Agent.AgentManager do
 
     Example using Bash:
     ```bash
-    echo '{"to":"target-agent","text":"Hello, can you help me with X?"}' > /workspace/agents/#{agent_name}/outbox/msg.json
+    echo '{"to":"target-agent","text":"Hello, can you help me with X?"}' > /workspace/agents/#{agent_id}/outbox/msg.json
     ```
 
     The system delivers the message to the target agent automatically.
@@ -66,15 +65,16 @@ defmodule Shire.Agent.AgentManager do
     data, or artifacts that multiple agents need access to.
 
     ## Guidelines
-    - List `/workspace/agents/` before messaging to confirm the target agent exists
+    - Read `/workspace/peers.yaml` before messaging to confirm the target agent exists
     - Be specific about what you need from the other agent
     - Don't send messages unnecessarily — only when collaboration genuinely helps
     """
   end
 
   defstruct [
+    :agent_id,
     :agent_name,
-    :project_name,
+    :project_id,
     :command,
     :command_ref,
     :pubsub_topic,
@@ -87,13 +87,13 @@ defmodule Shire.Agent.AgentManager do
   # --- Public API ---
 
   def start_link(opts) do
-    project_name = Keyword.fetch!(opts, :project_name)
-    agent_name = Keyword.fetch!(opts, :agent_name)
-    GenServer.start_link(__MODULE__, opts, name: via(project_name, agent_name))
+    project_id = Keyword.fetch!(opts, :project_id)
+    agent_id = Keyword.fetch!(opts, :agent_id)
+    GenServer.start_link(__MODULE__, opts, name: via(project_id, agent_id))
   end
 
-  def send_message(project_name, agent_name, text, from \\ :user) do
-    GenServer.call(via(project_name, agent_name), {:send_message, text, from}, 60_000)
+  def send_message(project_id, agent_id, text, from \\ :user) do
+    GenServer.call(via(project_id, agent_id), {:send_message, text, from}, 60_000)
   end
 
   @spec get_state(atom() | pid() | {atom(), any()} | {:via, atom(), any()}) :: any()
@@ -101,26 +101,28 @@ defmodule Shire.Agent.AgentManager do
     GenServer.call(server, :get_state, 60_000)
   end
 
-  def restart(project_name, agent_name) do
-    GenServer.call(via(project_name, agent_name), :restart, 60_000)
+  def restart(project_id, agent_id) do
+    GenServer.call(via(project_id, agent_id), :restart, 60_000)
   end
 
-  defp via(project_name, agent_name) do
-    {:via, Registry, {Shire.AgentRegistry, {project_name, agent_name}, agent_name}}
+  defp via(project_id, agent_id) do
+    {:via, Registry, {Shire.AgentRegistry, {project_id, agent_id}, agent_id}}
   end
 
   # --- Callbacks ---
 
   @impl true
   def init(opts) do
-    project_name = Keyword.fetch!(opts, :project_name)
+    project_id = Keyword.fetch!(opts, :project_id)
+    agent_id = Keyword.fetch!(opts, :agent_id)
     agent_name = Keyword.fetch!(opts, :agent_name)
     skip_sprite = Keyword.get(opts, :skip_sprite, false)
 
     state = %__MODULE__{
-      project_name: project_name,
+      project_id: project_id,
+      agent_id: agent_id,
       agent_name: agent_name,
-      pubsub_topic: "project:#{project_name}:agent:#{agent_name}",
+      pubsub_topic: "project:#{project_id}:agent:#{agent_id}",
       status: :idle
     }
 
@@ -136,8 +138,8 @@ defmodule Shire.Agent.AgentManager do
     state = transition_status(state, :bootstrapping)
 
     Task.start_link(fn ->
-      result = setup_agent_workspace(state.project_name, state.agent_name)
-      GenServer.cast(via(state.project_name, state.agent_name), {:bootstrap_complete, result})
+      result = setup_agent_workspace(state.project_id, state.agent_id, state.agent_name)
+      GenServer.cast(via(state.project_id, state.agent_id), {:bootstrap_complete, result})
     end)
 
     {:noreply, state}
@@ -145,12 +147,12 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def handle_continue(:spawn_runner, state) do
-    agent_dir = "/workspace/agents/#{state.agent_name}"
-    kill_existing_runner(state.project_name, state.agent_name)
-    env = load_env_vars(state.project_name)
+    agent_dir = "/workspace/agents/#{state.agent_id}"
+    kill_existing_runner(state.project_id, state.agent_id)
+    env = load_env_vars(state.project_id)
 
     case @vm.spawn_command(
-           state.project_name,
+           state.project_id,
            "bun",
            ["run", "/workspace/.runner/agent-runner.ts", "--agent-dir", agent_dir],
            env: env,
@@ -178,26 +180,22 @@ defmodule Shire.Agent.AgentManager do
       "payload" => %{"text" => text}
     }
 
-    inbox_dir = "/workspace/agents/#{state.agent_name}/inbox"
+    inbox_dir = "/workspace/agents/#{state.agent_id}/inbox"
     filename = "#{envelope["ts"]}-#{random_suffix()}.json"
+    inbox_path = "#{inbox_dir}/#{filename}"
 
-    case write_inbox_file(state.project_name, "#{inbox_dir}/#{filename}", envelope) do
-      :ok ->
-        case Agents.create_message(%{
-               project_name: state.project_name,
-               agent_name: state.agent_name,
-               role: "user",
-               content: %{"text" => text}
-             }) do
-          {:ok, msg} ->
-            {:reply, {:ok, msg}, state}
-
-          {:error, reason} ->
-            Logger.warning("Failed to persist user message: #{inspect(reason)}")
-            {:reply, :ok, state}
-        end
+    case Agents.send_message_with_inbox(
+           state.project_id,
+           state.agent_id,
+           text,
+           inbox_path,
+           envelope
+         ) do
+      {:ok, msg} ->
+        {:reply, {:ok, msg}, state}
 
       {:error, reason} ->
+        Logger.warning("Failed to send message: #{inspect(reason)}")
         {:reply, {:error, reason}, state}
     end
   end
@@ -214,15 +212,22 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def handle_call(:restart, _from, state) do
-    kill_existing_runner(state.project_name, state.agent_name)
+    kill_existing_runner(state.project_id, state.agent_id)
+
+    # Re-fetch agent name from DB in case it was renamed
+    agent_name =
+      case Agents.get_agent(state.agent_id) do
+        {:ok, agent} -> agent.name
+        _ -> state.agent_name
+      end
 
     state =
-      %{state | command: nil, command_ref: nil}
+      %{state | command: nil, command_ref: nil, agent_name: agent_name}
       |> transition_status(:bootstrapping)
 
     Task.start_link(fn ->
-      result = setup_agent_workspace(state.project_name, state.agent_name)
-      GenServer.cast(via(state.project_name, state.agent_name), {:bootstrap_complete, result})
+      result = setup_agent_workspace(state.project_id, state.agent_id, state.agent_name)
+      GenServer.cast(via(state.project_id, state.agent_id), {:bootstrap_complete, result})
     end)
 
     {:reply, :ok, state}
@@ -242,8 +247,8 @@ defmodule Shire.Agent.AgentManager do
              "payload" => %{"from_agent" => from_agent, "text" => text}
            }} ->
             Agents.create_message(%{
-              project_name: acc.project_name,
-              agent_name: acc.agent_name,
+              project_id: acc.project_id,
+              agent_id: acc.agent_id,
               role: "inter_agent",
               content: %{
                 "text" => text,
@@ -255,20 +260,28 @@ defmodule Shire.Agent.AgentManager do
             acc
 
           {:ok, %{"type" => "spawn_agent", "payload" => %{"name" => new_name}}} ->
-            Shire.Agent.Coordinator.restart_agent(acc.project_name, new_name)
+            # Look up agent by name to get ID
+            case Agents.get_agent_by_name(acc.project_id, new_name) do
+              %{id: agent_id} ->
+                Shire.Agent.Coordinator.restart_agent(acc.project_id, agent_id)
+
+              nil ->
+                Logger.warning("spawn_agent: agent #{new_name} not found")
+            end
+
             acc
 
           {:ok, %{"type" => "processing", "payload" => %{"active" => active}}} ->
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "project:#{acc.project_name}:agents:lobby",
-              {:agent_busy, acc.agent_name, active}
+              "project:#{acc.project_id}:agents:lobby",
+              {:agent_busy, acc.agent_id, active}
             )
 
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "project:#{acc.project_name}:agent:#{acc.agent_name}",
-              {:agent_busy, acc.agent_name, active}
+              "project:#{acc.project_id}:agent:#{acc.agent_id}",
+              {:agent_busy, acc.agent_id, active}
             )
 
             acc
@@ -318,8 +331,8 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
-  def terminate(_reason, %{project_name: project_name, agent_name: agent_name} = _state) do
-    kill_existing_runner(project_name, agent_name)
+  def terminate(_reason, %{project_id: project_id, agent_id: agent_id} = _state) do
+    kill_existing_runner(project_id, agent_id)
     :ok
   end
 
@@ -341,29 +354,29 @@ defmodule Shire.Agent.AgentManager do
 
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
-      "project:#{state.project_name}:agent:#{state.agent_name}",
+      "project:#{state.project_id}:agent:#{state.agent_id}",
       {:status, status}
     )
 
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
-      "project:#{state.project_name}:agents:lobby",
-      {:agent_status, state.agent_name, status}
+      "project:#{state.project_id}:agents:lobby",
+      {:agent_status, state.agent_id, status}
     )
 
     state
   end
 
-  defp setup_agent_workspace(project_name, agent_name) do
-    agent_dir = "/workspace/agents/#{agent_name}"
+  defp setup_agent_workspace(project_id, agent_id, agent_name) do
+    agent_dir = "/workspace/agents/#{agent_id}"
 
     # Create agent directory structure
     for subdir <- ["inbox", "outbox", "scripts", "documents", ".claude/skills"] do
-      @vm.cmd(project_name, "mkdir", ["-p", "#{agent_dir}/#{subdir}"], [])
+      @vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/#{subdir}"], [])
     end
 
     # Read recipe to determine harness type
-    recipe = read_recipe(project_name, agent_name)
+    recipe = read_recipe(project_id, agent_id)
     harness = recipe["harness"] || "claude_code"
 
     # Write comms instructions to the file the harness reads
@@ -373,10 +386,10 @@ defmodule Shire.Agent.AgentManager do
         _ -> "AGENTS.md"
       end
 
-    @vm.write(project_name, "#{agent_dir}/#{comms_file}", comms_prompt(agent_name))
+    @vm.write(project_id, "#{agent_dir}/#{comms_file}", comms_prompt(agent_name, agent_id))
 
     # Deploy skills from recipe
-    deploy_skills(project_name, recipe, agent_dir)
+    deploy_skills(project_id, recipe, agent_dir)
 
     :ok
   rescue
@@ -388,10 +401,10 @@ defmodule Shire.Agent.AgentManager do
       {:error, e}
   end
 
-  defp read_recipe(project_name, agent_name) do
-    path = "/workspace/agents/#{agent_name}/recipe.yaml"
+  defp read_recipe(project_id, agent_id) do
+    path = "/workspace/agents/#{agent_id}/recipe.yaml"
 
-    case @vm.cmd(project_name, "cat", [path], []) do
+    case @vm.cmd(project_id, "cat", [path], []) do
       {:ok, content} ->
         case YamlElixir.read_from_string(content) do
           {:ok, %{} = recipe} -> recipe
@@ -403,7 +416,7 @@ defmodule Shire.Agent.AgentManager do
     end
   end
 
-  defp deploy_skills(project_name, %{"skills" => [_ | _] = skills} = recipe, agent_dir) do
+  defp deploy_skills(project_id, %{"skills" => [_ | _] = skills} = recipe, agent_dir) do
     harness = recipe["harness"] || "claude_code"
 
     skill_base =
@@ -413,24 +426,24 @@ defmodule Shire.Agent.AgentManager do
       end
 
     # Clean stale skills from previous recipe versions
-    @vm.cmd(project_name, "rm", ["-rf", skill_base], [])
+    @vm.cmd(project_id, "rm", ["-rf", skill_base], [])
 
     for skill <- skills do
       skill_dir = "#{skill_base}/#{skill["name"]}"
-      @vm.cmd(project_name, "mkdir", ["-p", skill_dir], [])
+      @vm.cmd(project_id, "mkdir", ["-p", skill_dir], [])
 
       skill_md = build_skill_md(skill)
-      @vm.write(project_name, "#{skill_dir}/SKILL.md", skill_md)
+      @vm.write(project_id, "#{skill_dir}/SKILL.md", skill_md)
 
       for ref <- skill["references"] || [] do
-        @vm.write(project_name, "#{skill_dir}/#{ref["name"]}", ref["content"])
+        @vm.write(project_id, "#{skill_dir}/#{ref["name"]}", ref["content"])
       end
     end
 
     :ok
   end
 
-  defp deploy_skills(_project_name, _recipe, _agent_dir), do: :ok
+  defp deploy_skills(_project_id, _recipe, _agent_dir), do: :ok
 
   defp build_skill_md(skill) do
     """
@@ -443,19 +456,15 @@ defmodule Shire.Agent.AgentManager do
     """
   end
 
-  defp write_inbox_file(project_name, path, envelope) do
-    @vm.write(project_name, path, Jason.encode!(envelope))
-  end
-
   defp random_suffix do
     :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
   end
 
-  defp kill_existing_runner(project_name, agent_name) do
+  defp kill_existing_runner(project_id, agent_id) do
     @vm.cmd(
-      project_name,
+      project_id,
       "pkill",
-      ["-f", "agent-runner.ts --agent-dir /workspace/agents/#{agent_name}"],
+      ["-f", "agent-runner.ts --agent-dir /workspace/agents/#{agent_id}"],
       []
     )
 
@@ -486,8 +495,8 @@ defmodule Shire.Agent.AgentManager do
     Phoenix.PubSub.broadcast(Shire.PubSub, state.pubsub_topic, message)
   end
 
-  defp load_env_vars(project_name) do
-    case @vm.cmd(project_name, "cat", ["/workspace/.env"], []) do
+  defp load_env_vars(project_id) do
+    case @vm.cmd(project_id, "cat", ["/workspace/.env"], []) do
       {:ok, content} ->
         content
         |> String.split("\n", trim: true)
@@ -510,7 +519,7 @@ defmodule Shire.Agent.AgentManager do
   defp persist_and_broadcast(state, %{"type" => "text_delta"} = event) do
     delta = get_in(event, ["payload", "delta"]) || ""
     state = %{state | streaming_text: (state.streaming_text || "") <> delta}
-    broadcast(state, {:agent_event, state.agent_name, event})
+    broadcast(state, {:agent_event, state.agent_id, event})
     state
   end
 
@@ -525,8 +534,8 @@ defmodule Shire.Agent.AgentManager do
     input = Map.get(payload, "input", %{})
 
     case Agents.create_message(%{
-           project_name: state.project_name,
-           agent_name: state.agent_name,
+           project_id: state.project_id,
+           agent_id: state.agent_id,
            role: "tool_use",
            content: %{
              "tool" => tool,
@@ -539,12 +548,12 @@ defmodule Shire.Agent.AgentManager do
       {:ok, msg} ->
         tool_use_ids = Map.put(state.tool_use_ids, tool_use_id, msg.id)
         enriched = put_in(event, ["message"], serialize_message(msg))
-        broadcast(state, {:agent_event, state.agent_name, enriched})
+        broadcast(state, {:agent_event, state.agent_id, enriched})
         %{state | tool_use_ids: tool_use_ids}
 
       {:error, reason} ->
         Logger.warning("Failed to persist tool_use message: #{inspect(reason)}")
-        broadcast(state, {:agent_event, state.agent_name, event})
+        broadcast(state, {:agent_event, state.agent_id, event})
         state
     end
   end
@@ -562,8 +571,8 @@ defmodule Shire.Agent.AgentManager do
         tool = Map.get(payload, "tool", "unknown")
 
         case Agents.create_message(%{
-               project_name: state.project_name,
-               agent_name: state.agent_name,
+               project_id: state.project_id,
+               agent_id: state.agent_id,
                role: "tool_use",
                content: %{
                  "tool" => tool,
@@ -576,18 +585,18 @@ defmodule Shire.Agent.AgentManager do
           {:ok, msg} ->
             tool_use_ids = Map.put(state.tool_use_ids, tool_use_id, msg.id)
             enriched = put_in(event, ["message"], serialize_message(msg))
-            broadcast(state, {:agent_event, state.agent_name, enriched})
+            broadcast(state, {:agent_event, state.agent_id, enriched})
             %{state | tool_use_ids: tool_use_ids}
 
           {:error, _} ->
-            broadcast(state, {:agent_event, state.agent_name, event})
+            broadcast(state, {:agent_event, state.agent_id, event})
             state
         end
 
       db_id ->
         db_msg = Agents.get_message!(db_id)
         Agents.update_message(db_msg, %{content: Map.merge(db_msg.content, %{"input" => input})})
-        broadcast(state, {:agent_event, state.agent_name, event})
+        broadcast(state, {:agent_event, state.agent_id, event})
         state
     end
   end
@@ -609,7 +618,7 @@ defmodule Shire.Agent.AgentManager do
         })
     end
 
-    broadcast(state, {:agent_event, state.agent_name, event})
+    broadcast(state, {:agent_event, state.agent_id, event})
     %{state | tool_use_ids: Map.delete(state.tool_use_ids, tool_use_id)}
   end
 
@@ -617,17 +626,17 @@ defmodule Shire.Agent.AgentManager do
     state = flush_and_broadcast_streaming(state)
 
     case Agents.create_message(%{
-           project_name: state.project_name,
-           agent_name: state.agent_name,
+           project_id: state.project_id,
+           agent_id: state.agent_id,
            role: "agent",
            content: %{"text" => text}
          }) do
       {:ok, msg} ->
         enriched = put_in(event, ["message"], serialize_message(msg))
-        broadcast(state, {:agent_event, state.agent_name, enriched})
+        broadcast(state, {:agent_event, state.agent_id, enriched})
 
       {:error, _} ->
-        broadcast(state, {:agent_event, state.agent_name, event})
+        broadcast(state, {:agent_event, state.agent_id, event})
     end
 
     state
@@ -635,12 +644,12 @@ defmodule Shire.Agent.AgentManager do
 
   defp persist_and_broadcast(state, %{"type" => "turn_complete"} = event) do
     state = flush_and_broadcast_streaming(state)
-    broadcast(state, {:agent_event, state.agent_name, event})
+    broadcast(state, {:agent_event, state.agent_id, event})
     state
   end
 
   defp persist_and_broadcast(state, event) do
-    broadcast(state, {:agent_event, state.agent_name, event})
+    broadcast(state, {:agent_event, state.agent_id, event})
     state
   end
 
@@ -651,8 +660,8 @@ defmodule Shire.Agent.AgentManager do
 
   defp flush_and_broadcast_streaming(state) do
     case Agents.create_message(%{
-           project_name: state.project_name,
-           agent_name: state.agent_name,
+           project_id: state.project_id,
+           agent_id: state.agent_id,
            role: "agent",
            content: %{"text" => state.streaming_text}
          }) do
@@ -663,7 +672,7 @@ defmodule Shire.Agent.AgentManager do
           "message" => serialize_message(msg)
         }
 
-        broadcast(state, {:agent_event, state.agent_name, flush_event})
+        broadcast(state, {:agent_event, state.agent_id, flush_event})
 
       {:error, _} ->
         :ok

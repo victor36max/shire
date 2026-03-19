@@ -1,7 +1,7 @@
 defmodule Shire.VirtualMachine do
   @moduledoc """
   Behaviour defining the VM interface for all Sprite VM operations.
-  All project-scoped operations take `project_name` as the first parameter.
+  All project-scoped operations take `project_id` as the first parameter.
   Consumers use `@vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)`
   to resolve the implementation at compile time.
   """
@@ -24,9 +24,6 @@ defmodule Shire.VirtualMachine do
   @callback resize(Sprites.Command.t(), integer(), integer()) :: :ok | {:error, term()}
 
   # --- VM Management (module-level, not per-project) ---
-
-  @doc "Lists all VM names matching the configured prefix."
-  @callback list_vms() :: {:ok, [String.t()]} | {:error, term()}
 
   @doc "Destroys the underlying VM for a project."
   @callback destroy_vm(String.t()) :: :ok | {:error, term()}

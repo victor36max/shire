@@ -42,8 +42,8 @@ defmodule ShireWeb.ProjectLive.Index do
   end
 
   @impl true
-  def handle_event("delete-project", %{"name" => name}, socket) do
-    case ProjectManager.destroy_project(name) do
+  def handle_event("delete-project", %{"id" => project_id}, socket) do
+    case ProjectManager.destroy_project(project_id) do
       :ok ->
         projects = ProjectManager.list_projects()
 
@@ -58,13 +58,13 @@ defmodule ShireWeb.ProjectLive.Index do
   end
 
   @impl true
-  def handle_info({:project_created, _name}, socket) do
+  def handle_info({:project_created, _id}, socket) do
     projects = ProjectManager.list_projects()
     {:noreply, assign(socket, :projects, projects)}
   end
 
   @impl true
-  def handle_info({:project_destroyed, _name}, socket) do
+  def handle_info({:project_destroyed, _id}, socket) do
     projects = ProjectManager.list_projects()
     {:noreply, assign(socket, :projects, projects)}
   end

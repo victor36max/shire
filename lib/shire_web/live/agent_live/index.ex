@@ -2,30 +2,32 @@ defmodule ShireWeb.AgentLive.Index do
   use ShireWeb, :live_view
 
   alias Shire.Agents
+  alias Shire.Projects
   alias Shire.Agent.Coordinator
   alias Shire.ProjectManager
   alias ShireWeb.AgentLive.{AgentStreaming, Helpers}
 
   @impl true
-  def mount(%{"project" => project}, _session, socket) do
-    case ProjectManager.lookup_coordinator(project) do
+  def mount(%{"project_id" => project_id}, _session, socket) do
+    case ProjectManager.lookup_coordinator(project_id) do
       {:error, :not_found} ->
         {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
 
       {:ok, _pid} ->
         if connected?(socket) do
-          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project}:agents:lobby")
+          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
         end
 
-        agents = Coordinator.list_agents(project)
+        project = Projects.get_project!(project_id)
+        agents = Coordinator.list_agents(project_id)
         projects = ProjectManager.list_projects()
 
         {:ok,
          assign(socket,
-           project: project,
+           project: %{id: project.id, name: project.name},
            projects: projects,
            agents: agents,
-           selected_agent_name: nil,
+           selected_agent_id: nil,
            selected_agent: nil,
            messages: [],
            has_more: false,
@@ -46,24 +48,24 @@ defmodule ShireWeb.AgentLive.Index do
   # Agent CRUD events
 
   @impl true
-  def handle_event("delete-agent", %{"name" => name}, socket) do
-    project = socket.assigns.project
+  def handle_event("delete-agent", %{"id" => agent_id}, socket) do
+    project_id = socket.assigns.project.id
 
-    case Coordinator.delete_agent(project, name) do
+    case Coordinator.delete_agent(project_id, agent_id) do
       :ok ->
-        agents = Coordinator.list_agents(project)
+        agents = Coordinator.list_agents(project_id)
 
         selected =
-          if socket.assigns.selected_agent_name == name do
+          if socket.assigns.selected_agent_id == agent_id do
             nil
           else
-            socket.assigns.selected_agent_name
+            socket.assigns.selected_agent_id
           end
 
         {:noreply,
          assign(socket,
            agents: agents,
-           selected_agent_name: selected,
+           selected_agent_id: selected,
            selected_agent: if(selected, do: socket.assigns.selected_agent, else: nil),
            messages: if(selected, do: socket.assigns.messages, else: [])
          )}
@@ -73,8 +75,8 @@ defmodule ShireWeb.AgentLive.Index do
     end
   end
 
-  def handle_event("edit-agent", %{"name" => name}, socket) do
-    case Coordinator.get_agent(socket.assigns.project, name) do
+  def handle_event("edit-agent", %{"id" => agent_id}, socket) do
+    case Coordinator.get_agent(socket.assigns.project.id, agent_id) do
       {:ok, agent} ->
         {:noreply, assign(socket, :editing_agent, agent)}
 
@@ -84,11 +86,11 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   def handle_event("create-agent", params, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
-    case Coordinator.create_agent(project, params) do
+    case Coordinator.create_agent(project_id, params) do
       {:ok, _pid} ->
-        agents = Coordinator.list_agents(project)
+        agents = Coordinator.list_agents(project_id)
 
         {:noreply,
          socket
@@ -108,10 +110,10 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   def handle_event("update-agent", params, socket) do
-    project = socket.assigns.project
-    name = params["name"]
+    project_id = socket.assigns.project.id
+    agent_id = params["id"]
 
-    case Coordinator.update_agent(project, name, params) do
+    case Coordinator.update_agent(project_id, agent_id, params) do
       :ok ->
         {:noreply,
          socket
@@ -126,24 +128,24 @@ defmodule ShireWeb.AgentLive.Index do
   # Agent selection and chat events
 
   @impl true
-  def handle_event("select-agent", %{"name" => name}, socket) do
-    project = socket.assigns.project
+  def handle_event("select-agent", %{"id" => agent_id}, socket) do
+    project_id = socket.assigns.project.id
 
-    case Coordinator.get_agent(project, name) do
+    case Coordinator.get_agent(project_id, agent_id) do
       {:ok, agent} ->
         if connected?(socket) do
-          if old = socket.assigns.selected_agent_name do
-            Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project}:agent:#{old}")
+          if old = socket.assigns.selected_agent_id do
+            Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:agent:#{old}")
           end
 
-          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project}:agent:#{name}")
+          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
         end
 
-        {messages, has_more} = Agents.list_messages_for_agent(project, name, limit: 50)
+        {messages, has_more} = Agents.list_messages_for_agent(project_id, agent_id, limit: 50)
 
         {:noreply,
          assign(socket,
-           selected_agent_name: name,
+           selected_agent_id: agent_id,
            selected_agent: agent,
            messages: Enum.map(messages, &Helpers.serialize_message/1),
            has_more: has_more,
@@ -157,10 +159,10 @@ defmodule ShireWeb.AgentLive.Index do
 
   @impl true
   def handle_event("send-message", %{"text" => text}, socket) do
-    project = socket.assigns.project
-    agent_name = socket.assigns.selected_agent_name
+    project_id = socket.assigns.project.id
+    agent_id = socket.assigns.selected_agent_id
 
-    case Coordinator.send_message(project, agent_name, text) do
+    case Coordinator.send_message(project_id, agent_id, text) do
       {:ok, msg} ->
         messages = socket.assigns.messages ++ [Helpers.serialize_message(msg)]
         {:noreply, assign(socket, :messages, messages)}
@@ -178,12 +180,12 @@ defmodule ShireWeb.AgentLive.Index do
 
   @impl true
   def handle_event("load-more", %{"before" => before}, socket) do
-    project = socket.assigns.project
-    name = socket.assigns.selected_agent_name
+    project_id = socket.assigns.project.id
+    agent_id = socket.assigns.selected_agent_id
 
-    if name do
+    if agent_id do
       {new_messages, has_more} =
-        Agents.list_messages_for_agent(project, name, before: before, limit: 50)
+        Agents.list_messages_for_agent(project_id, agent_id, before: before, limit: 50)
 
       all_messages =
         Enum.map(new_messages, &Helpers.serialize_message/1) ++ socket.assigns.messages
@@ -199,11 +201,31 @@ defmodule ShireWeb.AgentLive.Index do
     end
   end
 
-  # PubSub handlers
+  # PubSub handlers (agent-specific topic)
 
   @impl true
-  def handle_info({:agent_event, agent_name, event}, socket) do
-    if socket.assigns.selected_agent_name == agent_name do
+  def handle_info({:status, status}, socket) do
+    agent_id = socket.assigns.selected_agent_id
+
+    if agent_id do
+      statuses = Map.put(socket.assigns.agent_statuses, agent_id, status)
+
+      selected_agent =
+        if socket.assigns.selected_agent do
+          Map.put(socket.assigns.selected_agent, :status, status)
+        else
+          socket.assigns.selected_agent
+        end
+
+      {:noreply, assign(socket, agent_statuses: statuses, selected_agent: selected_agent)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:agent_event, agent_id, event}, socket) do
+    if socket.assigns.selected_agent_id == agent_id do
       {:noreply, AgentStreaming.process_agent_event(socket, event)}
     else
       {:noreply, socket}
@@ -211,16 +233,16 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
-  def handle_info({:agent_busy, agent_name, active}, socket) do
+  def handle_info({:agent_busy, agent_id, active}, socket) do
     busy_agents =
       if active do
-        MapSet.put(socket.assigns.busy_agents, agent_name)
+        MapSet.put(socket.assigns.busy_agents, agent_id)
       else
-        MapSet.delete(socket.assigns.busy_agents, agent_name)
+        MapSet.delete(socket.assigns.busy_agents, agent_id)
       end
 
     selected_agent =
-      if socket.assigns.selected_agent && socket.assigns.selected_agent_name == agent_name do
+      if socket.assigns.selected_agent && socket.assigns.selected_agent_id == agent_id do
         Map.put(socket.assigns.selected_agent, :busy, active)
       else
         socket.assigns.selected_agent
@@ -234,19 +256,19 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
-  def handle_info({:agent_created, _name}, socket) do
-    agents = Coordinator.list_agents(socket.assigns.project)
+  def handle_info({:agent_created, _id}, socket) do
+    agents = Coordinator.list_agents(socket.assigns.project.id)
     {:noreply, assign(socket, :agents, agents)}
   end
 
   @impl true
-  def handle_info({:agent_updated, name}, socket) do
-    project = socket.assigns.project
-    agents = Coordinator.list_agents(project)
+  def handle_info({:agent_updated, agent_id}, socket) do
+    project_id = socket.assigns.project.id
+    agents = Coordinator.list_agents(project_id)
 
     selected_agent =
-      if socket.assigns.selected_agent_name == name do
-        case Coordinator.get_agent(project, name) do
+      if socket.assigns.selected_agent_id == agent_id do
+        case Coordinator.get_agent(project_id, agent_id) do
           {:ok, agent} -> agent
           _ -> socket.assigns.selected_agent
         end
@@ -258,49 +280,32 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
-  def handle_info({:agent_renamed, old_name, new_name}, socket) do
-    project = socket.assigns.project
-    agents = Coordinator.list_agents(project)
+  def handle_info({:agent_renamed, agent_id, _old_name, _new_name}, socket) do
+    project_id = socket.assigns.project.id
+    agents = Coordinator.list_agents(project_id)
 
-    if socket.assigns.selected_agent_name == old_name do
-      case Coordinator.get_agent(project, new_name) do
-        {:ok, agent} ->
-          if connected?(socket) do
-            Phoenix.PubSub.unsubscribe(
-              Shire.PubSub,
-              "project:#{project}:agent:#{old_name}"
-            )
-
-            Phoenix.PubSub.subscribe(
-              Shire.PubSub,
-              "project:#{project}:agent:#{new_name}"
-            )
-          end
-
-          {:noreply,
-           assign(socket,
-             agents: agents,
-             selected_agent_name: new_name,
-             selected_agent: agent
-           )}
-
-        _ ->
-          {:noreply, assign(socket, agents: agents)}
+    selected_agent =
+      if socket.assigns.selected_agent_id == agent_id do
+        case Coordinator.get_agent(project_id, agent_id) do
+          {:ok, agent} -> agent
+          _ -> socket.assigns.selected_agent
+        end
+      else
+        socket.assigns.selected_agent
       end
-    else
-      {:noreply, assign(socket, :agents, agents)}
-    end
+
+    {:noreply, assign(socket, agents: agents, selected_agent: selected_agent)}
   end
 
   @impl true
-  def handle_info({:agent_deleted, name}, socket) do
-    agents = Coordinator.list_agents(socket.assigns.project)
+  def handle_info({:agent_deleted, agent_id}, socket) do
+    agents = Coordinator.list_agents(socket.assigns.project.id)
 
-    if socket.assigns.selected_agent_name == name do
+    if socket.assigns.selected_agent_id == agent_id do
       {:noreply,
        assign(socket,
          agents: agents,
-         selected_agent_name: nil,
+         selected_agent_id: nil,
          selected_agent: nil,
          messages: []
        )}
@@ -310,11 +315,11 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
-  def handle_info({:agent_status, agent_name, status}, socket) do
-    statuses = Map.put(socket.assigns.agent_statuses, agent_name, status)
+  def handle_info({:agent_status, agent_id, status}, socket) do
+    statuses = Map.put(socket.assigns.agent_statuses, agent_id, status)
 
     selected_agent =
-      if socket.assigns.selected_agent && socket.assigns.selected_agent_name == agent_name do
+      if socket.assigns.selected_agent && socket.assigns.selected_agent_id == agent_id do
         Map.put(socket.assigns.selected_agent, :status, status)
       else
         socket.assigns.selected_agent
@@ -327,10 +332,10 @@ defmodule ShireWeb.AgentLive.Index do
   def render(assigns) do
     agents_with_busy =
       Enum.map(assigns.agents, fn agent ->
-        status = Map.get(assigns.agent_statuses, agent.name, agent.status)
+        status = Map.get(assigns.agent_statuses, agent.id, agent.status)
 
         agent
-        |> Map.put(:busy, MapSet.member?(assigns.busy_agents, agent.name))
+        |> Map.put(:busy, MapSet.member?(assigns.busy_agents, agent.id))
         |> Map.put(:status, status)
       end)
 

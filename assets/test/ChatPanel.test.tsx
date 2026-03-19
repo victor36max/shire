@@ -5,6 +5,7 @@ import ChatPanel, { type Message } from "../react-components/ChatPanel";
 import { type Agent } from "../react-components/types";
 
 const activeAgent: Agent = {
+  id: "a1",
   name: "Test Agent",
   status: "active",
   model: "claude-sonnet-4-6",

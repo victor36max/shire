@@ -1,5 +1,5 @@
 // agent-runner.ts — Bun daemon that watches the inbox/outbox and dispatches to configured harness.
-// Each agent runs in its own workspace directory under /workspace/agents/{name}/.
+// Each agent runs in its own workspace directory under /workspace/agents/{id}/.
 import { watch } from "fs";
 import { readFile, readdir, unlink, writeFile } from "fs/promises";
 import { basename, join } from "path";
@@ -21,6 +21,7 @@ const INBOX_DIR = join(AGENT_DIR, "inbox");
 const OUTBOX_DIR = join(AGENT_DIR, "outbox");
 const AGENTS_ROOT = join(AGENT_DIR, "../");
 const RECIPE_PATH = join(AGENT_DIR, "recipe.yaml");
+const PEERS_PATH = join(AGENTS_ROOT, "../peers.yaml");
 
 export interface AgentConfig {
   harness: HarnessType;
@@ -41,9 +42,45 @@ export interface OutboxMessage {
   text: string;
 }
 
+export interface PeerEntry {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export function emit(type: string, payload: Record<string, unknown> = {}) {
   const line = JSON.stringify({ type, payload });
   process.stdout.write(line + "\n");
+}
+
+// ---------------------------------------------------------------------------
+// Peers management
+// ---------------------------------------------------------------------------
+
+let peersNameToId: Map<string, string> = new Map();
+let peersIdToName: Map<string, string> = new Map();
+
+export async function loadPeers(peersPath = PEERS_PATH): Promise<void> {
+  try {
+    const raw = await readFile(peersPath, "utf-8");
+    const entries = yaml.load(raw) as PeerEntry[] | null;
+    const nameToId = new Map<string, string>();
+    const idToName = new Map<string, string>();
+
+    if (Array.isArray(entries)) {
+      for (const entry of entries) {
+        if (entry.id && entry.name) {
+          nameToId.set(entry.name, entry.id);
+          idToName.set(entry.id, entry.name);
+        }
+      }
+    }
+
+    peersNameToId = nameToId;
+    peersIdToName = idToName;
+  } catch {
+    // peers.yaml may not exist yet
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +96,11 @@ export async function loadConfig(path = RECIPE_PATH): Promise<AgentConfig> {
     system_prompt: (recipe.system_prompt as string) || "",
     max_tokens: (recipe.max_tokens as number) || 16384,
   };
+}
+
+export function agentName(): string {
+  const id = basename(AGENT_DIR);
+  return peersIdToName.get(id) || id;
 }
 
 export async function processMessage(harness: Harness, envelope: MessageEnvelope): Promise<void> {
@@ -98,11 +140,14 @@ export async function processInbox(harness: Harness, inboxDir = INBOX_DIR): Prom
 // Outbox routing — delivers messages to target agent inboxes
 // ---------------------------------------------------------------------------
 
-function agentName(): string {
-  return basename(AGENT_DIR);
-}
+export async function processOutbox(
+  outboxDir = OUTBOX_DIR,
+  agentsRoot = AGENTS_ROOT,
+  peersPath = PEERS_PATH,
+): Promise<number> {
+  // Reload peers on each outbox cycle to pick up changes
+  await loadPeers(peersPath);
 
-export async function processOutbox(outboxDir = OUTBOX_DIR, agentsRoot = AGENTS_ROOT): Promise<number> {
   const files = await readdir(outboxDir);
   const jsonFiles = files.filter((f) => f.endsWith(".json")).sort();
 
@@ -112,7 +157,14 @@ export async function processOutbox(outboxDir = OUTBOX_DIR, agentsRoot = AGENTS_
       const raw = await readFile(path, "utf-8");
       const msg: OutboxMessage = JSON.parse(raw);
 
-      const targetInbox = join(agentsRoot, msg.to, "inbox");
+      // Resolve target name to UUID
+      const targetId = peersNameToId.get(msg.to);
+      if (!targetId) {
+        emit("error", { message: `Peer not found: "${msg.to}". Skipping message, will retry.` });
+        continue; // Don't delete — retry on next cycle after peers.yaml update
+      }
+
+      const targetInbox = join(agentsRoot, targetId, "inbox");
       const ts = Date.now();
       const envelope: MessageEnvelope = {
         ts,
@@ -122,7 +174,7 @@ export async function processOutbox(outboxDir = OUTBOX_DIR, agentsRoot = AGENTS_
       };
       const filename = `${ts}-${Math.random().toString(36).slice(2, 6)}.json`;
       await writeFile(join(targetInbox, filename), JSON.stringify(envelope));
-      emit("agent_message_sent", { to_agent: msg.to, text: msg.text });
+      emit("agent_message_sent", { to_agent: msg.to, to_agent_id: targetId, text: msg.text });
       await unlink(path);
     } catch (err) {
       emit("error", { message: `Failed to route outbox ${file}: ${err}` });
@@ -138,6 +190,8 @@ export async function processOutbox(outboxDir = OUTBOX_DIR, agentsRoot = AGENTS_
 
 async function main() {
   const config = await loadConfig();
+  await loadPeers();
+
   const harness = createHarness(config.harness);
 
   harness.onEvent((event) => emit(event.type, event.payload));

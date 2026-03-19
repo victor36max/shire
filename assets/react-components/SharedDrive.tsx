@@ -30,7 +30,7 @@ export interface SharedDriveFile {
 }
 
 interface SharedDriveProps {
-  project: string;
+  project: { id: string; name: string };
   files: SharedDriveFile[];
   current_path: string;
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
@@ -177,7 +177,7 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
                         {file.type === "file" && (
                           <Button variant="ghost" size="sm" asChild>
                             <a
-                              href={`/projects/${project}/shared/download?path=${encodeURIComponent(file.path)}`}
+                              href={`/projects/${project.id}/shared/download?path=${encodeURIComponent(file.path)}`}
                               download
                             >
                               Download
