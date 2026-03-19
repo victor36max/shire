@@ -8,6 +8,7 @@ vi.mock("../react-components/Terminal", () => ({
 }));
 
 const defaultProps = {
+  project: "test-project",
   env_content: "",
   scripts: [] as { name: string; content: string }[],
   messages: [] as { id: number; from_agent: string; to_agent: string; text: string; ts: string }[],

@@ -12,7 +12,7 @@ defmodule Shire.Agents do
     do: message |> Message.changeset(attrs) |> Repo.update()
 
   @doc """
-  Lists messages for an agent with cursor-based pagination.
+  Lists messages for an agent within a project with cursor-based pagination.
 
   Options:
     - `:before` - message id cursor, fetch messages older than this id
@@ -20,13 +20,13 @@ defmodule Shire.Agents do
 
   Returns `{messages, has_more?}` where messages are ordered oldest-first.
   """
-  def list_messages_for_agent(agent_name, opts \\ []) do
+  def list_messages_for_agent(project_name, agent_name, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     before = Keyword.get(opts, :before)
 
     query =
       from m in Message,
-        where: m.agent_name == ^agent_name,
+        where: m.project_name == ^project_name and m.agent_name == ^agent_name,
         order_by: [desc: m.id],
         limit: ^limit
 
@@ -44,16 +44,16 @@ defmodule Shire.Agents do
   end
 
   @doc """
-  Lists inter-agent messages across all agents with cursor-based pagination.
+  Lists inter-agent messages within a project with cursor-based pagination.
   Returns `{messages, has_more?}` where messages are ordered newest-first.
   """
-  def list_inter_agent_messages(opts \\ []) do
+  def list_inter_agent_messages(project_name, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     before = Keyword.get(opts, :before)
 
     query =
       from m in Message,
-        where: m.role == "inter_agent",
+        where: m.project_name == ^project_name and m.role == "inter_agent",
         order_by: [desc: m.id],
         limit: ^limit
 
@@ -70,13 +70,17 @@ defmodule Shire.Agents do
     {messages, has_more}
   end
 
-  def rename_agent_messages(old_name, new_name) do
-    from(m in Message, where: m.agent_name == ^old_name)
+  def rename_agent_messages(project_name, old_name, new_name) do
+    from(m in Message,
+      where: m.project_name == ^project_name and m.agent_name == ^old_name
+    )
     |> Repo.update_all(set: [agent_name: new_name])
   end
 
-  def delete_messages_for_agent(agent_name) do
-    from(m in Message, where: m.agent_name == ^agent_name)
+  def delete_messages_for_agent(project_name, agent_name) do
+    from(m in Message,
+      where: m.project_name == ^project_name and m.agent_name == ^agent_name
+    )
     |> Repo.delete_all()
   end
 end

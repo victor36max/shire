@@ -34,6 +34,7 @@ interface ScriptDraft {
 }
 
 interface SettingsPageProps {
+  project: string;
   env_content: string;
   scripts: Script[];
   messages: InterAgentMessage[];
@@ -66,6 +67,7 @@ function serializeEnv(rows: EnvRow[]): string {
 }
 
 export default function SettingsPage({
+  project,
   env_content,
   scripts,
   messages,
@@ -136,7 +138,12 @@ export default function SettingsPage({
     <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => window.location.assign("/")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Back"
+            onClick={() => window.location.assign(`/projects/${project}`)}
+          >
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-2xl font-bold">Settings</h1>

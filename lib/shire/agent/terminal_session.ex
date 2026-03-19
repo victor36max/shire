@@ -1,52 +1,58 @@
 defmodule Shire.Agent.TerminalSession do
   @moduledoc """
-  GenServer managing an interactive TTY session on the shared Sprite VM.
+  GenServer managing an interactive TTY session on a project's Sprite VM.
   Spawns `bash -i` with TTY mode and bridges stdin/stdout to PubSub.
-  Single global session (not per-agent).
+  One terminal session per project.
   """
   use GenServer
   require Logger
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
-  defstruct [:command, :command_ref, pubsub_topic: "terminal:global"]
+  defstruct [:project_name, :command, :command_ref, :pubsub_topic]
 
   # --- Public API ---
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: via())
+    project_name = Keyword.fetch!(opts, :project_name)
+    GenServer.start_link(__MODULE__, opts, name: via(project_name))
   end
 
-  def write(data) do
-    GenServer.cast(via(), {:write, data})
+  def write(project_name, data) do
+    GenServer.cast(via(project_name), {:write, data})
   end
 
-  def resize(rows, cols) do
-    GenServer.cast(via(), {:resize, rows, cols})
+  def resize(project_name, rows, cols) do
+    GenServer.cast(via(project_name), {:resize, rows, cols})
   end
 
-  def stop do
-    GenServer.stop(via())
+  def stop(project_name) do
+    GenServer.stop(via(project_name))
   end
 
-  def find do
-    case Registry.lookup(Shire.AgentRegistry, :global_terminal) do
+  def find(project_name) do
+    case Registry.lookup(Shire.ProjectRegistry, {:terminal, project_name}) do
       [{pid, _}] -> {:ok, pid}
       [] -> :error
     end
   end
 
-  defp via do
-    {:via, Registry, {Shire.AgentRegistry, :global_terminal}}
+  defp via(project_name) do
+    {:via, Registry, {Shire.ProjectRegistry, {:terminal, project_name}}}
   end
 
   # --- Callbacks ---
 
   @impl true
-  def init(_opts) do
-    state = %__MODULE__{}
+  def init(opts) do
+    project_name = Keyword.fetch!(opts, :project_name)
 
-    case @vm.spawn_command("bash", ["-i"],
+    state = %__MODULE__{
+      project_name: project_name,
+      pubsub_topic: "project:#{project_name}:terminal"
+    }
+
+    case @vm.spawn_command(project_name, "bash", ["-i"],
            tty: true,
            stdin: true,
            tty_rows: 24,
@@ -80,14 +86,14 @@ defmodule Shire.Agent.TerminalSession do
 
   @impl true
   def handle_info({:exit, %{ref: ref}, code}, %{command_ref: ref} = state) do
-    Logger.info("Global terminal session exited with code #{code}")
+    Logger.info("Terminal session exited with code #{code} (project: #{state.project_name})")
     broadcast(state, {:terminal_exit, code})
     {:stop, :normal, state}
   end
 
   @impl true
   def handle_info({:error, %{ref: ref}, reason}, %{command_ref: ref} = state) do
-    Logger.error("Global terminal session error: #{inspect(reason)}")
+    Logger.error("Terminal session error (project: #{state.project_name}): #{inspect(reason)}")
     broadcast(state, {:terminal_exit, 1})
     {:stop, :normal, state}
   end

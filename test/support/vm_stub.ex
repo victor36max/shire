@@ -6,34 +6,34 @@ defmodule Shire.VirtualMachineStub do
   @behaviour Shire.VirtualMachine
 
   @impl true
-  def cmd(_command, _args \\ [], _opts \\ []), do: {:ok, ""}
+  def cmd(_project_name, _command, _args \\ [], _opts \\ []), do: {:ok, ""}
 
   @impl true
-  def cmd!(_command, _args \\ [], _opts \\ []), do: ""
+  def cmd!(_project_name, _command, _args \\ [], _opts \\ []), do: ""
 
   @impl true
-  def read(_path), do: {:ok, ""}
+  def read(_project_name, _path), do: {:ok, ""}
 
   @impl true
-  def write(_path, _content), do: :ok
+  def write(_project_name, _path, _content), do: :ok
 
   @impl true
-  def mkdir_p(_path), do: :ok
+  def mkdir_p(_project_name, _path), do: :ok
 
   @impl true
-  def rm(_path), do: :ok
+  def rm(_project_name, _path), do: :ok
 
   @impl true
-  def rm_rf(_path), do: :ok
+  def rm_rf(_project_name, _path), do: :ok
 
   @impl true
-  def ls(_path), do: {:ok, []}
+  def ls(_project_name, _path), do: {:ok, []}
 
   @impl true
-  def stat(_path), do: {:ok, %{type: :file, size: 0}}
+  def stat(_project_name, _path), do: {:ok, %{type: :file, size: 0}}
 
   @impl true
-  def spawn_command(_command, _args \\ [], _opts \\ []),
+  def spawn_command(_project_name, _command, _args \\ [], _opts \\ []),
     do: {:error, :not_available_in_test}
 
   @impl true
@@ -41,4 +41,10 @@ defmodule Shire.VirtualMachineStub do
 
   @impl true
   def resize(_command, _rows, _cols), do: :ok
+
+  @impl true
+  def list_vms, do: {:ok, []}
+
+  @impl true
+  def destroy_vm(_project_name), do: :ok
 end
