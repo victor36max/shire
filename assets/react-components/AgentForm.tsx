@@ -56,6 +56,8 @@ function parseRecipeYaml(yaml: string) {
   }
 }
 
+const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
 export default function AgentForm({ open, title, agent, pushEvent, onClose }: AgentFormProps) {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -65,6 +67,8 @@ export default function AgentForm({ open, title, agent, pushEvent, onClose }: Ag
   const [skills, setSkills] = React.useState<Skill[]>([]);
   const [rawMode, setRawMode] = React.useState(false);
   const [rawYaml, setRawYaml] = React.useState("");
+
+  const nameValid = name === "" || SLUG_REGEX.test(name);
 
   React.useEffect(() => {
     setName(agent?.name || "");
@@ -89,6 +93,7 @@ export default function AgentForm({ open, title, agent, pushEvent, onClose }: Ag
       finalName = parsed.name || name;
       recipeYaml = rawYaml;
     } else {
+      if (!SLUG_REGEX.test(name)) return;
       recipeYaml = buildRecipeYaml({ name, description, harness, model, systemPrompt, skills });
     }
 
@@ -192,7 +197,17 @@ export default function AgentForm({ open, title, agent, pushEvent, onClose }: Ag
             <>
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Agent name" />
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value.toLowerCase())}
+                  placeholder="my-agent"
+                />
+                {name && !nameValid && (
+                  <p className="text-sm text-destructive">
+                    Use lowercase letters, numbers, and hyphens only. Must start and end with a letter or number.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>

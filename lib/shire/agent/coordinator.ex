@@ -133,39 +133,43 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_call({:create_agent, %{"name" => name, "recipe_yaml" => recipe_yaml}}, _from, state) do
-    case Agents.create_agent_with_vm(state.project_id, name, recipe_yaml) do
-      {:ok, agent} ->
-        # Post-commit: write peers.yaml and start agent manager
-        write_peers_yaml(state.project_id)
+    unless Shire.Slug.valid?(name) do
+      {:reply, {:error, :invalid_name}, state}
+    else
+      case Agents.create_agent_with_vm(state.project_id, name, recipe_yaml) do
+        {:ok, agent} ->
+          # Post-commit: write peers.yaml and start agent manager
+          write_peers_yaml(state.project_id)
 
-        case start_agent_manager(state.project_id, agent.id, agent.name, state.monitors) do
-          {:ok, pid, monitors} ->
-            Phoenix.PubSub.broadcast(
-              Shire.PubSub,
-              "project:#{state.project_id}:agents:lobby",
-              {:agent_created, agent.id}
-            )
+          case start_agent_manager(state.project_id, agent.id, agent.name, state.monitors) do
+            {:ok, pid, monitors} ->
+              Phoenix.PubSub.broadcast(
+                Shire.PubSub,
+                "project:#{state.project_id}:agents:lobby",
+                {:agent_created, agent.id}
+              )
 
-            {:reply, {:ok, pid}, %{state | monitors: monitors}}
+              {:reply, {:ok, pid}, %{state | monitors: monitors}}
 
-          {:error, reason} ->
-            {:reply, {:error, reason}, state}
-        end
+            {:error, reason} ->
+              {:reply, {:error, reason}, state}
+          end
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        unique_error? =
-          Enum.any?(changeset.errors, fn {_field, {_msg, opts}} ->
-            opts[:constraint] == :unique
-          end)
+        {:error, %Ecto.Changeset{} = changeset} ->
+          unique_error? =
+            Enum.any?(changeset.errors, fn {_field, {_msg, opts}} ->
+              opts[:constraint] == :unique
+            end)
 
-        if unique_error? do
-          {:reply, {:error, :already_exists}, state}
-        else
-          {:reply, {:error, changeset}, state}
-        end
+          if unique_error? do
+            {:reply, {:error, :already_exists}, state}
+          else
+            {:reply, {:error, changeset}, state}
+          end
 
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
+        {:error, reason} ->
+          {:reply, {:error, reason}, state}
+      end
     end
   end
 
@@ -183,44 +187,48 @@ defmodule Shire.Agent.Coordinator do
         # Update DB name if it changed
         name_changed = new_name && new_name != agent.name
 
-        with :ok <- maybe_rename(agent, new_name, name_changed),
-             :ok <-
-               @vm.write(
-                 state.project_id,
-                 "/workspace/agents/#{agent_id}/recipe.yaml",
-                 recipe_yaml
-               ) do
-          case lookup(state.project_id, agent_id) do
-            {:ok, _pid} -> AgentManager.restart(state.project_id, agent_id)
-            {:error, :not_found} -> :ok
-          end
+        if name_changed && !Shire.Slug.valid?(new_name) do
+          {:reply, {:error, :invalid_name}, state}
+        else
+          with :ok <- maybe_rename(agent, new_name, name_changed),
+               :ok <-
+                 @vm.write(
+                   state.project_id,
+                   "/workspace/agents/#{agent_id}/recipe.yaml",
+                   recipe_yaml
+                 ) do
+            case lookup(state.project_id, agent_id) do
+              {:ok, _pid} -> AgentManager.restart(state.project_id, agent_id)
+              {:error, :not_found} -> :ok
+            end
 
-          # Rewrite peers.yaml in case name or description changed
-          write_peers_yaml(state.project_id)
+            # Rewrite peers.yaml in case name or description changed
+            write_peers_yaml(state.project_id)
 
-          event =
-            if name_changed,
-              do: {:agent_renamed, agent_id, agent.name, new_name},
-              else: {:agent_updated, agent_id}
+            event =
+              if name_changed,
+                do: {:agent_renamed, agent_id, agent.name, new_name},
+                else: {:agent_updated, agent_id}
 
-          Phoenix.PubSub.broadcast(
-            Shire.PubSub,
-            "project:#{state.project_id}:agents:lobby",
-            event
-          )
-
-          # Also broadcast on agent-specific topic so show page gets the event
-          if name_changed do
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "project:#{state.project_id}:agent:#{agent_id}",
+              "project:#{state.project_id}:agents:lobby",
               event
             )
-          end
 
-          {:reply, :ok, state}
-        else
-          {:error, reason} -> {:reply, {:error, reason}, state}
+            # Also broadcast on agent-specific topic so show page gets the event
+            if name_changed do
+              Phoenix.PubSub.broadcast(
+                Shire.PubSub,
+                "project:#{state.project_id}:agent:#{agent_id}",
+                event
+              )
+            end
+
+            {:reply, :ok, state}
+          else
+            {:error, reason} -> {:reply, {:error, reason}, state}
+          end
         end
 
       {:error, :not_found} ->

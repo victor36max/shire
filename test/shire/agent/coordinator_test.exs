@@ -430,5 +430,68 @@ defmodule Shire.Agent.CoordinatorTest do
       result = Coordinator.create_agent(project_id, %{"name" => "no-recipe"})
       assert {:error, :missing_name_or_recipe} = result
     end
+
+    test "rejects agent name with uppercase letters" do
+      result =
+        Coordinator.create_agent(@project, %{
+          "name" => "MyAgent",
+          "recipe_yaml" => "version: 1\nname: MyAgent\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+
+    test "rejects agent name with spaces" do
+      result =
+        Coordinator.create_agent(@project, %{
+          "name" => "my agent",
+          "recipe_yaml" => "version: 1\nname: my agent\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+
+    test "rejects agent name with leading dash" do
+      result =
+        Coordinator.create_agent(@project, %{
+          "name" => "-invalid",
+          "recipe_yaml" => "version: 1\nname: -invalid\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+
+    test "rejects agent name with trailing dash" do
+      result =
+        Coordinator.create_agent(@project, %{
+          "name" => "invalid-",
+          "recipe_yaml" => "version: 1\nname: invalid-\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+
+    test "rejects agent name with underscores" do
+      result =
+        Coordinator.create_agent(@project, %{
+          "name" => "my_agent",
+          "recipe_yaml" => "version: 1\nname: my_agent\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
+  end
+
+  describe "update_agent/3 with invalid new name" do
+    test "rejects rename to an invalid slug" do
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+
+      result =
+        Coordinator.update_agent(@project, "old-name", %{
+          "recipe_yaml" => "version: 1\nname: Invalid Name!\n"
+        })
+
+      assert {:error, :invalid_name} = result
+    end
   end
 end
