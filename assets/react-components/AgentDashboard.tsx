@@ -4,9 +4,11 @@ import AgentForm from "./AgentForm";
 import ChatHeader from "./ChatHeader";
 import ChatPanel, { type Message } from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
-import { type Agent } from "./types";
+import { type Agent, type Project } from "./types";
 
 interface AgentDashboardProps {
+  project: string;
+  projects: Project[];
   agents: Agent[];
   selectedAgent: Agent | null;
   messages?: Message[];
@@ -17,6 +19,8 @@ interface AgentDashboardProps {
 }
 
 export default function AgentDashboard({
+  project,
+  projects,
   agents,
   selectedAgent,
   messages = [],
@@ -70,6 +74,8 @@ export default function AgentDashboard({
   return (
     <div className="flex h-screen bg-background">
       <AgentSidebar
+        project={project}
+        projects={projects}
         agents={agents}
         selectedAgentName={selectedAgent?.name ?? null}
         onSelectAgent={handleSelectAgent}

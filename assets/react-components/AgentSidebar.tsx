@@ -16,7 +16,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
-import { type Agent, type AgentStatus } from "./types";
+import ProjectSwitcher from "./ProjectSwitcher";
+import { type Agent, type AgentStatus, type Project } from "./types";
 
 function statusDotColor(status: AgentStatus): string {
   switch (status) {
@@ -34,6 +35,8 @@ function statusDotColor(status: AgentStatus): string {
 }
 
 interface AgentSidebarProps {
+  project: string;
+  projects: Project[];
   agents: Agent[];
   selectedAgentName: string | null;
   onSelectAgent: (name: string) => void;
@@ -42,6 +45,8 @@ interface AgentSidebarProps {
 }
 
 export default function AgentSidebar({
+  project,
+  projects,
   agents,
   selectedAgentName,
   onSelectAgent,
@@ -59,6 +64,10 @@ export default function AgentSidebar({
 
   return (
     <div className="w-64 border-r border-border bg-muted/30 flex flex-col h-full">
+      <div className="p-3 border-b border-border">
+        <ProjectSwitcher projects={projects} currentProject={project} />
+      </div>
+
       <div className="p-4 border-b border-border">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Agents</h2>
       </div>
@@ -91,7 +100,7 @@ export default function AgentSidebar({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => window.location.assign(`/agents/${agent.name}`)}>
+                <DropdownMenuItem onClick={() => window.location.assign(`/projects/${project}/agents/${agent.name}`)}>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -114,7 +123,7 @@ export default function AgentSidebar({
         <button
           type="button"
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          onClick={() => window.location.assign("/settings")}
+          onClick={() => window.location.assign(`/projects/${project}/settings`)}
         >
           <svg
             width="16"
@@ -134,7 +143,7 @@ export default function AgentSidebar({
         <button
           type="button"
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          onClick={() => window.location.assign("/shared")}
+          onClick={() => window.location.assign(`/projects/${project}/shared`)}
         >
           <svg
             width="16"

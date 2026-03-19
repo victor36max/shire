@@ -1,3 +1,8 @@
+export interface Project {
+  name: string;
+  status: "running" | "starting" | "error";
+}
+
 export type HarnessType = "pi" | "claude_code";
 
 export type AgentStatus = "created" | "starting" | "bootstrapping" | "active" | "sleeping" | "failed" | "crashed";

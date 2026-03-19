@@ -2,28 +2,36 @@ defmodule ShireWeb.AgentLive.Show do
   use ShireWeb, :live_view
 
   alias Shire.Agent.Coordinator
+  alias Shire.ProjectManager
 
   @impl true
-  def mount(%{"name" => name}, _session, socket) do
-    agent =
-      try do
-        case Coordinator.get_agent(name) do
-          {:ok, data} -> data
-          {:error, _} -> %{name: name, status: Coordinator.agent_status(name)}
+  def mount(%{"project" => project, "name" => name}, _session, socket) do
+    case ProjectManager.lookup_coordinator(project) do
+      {:error, :not_found} ->
+        {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
+
+      {:ok, _pid} ->
+        agent =
+          try do
+            case Coordinator.get_agent(project, name) do
+              {:ok, data} -> data
+              {:error, _} -> %{name: name, status: Coordinator.agent_status(project, name)}
+            end
+          catch
+            :exit, _ -> %{name: name, status: :created}
+          end
+
+        if connected?(socket) do
+          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project}:agent:#{name}")
         end
-      catch
-        :exit, _ -> %{name: name, status: :created}
-      end
 
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Shire.PubSub, "agent:#{name}")
+        {:ok,
+         assign(socket,
+           project: project,
+           agent: agent,
+           agent_status: agent.status
+         )}
     end
-
-    {:ok,
-     assign(socket,
-       agent: agent,
-       agent_status: agent.status
-     )}
   end
 
   @impl true
@@ -33,9 +41,10 @@ defmodule ShireWeb.AgentLive.Show do
 
   @impl true
   def handle_event("start-agent", _params, socket) do
+    project = socket.assigns.project
     name = socket.assigns.agent.name
 
-    case Coordinator.restart_agent(name) do
+    case Coordinator.restart_agent(project, name) do
       :ok ->
         {:noreply, put_flash(socket, :info, "Agent starting...")}
 
@@ -49,14 +58,15 @@ defmodule ShireWeb.AgentLive.Show do
 
   @impl true
   def handle_event("delete-agent", _params, socket) do
+    project = socket.assigns.project
     name = socket.assigns.agent.name
 
-    case Coordinator.delete_agent(name) do
+    case Coordinator.delete_agent(project, name) do
       :ok ->
         {:noreply,
          socket
          |> put_flash(:info, "Agent deleted")
-         |> redirect(to: ~p"/")}
+         |> redirect(to: ~p"/projects/#{project}")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to delete: #{inspect(reason)}")}
@@ -65,19 +75,20 @@ defmodule ShireWeb.AgentLive.Show do
 
   @impl true
   def handle_event("update-agent", params, socket) do
+    project = socket.assigns.project
     name = socket.assigns.agent.name
     new_name = extract_name_from_recipe(params["recipe_yaml"])
 
-    case Coordinator.update_agent(name, params) do
+    case Coordinator.update_agent(project, name, params) do
       :ok ->
         if new_name && new_name != name do
           {:noreply,
            socket
            |> put_flash(:info, "Agent renamed to #{new_name}")
-           |> push_navigate(to: ~p"/agents/#{new_name}")}
+           |> push_navigate(to: ~p"/projects/#{project}/agents/#{new_name}")}
         else
           agent =
-            case Coordinator.get_agent(name) do
+            case Coordinator.get_agent(project, name) do
               {:ok, data} -> data
               _ -> socket.assigns.agent
             end
@@ -95,9 +106,10 @@ defmodule ShireWeb.AgentLive.Show do
 
   @impl true
   def handle_event("restart-agent", _params, socket) do
+    project = socket.assigns.project
     name = socket.assigns.agent.name
 
-    case Coordinator.restart_agent(name) do
+    case Coordinator.restart_agent(project, name) do
       :ok ->
         {:noreply, put_flash(socket, :info, "Agent restarting...")}
 
@@ -141,6 +153,7 @@ defmodule ShireWeb.AgentLive.Show do
     ~H"""
     <.react
       name="AgentShow"
+      project={@project}
       agent={@agent}
       socket={@socket}
     />

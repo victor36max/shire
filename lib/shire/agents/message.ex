@@ -3,6 +3,7 @@ defmodule Shire.Agents.Message do
   import Ecto.Changeset
 
   schema "messages" do
+    field :project_name, :string
     field :agent_name, :string
     field :role, :string
     field :content, :map, default: %{}
@@ -12,7 +13,7 @@ defmodule Shire.Agents.Message do
 
   def changeset(message, attrs) do
     message
-    |> cast(attrs, [:agent_name, :role, :content])
-    |> validate_required([:agent_name, :role])
+    |> cast(attrs, [:project_name, :agent_name, :role, :content])
+    |> validate_required([:project_name, :agent_name, :role])
   end
 end
