@@ -7,17 +7,17 @@ defmodule Shire.ProjectInstanceSupervisor do
   use Supervisor
 
   def start_link(opts) do
-    project_name = Keyword.fetch!(opts, :project_name)
-    Supervisor.start_link(__MODULE__, project_name)
+    project_id = Keyword.fetch!(opts, :project_id)
+    Supervisor.start_link(__MODULE__, project_id)
   end
 
   @impl true
-  def init(project_name) do
+  def init(project_id) do
     children = [
-      {Shire.VirtualMachineImpl, project_name: project_name},
-      {Shire.Agent.Coordinator, project_name: project_name},
+      {Shire.VirtualMachineImpl, project_id: project_id},
+      {Shire.Agent.Coordinator, project_id: project_id},
       {DynamicSupervisor,
-       name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_name}}},
+       name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
        strategy: :one_for_one}
     ]
 

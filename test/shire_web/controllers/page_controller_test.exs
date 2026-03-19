@@ -1,11 +1,7 @@
 defmodule ShireWeb.PageControllerTest do
   use ShireWeb.ConnCase, async: false
 
-  import Mox
-
   setup do
-    Mox.set_mox_global()
-    stub(Shire.VirtualMachineMock, :list_vms, fn -> {:ok, []} end)
     start_supervised!(Shire.ProjectManager)
     :ok
   end

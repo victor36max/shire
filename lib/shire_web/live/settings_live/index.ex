@@ -2,34 +2,36 @@ defmodule ShireWeb.SettingsLive.Index do
   use ShireWeb, :live_view
 
   alias Shire.Agents
+  alias Shire.Projects
   alias Shire.Agent.TerminalSession
   alias Shire.ProjectManager
   alias Shire.WorkspaceSettings
 
   @impl true
-  def mount(%{"project" => project}, _session, socket) do
-    case ProjectManager.lookup_coordinator(project) do
+  def mount(%{"project_id" => project_id}, _session, socket) do
+    case ProjectManager.lookup_coordinator(project_id) do
       {:error, :not_found} ->
         {:ok, socket |> put_flash(:error, "Project not found") |> redirect(to: ~p"/")}
 
       {:ok, _pid} ->
-        {messages, has_more} = Agents.list_inter_agent_messages(project, limit: 100)
+        project = Projects.get_project!(project_id)
+        {messages, has_more} = Agents.list_inter_agent_messages(project_id, limit: 100)
 
         env_content =
-          case WorkspaceSettings.read_env(project) do
+          case WorkspaceSettings.read_env(project_id) do
             {:ok, content} -> content
             _ -> ""
           end
 
         scripts =
-          case WorkspaceSettings.read_all_scripts(project) do
+          case WorkspaceSettings.read_all_scripts(project_id) do
             {:ok, list} -> list
             _ -> []
           end
 
         {:ok,
          assign(socket,
-           project: project,
+           project: %{id: project.id, name: project.name},
            messages: messages,
            has_more_messages: has_more,
            env_content: env_content,
@@ -48,7 +50,7 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("save-env", %{"content" => content}, socket) do
-    case WorkspaceSettings.write_env(socket.assigns.project, content) do
+    case WorkspaceSettings.write_env(socket.assigns.project.id, content) do
       :ok ->
         {:noreply,
          socket
@@ -64,11 +66,11 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("save-script", %{"name" => name, "content" => content}, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
-    case WorkspaceSettings.write_script(project, name, content) do
+    case WorkspaceSettings.write_script(project_id, name, content) do
       :ok ->
-        scripts = refresh_scripts(project)
+        scripts = refresh_scripts(project_id)
 
         {:noreply,
          socket
@@ -82,17 +84,17 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("delete-script", %{"name" => name}, socket) do
-    :ok = WorkspaceSettings.delete_script(socket.assigns.project, name)
+    :ok = WorkspaceSettings.delete_script(socket.assigns.project.id, name)
 
     {:noreply,
      socket
-     |> assign(:scripts, refresh_scripts(socket.assigns.project))
+     |> assign(:scripts, refresh_scripts(socket.assigns.project.id))
      |> put_flash(:info, "Script deleted")}
   end
 
   @impl true
   def handle_event("run-script", %{"name" => name}, socket) do
-    case WorkspaceSettings.run_script(socket.assigns.project, name) do
+    case WorkspaceSettings.run_script(socket.assigns.project.id, name) do
       {:ok, output} ->
         {:noreply, put_flash(socket, :info, "Script output:\n#{String.slice(output, 0, 500)}")}
 
@@ -107,13 +109,13 @@ defmodule ShireWeb.SettingsLive.Index do
         %{"old_name" => old_name, "new_name" => new_name, "content" => content},
         socket
       ) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
-    with :ok <- WorkspaceSettings.write_script(project, new_name, content),
-         :ok <- WorkspaceSettings.delete_script(project, old_name) do
+    with :ok <- WorkspaceSettings.write_script(project_id, new_name, content),
+         :ok <- WorkspaceSettings.delete_script(project_id, old_name) do
       {:noreply,
        socket
-       |> assign(:scripts, refresh_scripts(project))
+       |> assign(:scripts, refresh_scripts(project_id))
        |> put_flash(:info, "Script renamed")}
     else
       {:error, reason} ->
@@ -126,7 +128,7 @@ defmodule ShireWeb.SettingsLive.Index do
   @impl true
   def handle_event("load-more-messages", %{"before" => before}, socket) do
     {new_messages, has_more} =
-      Agents.list_inter_agent_messages(socket.assigns.project, before: before, limit: 100)
+      Agents.list_inter_agent_messages(socket.assigns.project.id, before: before, limit: 100)
 
     all_messages = socket.assigns.messages ++ new_messages
 
@@ -141,14 +143,14 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("connect-terminal", _params, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
-    case TerminalSession.find(project) do
+    case TerminalSession.find(project_id) do
       {:ok, _pid} ->
         {:noreply, subscribe_terminal(socket)}
 
       :error ->
-        case start_terminal(project) do
+        case start_terminal(project_id) do
           {:ok, _pid} ->
             {:noreply, subscribe_terminal(socket)}
 
@@ -163,7 +165,7 @@ defmodule ShireWeb.SettingsLive.Index do
     if socket.assigns.terminal_subscribed do
       Phoenix.PubSub.unsubscribe(
         Shire.PubSub,
-        "project:#{socket.assigns.project}:terminal"
+        "project:#{socket.assigns.project.id}:terminal"
       )
     end
 
@@ -172,10 +174,10 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("terminal-input", %{"data" => data}, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
-    case TerminalSession.find(project) do
-      {:ok, _pid} -> TerminalSession.write(project, data)
+    case TerminalSession.find(project_id) do
+      {:ok, _pid} -> TerminalSession.write(project_id, data)
       :error -> :ok
     end
 
@@ -184,10 +186,10 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("terminal-resize", %{"rows" => rows, "cols" => cols}, socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
-    case TerminalSession.find(project) do
-      {:ok, _pid} -> TerminalSession.resize(project, rows, cols)
+    case TerminalSession.find(project_id) do
+      {:ok, _pid} -> TerminalSession.resize(project_id, rows, cols)
       :error -> :ok
     end
 
@@ -205,21 +207,21 @@ defmodule ShireWeb.SettingsLive.Index do
   end
 
   defp subscribe_terminal(socket) do
-    project = socket.assigns.project
+    project_id = socket.assigns.project.id
 
     unless socket.assigns.terminal_subscribed do
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project}:terminal")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:terminal")
     end
 
     assign(socket, :terminal_subscribed, true)
   end
 
-  defp start_terminal(project) do
-    sup = {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project}}}
+  defp start_terminal(project_id) do
+    sup = {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}}
 
     DynamicSupervisor.start_child(
       sup,
-      {TerminalSession, project_name: project}
+      {TerminalSession, project_id: project_id}
     )
   end
 
@@ -250,8 +252,8 @@ defmodule ShireWeb.SettingsLive.Index do
     end)
   end
 
-  defp refresh_scripts(project) do
-    case WorkspaceSettings.read_all_scripts(project) do
+  defp refresh_scripts(project_id) do
+    case WorkspaceSettings.read_all_scripts(project_id) do
       {:ok, list} -> list
       _ -> []
     end

@@ -1,7 +1,7 @@
 defmodule Shire.WorkspaceSettings do
   @moduledoc """
   Manages environment variables and global scripts on a project's Sprite VM.
-  All functions take `project_name` as the first parameter.
+  All functions take `project_id` as the first parameter.
   """
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
@@ -9,9 +9,9 @@ defmodule Shire.WorkspaceSettings do
   # --- Environment ---
 
   @doc "Reads `/workspace/.env` from the VM and returns it as a string."
-  def read_env(project_name) do
+  def read_env(project_id) do
     case @vm.cmd(
-           project_name,
+           project_id,
            "bash",
            ["-c", "test -f /workspace/.env && cat /workspace/.env || echo ''"],
            []
@@ -22,8 +22,8 @@ defmodule Shire.WorkspaceSettings do
   end
 
   @doc "Writes the given string to `/workspace/.env` on the VM."
-  def write_env(project_name, content) do
-    case @vm.write(project_name, "/workspace/.env", content) do
+  def write_env(project_id, content) do
+    case @vm.write(project_id, "/workspace/.env", content) do
       :ok -> :ok
       {:error, reason} -> {:error, reason}
     end
@@ -32,9 +32,9 @@ defmodule Shire.WorkspaceSettings do
   # --- Scripts ---
 
   @doc "Lists script filenames in `/workspace/.scripts/`."
-  def list_scripts(project_name) do
+  def list_scripts(project_id) do
     case @vm.cmd(
-           project_name,
+           project_id,
            "bash",
            ["-c", "test -d /workspace/.scripts && ls /workspace/.scripts || echo ''"],
            []
@@ -53,12 +53,12 @@ defmodule Shire.WorkspaceSettings do
   end
 
   @doc "Lists all scripts with their content from `/workspace/.scripts/`."
-  def read_all_scripts(project_name) do
-    with {:ok, names} <- list_scripts(project_name) do
+  def read_all_scripts(project_id) do
+    with {:ok, names} <- list_scripts(project_id) do
       scripts =
         Enum.map(names, fn name ->
           content =
-            case read_script(project_name, name) do
+            case read_script(project_id, name) do
               {:ok, c} -> c
               _ -> ""
             end
@@ -71,11 +71,11 @@ defmodule Shire.WorkspaceSettings do
   end
 
   @doc "Reads a script file from `/workspace/.scripts/{name}`."
-  def read_script(project_name, name) do
+  def read_script(project_id, name) do
     path = "/workspace/.scripts/#{name}"
 
     case @vm.cmd(
-           project_name,
+           project_id,
            "bash",
            ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"],
            []
@@ -93,11 +93,11 @@ defmodule Shire.WorkspaceSettings do
   end
 
   @doc "Writes a script file to `/workspace/.scripts/{name}`."
-  def write_script(project_name, name, content) do
+  def write_script(project_id, name, content) do
     path = "/workspace/.scripts/#{name}"
 
-    with :ok <- @vm.write(project_name, path, content),
-         {:ok, _} <- @vm.cmd(project_name, "chmod", ["+x", path], []) do
+    with :ok <- @vm.write(project_id, path, content),
+         {:ok, _} <- @vm.cmd(project_id, "chmod", ["+x", path], []) do
       :ok
     else
       {:error, reason} -> {:error, reason}
@@ -105,18 +105,18 @@ defmodule Shire.WorkspaceSettings do
   end
 
   @doc "Deletes a script file from `/workspace/.scripts/{name}`."
-  def delete_script(project_name, name) do
+  def delete_script(project_id, name) do
     path = "/workspace/.scripts/#{name}"
-    @vm.cmd(project_name, "rm", ["-f", path], [])
+    @vm.cmd(project_id, "rm", ["-f", path], [])
     :ok
   end
 
   @doc "Runs a script from `/workspace/.scripts/{name}` and returns output."
-  def run_script(project_name, name) do
+  def run_script(project_id, name) do
     path = "/workspace/.scripts/#{name}"
     script_cmd = "[ -f /workspace/.env ] && set -a && . /workspace/.env && set +a; bash #{path}"
 
-    case @vm.cmd(project_name, "bash", ["-c", script_cmd], timeout: 120_000) do
+    case @vm.cmd(project_id, "bash", ["-c", script_cmd], timeout: 120_000) do
       {:ok, output} -> {:ok, output}
       {:error, reason} -> {:error, reason}
     end
@@ -125,10 +125,10 @@ defmodule Shire.WorkspaceSettings do
   # --- Bootstrap ---
 
   @doc "Runs the bootstrap script to initialize `/workspace` directories on the VM."
-  def bootstrap_workspace(project_name) do
+  def bootstrap_workspace(project_id) do
     script = File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
 
-    case @vm.cmd(project_name, "bash", ["-c", script], timeout: 120_000) do
+    case @vm.cmd(project_id, "bash", ["-c", script], timeout: 120_000) do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end

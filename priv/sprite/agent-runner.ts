@@ -1,5 +1,5 @@
 // agent-runner.ts — Bun daemon that watches the inbox/outbox and dispatches to configured harness.
-// Each agent runs in its own workspace directory under /workspace/agents/{name}/.
+// Each agent runs in its own workspace directory under /workspace/agents/{id}/.
 import { watch } from "fs";
 import { readFile, readdir, unlink, writeFile } from "fs/promises";
 import { basename, join } from "path";
@@ -21,6 +21,7 @@ const INBOX_DIR = join(AGENT_DIR, "inbox");
 const OUTBOX_DIR = join(AGENT_DIR, "outbox");
 const AGENTS_ROOT = join(AGENT_DIR, "../");
 const RECIPE_PATH = join(AGENT_DIR, "recipe.yaml");
+const PEERS_PATH = join(AGENTS_ROOT, "../peers.yaml");
 
 export interface AgentConfig {
   harness: HarnessType;
@@ -41,9 +42,45 @@ export interface OutboxMessage {
   text: string;
 }
 
+export interface PeerEntry {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export function emit(type: string, payload: Record<string, unknown> = {}) {
   const line = JSON.stringify({ type, payload });
   process.stdout.write(line + "\n");
+}
+
+// ---------------------------------------------------------------------------
+// Peers management
+// ---------------------------------------------------------------------------
+
+let peersNameToId: Map<string, string> = new Map();
+let peersIdToName: Map<string, string> = new Map();
+
+export async function loadPeers(peersPath = PEERS_PATH): Promise<void> {
+  try {
+    const raw = await readFile(peersPath, "utf-8");
+    const entries = yaml.load(raw) as PeerEntry[] | null;
+    const nameToId = new Map<string, string>();
+    const idToName = new Map<string, string>();
+
+    if (Array.isArray(entries)) {
+      for (const entry of entries) {
+        if (entry.id && entry.name) {
+          nameToId.set(entry.name, entry.id);
+          idToName.set(entry.id, entry.name);
+        }
+      }
+    }
+
+    peersNameToId = nameToId;
+    peersIdToName = idToName;
+  } catch {
+    // peers.yaml may not exist yet
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -61,13 +98,21 @@ export async function loadConfig(path = RECIPE_PATH): Promise<AgentConfig> {
   };
 }
 
+export function agentName(): string {
+  const id = basename(AGENT_DIR);
+  return peersIdToName.get(id) || id;
+}
+
 export async function processMessage(harness: Harness, envelope: MessageEnvelope): Promise<void> {
-  if (envelope.type === "user_message" || envelope.type === "agent_message") {
+  if (envelope.type === "user_message" || envelope.type === "agent_message" || envelope.type === "system_message") {
     const text = envelope.payload.text as string;
     const from = envelope.type === "agent_message" ? envelope.from : undefined;
-    await harness.sendMessage(text, from);
-    if (from) {
-      emit("agent_message_received", { from_agent: from, text });
+    const prefix = envelope.type === "system_message" ? "[System] " : "";
+    await harness.sendMessage(prefix + text, from);
+    if (envelope.type === "agent_message") {
+      emit("agent_message_received", { from_agent: envelope.from, text });
+    } else if (envelope.type === "system_message") {
+      emit("system_message_received", { text });
     }
   } else if (envelope.type === "interrupt") {
     await harness.interrupt();
@@ -77,17 +122,22 @@ export async function processMessage(harness: Harness, envelope: MessageEnvelope
 
 export async function processInbox(harness: Harness, inboxDir = INBOX_DIR): Promise<number> {
   const files = await readdir(inboxDir);
-  const sorted = files.filter((f) => f.endsWith(".json")).sort();
+  const sorted = files.filter((f) => f.endsWith(".yaml") || f.endsWith(".yml")).sort();
 
   for (const file of sorted) {
     const path = join(inboxDir, file);
     try {
       const raw = await readFile(path, "utf-8");
-      const envelope: MessageEnvelope = JSON.parse(raw);
+      const envelope = yaml.load(raw) as MessageEnvelope;
       await processMessage(harness, envelope);
       await unlink(path);
     } catch (err) {
       emit("error", { message: `Failed to process ${file}: ${err}` });
+      try {
+        await unlink(path);
+      } catch {
+        // File may already be gone
+      }
     }
   }
 
@@ -98,21 +148,72 @@ export async function processInbox(harness: Harness, inboxDir = INBOX_DIR): Prom
 // Outbox routing — delivers messages to target agent inboxes
 // ---------------------------------------------------------------------------
 
-function agentName(): string {
-  return basename(AGENT_DIR);
+export async function writeSystemMessage(inboxDir: string, text: string): Promise<void> {
+  const ts = Date.now();
+  const envelope: MessageEnvelope = {
+    ts,
+    type: "system_message",
+    from: "system",
+    payload: { text },
+  };
+  const filename = `${ts}-${Math.random().toString(36).slice(2, 6)}.yaml`;
+  await writeFile(join(inboxDir, filename), yaml.dump(envelope));
 }
 
-export async function processOutbox(outboxDir = OUTBOX_DIR, agentsRoot = AGENTS_ROOT): Promise<number> {
-  const files = await readdir(outboxDir);
-  const jsonFiles = files.filter((f) => f.endsWith(".json")).sort();
+export async function processOutbox(
+  outboxDir = OUTBOX_DIR,
+  agentsRoot = AGENTS_ROOT,
+  peersPath = PEERS_PATH,
+  inboxDir = INBOX_DIR,
+): Promise<number> {
+  // Reload peers on each outbox cycle to pick up changes
+  await loadPeers(peersPath);
 
-  for (const file of jsonFiles) {
+  const files = await readdir(outboxDir);
+  const yamlFiles = files.filter((f) => f.endsWith(".yaml") || f.endsWith(".yml")).sort();
+
+  let routed = 0;
+
+  for (const file of yamlFiles) {
     const path = join(outboxDir, file);
+
+    let msg: OutboxMessage;
     try {
       const raw = await readFile(path, "utf-8");
-      const msg: OutboxMessage = JSON.parse(raw);
+      msg = yaml.load(raw) as OutboxMessage;
+    } catch (err) {
+      emit("error", { message: `Invalid outbox message ${file}: ${err}` });
+      await writeSystemMessage(
+        inboxDir,
+        `Your outbox message "${file}" could not be parsed as YAML: ${err}. Please check the format and try again.`,
+      );
+      await unlink(path);
+      continue;
+    }
 
-      const targetInbox = join(agentsRoot, msg.to, "inbox");
+    // Validate required fields
+    if (!msg || typeof msg.to !== "string" || typeof msg.text !== "string") {
+      const missing: string[] = [];
+      if (!msg || typeof msg.to !== "string") missing.push('"to" (string)');
+      if (!msg || typeof msg.text !== "string") missing.push('"text" (string)');
+      emit("error", { message: `Invalid outbox message ${file}: missing required fields: ${missing.join(", ")}` });
+      await writeSystemMessage(
+        inboxDir,
+        `Your outbox message "${file}" is missing required fields: ${missing.join(", ")}. Each outbox message must have "to" (target agent name) and "text" (message content) as strings.`,
+      );
+      await unlink(path);
+      continue;
+    }
+
+    // Route message — transient failures (peer not found, write error) keep file for retry
+    try {
+      const targetId = peersNameToId.get(msg.to);
+      if (!targetId) {
+        emit("error", { message: `Peer not found: "${msg.to}". Skipping message, will retry.` });
+        continue; // Don't delete — retry on next cycle after peers.yaml update
+      }
+
+      const targetInbox = join(agentsRoot, targetId, "inbox");
       const ts = Date.now();
       const envelope: MessageEnvelope = {
         ts,
@@ -120,16 +221,17 @@ export async function processOutbox(outboxDir = OUTBOX_DIR, agentsRoot = AGENTS_
         from: agentName(),
         payload: { text: msg.text },
       };
-      const filename = `${ts}-${Math.random().toString(36).slice(2, 6)}.json`;
-      await writeFile(join(targetInbox, filename), JSON.stringify(envelope));
-      emit("agent_message_sent", { to_agent: msg.to, text: msg.text });
+      const filename = `${ts}-${Math.random().toString(36).slice(2, 6)}.yaml`;
+      await writeFile(join(targetInbox, filename), yaml.dump(envelope));
+      emit("agent_message_sent", { to_agent: msg.to, to_agent_id: targetId, text: msg.text });
       await unlink(path);
+      routed++;
     } catch (err) {
       emit("error", { message: `Failed to route outbox ${file}: ${err}` });
     }
   }
 
-  return jsonFiles.length;
+  return routed;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +240,8 @@ export async function processOutbox(outboxDir = OUTBOX_DIR, agentsRoot = AGENTS_
 
 async function main() {
   const config = await loadConfig();
+  await loadPeers();
+
   const harness = createHarness(config.harness);
 
   harness.onEvent((event) => emit(event.type, event.payload));
@@ -160,7 +264,7 @@ async function main() {
 
   // Watch for new inbox messages
   const inboxWatcher = watch(INBOX_DIR, async (_eventType: string, filename: string | null) => {
-    if (!filename?.endsWith(".json") || processing) return;
+    if ((!filename?.endsWith(".yaml") && !filename?.endsWith(".yml")) || processing) return;
     processing = true;
     emit("processing", { active: true });
     try {
@@ -178,7 +282,7 @@ async function main() {
   let routing = false;
   await processOutbox();
   const outboxWatcher = watch(OUTBOX_DIR, async (_eventType: string, filename: string | null) => {
-    if (!filename?.endsWith(".json") || routing) return;
+    if ((!filename?.endsWith(".yaml") && !filename?.endsWith(".yml")) || routing) return;
     routing = true;
     try {
       let count: number;

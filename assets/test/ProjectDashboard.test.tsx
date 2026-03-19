@@ -5,8 +5,8 @@ import ProjectDashboard from "../react-components/ProjectDashboard";
 import type { Project } from "../react-components/types";
 
 const projects: Project[] = [
-  { name: "test-project", status: "running" },
-  { name: "other-project", status: "running" },
+  { id: "p1", name: "test-project", status: "running" },
+  { id: "p2", name: "other-project", status: "running" },
 ];
 
 describe("ProjectDashboard", () => {
@@ -28,8 +28,8 @@ describe("ProjectDashboard", () => {
 
   it("shows status badges on project cards", () => {
     const mixedProjects: Project[] = [
-      { name: "running-project", status: "running" },
-      { name: "error-project", status: "error" },
+      { id: "p3", name: "running-project", status: "running" },
+      { id: "p4", name: "error-project", status: "error" },
     ];
     render(<ProjectDashboard projects={mixedProjects} pushEvent={vi.fn()} />);
     expect(screen.getByText("running")).toBeInTheDocument();
@@ -85,6 +85,6 @@ describe("ProjectDashboard", () => {
     const confirmDelete = screen.getAllByText("Delete").find((el) => el.closest("[role='alertdialog']"));
     await userEvent.click(confirmDelete!);
 
-    expect(pushEvent).toHaveBeenCalledWith("delete-project", { name: "test-project" });
+    expect(pushEvent).toHaveBeenCalledWith("delete-project", { id: "p1" });
   });
 });

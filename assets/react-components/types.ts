@@ -1,4 +1,5 @@
 export interface Project {
+  id: string;
   name: string;
   status: "running" | "starting" | "error";
 }
@@ -20,6 +21,7 @@ export interface Skill {
 }
 
 export interface Agent {
+  id: string;
   name: string;
   description?: string;
   status: AgentStatus;

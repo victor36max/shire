@@ -19,24 +19,24 @@ defmodule Shire.VirtualMachineImpl do
   @keepalive_duration :timer.minutes(30)
 
   def start_link(opts) do
-    project_name = Keyword.fetch!(opts, :project_name)
-    GenServer.start_link(__MODULE__, opts, name: via(project_name))
+    project_id = Keyword.fetch!(opts, :project_id)
+    GenServer.start_link(__MODULE__, opts, name: via(project_id))
   end
 
-  defp via(project_name) do
-    {:via, Registry, {Shire.ProjectRegistry, {:vm, project_name}}}
+  defp via(project_id) do
+    {:via, Registry, {Shire.ProjectRegistry, {:vm, project_id}}}
   end
 
   # --- Public API: Command Execution ---
 
   @impl Shire.VirtualMachine
-  def cmd(project_name, command, args \\ [], opts \\ []) do
-    GenServer.call(via(project_name), {:cmd, command, args, opts}, call_timeout(opts))
+  def cmd(project_id, command, args \\ [], opts \\ []) do
+    GenServer.call(via(project_id), {:cmd, command, args, opts}, call_timeout(opts))
   end
 
   @impl Shire.VirtualMachine
-  def cmd!(project_name, command, args \\ [], opts \\ []) do
-    case cmd(project_name, command, args, opts) do
+  def cmd!(project_id, command, args \\ [], opts \\ []) do
+    case cmd(project_id, command, args, opts) do
       {:ok, output} ->
         output
 
@@ -54,45 +54,45 @@ defmodule Shire.VirtualMachineImpl do
   # --- Public API: Filesystem ---
 
   @impl Shire.VirtualMachine
-  def read(project_name, path) do
-    GenServer.call(via(project_name), {:read, path})
+  def read(project_id, path) do
+    GenServer.call(via(project_id), {:read, path})
   end
 
   @impl Shire.VirtualMachine
-  def write(project_name, path, content) do
-    GenServer.call(via(project_name), {:write, path, content})
+  def write(project_id, path, content) do
+    GenServer.call(via(project_id), {:write, path, content})
   end
 
   @impl Shire.VirtualMachine
-  def mkdir_p(project_name, path) do
-    GenServer.call(via(project_name), {:mkdir_p, path})
+  def mkdir_p(project_id, path) do
+    GenServer.call(via(project_id), {:mkdir_p, path})
   end
 
   @impl Shire.VirtualMachine
-  def rm(project_name, path) do
-    GenServer.call(via(project_name), {:rm, path})
+  def rm(project_id, path) do
+    GenServer.call(via(project_id), {:rm, path})
   end
 
   @impl Shire.VirtualMachine
-  def rm_rf(project_name, path) do
-    GenServer.call(via(project_name), {:rm_rf, path})
+  def rm_rf(project_id, path) do
+    GenServer.call(via(project_id), {:rm_rf, path})
   end
 
   @impl Shire.VirtualMachine
-  def ls(project_name, path) do
-    GenServer.call(via(project_name), {:ls, path})
+  def ls(project_id, path) do
+    GenServer.call(via(project_id), {:ls, path})
   end
 
   @impl Shire.VirtualMachine
-  def stat(project_name, path) do
-    GenServer.call(via(project_name), {:stat, path})
+  def stat(project_id, path) do
+    GenServer.call(via(project_id), {:stat, path})
   end
 
   # --- Public API: Interactive Process ---
 
   @impl Shire.VirtualMachine
-  def spawn_command(project_name, command, args \\ [], opts \\ []) do
-    sprite = GenServer.call(via(project_name), :get_sprite)
+  def spawn_command(project_id, command, args \\ [], opts \\ []) do
+    sprite = GenServer.call(via(project_id), :get_sprite)
 
     case sprite do
       nil ->
@@ -126,37 +126,12 @@ defmodule Shire.VirtualMachineImpl do
   # --- VM Management (module-level, no GenServer) ---
 
   @impl Shire.VirtualMachine
-  def list_vms do
+  def destroy_vm(project_id) do
     token = Application.get_env(:shire, :sprites_token)
 
     if token do
       client = Sprites.new(token)
-      prefix = Application.get_env(:shire, :sprite_vm_prefix, "shire-")
-
-      case Sprites.list(client, prefix: prefix) do
-        {:ok, sprites} ->
-          names =
-            sprites
-            |> Enum.map(fn info -> info["name"] || info[:name] end)
-            |> Enum.filter(&(&1 && String.starts_with?(&1, prefix)))
-
-          {:ok, names}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
-    else
-      {:ok, []}
-    end
-  end
-
-  @impl Shire.VirtualMachine
-  def destroy_vm(project_name) do
-    token = Application.get_env(:shire, :sprites_token)
-
-    if token do
-      client = Sprites.new(token)
-      name = vm_name(project_name)
+      name = vm_name(project_id)
 
       case Sprites.get_sprite(client, name) do
         {:ok, _} ->
@@ -179,18 +154,18 @@ defmodule Shire.VirtualMachineImpl do
 
   @impl GenServer
   def init(opts) do
-    project_name = Keyword.fetch!(opts, :project_name)
+    project_id = Keyword.fetch!(opts, :project_id)
     token = Application.get_env(:shire, :sprites_token)
 
     if token do
-      vm_name = vm_name(project_name)
+      vm_name = vm_name(project_id)
 
       case init_vm(token, vm_name) do
         {:ok, sprite, fs} ->
-          Logger.info("VM #{vm_name} ready (project: #{project_name})")
+          Logger.info("VM #{vm_name} ready (project: #{project_id})")
 
           {:ok,
-           %{sprite: sprite, fs: fs, project_name: project_name, ping_timer: nil, ping_until: nil}}
+           %{sprite: sprite, fs: fs, project_id: project_id, ping_timer: nil, ping_until: nil}}
 
         {:error, reason} ->
           Logger.error("Failed to initialize VM #{vm_name}: #{inspect(reason)}")
@@ -198,7 +173,7 @@ defmodule Shire.VirtualMachineImpl do
       end
     else
       Logger.warning("No SPRITES_TOKEN configured — VM features disabled")
-      {:ok, %{sprite: nil, fs: nil, project_name: project_name, ping_timer: nil, ping_until: nil}}
+      {:ok, %{sprite: nil, fs: nil, project_id: project_id, ping_timer: nil, ping_until: nil}}
     end
   end
 
@@ -389,19 +364,19 @@ defmodule Shire.VirtualMachineImpl do
   def terminate(reason, %{sprite: nil} = state),
     do:
       Logger.warning(
-        "VirtualMachineImpl stopping (no VM, project: #{state.project_name}): #{inspect(reason)}"
+        "VirtualMachineImpl stopping (no VM, project: #{state.project_id}): #{inspect(reason)}"
       )
 
   def terminate(reason, state) do
     Logger.warning(
-      "VirtualMachineImpl stopping (project: #{state.project_name}): #{inspect(reason)}"
+      "VirtualMachineImpl stopping (project: #{state.project_id}): #{inspect(reason)}"
     )
   end
 
   # --- Private: VM Initialization ---
 
-  defp vm_name(project_name) do
-    "#{Application.get_env(:shire, :sprite_vm_prefix, "shire-")}#{project_name}"
+  defp vm_name(project_id) do
+    "#{Application.get_env(:shire, :sprite_vm_prefix, "shire-")}#{project_id}"
   end
 
   defp init_vm(token, vm_name) do

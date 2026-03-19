@@ -102,6 +102,9 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
         # Fallback: no message included
         {messages, nil}
 
+      %{"type" => "system_message", "message" => msg} ->
+        {messages ++ [msg], streaming_text}
+
       %{"type" => "turn_complete"} ->
         {messages, nil}
 

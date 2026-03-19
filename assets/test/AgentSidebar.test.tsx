@@ -6,17 +6,20 @@ import { type Agent, type Project } from "../react-components/types";
 
 const agents: Agent[] = [
   {
+    id: "a1",
     name: "Active Agent",
     status: "active",
     model: "claude-sonnet-4-6",
     harness: "claude_code",
   },
   {
+    id: "a2",
     name: "Created Agent",
     status: "created",
     harness: "claude_code",
   },
   {
+    id: "a3",
     name: "Failed Agent",
     status: "failed",
     harness: "claude_code",
@@ -24,14 +27,14 @@ const agents: Agent[] = [
 ];
 
 const projects: Project[] = [
-  { name: "test-project", status: "running" },
-  { name: "other-project", status: "running" },
+  { id: "p1", name: "test-project", status: "running" },
+  { id: "p2", name: "other-project", status: "running" },
 ];
 
 const defaultProps = {
-  project: "test-project",
+  project: { id: "p1", name: "test-project" },
   projects,
-  selectedAgentName: null as string | null,
+  selectedAgentId: null as string | null,
   onSelectAgent: vi.fn(),
   onNewAgent: vi.fn(),
   onDeleteAgent: vi.fn(),
@@ -55,7 +58,7 @@ describe("AgentSidebar", () => {
     render(<AgentSidebar {...defaultProps} agents={agents} onSelectAgent={onSelectAgent} />);
 
     await userEvent.click(screen.getByText("Active Agent"));
-    expect(onSelectAgent).toHaveBeenCalledWith("Active Agent");
+    expect(onSelectAgent).toHaveBeenCalledWith("a1");
   });
 
   it("calls onNewAgent when clicking New Agent button", async () => {

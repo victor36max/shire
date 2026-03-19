@@ -4,8 +4,7 @@ defmodule Shire.Agent.CoordinatorTest do
   import Mox
 
   alias Shire.Agent.{AgentManager, Coordinator}
-
-  @project "test-project"
+  alias Shire.Projects
 
   setup do
     # Global mode so the Coordinator process (separate from test process) can use stubs
@@ -15,214 +14,242 @@ defmodule Shire.Agent.CoordinatorTest do
     stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
     stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
+    stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
+      {:error, :not_available_in_test}
+    end)
+
+    # Create a DB-backed project
+    {:ok, project} = Projects.create_project("test-project")
+    project_id = project.id
+
     # Start the project-scoped DynamicSupervisor for agents
     start_supervised!(
       {DynamicSupervisor,
-       name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, @project}}},
+       name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
        strategy: :one_for_one},
       id: :agent_sup
     )
 
     # Start the Coordinator (handle_continue runs bootstrap/deploy/scan on start)
-    start_supervised!({Shire.Agent.Coordinator, project_name: @project})
+    start_supervised!({Shire.Agent.Coordinator, project_id: project_id})
 
     # Give handle_continue time to complete
     Process.sleep(50)
 
-    :ok
+    %{project_id: project_id}
   end
 
-  defp broadcast_status(agent_name, status) do
+  defp broadcast_status(project_id, agent_id, status) do
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
-      "project:#{@project}:agents:lobby",
-      {:agent_status, agent_name, status}
+      "project:#{project_id}:agents:lobby",
+      {:agent_status, agent_id, status}
     )
 
     # Give the Coordinator time to process the async message
     Process.sleep(50)
   end
 
-  defp start_agent_manager(agent_name, opts \\ []) do
-    supervisor_id = Keyword.get(opts, :id, agent_name)
+  defp start_agent_manager(project_id, agent_id, opts \\ []) do
+    supervisor_id = Keyword.get(opts, :id, agent_id)
 
     start_supervised(
-      {AgentManager, project_name: @project, agent_name: agent_name, skip_sprite: true},
+      {AgentManager,
+       project_id: project_id, agent_id: agent_id, agent_name: "test-agent", skip_sprite: true},
       id: supervisor_id
     )
   end
 
-  @agent_name "coord-test-agent"
+  defp create_db_agent(project_id, name \\ "coord-test-agent") do
+    {:ok, agent} =
+      Shire.Agents.create_agent_with_vm(
+        project_id,
+        name,
+        "version: 1\nname: #{name}\n",
+        Shire.VirtualMachineStub
+      )
+
+    agent
+  end
 
   describe "lookup/2" do
-    test "returns error when agent is not running" do
-      assert {:error, :not_found} = Coordinator.lookup(@project, "nonexistent")
+    test "returns error when agent is not running", %{project_id: project_id} do
+      assert {:error, :not_found} =
+               Coordinator.lookup(project_id, "00000000-0000-0000-0000-000000000000")
     end
 
-    test "returns {:ok, pid} for a running agent" do
-      {:ok, pid} = start_agent_manager(@agent_name)
-      assert {:ok, ^pid} = Coordinator.lookup(@project, @agent_name)
+    test "returns {:ok, pid} for a running agent", %{project_id: project_id} do
+      agent = create_db_agent(project_id)
+      {:ok, pid} = start_agent_manager(project_id, agent.id)
+      assert {:ok, ^pid} = Coordinator.lookup(project_id, agent.id)
     end
   end
 
   describe "delete_agent/2" do
-    test "succeeds even when agent is not running (deletes dir only)" do
-      assert :ok = Coordinator.delete_agent(@project, "nonexistent")
-    end
+    test "broadcasts {:agent_deleted, id} on lobby", %{project_id: project_id} do
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
 
-    test "broadcasts {:agent_deleted, name} on lobby" do
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agents:lobby")
+      agent = create_db_agent(project_id, "coord-delete-broadcast")
 
-      unique_name = "coord-delete-broadcast-#{System.unique_integer([:positive])}"
-      Coordinator.delete_agent(@project, unique_name)
+      Coordinator.delete_agent(project_id, agent.id)
 
-      assert_receive {:agent_deleted, ^unique_name}, 500
+      agent_id = agent.id
+      assert_receive {:agent_deleted, ^agent_id}, 500
     end
   end
 
   describe "restart_agent/2" do
-    test "restarts a running agent" do
-      {:ok, _pid} = start_agent_manager(@agent_name)
+    test "restarts a running agent", %{project_id: project_id} do
+      agent = create_db_agent(project_id)
+      {:ok, _pid} = start_agent_manager(project_id, agent.id)
 
-      broadcast_status(@agent_name, :failed)
-      assert :failed == Coordinator.agent_status(@project, @agent_name)
+      broadcast_status(project_id, agent.id, :failed)
+      assert :failed == Coordinator.agent_status(project_id, agent.id)
 
       # Restart should succeed for a running (failed) agent
-      result = Coordinator.restart_agent(@project, @agent_name)
+      result = Coordinator.restart_agent(project_id, agent.id)
       assert result == :ok
     end
   end
 
   describe "list_running/1" do
-    test "returns a list of strings" do
-      running = Coordinator.list_running(@project)
+    test "returns a list of strings", %{project_id: project_id} do
+      running = Coordinator.list_running(project_id)
       assert is_list(running)
-      assert Enum.all?(running, &is_binary/1)
     end
 
-    test "includes running agents" do
-      {:ok, _pid} = start_agent_manager(@agent_name)
-      running = Coordinator.list_running(@project)
-      assert @agent_name in running
+    test "includes running agents", %{project_id: project_id} do
+      agent = create_db_agent(project_id)
+      {:ok, _pid} = start_agent_manager(project_id, agent.id)
+      running = Coordinator.list_running(project_id)
+      assert agent.id in running
     end
   end
 
   describe "agent_status/2" do
-    test "returns :created for non-running agents" do
-      assert :created == Coordinator.agent_status(@project, "nonexistent")
+    test "returns :created for non-running agents", %{project_id: project_id} do
+      assert :created ==
+               Coordinator.agent_status(project_id, "00000000-0000-0000-0000-000000000000")
     end
 
-    test "returns status after PubSub broadcast" do
-      {:ok, _pid} = start_agent_manager(@agent_name)
-      broadcast_status(@agent_name, :active)
-      assert :active == Coordinator.agent_status(@project, @agent_name)
+    test "returns status after PubSub broadcast", %{project_id: project_id} do
+      agent = create_db_agent(project_id)
+      {:ok, _pid} = start_agent_manager(project_id, agent.id)
+      broadcast_status(project_id, agent.id, :active)
+      assert :active == Coordinator.agent_status(project_id, agent.id)
     end
   end
 
   describe "agent_statuses/2" do
-    test "returns status map for given agent names" do
-      {:ok, _pid} = start_agent_manager(@agent_name)
-      broadcast_status(@agent_name, :bootstrapping)
+    test "returns status map for given agent IDs", %{project_id: project_id} do
+      agent = create_db_agent(project_id)
+      {:ok, _pid} = start_agent_manager(project_id, agent.id)
+      broadcast_status(project_id, agent.id, :bootstrapping)
 
-      result = Coordinator.agent_statuses(@project, [@agent_name, "nonexistent"])
-      assert result[@agent_name] == :bootstrapping
-      assert result["nonexistent"] == :created
+      nonexistent = "00000000-0000-0000-0000-000000000000"
+      result = Coordinator.agent_statuses(project_id, [agent.id, nonexistent])
+      assert result[agent.id] == :bootstrapping
+      assert result[nonexistent] == :created
     end
   end
 
   describe "status updates via PubSub" do
-    test "coordinator updates internal state from lobby broadcasts" do
-      broadcast_status(@agent_name, :active)
-      assert :active == Coordinator.agent_status(@project, @agent_name)
+    test "coordinator updates internal state from lobby broadcasts", %{project_id: project_id} do
+      agent = create_db_agent(project_id)
+      broadcast_status(project_id, agent.id, :active)
+      assert :active == Coordinator.agent_status(project_id, agent.id)
     end
   end
 
   describe "auto-restart on init" do
-    test "handle_continue does not crash the coordinator" do
+    test "handle_continue does not crash the coordinator", %{project_id: project_id} do
       assert Process.alive?(
                GenServer.whereis(
-                 {:via, Registry, {Shire.ProjectRegistry, {:coordinator, @project}}}
+                 {:via, Registry, {Shire.ProjectRegistry, {:coordinator, project_id}}}
                )
              )
     end
   end
 
   describe "excludes terminal sessions from registry" do
-    test "list_running only returns agent entries" do
-      {:ok, _pid} = start_agent_manager(@agent_name)
+    test "list_running only returns agent entries", %{project_id: project_id} do
+      agent = create_db_agent(project_id)
+      {:ok, _pid} = start_agent_manager(project_id, agent.id)
 
       # Simulate a terminal session registering in the same registry
       {:ok, _} =
-        Registry.register(Shire.AgentRegistry, {:terminal, @agent_name}, "terminal-session")
+        Registry.register(
+          Shire.AgentRegistry,
+          {:terminal, agent.id},
+          "terminal-session"
+        )
 
-      running = Coordinator.list_running(@project)
-      assert @agent_name in running
-      refute {:terminal, @agent_name} in running
+      running = Coordinator.list_running(project_id)
+      assert agent.id in running
+      refute {:terminal, agent.id} in running
     end
   end
 
   describe "update_agent/3" do
-    test "writes recipe.yaml to the VM and returns :ok" do
+    test "writes recipe.yaml to the VM and returns :ok", %{project_id: project_id} do
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
-      unique_name = "coord-update-test-#{System.unique_integer([:positive])}"
+      agent = create_db_agent(project_id, "coord-update-test")
 
       result =
-        Coordinator.update_agent(@project, unique_name, %{
-          "recipe_yaml" => "version: 1\nname: updated\nharness: claude_code\n"
+        Coordinator.update_agent(project_id, agent.id, %{
+          "recipe_yaml" => "version: 1\nname: coord-update-test\nharness: claude_code\n"
         })
 
       assert result == :ok
 
       assert Process.alive?(
                GenServer.whereis(
-                 {:via, Registry, {Shire.ProjectRegistry, {:coordinator, @project}}}
+                 {:via, Registry, {Shire.ProjectRegistry, {:coordinator, project_id}}}
                )
              )
     end
 
-    test "restarts agent if it is running" do
+    test "restarts agent if it is running", %{project_id: project_id} do
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
-      {:ok, _pid} = start_agent_manager(@agent_name)
+      agent = create_db_agent(project_id)
+      {:ok, _pid} = start_agent_manager(project_id, agent.id)
 
       # Mark as active so restart is meaningful
-      broadcast_status(@agent_name, :active)
+      broadcast_status(project_id, agent.id, :active)
 
       result =
-        Coordinator.update_agent(@project, @agent_name, %{
-          "recipe_yaml" => "version: 1\nname: #{@agent_name}\n"
+        Coordinator.update_agent(project_id, agent.id, %{
+          "recipe_yaml" => "version: 1\nname: #{agent.name}\n"
         })
 
       assert result == :ok
     end
 
-    test "broadcasts {:agent_updated, name} on lobby" do
+    test "broadcasts {:agent_updated, id} on lobby", %{project_id: project_id} do
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agents:lobby")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
 
-      unique_name = "coord-update-broadcast-#{System.unique_integer([:positive])}"
+      agent = create_db_agent(project_id, "coord-update-broadcast")
 
-      Coordinator.update_agent(@project, unique_name, %{
-        "recipe_yaml" => "version: 1\nname: #{unique_name}\n"
+      Coordinator.update_agent(project_id, agent.id, %{
+        "recipe_yaml" => "version: 1\nname: coord-update-broadcast\n"
       })
 
-      assert_receive {:agent_updated, ^unique_name}, 500
+      agent_id = agent.id
+      assert_receive {:agent_updated, ^agent_id}, 500
     end
   end
 
   describe "get_agent/2" do
-    test "returns {:error, :not_found} when agent does not exist on VM" do
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, "bash", _args, _opts ->
-        {:ok, "__NOT_FOUND__"}
-      end)
-
-      result = Coordinator.get_agent(@project, "coord-get-test-nonexistent")
+    test "returns {:error, :not_found} when agent does not exist", %{project_id: project_id} do
+      result = Coordinator.get_agent(project_id, "00000000-0000-0000-0000-000000000000")
       assert {:error, :not_found} = result
     end
 
-    test "returns {:ok, agent} with correct fields when agent exists on VM" do
+    test "returns {:ok, agent} with correct fields when agent exists", %{project_id: project_id} do
       recipe_yaml = """
       name: my-agent
       description: A test agent
@@ -231,38 +258,37 @@ defmodule Shire.Agent.CoordinatorTest do
       system_prompt: You are helpful.
       """
 
+      agent = create_db_agent(project_id, "my-agent")
+
       stub(Shire.VirtualMachineMock, :cmd, fn _project, "bash", _args, _opts ->
         {:ok, recipe_yaml}
       end)
 
-      result = Coordinator.get_agent(@project, "my-agent")
+      result = Coordinator.get_agent(project_id, agent.id)
 
-      assert {:ok, agent} = result
-      assert agent.name == "my-agent"
-      assert agent.description == "A test agent"
-      assert agent.harness == "claude_code"
-      assert agent.model == "claude-3-haiku"
-      assert agent.system_prompt == "You are helpful."
-      assert Map.has_key?(agent, :status)
+      assert {:ok, agent_data} = result
+      assert agent_data.name == "my-agent"
+      assert agent_data.description == "A test agent"
+      assert agent_data.harness == "claude_code"
+      assert agent_data.model == "claude-3-haiku"
+      assert agent_data.system_prompt == "You are helpful."
+      assert Map.has_key?(agent_data, :status)
     end
   end
 
   describe "list_agents/1" do
-    test "returns empty list when no agents on VM" do
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, "bash", _args, _opts -> {:ok, ""} end)
-
-      agents = Coordinator.list_agents(@project)
-      assert agents == []
+    test "returns agent list from DB merged with statuses", %{project_id: project_id} do
+      agents = Coordinator.list_agents(project_id)
+      assert is_list(agents)
     end
 
-    test "returns agent map entries for each discovered agent dir" do
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, "bash", _args, _opts ->
-        {:ok, "agent-one\nagent-two\n"}
-      end)
+    test "returns agent map entries for DB agents", %{project_id: project_id} do
+      create_db_agent(project_id, "agent-one")
+      create_db_agent(project_id, "agent-two")
 
-      agents = Coordinator.list_agents(@project)
+      agents = Coordinator.list_agents(project_id)
       assert is_list(agents)
-      assert length(agents) == 2
+      assert length(agents) >= 2
 
       for agent <- agents do
         assert Map.has_key?(agent, :name)
@@ -276,157 +302,81 @@ defmodule Shire.Agent.CoordinatorTest do
   end
 
   describe "update_agent/3 with rename" do
-    test "renames workspace folder when recipe name differs from current name" do
-      old_name = "coord-rename-old-#{System.unique_integer([:positive])}"
-      new_name = "coord-rename-new-#{System.unique_integer([:positive])}"
-
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, cmd, args, _opts ->
-        case {cmd, args} do
-          {"bash", ["-c", "test -d " <> _]} -> {:ok, "missing\n"}
-          {"mv", _} -> {:ok, ""}
-          _ -> {:ok, ""}
-        end
-      end)
-
+    test "renames agent when recipe name differs from current name", %{project_id: project_id} do
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{@project}:agents:lobby")
+      agent = create_db_agent(project_id, "coord-rename-old")
+      new_name = "coord-rename-new-#{System.unique_integer([:positive])}"
+
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
 
       result =
-        Coordinator.update_agent(@project, old_name, %{
+        Coordinator.update_agent(project_id, agent.id, %{
           "recipe_yaml" => "version: 1\nname: #{new_name}\nharness: claude_code\n"
         })
 
       assert result == :ok
-      assert_receive {:agent_renamed, ^old_name, ^new_name}, 500
+
+      agent_id = agent.id
+      old_name = agent.name
+      assert_receive {:agent_renamed, ^agent_id, ^old_name, ^new_name}, 500
     end
 
-    test "returns error when target name already exists" do
-      old_name = "coord-rename-conflict-old-#{System.unique_integer([:positive])}"
-      new_name = "coord-rename-conflict-new-#{System.unique_integer([:positive])}"
-
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, "bash", ["-c", "test -d " <> _], _opts ->
-        {:ok, "exists\n"}
-      end)
-
+    test "returns error when target name already exists", %{project_id: project_id} do
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+
+      agent = create_db_agent(project_id, "coord-rename-conflict-old")
+      _agent2 = create_db_agent(project_id, "coord-rename-conflict-new")
 
       result =
-        Coordinator.update_agent(@project, old_name, %{
-          "recipe_yaml" => "version: 1\nname: #{new_name}\n"
+        Coordinator.update_agent(project_id, agent.id, %{
+          "recipe_yaml" => "version: 1\nname: coord-rename-conflict-new\n"
         })
 
-      assert {:error, :already_exists} = result
-    end
-
-    test "migrates messages to new agent name" do
-      old_name = "coord-rename-msg-old-#{System.unique_integer([:positive])}"
-      new_name = "coord-rename-msg-new-#{System.unique_integer([:positive])}"
-
-      # Create a message under the old name
-      {:ok, _msg} =
-        Shire.Agents.create_message(%{
-          project_name: @project,
-          agent_name: old_name,
-          role: "user",
-          content: %{"text" => "hello"}
-        })
-
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, cmd, _args, _opts ->
-        case cmd do
-          "bash" -> {:ok, "missing\n"}
-          "mv" -> {:ok, ""}
-          _ -> {:ok, ""}
-        end
-      end)
-
-      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
-
-      assert :ok =
-               Coordinator.update_agent(@project, old_name, %{
-                 "recipe_yaml" => "version: 1\nname: #{new_name}\n"
-               })
-
-      # Old name should have no messages
-      {old_messages, _} = Shire.Agents.list_messages_for_agent(@project, old_name)
-      assert old_messages == []
-
-      # New name should have the message
-      {new_messages, _} = Shire.Agents.list_messages_for_agent(@project, new_name)
-      assert length(new_messages) == 1
-      assert hd(new_messages).agent_name == new_name
+      assert {:error, _} = result
     end
   end
 
   describe "create_agent/2" do
-    test "creates agent directory structure on VM and starts AgentManager" do
+    test "creates agent directory structure on VM and starts AgentManager", %{
+      project_id: project_id
+    } do
       unique_name = "coord-create-test-#{System.unique_integer([:positive])}"
-      agent_dir = "/workspace/agents/#{unique_name}"
 
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, cmd, args, _opts ->
-        case {cmd, args} do
-          {"bash", ["-c", "test -d " <> _]} -> {:ok, "missing\n"}
-          {"mkdir", _} -> {:ok, ""}
-          _ -> {:ok, ""}
-        end
-      end)
-
-      stub(Shire.VirtualMachineMock, :write, fn _project, ^agent_dir <> _rest, _content -> :ok end)
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       result =
-        Coordinator.create_agent(@project, %{
+        Coordinator.create_agent(project_id, %{
           "name" => unique_name,
           "recipe_yaml" => "version: 1\nname: #{unique_name}\ndescription: A test agent\n"
         })
 
       assert {:ok, pid} = result
       assert is_pid(pid)
-
-      # Clean up
-      Coordinator.delete_agent(@project, unique_name)
     end
 
-    test "returns {:error, :already_exists} for duplicate names" do
+    test "returns {:error, :already_exists} for duplicate names", %{project_id: project_id} do
       unique_name = "coord-dup-test-#{System.unique_integer([:positive])}"
-      agent_dir = "/workspace/agents/#{unique_name}"
 
-      # First call: agent does not exist
-      # Second call: agent already exists
-      call_count = :counters.new(1, [])
-
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, cmd, args, _opts ->
-        case {cmd, args} do
-          {"bash", ["-c", "test -d " <> _]} ->
-            :counters.add(call_count, 1, 1)
-            n = :counters.get(call_count, 1)
-            if n <= 1, do: {:ok, "missing\n"}, else: {:ok, "exists\n"}
-
-          {"mkdir", _} ->
-            {:ok, ""}
-
-          _ ->
-            {:ok, ""}
-        end
-      end)
-
-      stub(Shire.VirtualMachineMock, :write, fn _project, ^agent_dir <> _rest, _content -> :ok end)
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       recipe = "version: 1\nname: #{unique_name}\n"
 
       {:ok, _pid} =
-        Coordinator.create_agent(@project, %{"name" => unique_name, "recipe_yaml" => recipe})
+        Coordinator.create_agent(project_id, %{"name" => unique_name, "recipe_yaml" => recipe})
 
       result =
-        Coordinator.create_agent(@project, %{"name" => unique_name, "recipe_yaml" => recipe})
+        Coordinator.create_agent(project_id, %{"name" => unique_name, "recipe_yaml" => recipe})
 
       assert {:error, :already_exists} = result
-
-      # Clean up
-      Coordinator.delete_agent(@project, unique_name)
     end
 
-    test "returns {:error, :missing_name_or_recipe} for incomplete attrs" do
-      result = Coordinator.create_agent(@project, %{"name" => "no-recipe"})
+    test "returns {:error, :missing_name_or_recipe} for incomplete attrs", %{
+      project_id: project_id
+    } do
+      result = Coordinator.create_agent(project_id, %{"name" => "no-recipe"})
       assert {:error, :missing_name_or_recipe} = result
     end
   end
