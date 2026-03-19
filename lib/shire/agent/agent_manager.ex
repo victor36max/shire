@@ -237,7 +237,18 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def handle_call(:auto_restart, from, state) do
-    handle_call(:restart, from, %{state | auto_restart_count: state.auto_restart_count + 1})
+    handle_call(:restart_runner, from, %{state | auto_restart_count: state.auto_restart_count + 1})
+  end
+
+  @impl true
+  def handle_call(:restart_runner, _from, state) do
+    kill_existing_runner(state.project_id, state.agent_id)
+
+    state =
+      %{state | command: nil, command_ref: nil}
+      |> transition_status(:bootstrapping)
+
+    {:reply, :ok, state, {:continue, :spawn_runner}}
   end
 
   @impl true

@@ -20,10 +20,15 @@ defmodule Shire.ProjectManagerTest do
     start_supervised!(ProjectManager)
 
     on_exit(fn ->
-      # Clean up any ProjectInstanceSupervisors started under the app-level DynamicSupervisor
-      for {_, pid, _, _} <- DynamicSupervisor.which_children(Shire.ProjectSupervisor),
-          is_pid(pid) do
-        DynamicSupervisor.terminate_child(Shire.ProjectSupervisor, pid)
+      # Clean up any ProjectInstanceSupervisors started under the app-level DynamicSupervisor.
+      # The supervisor may already be down (e.g. killed in a test), so handle that gracefully.
+      try do
+        for {_, pid, _, _} <- DynamicSupervisor.which_children(Shire.ProjectSupervisor),
+            is_pid(pid) do
+          DynamicSupervisor.terminate_child(Shire.ProjectSupervisor, pid)
+        end
+      catch
+        :exit, _ -> :ok
       end
     end)
 
