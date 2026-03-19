@@ -4,10 +4,18 @@
  * Falls back to window.location.assign if liveSocket is not available.
  */
 export function navigate(href: string, opts?: { replace?: boolean }): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const liveSocket = (window as any).liveSocket;
-  if (liveSocket?.js) {
-    liveSocket.js().navigate(href, opts);
+  const liveSocket = "liveSocket" in window ? (window as Record<string, unknown>).liveSocket : undefined;
+  if (
+    liveSocket &&
+    typeof liveSocket === "object" &&
+    "js" in liveSocket &&
+    typeof (liveSocket as Record<string, unknown>).js === "function"
+  ) {
+    const js = (liveSocket as Record<string, (...args: unknown[]) => unknown>).js() as Record<
+      string,
+      (href: string, opts?: { replace?: boolean }) => void
+    >;
+    js.navigate(href, opts);
   } else {
     window.location.assign(href);
   }

@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { navigate } from "../react-components/lib/navigate";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const win = window as unknown as Record<string, any>;
+const win = window as unknown as Record<string, unknown>;
 
 describe("navigate", () => {
   const originalLiveSocket = win.liveSocket;
