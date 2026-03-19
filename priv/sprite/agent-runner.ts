@@ -161,8 +161,7 @@ export async function processOutbox(
       const sanitized = raw.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
       msg = JSON.parse(sanitized);
     } catch (err) {
-      emit("error", { message: `Invalid outbox message ${file}, deleting: ${err}` });
-      await unlink(path).catch(() => {});
+      emit("error", { message: `Invalid outbox message ${file}, skipping: ${err}` });
       continue;
     }
 
