@@ -416,15 +416,15 @@ describe("processOutbox()", () => {
     expect(sent!.payload.text).toBe("Hello\\! world");
   });
 
-  test("deletes truly unparseable outbox files", async () => {
+  test("skips unparseable outbox files without deleting them", async () => {
     writeFileSync(`${TEST_OUTBOX}/broken.json`, "not json at all {{{");
 
     const events = await captureEmits(async () => {
       await processOutbox(TEST_OUTBOX, TEST_AGENTS_ROOT, TEST_PEERS_PATH);
     });
 
-    // File should be deleted
-    expect(existsSync(`${TEST_OUTBOX}/broken.json`)).toBe(false);
+    // File should still exist for debugging
+    expect(existsSync(`${TEST_OUTBOX}/broken.json`)).toBe(true);
 
     // Should emit an error
     const error = events.find((e) => e.type === "error");
