@@ -183,3 +183,4 @@ mix precommit
 - Don't use `@apply` in CSS
 - Always use shadcn/ui components (Button, Input, Dialog, etc.) instead of plain HTML elements unless the library doesn't support the needed component
 - shadcn dialog animations: use fade + zoom only, no slide classes (they conflict with translate centering)
+- **Never use `eslint-disable` comments casually** — disabling lint rules is an anti-pattern. Fix the underlying issue (use proper types, runtime checks, etc.) instead. Only use `eslint-disable` when there is genuinely no other option.
