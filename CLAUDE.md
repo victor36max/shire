@@ -197,6 +197,7 @@ mix precommit
 
 ## Guidelines
 
+- **Always use a git worktree for new features and bug fixes** — before creating the worktree, pull latest main (`git pull origin main`) to ensure you're building on the latest codebase
 - Use `bun` for all JS package management and scripts, never `npm` or `node`
 - Use `Req` for HTTP requests, never httpoison/tesla/httpc
 - Use `yaml_elixir` for YAML parsing in Elixir
