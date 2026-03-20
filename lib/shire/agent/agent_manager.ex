@@ -73,6 +73,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @max_auto_restarts 3
+  @keepalive_touch_interval :timer.seconds(30)
 
   defstruct [
     :agent_id,
@@ -85,7 +86,8 @@ defmodule Shire.Agent.AgentManager do
     buffer: "",
     streaming_text: nil,
     tool_use_ids: %{},
-    auto_restart_count: 0
+    auto_restart_count: 0,
+    last_keepalive_touch: nil
   ]
 
   # --- Public API ---
@@ -242,7 +244,7 @@ defmodule Shire.Agent.AgentManager do
     kill_existing_runner(state.project_id, state.agent_id)
 
     state =
-      %{state | command: nil, command_ref: nil}
+      %{state | command: nil, command_ref: nil, last_keepalive_touch: nil}
       |> transition_status(:bootstrapping)
 
     {:reply, :ok, state, {:continue, :spawn_runner}}
@@ -260,7 +262,7 @@ defmodule Shire.Agent.AgentManager do
       end
 
     state =
-      %{state | command: nil, command_ref: nil, agent_name: agent_name}
+      %{state | command: nil, command_ref: nil, agent_name: agent_name, last_keepalive_touch: nil}
       |> transition_status(:bootstrapping)
 
     Task.start_link(fn ->
@@ -374,7 +376,8 @@ defmodule Shire.Agent.AgentManager do
         end
       end)
 
-    {:noreply, %{state | buffer: buffer}}
+    state = %{state | buffer: buffer}
+    {:noreply, maybe_touch_keepalive(state)}
   end
 
   # Agent runner exited
@@ -569,6 +572,18 @@ defmodule Shire.Agent.AgentManager do
 
   defp broadcast(state, message) do
     Phoenix.PubSub.broadcast(Shire.PubSub, state.pubsub_topic, message)
+  end
+
+  defp maybe_touch_keepalive(state) do
+    now = System.monotonic_time(:millisecond)
+
+    if is_nil(state.last_keepalive_touch) ||
+         now - state.last_keepalive_touch >= @keepalive_touch_interval do
+      @vm.touch_keepalive(state.project_id)
+      %{state | last_keepalive_touch: now}
+    else
+      state
+    end
   end
 
   defp load_env_vars(project_id) do

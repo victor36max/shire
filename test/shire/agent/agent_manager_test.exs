@@ -12,6 +12,8 @@ defmodule Shire.Agent.AgentManagerTest do
   setup :set_mox_from_context
 
   setup do
+    stub(Shire.VirtualMachineMock, :touch_keepalive, fn _project_id -> :ok end)
+
     {:ok, project} = Projects.create_project("test-project-#{System.unique_integer([:positive])}")
     {:ok, agent} = Agents.create_agent_with_vm(project.id, "test-agent", "version: 1\n", @vm)
 
@@ -21,10 +23,23 @@ defmodule Shire.Agent.AgentManagerTest do
   defp start_manager(ctx, opts \\ []) do
     agent_id = Keyword.get(opts, :agent_id, ctx.agent_id)
 
-    start_supervised(
-      {AgentManager,
-       project_id: ctx.project_id, agent_id: agent_id, agent_name: "test-agent", skip_sprite: true}
-    )
+    result =
+      start_supervised(
+        {AgentManager,
+         project_id: ctx.project_id,
+         agent_id: agent_id,
+         agent_name: "test-agent",
+         skip_sprite: true}
+      )
+
+    case result do
+      {:ok, pid} ->
+        Mox.allow(Shire.VirtualMachineMock, self(), pid)
+        {:ok, pid}
+
+      other ->
+        other
+    end
   end
 
   describe "start_link/1" do
@@ -462,6 +477,68 @@ defmodule Shire.Agent.AgentManagerTest do
       assert :ok = AgentManager.restart(ctx.project_id, ctx.agent_id)
 
       assert_receive {:status, :bootstrapping}, 1_000
+    end
+  end
+
+  describe "keepalive touch on stdout" do
+    test "touches keepalive on first stdout", ctx do
+      test_pid = self()
+
+      expect(Shire.VirtualMachineMock, :touch_keepalive, fn _project_id ->
+        send(test_pid, :keepalive_touched)
+        :ok
+      end)
+
+      {:ok, pid} = start_manager(ctx)
+      ref = make_ref()
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      state_before = AgentManager.get_state(pid)
+      assert state_before.last_keepalive_touch == nil
+
+      line = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "hi"}})
+      send(pid, {:stdout, %{ref: ref}, line <> "\n"})
+
+      assert_receive :keepalive_touched, 1_000
+
+      state_after = AgentManager.get_state(pid)
+      assert state_after.last_keepalive_touch != nil
+    end
+
+    test "throttles keepalive touches within interval", ctx do
+      test_pid = self()
+
+      # Expect exactly one call despite two stdout messages
+      expect(Shire.VirtualMachineMock, :touch_keepalive, 1, fn _project_id ->
+        send(test_pid, :keepalive_touched)
+        :ok
+      end)
+
+      {:ok, pid} = start_manager(ctx)
+      ref = make_ref()
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      line = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "a"}})
+      send(pid, {:stdout, %{ref: ref}, line <> "\n"})
+
+      assert_receive :keepalive_touched, 1_000
+
+      state_after_first = AgentManager.get_state(pid)
+      first_touch = state_after_first.last_keepalive_touch
+      assert first_touch != nil
+
+      # Second stdout within 30s should NOT trigger another touch
+      send(pid, {:stdout, %{ref: ref}, line <> "\n"})
+
+      Process.sleep(50)
+      state_after_second = AgentManager.get_state(pid)
+      assert state_after_second.last_keepalive_touch == first_touch
     end
   end
 
