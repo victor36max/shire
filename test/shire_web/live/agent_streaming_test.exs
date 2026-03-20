@@ -14,11 +14,19 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
 
   defp mock_socket(overrides \\ %{}) do
     assigns = socket_assigns(overrides)
-    %Phoenix.LiveView.Socket{assigns: Map.merge(%{__changed__: %{}}, assigns)}
+
+    %Phoenix.LiveView.Socket{
+      assigns: Map.merge(%{__changed__: %{}}, assigns),
+      private: %{live_temp: %{}}
+    }
+  end
+
+  defp pushed_events(socket) do
+    socket.private.live_temp[:push_events] || []
   end
 
   describe "process_agent_event/2 with text_delta" do
-    test "accumulates streaming text" do
+    test "accumulates streaming text in assigns" do
       socket = mock_socket()
       event = %{"type" => "text_delta", "payload" => %{"delta" => "Hello "}}
 
@@ -30,14 +38,20 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
       assert socket.assigns.streaming_text == "Hello world"
     end
 
-    test "adds ephemeral agent_streaming entry" do
+    test "pushes text_delta event to client" do
       socket = mock_socket()
       event = %{"type" => "text_delta", "payload" => %{"delta" => "Hello"}}
 
       socket = AgentStreaming.process_agent_event(socket, event)
-      streaming_msg = List.last(socket.assigns.messages)
-      assert streaming_msg[:role] == "agent_streaming"
-      assert streaming_msg[:text] == "Hello"
+      assert ["text_delta", %{delta: "Hello"}] in pushed_events(socket)
+    end
+
+    test "does not modify messages list" do
+      socket = mock_socket(%{messages: [%{id: 1, role: "user", text: "hi"}]})
+      event = %{"type" => "text_delta", "payload" => %{"delta" => "Hello"}}
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert length(socket.assigns.messages) == 1
     end
   end
 
@@ -50,6 +64,24 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
       socket = AgentStreaming.process_agent_event(socket, event)
       assert socket.assigns.streaming_text == nil
       assert List.last(socket.assigns.messages) == msg
+    end
+
+    test "pushes streaming_flush when streaming text was pending" do
+      msg = %{id: 1, role: "agent", text: "Hello world", ts: "2024-01-01T00:00:00Z"}
+      socket = mock_socket(%{streaming_text: "Hello "})
+      event = %{"type" => "text", "payload" => %{"text" => "Hello world"}, "message" => msg}
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert ["streaming_flush", %{}] in pushed_events(socket)
+    end
+
+    test "does not push streaming_flush when no streaming text was pending" do
+      msg = %{id: 1, role: "agent", text: "Hello world", ts: "2024-01-01T00:00:00Z"}
+      socket = mock_socket()
+      event = %{"type" => "text", "payload" => %{"text" => "Hello world"}, "message" => msg}
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      refute ["streaming_flush", %{}] in pushed_events(socket)
     end
   end
 
@@ -98,6 +130,19 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
       assert tool_msg[:tool] == "Read"
       assert tool_msg[:tool_use_id] == "tu_123"
     end
+
+    test "pushes streaming_flush when streaming text was pending" do
+      socket = mock_socket(%{streaming_text: "partial"})
+
+      event = %{
+        "type" => "tool_use",
+        "payload" => %{"status" => "started", "tool" => "Read", "tool_use_id" => "tu_123"},
+        "message" => %{id: 2, role: "tool_use", tool: "Read", tool_use_id: "tu_123"}
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert ["streaming_flush", %{}] in pushed_events(socket)
+    end
   end
 
   describe "process_agent_event/2 with tool_result" do
@@ -132,7 +177,7 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
   end
 
   describe "process_agent_event/2 with inter_agent_message" do
-    test "appends inter-agent message and preserves streaming text" do
+    test "appends inter-agent message and clears streaming text" do
       msg = %{
         id: 5,
         role: "inter_agent",
@@ -150,12 +195,10 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
       }
 
       socket = AgentStreaming.process_agent_event(socket, event)
-      # Inter-agent message appended before the ephemeral streaming entry
       inter_agent = Enum.find(socket.assigns.messages, &(&1[:role] == "inter_agent"))
       assert inter_agent[:text] == "hello from other"
       assert inter_agent[:from_agent] == "other-agent"
-      # Streaming text preserved
-      assert socket.assigns.streaming_text == "partial"
+      assert socket.assigns.streaming_text == nil
     end
   end
 
@@ -166,6 +209,14 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
 
       socket = AgentStreaming.process_agent_event(socket, event)
       assert socket.assigns.streaming_text == nil
+    end
+
+    test "pushes streaming_flush when streaming text was pending" do
+      socket = mock_socket(%{streaming_text: "partial text"})
+      event = %{"type" => "turn_complete"}
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert ["streaming_flush", %{}] in pushed_events(socket)
     end
   end
 
