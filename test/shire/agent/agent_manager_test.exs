@@ -286,6 +286,34 @@ defmodule Shire.Agent.AgentManagerTest do
       assert hd(agent_msgs).content["text"] == "Direct message"
     end
 
+    test "handles interleaved streaming and non-streaming text events correctly",
+         %{pid: pid, ref: ref} = ctx do
+      # First turn: streaming deltas then text event (should deduplicate)
+      delta = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "streamed"}})
+      send(pid, {:stdout, %{ref: ref}, delta <> "\n"})
+      assert_receive {:agent_event, _, %{"type" => "text_delta"}}, 1_000
+
+      text1 = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "streamed"}})
+      send(pid, {:stdout, %{ref: ref}, text1 <> "\n"})
+      assert_receive {:agent_event, _, %{"type" => "text", "message" => msg1}}, 1_000
+      assert msg1[:text] == "streamed"
+      refute_receive {:agent_event, _, %{"type" => "text"}}, 200
+
+      # Second turn: text event without streaming (should persist normally)
+      text2 = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "direct"}})
+      send(pid, {:stdout, %{ref: ref}, text2 <> "\n"})
+      assert_receive {:agent_event, _, %{"type" => "text", "message" => msg2}}, 1_000
+      assert msg2[:text] == "direct"
+      assert msg2[:id]
+
+      # Verify exactly 2 DB messages total
+      {messages, _} = Agents.list_messages_for_agent(ctx.project_id, ctx.agent_id)
+      agent_msgs = Enum.filter(messages, &(&1.role == "agent"))
+      assert length(agent_msgs) == 2
+      texts = Enum.map(agent_msgs, & &1.content["text"]) |> Enum.sort()
+      assert texts == ["direct", "streamed"]
+    end
+
     test "broadcasts include agent_id in 3-tuple", ctx do
       %{pid: pid, ref: ref} = ctx
       line = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "test"}})

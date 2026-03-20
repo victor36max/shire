@@ -714,12 +714,19 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp persist_and_broadcast(state, %{"type" => "text", "payload" => %{"text" => text}} = event) do
-    had_streaming = state.streaming_text != nil and state.streaming_text != ""
+    streaming_text_before = state.streaming_text
+    had_streaming = streaming_text_before != nil and streaming_text_before != ""
     state = flush_and_broadcast_streaming(state)
 
     # If we just flushed streaming text, skip persisting the result text
     # to avoid duplicate messages (streaming deltas already captured the content)
     if had_streaming do
+      if text != streaming_text_before do
+        Logger.warning(
+          "Text event content differs from accumulated streaming text for #{state.agent_name}"
+        )
+      end
+
       state
     else
       case Agents.create_message(%{
