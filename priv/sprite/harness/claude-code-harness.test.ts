@@ -149,7 +149,7 @@ describe("ClaudeCodeHarness", () => {
     expect(params.options?.permissionMode).toBe("bypassPermissions");
   });
 
-  test("sendMessage() captures session_id and resumes on next call", async () => {
+  test("sendMessage() passes continue: true in query options", async () => {
     const mockQuery = createMockQuery([resultSuccess("Hi", "sess-123")]);
     const harness = new ClaudeCodeHarness(mockQuery);
     harness.onEvent(() => {});
@@ -157,12 +157,9 @@ describe("ClaudeCodeHarness", () => {
     await harness.start(baseConfig);
     await harness.sendMessage("First message");
 
-    // Second call should include resume
-    mockQuery.mockImplementation(createMockQuery([resultSuccess("Ok", "sess-123")]));
-    await harness.sendMessage("Second message");
-
-    const params2 = mockQuery.mock.calls[1][0];
-    expect(params2.options?.resume).toBe("sess-123");
+    const params = mockQuery.mock.calls[0][0];
+    expect(params.options?.continue).toBe(true);
+    expect(params.options?.resume).toBeUndefined();
   });
 
   test("sendMessage() emits text_delta from stream_event", async () => {
@@ -227,21 +224,53 @@ describe("ClaudeCodeHarness", () => {
     expect(String(errorEvent!.payload.message)).toContain("something went wrong");
   });
 
-  test("interrupt() clears session ID", async () => {
-    const mockQuery = createMockQuery([resultSuccess("Hi", "sess-abc")]);
-    const harness = new ClaudeCodeHarness(mockQuery);
-    harness.onEvent(() => {});
+  test("interrupt() calls interrupt and close on active query", async () => {
+    let resolveGenerator: (() => void) | null = null;
+    const blockingQuery = mock(() => {
+      const gen = (async function* () {
+        await new Promise<void>((r) => {
+          resolveGenerator = r;
+        });
+        yield resultSuccess("done", "s1");
+      })() as Query;
 
+      gen.interrupt = mock(() => Promise.resolve());
+      gen.close = mock(() => {});
+      gen.rewindFiles = mock(() => Promise.resolve({ canRewind: false })) as Query["rewindFiles"];
+      gen.setPermissionMode = mock(() => Promise.resolve());
+      gen.setModel = mock(() => Promise.resolve());
+      gen.setMaxThinkingTokens = mock(() => Promise.resolve());
+      gen.initializationResult = mock(() => Promise.resolve({})) as Query["initializationResult"];
+      gen.supportedCommands = mock(() => Promise.resolve([]));
+      gen.supportedModels = mock(() => Promise.resolve([]));
+      gen.supportedAgents = mock(() => Promise.resolve([]));
+      gen.mcpServerStatus = mock(() => Promise.resolve([]));
+      gen.accountInfo = mock(() => Promise.resolve({})) as Query["accountInfo"];
+      gen.reconnectMcpServer = mock(() => Promise.resolve());
+      gen.toggleMcpServer = mock(() => Promise.resolve());
+      gen.setMcpServers = mock(() => Promise.resolve({})) as Query["setMcpServers"];
+      gen.streamInput = mock(() => Promise.resolve());
+      gen.stopTask = mock(() => Promise.resolve());
+
+      return gen;
+    });
+
+    const harness = new ClaudeCodeHarness(blockingQuery);
+    harness.onEvent(() => {});
     await harness.start(baseConfig);
-    await harness.sendMessage("First");
+
+    const sendPromise = harness.sendMessage("test");
+    // Wait for the generator to be created
+    await new Promise((r) => setTimeout(r, 10));
+
     await harness.interrupt();
 
-    // Next call should NOT include resume
-    mockQuery.mockImplementation(createMockQuery([resultSuccess("Fresh", "sess-new")]));
-    await harness.sendMessage("After interrupt");
+    const queryInstance = blockingQuery.mock.results[0].value as Query;
+    expect(queryInstance.interrupt).toHaveBeenCalledTimes(1);
+    expect(queryInstance.close).toHaveBeenCalledTimes(1);
 
-    const params = mockQuery.mock.calls[mockQuery.mock.calls.length - 1][0];
-    expect(params.options?.resume).toBeUndefined();
+    resolveGenerator!();
+    await sendPromise;
   });
 
   test("isProcessing() tracks query lifecycle", async () => {

@@ -8,7 +8,6 @@ export class ClaudeCodeHarness implements Harness {
   private processing = false;
   private stopped = false;
   private config: HarnessConfig | null = null;
-  private sessionId: string | null = null;
   private activeQuery: Query | null = null;
   private queryFn: QueryFn;
 
@@ -37,9 +36,9 @@ export class ClaudeCodeHarness implements Harness {
           cwd: this.config.cwd,
           allowedTools: ["Bash", "Read", "Edit", "Write", "Skill"],
           settingSources: ["project"],
-          resume: this.sessionId ?? undefined,
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
+          continue: true,
         },
       });
       this.activeQuery = q;
@@ -62,7 +61,6 @@ export class ClaudeCodeHarness implements Harness {
       this.activeQuery.close();
       this.activeQuery = null;
     }
-    this.sessionId = null;
   }
 
   async stop(): Promise<void> {
@@ -82,11 +80,6 @@ export class ClaudeCodeHarness implements Harness {
   }
 
   private handleMessage(message: SDKMessage): void {
-    // Capture session ID from any message that has one
-    if ("session_id" in message && message.session_id) {
-      this.sessionId = message.session_id;
-    }
-
     switch (message.type) {
       case "stream_event": {
         const event = message.event;
