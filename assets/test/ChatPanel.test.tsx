@@ -1,6 +1,7 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
+import { useLiveReact } from "live_react";
 import ChatPanel, { type Message } from "../react-components/ChatPanel";
 import { type Agent } from "../react-components/types";
 
@@ -127,13 +128,38 @@ describe("ChatPanel", () => {
     expect(screen.getByText("Loading older messages...")).toBeInTheDocument();
   });
 
-  it("renders streaming messages", () => {
-    const streamingMessages: Message[] = [
-      ...messages,
-      { role: "agent_streaming", text: "thinking...", ts: "2026-03-17T00:00:02Z" },
-    ];
-    render(<ChatPanel agent={activeAgent} messages={streamingMessages} pushEvent={vi.fn()} />);
-    expect(screen.getByText("thinking...")).toBeInTheDocument();
+  it("renders streaming text from push_event deltas", () => {
+    const handlers: Record<string, (payload: Record<string, unknown>) => void> = {};
+    vi.mocked(useLiveReact).mockReturnValue({
+      handleEvent: vi.fn((event: string, callback: (payload: Record<string, unknown>) => void) => {
+        handlers[event] = callback;
+        return `ref-${event}`;
+      }),
+      removeHandleEvent: vi.fn(),
+      pushEvent: vi.fn(),
+      pushEventTo: vi.fn(),
+      upload: vi.fn(),
+      uploadTo: vi.fn(),
+    });
+
+    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={vi.fn()} />);
+
+    // Simulate text_delta events
+    act(() => {
+      handlers["text_delta"]({ delta: "Hello " });
+    });
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+
+    act(() => {
+      handlers["text_delta"]({ delta: "world!" });
+    });
+    expect(screen.getByText("Hello world!")).toBeInTheDocument();
+
+    // Simulate flush — streaming text should clear
+    act(() => {
+      handlers["streaming_flush"]({});
+    });
+    expect(screen.queryByText("Hello world!")).not.toBeInTheDocument();
   });
 
   it("renders inter-agent message collapsed by default", () => {
@@ -217,10 +243,34 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("Your outbox message was invalid")).not.toBeInTheDocument();
   });
 
-  it("shows thinking indicator when agent is busy", () => {
+  it("shows thinking indicator when agent is busy and not streaming", () => {
     const busyAgent = { ...activeAgent, busy: true };
     render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
     expect(screen.getByText("Thinking...")).toBeInTheDocument();
+  });
+
+  it("hides thinking indicator when agent is busy but streaming", () => {
+    const handlers: Record<string, (payload: Record<string, unknown>) => void> = {};
+    vi.mocked(useLiveReact).mockReturnValue({
+      handleEvent: vi.fn((event: string, callback: (payload: Record<string, unknown>) => void) => {
+        handlers[event] = callback;
+        return `ref-${event}`;
+      }),
+      removeHandleEvent: vi.fn(),
+      pushEvent: vi.fn(),
+      pushEventTo: vi.fn(),
+      upload: vi.fn(),
+      uploadTo: vi.fn(),
+    });
+
+    const busyAgent = { ...activeAgent, busy: true };
+    render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
+
+    act(() => {
+      handlers["text_delta"]({ delta: "streaming..." });
+    });
+    expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
+    expect(screen.getByText("streaming...")).toBeInTheDocument();
   });
 
   it("does not show thinking indicator when agent is not busy", () => {
