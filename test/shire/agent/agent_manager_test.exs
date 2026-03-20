@@ -237,6 +237,55 @@ defmodule Shire.Agent.AgentManagerTest do
       assert_receive {:agent_event, _, %{"type" => "turn_complete"}}, 1_000
     end
 
+    test "skips duplicate DB message when streaming text is flushed by text event",
+         %{pid: pid, ref: ref} = ctx do
+      # Send streaming deltas first
+      delta1 = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "Hello "}})
+      delta2 = Jason.encode!(%{"type" => "text_delta", "payload" => %{"delta" => "world"}})
+      send(pid, {:stdout, %{ref: ref}, delta1 <> "\n" <> delta2 <> "\n"})
+
+      assert_receive {:agent_event, _, %{"type" => "text_delta"}}, 1_000
+      assert_receive {:agent_event, _, %{"type" => "text_delta"}}, 1_000
+
+      # Now send the final text event (same content as accumulated streaming)
+      text_event =
+        Jason.encode!(%{"type" => "text", "payload" => %{"text" => "Hello world"}})
+
+      send(pid, {:stdout, %{ref: ref}, text_event <> "\n"})
+
+      # Should receive the flushed streaming text as a persisted message
+      assert_receive {:agent_event, _, %{"type" => "text", "message" => msg}}, 1_000
+      assert msg[:text] == "Hello world"
+      assert msg[:id]
+
+      # Should NOT receive a second text event (the duplicate)
+      refute_receive {:agent_event, _, %{"type" => "text"}}, 300
+
+      # Verify only one DB message was created (the flushed streaming text)
+      {messages, _} = Agents.list_messages_for_agent(ctx.project_id, ctx.agent_id)
+      agent_msgs = Enum.filter(messages, &(&1.role == "agent"))
+      assert length(agent_msgs) == 1
+      assert hd(agent_msgs).content["text"] == "Hello world"
+    end
+
+    test "persists text event normally when no streaming text was accumulated",
+         %{pid: pid, ref: ref} = ctx do
+      # Send text event without any prior streaming deltas
+      text_event =
+        Jason.encode!(%{"type" => "text", "payload" => %{"text" => "Direct message"}})
+
+      send(pid, {:stdout, %{ref: ref}, text_event <> "\n"})
+
+      assert_receive {:agent_event, _, %{"type" => "text", "message" => msg}}, 1_000
+      assert msg[:text] == "Direct message"
+      assert msg[:id]
+
+      {messages, _} = Agents.list_messages_for_agent(ctx.project_id, ctx.agent_id)
+      agent_msgs = Enum.filter(messages, &(&1.role == "agent"))
+      assert length(agent_msgs) == 1
+      assert hd(agent_msgs).content["text"] == "Direct message"
+    end
+
     test "broadcasts include agent_id in 3-tuple", ctx do
       %{pid: pid, ref: ref} = ctx
       line = Jason.encode!(%{"type" => "text", "payload" => %{"text" => "test"}})
