@@ -33,6 +33,9 @@ defmodule Shire.VirtualMachineStub do
   def stat(_project_id, _path), do: {:ok, %{type: :file, size: 0}}
 
   @impl true
+  def touch_keepalive(_project_id), do: :ok
+
+  @impl true
   def spawn_command(_project_id, _command, _args \\ [], _opts \\ []),
     do: {:error, :not_available_in_test}
 

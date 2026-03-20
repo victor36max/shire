@@ -15,8 +15,10 @@ defmodule ShireWeb.ProjectLiveTest do
     end)
 
     stub(Shire.VirtualMachineMock, :destroy_vm, fn _name -> :ok end)
+    stub(Shire.VirtualMachineMock, :touch_keepalive, fn _project_id -> :ok end)
 
-    start_supervised!(Shire.ProjectManager)
+    pid = start_supervised!(Shire.ProjectManager)
+    Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
     on_exit(fn ->
       for {_, pid, _, _} <- DynamicSupervisor.which_children(Shire.ProjectSupervisor),

@@ -88,6 +88,14 @@ defmodule Shire.VirtualMachineImpl do
     GenServer.call(via(project_id), {:stat, path})
   end
 
+  # --- Public API: Keepalive ---
+
+  @impl Shire.VirtualMachine
+  def touch_keepalive(project_id) do
+    GenServer.cast(via(project_id), :touch_keepalive)
+    :ok
+  end
+
   # --- Public API: Interactive Process ---
 
   @impl Shire.VirtualMachine
@@ -204,7 +212,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, touch_keepalive(state)}
+    {:reply, result, extend_keepalive(state)}
   end
 
   def handle_call({:read, _path}, _from, %{fs: nil} = state) do
@@ -222,7 +230,7 @@ defmodule Shire.VirtualMachineImpl do
           err
       end
 
-    {:reply, result, touch_keepalive(state)}
+    {:reply, result, extend_keepalive(state)}
   end
 
   def handle_call({:write, _path, _content}, _from, %{fs: nil} = state) do
@@ -240,7 +248,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, touch_keepalive(state)}
+    {:reply, result, extend_keepalive(state)}
   end
 
   def handle_call({:mkdir_p, _path}, _from, %{fs: nil} = state) do
@@ -258,7 +266,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, touch_keepalive(state)}
+    {:reply, result, extend_keepalive(state)}
   end
 
   def handle_call({:rm, _path}, _from, %{fs: nil} = state) do
@@ -276,7 +284,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, touch_keepalive(state)}
+    {:reply, result, extend_keepalive(state)}
   end
 
   def handle_call({:rm_rf, _path}, _from, %{fs: nil} = state) do
@@ -294,7 +302,7 @@ defmodule Shire.VirtualMachineImpl do
           {:error, e}
       end
 
-    {:reply, result, touch_keepalive(state)}
+    {:reply, result, extend_keepalive(state)}
   end
 
   def handle_call({:ls, _path}, _from, %{fs: nil} = state) do
@@ -312,7 +320,7 @@ defmodule Shire.VirtualMachineImpl do
           err
       end
 
-    {:reply, result, touch_keepalive(state)}
+    {:reply, result, extend_keepalive(state)}
   end
 
   def handle_call({:stat, _path}, _from, %{fs: nil} = state) do
@@ -330,11 +338,16 @@ defmodule Shire.VirtualMachineImpl do
           err
       end
 
-    {:reply, result, touch_keepalive(state)}
+    {:reply, result, extend_keepalive(state)}
   end
 
   def handle_call(:get_sprite, _from, state) do
-    {:reply, state.sprite, touch_keepalive(state)}
+    {:reply, state.sprite, extend_keepalive(state)}
+  end
+
+  @impl GenServer
+  def handle_cast(:touch_keepalive, state) do
+    {:noreply, extend_keepalive(state)}
   end
 
   @impl GenServer
@@ -438,7 +451,7 @@ defmodule Shire.VirtualMachineImpl do
     %{state | ping_timer: timer}
   end
 
-  defp touch_keepalive(state) do
+  defp extend_keepalive(state) do
     ping_until = System.monotonic_time(:millisecond) + @keepalive_duration
     was_idle = is_nil(state.ping_timer)
     state = %{state | ping_until: ping_until}
