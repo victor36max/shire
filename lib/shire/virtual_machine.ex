@@ -18,6 +18,7 @@ defmodule Shire.VirtualMachine do
   @callback rm_rf(String.t(), binary()) :: fs_result()
   @callback ls(String.t(), binary()) :: {:ok, [map()]} | {:error, term()}
   @callback stat(String.t(), binary()) :: {:ok, map()} | {:error, term()}
+  @callback touch_keepalive(String.t()) :: :ok
   @callback spawn_command(String.t(), binary(), [binary()], keyword()) ::
               {:ok, Sprites.Command.t()} | {:error, term()}
   @callback write_stdin(Sprites.Command.t(), binary()) :: :ok | {:error, term()}
