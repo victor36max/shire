@@ -213,6 +213,49 @@ defmodule Shire.ProjectManagerTest do
     end
   end
 
+  describe "list_projects/0 is non-blocking" do
+    test "returns results even when GenServer is processing a slow call" do
+      {:ok, _project} = ProjectManager.create_project("nonblock-proj")
+
+      # Suspend the GenServer to simulate it being busy
+      :sys.suspend(ProjectManager)
+
+      # list_projects should still work because it bypasses the GenServer
+      projects = ProjectManager.list_projects()
+      assert length(projects) == 1
+      assert hd(projects).name == "nonblock-proj"
+      assert hd(projects).status == :running
+
+      :sys.resume(ProjectManager)
+    end
+  end
+
+  describe "async discovery" do
+    test "project_started message registers the project supervisor" do
+      # Create a project directly in the DB without going through ProjectManager
+      {:ok, project} = Shire.Projects.create_project("async-disc")
+
+      # Start the subtree manually and send the message as handle_continue would
+      {:ok, sup_pid} =
+        DynamicSupervisor.start_child(
+          Shire.ProjectSupervisor,
+          {Shire.ProjectInstanceSupervisor, project_id: project.id}
+        )
+
+      Phoenix.PubSub.subscribe(Shire.PubSub, "projects:lobby")
+
+      send(ProjectManager, {:project_started, project.id, sup_pid})
+
+      project_id = project.id
+      assert_receive {:project_status_changed, ^project_id}, 1000
+
+      # Verify the project is tracked in GenServer state
+      state = :sys.get_state(ProjectManager)
+      assert Map.has_key?(state.projects, project.id)
+      assert state.projects[project.id] == sup_pid
+    end
+  end
+
   # Terminates the project supervisor cleanly and waits for registry cleanup
   defp kill_project_supervisor(project_id) do
     projects_state = :sys.get_state(ProjectManager)

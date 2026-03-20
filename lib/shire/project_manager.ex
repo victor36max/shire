@@ -18,9 +18,25 @@ defmodule Shire.ProjectManager do
 
   # --- Public API ---
 
-  @doc "Lists all projects from the DB, merged with runtime status."
+  @doc """
+  Lists all projects from the DB, merged with runtime status.
+  This bypasses the GenServer to avoid blocking during VM startup.
+  Status is derived from Registry lookups instead of GenServer state.
+  """
   def list_projects do
-    GenServer.call(__MODULE__, :list_projects, 30_000)
+    Projects.list_projects()
+    |> Enum.map(fn project ->
+      status =
+        case Registry.lookup(Shire.ProjectRegistry, {:coordinator, project.id}) do
+          [{pid, _}] ->
+            if Process.alive?(pid), do: :running, else: :error
+
+          [] ->
+            :stopped
+        end
+
+      %{id: project.id, name: project.name, status: status}
+    end)
   end
 
   @doc "Creates a new project: inserts DB record and starts the supervision subtree."
@@ -69,45 +85,24 @@ defmodule Shire.ProjectManager do
   @impl true
   def handle_continue(:discover, state) do
     db_projects = Projects.list_projects()
+    manager = self()
 
-    projects =
-      Enum.reduce(db_projects, state.projects, fn project, acc ->
+    for project <- db_projects do
+      Task.start(fn ->
         case start_project_subtree(project.id) do
           {:ok, pid} ->
-            Process.monitor(pid)
-            Map.put(acc, project.id, pid)
+            send(manager, {:project_started, project.id, pid})
 
           {:error, reason} ->
             Logger.error(
               "Failed to start project #{project.name} (#{project.id}): #{inspect(reason)}"
             )
-
-            acc
         end
       end)
+    end
 
-    Logger.info("Discovered #{map_size(projects)} project(s)")
-    {:noreply, %{state | projects: projects}}
-  end
-
-  @impl true
-  def handle_call(:list_projects, _from, state) do
-    projects =
-      Projects.list_projects()
-      |> Enum.map(fn project ->
-        pid = Map.get(state.projects, project.id)
-
-        status =
-          cond do
-            pid && Process.alive?(pid) -> :running
-            pid -> :error
-            true -> :stopped
-          end
-
-        %{id: project.id, name: project.name, status: status}
-      end)
-
-    {:reply, projects, state}
+    Logger.info("Starting #{length(db_projects)} project(s) asynchronously")
+    {:noreply, state}
   end
 
   @impl true
@@ -237,6 +232,20 @@ defmodule Shire.ProjectManager do
       nil ->
         {:reply, {:error, :not_found}, state}
     end
+  end
+
+  @impl true
+  def handle_info({:project_started, project_id, sup_pid}, state) do
+    Process.monitor(sup_pid)
+    projects = Map.put(state.projects, project_id, sup_pid)
+
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, project_id}
+    )
+
+    {:noreply, %{state | projects: projects}}
   end
 
   @impl true
