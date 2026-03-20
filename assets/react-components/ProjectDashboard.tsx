@@ -36,6 +36,8 @@ function projectStatusVariant(status: string): "default" | "secondary" | "destru
       return "default";
     case "starting":
       return "secondary";
+    case "stopped":
+      return "secondary";
     case "error":
       return "destructive";
     default:
@@ -49,6 +51,11 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
   const [createOpen, setCreateOpen] = React.useState(false);
   const [projectName, setProjectName] = React.useState("");
   const [deleteProject, setDeleteProject] = React.useState<Project | null>(null);
+  const [restartingId, setRestartingId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setRestartingId(null);
+  }, [projects]);
 
   const nameValid = PROJECT_NAME_REGEX.test(projectName);
 
@@ -91,7 +98,21 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
                     <h3 className="font-semibold text-lg">{project.name}</h3>
                     <Badge variant={projectStatusVariant(project.status)}>{project.status}</Badge>
                   </div>
-                  <div className="mt-4 flex justify-end">
+                  <div className="mt-4 flex justify-end gap-2">
+                    {(project.status === "stopped" || project.status === "error") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={restartingId === project.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRestartingId(project.id);
+                          pushEvent("restart-project", { id: project.id });
+                        }}
+                      >
+                        {restartingId === project.id ? "Restarting..." : "Restart"}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
