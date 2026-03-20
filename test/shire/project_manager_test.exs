@@ -164,12 +164,64 @@ defmodule Shire.ProjectManagerTest do
       Process.exit(sup_pid, :kill)
 
       project_id = project.id
-      assert_receive {:project_destroyed, ^project_id}, 1000
+      assert_receive {:project_status_changed, ^project_id}, 1000
 
       # DB record still exists but status is :stopped (no running supervisor)
       projects = ProjectManager.list_projects()
       assert length(projects) == 1
       assert hd(projects).status == :stopped
     end
+  end
+
+  describe "restart_project/1" do
+    test "restarts a stopped project" do
+      {:ok, project} = ProjectManager.create_project("restart-proj")
+      kill_project_supervisor(project.id)
+
+      # Verify it's stopped
+      projects = ProjectManager.list_projects()
+      assert hd(projects).status == :stopped
+
+      # Restart it
+      assert :ok = ProjectManager.restart_project(project.id)
+
+      # Verify it's running again
+      projects = ProjectManager.list_projects()
+      assert hd(projects).status == :running
+    end
+
+    test "returns {:error, :already_running} for a running project" do
+      {:ok, project} = ProjectManager.create_project("running-proj")
+      assert {:error, :already_running} = ProjectManager.restart_project(project.id)
+    end
+
+    test "returns {:error, :not_found} for non-existent project" do
+      assert {:error, :not_found} =
+               ProjectManager.restart_project("00000000-0000-0000-0000-000000000000")
+    end
+
+    test "broadcasts {:project_restarted, project_id} via PubSub" do
+      {:ok, project} = ProjectManager.create_project("restart-broadcast")
+      kill_project_supervisor(project.id)
+
+      Phoenix.PubSub.subscribe(Shire.PubSub, "projects:lobby")
+
+      :ok = ProjectManager.restart_project(project.id)
+
+      project_id = project.id
+      assert_receive {:project_restarted, ^project_id}
+    end
+  end
+
+  # Terminates the project supervisor cleanly and waits for registry cleanup
+  defp kill_project_supervisor(project_id) do
+    projects_state = :sys.get_state(ProjectManager)
+    sup_pid = Map.get(projects_state.projects, project_id)
+
+    # Use terminate_child for clean shutdown (unregisters from Registry)
+    DynamicSupervisor.terminate_child(Shire.ProjectSupervisor, sup_pid)
+
+    # Wait for the DOWN message to be processed by ProjectManager
+    Process.sleep(100)
   end
 end

@@ -87,4 +87,39 @@ describe("ProjectDashboard", () => {
 
     expect(pushEvent).toHaveBeenCalledWith("delete-project", { id: "p1" });
   });
+
+  it("shows Restart button for stopped projects", () => {
+    const stoppedProjects: Project[] = [{ id: "p5", name: "stopped-proj", status: "stopped" }];
+    render(<ProjectDashboard projects={stoppedProjects} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Restart")).toBeInTheDocument();
+  });
+
+  it("shows Restart button for error projects", () => {
+    const errorProjects: Project[] = [{ id: "p6", name: "error-proj", status: "error" }];
+    render(<ProjectDashboard projects={errorProjects} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Restart")).toBeInTheDocument();
+  });
+
+  it("does not show Restart button for running projects", () => {
+    render(<ProjectDashboard projects={projects} pushEvent={vi.fn()} />);
+    expect(screen.queryByText("Restart")).not.toBeInTheDocument();
+  });
+
+  it("calls pushEvent with restart-project when clicking Restart", async () => {
+    const pushEvent = vi.fn();
+    const stoppedProjects: Project[] = [{ id: "p7", name: "restart-me", status: "stopped" }];
+    render(<ProjectDashboard projects={stoppedProjects} pushEvent={pushEvent} />);
+
+    await userEvent.click(screen.getByText("Restart"));
+    expect(pushEvent).toHaveBeenCalledWith("restart-project", { id: "p7" });
+  });
+
+  it("shows Restarting... text while restart is in progress", async () => {
+    const pushEvent = vi.fn();
+    const stoppedProjects: Project[] = [{ id: "p8", name: "restarting-proj", status: "stopped" }];
+    render(<ProjectDashboard projects={stoppedProjects} pushEvent={pushEvent} />);
+
+    await userEvent.click(screen.getByText("Restart"));
+    expect(screen.getByText("Restarting...")).toBeInTheDocument();
+  });
 });

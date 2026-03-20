@@ -13,8 +13,9 @@ defmodule Shire.VirtualMachineImpl do
   @behaviour Shire.VirtualMachine
 
   @default_cmd_timeout 30_000
-  @ready_retries 6
-  @ready_backoff 5_000
+  @ready_retries 10
+  @ready_backoff 2_000
+  @max_backoff 30_000
   @ping_interval 2_000
   @keepalive_duration :timer.minutes(30)
 
@@ -422,15 +423,24 @@ defmodule Shire.VirtualMachineImpl do
   rescue
     e ->
       if attempt < @ready_retries do
+        delay = backoff_delay(attempt)
+
         Logger.info(
-          "VM not ready (attempt #{attempt}/#{@ready_retries}), retrying in #{@ready_backoff}ms..."
+          "VM not ready (attempt #{attempt}/#{@ready_retries}), retrying in #{delay}ms..."
         )
 
-        Process.sleep(@ready_backoff)
+        Process.sleep(delay)
         wait_for_ready(sprite, attempt + 1)
       else
         raise e
       end
+  end
+
+  @doc false
+  def backoff_delay(attempt) do
+    base = min(@ready_backoff * Integer.pow(2, attempt - 1), @max_backoff)
+    jitter = trunc(base * 0.2 * (:rand.uniform() * 2 - 1))
+    base + jitter
   end
 
   @doc false
