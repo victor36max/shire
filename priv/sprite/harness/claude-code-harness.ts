@@ -39,6 +39,7 @@ export class ClaudeCodeHarness implements Harness {
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           continue: true,
+          includePartialMessages: true,
         },
       });
       this.activeQuery = q;
