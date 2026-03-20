@@ -14,12 +14,12 @@ global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 
 // Mock useLiveReact globally — individual tests can override via vi.mocked()
 vi.mock("live_react", () => ({
-  useLiveReact: () => ({
+  useLiveReact: vi.fn(() => ({
     handleEvent: vi.fn().mockReturnValue("ref-id"),
     removeHandleEvent: vi.fn(),
     pushEvent: vi.fn(),
     pushEventTo: vi.fn(),
     upload: vi.fn(),
     uploadTo: vi.fn(),
-  }),
+  })),
 }));

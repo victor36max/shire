@@ -3,41 +3,46 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
   Shared agent event streaming logic for AgentLive views.
   Processes real-time agent events and updates socket assigns for display.
   Message persistence is handled by AgentManager — this module is display-only.
+
+  Text deltas are sent via push_event to the client for lightweight streaming,
+  avoiding full messages list re-serialization on every token.
   """
 
   @doc """
   Processes an agent event and returns an updated socket.
   Expects the socket to have :messages and :streaming_text assigns.
+
+  Text deltas are pushed directly to the client via push_event ("text_delta").
+  All other events update the messages assign and push a "streaming_flush"
+  event when streaming text was pending, so the client clears its local buffer.
   """
+  def process_agent_event(socket, %{"type" => "text_delta", "payload" => %{"delta" => delta}}) do
+    socket
+    |> Phoenix.LiveView.push_event("text_delta", %{delta: delta})
+    |> Phoenix.Component.assign(streaming_text: (socket.assigns.streaming_text || "") <> delta)
+  end
+
   def process_agent_event(socket, event) do
-    # Strip ephemeral streaming entry from previous render
-    messages = Enum.reject(socket.assigns.messages, &(&1[:role] == "agent_streaming"))
+    messages = socket.assigns.messages
     streaming_text = socket.assigns.streaming_text
 
     {messages, streaming_text} = handle_event(messages, streaming_text, event)
 
-    display_messages =
-      if streaming_text do
-        messages ++
-          [
-            %{
-              role: "agent_streaming",
-              text: streaming_text,
-              ts: DateTime.utc_now() |> to_string()
-            }
-          ]
-      else
-        messages
-      end
-
-    Phoenix.Component.assign(socket, messages: display_messages, streaming_text: streaming_text)
+    socket
+    |> maybe_push_flush(socket.assigns.streaming_text, streaming_text)
+    |> Phoenix.Component.assign(messages: messages, streaming_text: streaming_text)
   end
 
-  defp handle_event(messages, streaming_text, event) do
-    case event do
-      %{"type" => "text_delta", "payload" => %{"delta" => delta}} ->
-        {messages, (streaming_text || "") <> delta}
+  # Push a flush event when streaming_text transitions from non-nil to nil
+  defp maybe_push_flush(socket, old_streaming, new_streaming)
+       when old_streaming != nil and new_streaming == nil do
+    Phoenix.LiveView.push_event(socket, "streaming_flush", %{})
+  end
 
+  defp maybe_push_flush(socket, _old, _new), do: socket
+
+  defp handle_event(messages, _streaming_text, event) do
+    case event do
       %{"type" => "tool_use", "payload" => %{"status" => "started"}, "message" => msg} ->
         # AgentManager already persisted and flushed streaming text
         {messages ++ [msg], nil}
@@ -67,7 +72,7 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
         # Check if this came with a new message (no prior tool_use found)
         case evt do
           %{"message" => msg} ->
-            {messages ++ [msg], streaming_text}
+            {messages ++ [msg], nil}
 
           _ ->
             update_tool_use_in_list(
@@ -75,8 +80,7 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
               tool_use_id,
               fn msg ->
                 %{msg | input: input}
-              end,
-              streaming_text
+              end
             )
         end
 
@@ -90,8 +94,7 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
           tool_use_id,
           fn msg ->
             %{msg | output: output, is_error: is_error}
-          end,
-          streaming_text
+          end
         )
 
       %{"type" => "text", "message" => msg} ->
@@ -103,20 +106,20 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
         {messages, nil}
 
       %{"type" => "inter_agent_message", "message" => msg} ->
-        {messages ++ [msg], streaming_text}
+        {messages ++ [msg], nil}
 
       %{"type" => "system_message", "message" => msg} ->
-        {messages ++ [msg], streaming_text}
+        {messages ++ [msg], nil}
 
       %{"type" => "turn_complete"} ->
         {messages, nil}
 
       _ ->
-        {messages, streaming_text}
+        {messages, nil}
     end
   end
 
-  defp update_tool_use_in_list(messages, tool_use_id, update_fn, streaming_text) do
+  defp update_tool_use_in_list(messages, tool_use_id, update_fn) do
     idx =
       Enum.find_index(Enum.reverse(messages), fn msg ->
         msg[:role] == "tool_use" && msg[:tool_use_id] == tool_use_id
@@ -126,9 +129,9 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
       real_idx = length(messages) - 1 - idx
       tool_msg = Enum.at(messages, real_idx)
       updated = update_fn.(tool_msg)
-      {List.replace_at(messages, real_idx, updated), streaming_text}
+      {List.replace_at(messages, real_idx, updated), nil}
     else
-      {messages, streaming_text}
+      {messages, nil}
     end
   end
 end
