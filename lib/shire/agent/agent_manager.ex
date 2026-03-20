@@ -714,23 +714,37 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp persist_and_broadcast(state, %{"type" => "text", "payload" => %{"text" => text}} = event) do
+    streaming_text_before = state.streaming_text
+    had_streaming = streaming_text_before != nil and streaming_text_before != ""
     state = flush_and_broadcast_streaming(state)
 
-    case Agents.create_message(%{
-           project_id: state.project_id,
-           agent_id: state.agent_id,
-           role: "agent",
-           content: %{"text" => text}
-         }) do
-      {:ok, msg} ->
-        enriched = put_in(event, ["message"], serialize_message(msg))
-        broadcast(state, {:agent_event, state.agent_id, enriched})
+    # If we just flushed streaming text, skip persisting the result text
+    # to avoid duplicate messages (streaming deltas already captured the content)
+    if had_streaming do
+      if text != streaming_text_before do
+        Logger.warning(
+          "Text event content differs from accumulated streaming text for #{state.agent_name}"
+        )
+      end
 
-      {:error, _} ->
-        broadcast(state, {:agent_event, state.agent_id, event})
+      state
+    else
+      case Agents.create_message(%{
+             project_id: state.project_id,
+             agent_id: state.agent_id,
+             role: "agent",
+             content: %{"text" => text}
+           }) do
+        {:ok, msg} ->
+          enriched = put_in(event, ["message"], serialize_message(msg))
+          broadcast(state, {:agent_event, state.agent_id, enriched})
+
+        {:error, _} ->
+          broadcast(state, {:agent_event, state.agent_id, event})
+      end
+
+      state
     end
-
-    state
   end
 
   defp persist_and_broadcast(state, %{"type" => "turn_complete"} = event) do
