@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useLiveReact } from "live_react";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
@@ -125,13 +126,34 @@ export default function ChatPanel({
   loadingMore = false,
   pushEvent,
 }: ChatPanelProps) {
+  const { handleEvent, removeHandleEvent } = useLiveReact();
   const [input, setInput] = React.useState("");
+  const [streamingText, setStreamingText] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = React.useRef(0);
   const prevScrollHeightRef = React.useRef(0);
   const initialScrollDone = React.useRef(false);
+
+  // Reset streaming text when switching agents
+  React.useEffect(() => {
+    setStreamingText("");
+  }, [agent.id]);
+
+  // Listen for streaming text deltas and flush events from LiveView
+  React.useEffect(() => {
+    const deltaRef = handleEvent("text_delta", (payload: Record<string, unknown>) => {
+      setStreamingText((prev) => prev + (payload.delta as string));
+    });
+    const flushRef = handleEvent("streaming_flush", () => {
+      setStreamingText("");
+    });
+    return () => {
+      removeHandleEvent(deltaRef);
+      removeHandleEvent(flushRef);
+    };
+  }, [handleEvent, removeHandleEvent]);
 
   // Auto-scroll to bottom on initial load and new messages
   React.useEffect(() => {
@@ -157,6 +179,13 @@ export default function ChatPanel({
 
     prevMessagesLengthRef.current = messages.length;
   }, [messages]);
+
+  // Auto-scroll during streaming (instant to avoid animation queue buildup)
+  React.useEffect(() => {
+    if (streamingText && initialScrollDone.current) {
+      messagesEndRef.current?.scrollIntoView();
+    }
+  }, [streamingText]);
 
   // Scroll to bottom when busy state changes (thinking indicator appears/disappears)
   React.useEffect(() => {
@@ -195,7 +224,7 @@ export default function ChatPanel({
     }
   };
 
-  const hasMessages = messages.length > 0;
+  const hasMessages = messages.length > 0 || streamingText.length > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -229,7 +258,14 @@ export default function ChatPanel({
             </div>
           ),
         )}
-        {agent.busy && (
+        {streamingText && (
+          <div className="flex justify-start">
+            <div className="px-3 py-1.5 rounded-lg text-sm w-fit max-w-[80%] bg-muted">
+              <Markdown>{streamingText}</Markdown>
+            </div>
+          </div>
+        )}
+        {agent.busy && !streamingText && (
           <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             Thinking...
