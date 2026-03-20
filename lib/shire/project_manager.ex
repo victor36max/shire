@@ -33,6 +33,11 @@ defmodule Shire.ProjectManager do
     GenServer.call(__MODULE__, {:destroy_project, project_id}, 60_000)
   end
 
+  @doc "Restarts a stopped or errored project by re-starting its supervision subtree."
+  def restart_project(project_id) when is_binary(project_id) do
+    GenServer.call(__MODULE__, {:restart_project, project_id}, 120_000)
+  end
+
   @doc "Renames a project (DB-only, no VM change needed since VM name uses UUID)."
   def rename_project(project_id, new_name) when is_binary(project_id) and is_binary(new_name) do
     GenServer.call(__MODULE__, {:rename_project, project_id, new_name}, 15_000)
@@ -58,7 +63,7 @@ defmodule Shire.ProjectManager do
 
   @impl true
   def init(_opts) do
-    {:ok, %{projects: %{}, refs: %{}}, {:continue, :discover}}
+    {:ok, %{projects: %{}}, {:continue, :discover}}
   end
 
   @impl true
@@ -178,6 +183,40 @@ defmodule Shire.ProjectManager do
   end
 
   @impl true
+  def handle_call({:restart_project, project_id}, _from, state) do
+    case Projects.get_project_by_id(project_id) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      %Project{} ->
+        pid = Map.get(state.projects, project_id)
+
+        if pid && Process.alive?(pid) do
+          {:reply, {:error, :already_running}, state}
+        else
+          projects = Map.delete(state.projects, project_id)
+
+          case start_project_subtree(project_id) do
+            {:ok, new_pid} ->
+              Process.monitor(new_pid)
+              projects = Map.put(projects, project_id, new_pid)
+
+              Phoenix.PubSub.broadcast(
+                Shire.PubSub,
+                "projects:lobby",
+                {:project_restarted, project_id}
+              )
+
+              {:reply, :ok, %{state | projects: projects}}
+
+            {:error, reason} ->
+              {:reply, {:error, reason}, %{state | projects: projects}}
+          end
+        end
+    end
+  end
+
+  @impl true
   def handle_call({:rename_project, project_id, new_name}, _from, state) do
     case Projects.get_project_by_id(project_id) do
       %Project{} = project ->
@@ -204,16 +243,14 @@ defmodule Shire.ProjectManager do
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     case Enum.find(state.projects, fn {_id, p} -> p == pid end) do
       {project_id, _pid} ->
-        Logger.warning(
-          "Project #{project_id} supervisor went down, removing from tracked projects"
-        )
+        Logger.warning("Project #{project_id} supervisor went down, marking as stopped")
 
         projects = Map.delete(state.projects, project_id)
 
         Phoenix.PubSub.broadcast(
           Shire.PubSub,
           "projects:lobby",
-          {:project_destroyed, project_id}
+          {:project_status_changed, project_id}
         )
 
         {:noreply, %{state | projects: projects}}

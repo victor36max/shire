@@ -158,6 +158,27 @@ defmodule Shire.VirtualMachineImplTest do
     end
   end
 
+  describe "backoff_delay/1" do
+    test "returns increasing delays with exponential backoff" do
+      delays = Enum.map(1..5, fn attempt -> VM.backoff_delay(attempt) end)
+
+      # Each delay should be roughly double the previous (within jitter range)
+      # Attempt 1: ~2000ms, Attempt 2: ~4000ms, Attempt 3: ~8000ms, etc.
+      for {delay, i} <- Enum.with_index(delays, 1) do
+        base = min(2_000 * Integer.pow(2, i - 1), 30_000)
+        assert delay >= base * 0.8, "Delay #{delay} for attempt #{i} should be >= #{base * 0.8}"
+        assert delay <= base * 1.2, "Delay #{delay} for attempt #{i} should be <= #{base * 1.2}"
+      end
+    end
+
+    test "caps at max backoff" do
+      # Attempt 10 would be 2000 * 2^9 = 1_024_000, but capped at 30_000
+      delay = VM.backoff_delay(10)
+      assert delay >= 30_000 * 0.8
+      assert delay <= 30_000 * 1.2
+    end
+  end
+
   describe "resize/3" do
     test "returns :ok even when process is dead (SDK silently succeeds)" do
       dead_pid = spawn(fn -> :ok end)

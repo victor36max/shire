@@ -58,13 +58,33 @@ defmodule ShireWeb.ProjectLive.Index do
   end
 
   @impl true
-  def handle_info({:project_created, _id}, socket) do
-    projects = ProjectManager.list_projects()
-    {:noreply, assign(socket, :projects, projects)}
+  def handle_event("restart-project", %{"id" => project_id}, socket) do
+    case ProjectManager.restart_project(project_id) do
+      :ok ->
+        projects = ProjectManager.list_projects()
+
+        {:noreply,
+         socket
+         |> assign(:projects, projects)
+         |> put_flash(:info, "Project restarted")}
+
+      {:error, :already_running} ->
+        {:noreply, put_flash(socket, :error, "Project is already running")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to restart: #{inspect(reason)}")}
+    end
   end
 
   @impl true
-  def handle_info({:project_destroyed, _id}, socket) do
+  def handle_info({event, _id}, socket)
+      when event in [
+             :project_created,
+             :project_destroyed,
+             :project_renamed,
+             :project_restarted,
+             :project_status_changed
+           ] do
     projects = ProjectManager.list_projects()
     {:noreply, assign(socket, :projects, projects)}
   end
