@@ -18,4 +18,13 @@ if [ -f /workspace/.env ]; then
 fi
 BASHRC
 
+# Create default PROJECT.md if it doesn't exist
+if [ ! -f /workspace/PROJECT.md ]; then
+  cat > /workspace/PROJECT.md << 'PROJECTMD'
+# Project
+
+Describe your project here. All agents will check this document for context before starting tasks and update it after completing work.
+PROJECTMD
+fi
+
 echo "Bootstrap complete"

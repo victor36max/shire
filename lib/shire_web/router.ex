@@ -25,6 +25,8 @@ defmodule ShireWeb.Router do
 
       live "/projects/:project_name/settings", SettingsLive.Index, :index
 
+      live "/projects/:project_name/details", ProjectDetailsLive.Index, :index
+
       live "/projects/:project_name/shared", SharedDriveLive.Index, :index
     end
   end

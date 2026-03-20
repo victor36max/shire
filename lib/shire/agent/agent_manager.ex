@@ -60,6 +60,11 @@ defmodule Shire.Agent.AgentManager do
     All agents can read and write files in `/workspace/shared/`. Use this for sharing documents,
     data, or artifacts that multiple agents need access to.
 
+    ## Project Document
+    Before starting any task, read `/workspace/PROJECT.md` for project context, goals, and conventions.
+    After completing a task, review the document and update it if your work changes any project-level
+    context (e.g., new conventions, completed milestones, architectural decisions).
+
     ## Guidelines
     - Read `/workspace/peers.yaml` before messaging to confirm the target agent exists
     - Be specific about what you need from the other agent
