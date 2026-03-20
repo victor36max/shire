@@ -126,6 +126,52 @@ defmodule Shire.WorkspaceSettingsTest do
     end
   end
 
+  describe "read_project_doc/1" do
+    test "returns {:ok, string} with VM content" do
+      stub(Shire.VirtualMachineMock, :read, fn @project, "/workspace/PROJECT.md" ->
+        {:ok, "# My Project\n"}
+      end)
+
+      assert {:ok, "# My Project\n"} = WorkspaceSettings.read_project_doc(@project)
+    end
+
+    test "returns {:ok, empty string} when PROJECT.md does not exist" do
+      stub(Shire.VirtualMachineMock, :read, fn @project, "/workspace/PROJECT.md" ->
+        {:error, :not_found}
+      end)
+
+      assert {:ok, ""} = WorkspaceSettings.read_project_doc(@project)
+    end
+
+    test "returns {:ok, empty string} on VM error" do
+      stub(Shire.VirtualMachineMock, :read, fn @project, "/workspace/PROJECT.md" ->
+        {:error, :timeout}
+      end)
+
+      assert {:ok, ""} = WorkspaceSettings.read_project_doc(@project)
+    end
+  end
+
+  describe "write_project_doc/2" do
+    test "writes content to the VM" do
+      expect(Shire.VirtualMachineMock, :write, fn @project,
+                                                  "/workspace/PROJECT.md",
+                                                  "# Updated" ->
+        :ok
+      end)
+
+      assert :ok = WorkspaceSettings.write_project_doc(@project, "# Updated")
+    end
+
+    test "returns error on failure" do
+      expect(Shire.VirtualMachineMock, :write, fn @project, "/workspace/PROJECT.md", _content ->
+        {:error, :write_failed}
+      end)
+
+      assert {:error, :write_failed} = WorkspaceSettings.write_project_doc(@project, "# Updated")
+    end
+  end
+
   describe "run_script/2" do
     test "runs script and returns output" do
       expect(Shire.VirtualMachineMock, :cmd, fn @project, "bash", ["-c", cmd], _opts ->
