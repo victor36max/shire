@@ -69,6 +69,11 @@ describe("AgentSidebar", () => {
     expect(onNewAgent).toHaveBeenCalled();
   });
 
+  it("renders Project Details link", () => {
+    render(<AgentSidebar {...defaultProps} agents={agents} />);
+    expect(screen.getByText("Project Details")).toBeInTheDocument();
+  });
+
   it("renders Settings link", () => {
     render(<AgentSidebar {...defaultProps} agents={agents} />);
     expect(screen.getByText("Settings")).toBeInTheDocument();

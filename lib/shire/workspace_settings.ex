@@ -122,6 +122,24 @@ defmodule Shire.WorkspaceSettings do
     end
   end
 
+  # --- Project Document ---
+
+  @doc "Reads `/workspace/PROJECT.md` from the VM."
+  def read_project_doc(project_id) do
+    case @vm.read(project_id, "/workspace/PROJECT.md") do
+      {:ok, content} -> {:ok, content}
+      {:error, _} -> {:ok, ""}
+    end
+  end
+
+  @doc "Writes the given string to `/workspace/PROJECT.md` on the VM."
+  def write_project_doc(project_id, content) do
+    case @vm.write(project_id, "/workspace/PROJECT.md", content) do
+      :ok -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   # --- Bootstrap ---
 
   @doc "Runs the bootstrap script to initialize `/workspace` directories on the VM."
