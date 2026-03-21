@@ -112,15 +112,13 @@ export default function CatalogBrowser({ open, onClose, agents, categories, onAd
                 {filteredAgents.map((agent) => (
                   <Card key={agent.name} className="flex flex-col">
                     <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-lg shrink-0">{agent.emoji}</span>
-                          <CardTitle className="text-sm truncate">{agent.display_name}</CardTitle>
-                        </div>
-                        <Badge variant="secondary" className="shrink-0 text-xs">
-                          {agent.category}
-                        </Badge>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg shrink-0">{agent.emoji}</span>
+                        <CardTitle className="text-sm line-clamp-2">{agent.display_name}</CardTitle>
                       </div>
+                      <Badge variant="secondary" className="text-xs w-fit">
+                        {agent.category}
+                      </Badge>
                     </CardHeader>
                     <CardContent className="flex-1 pb-3">
                       <CardDescription className="text-xs line-clamp-2">{agent.description}</CardDescription>
