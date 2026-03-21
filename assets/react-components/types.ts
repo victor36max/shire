@@ -32,6 +32,27 @@ export interface Agent {
   skills?: Skill[];
 }
 
+export interface CatalogAgentSummary {
+  name: string;
+  display_name: string;
+  description: string;
+  category: string;
+  emoji: string;
+  tags: string[];
+  harness: HarnessType;
+  model: string;
+}
+
+export interface CatalogAgent extends CatalogAgentSummary {
+  system_prompt: string;
+}
+
+export interface CatalogCategory {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export const statusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
   switch (status) {
     case "active":
