@@ -83,28 +83,24 @@ export default function CatalogBrowser({ open, onClose, agents, categories, onAd
 
         <div className="flex gap-4 flex-1 min-h-0">
           <div className="w-40 shrink-0 space-y-1">
-            <button
-              className={`w-full text-left px-3 py-1.5 rounded-md text-sm ${
-                selectedCategory === null
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-              }`}
+            <Button
+              variant={selectedCategory === null ? "secondary" : "ghost"}
+              size="sm"
+              className="w-full justify-start"
               onClick={() => setSelectedCategory(null)}
             >
               All
-            </button>
+            </Button>
             {visibleCategories.map((cat) => (
-              <button
+              <Button
                 key={cat.id}
-                className={`w-full text-left px-3 py-1.5 rounded-md text-sm ${
-                  selectedCategory === cat.id
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                }`}
+                variant={selectedCategory === cat.id ? "secondary" : "ghost"}
+                size="sm"
+                className="w-full justify-start"
                 onClick={() => setSelectedCategory(cat.id)}
               >
                 {cat.name}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -112,7 +108,7 @@ export default function CatalogBrowser({ open, onClose, agents, categories, onAd
             {filteredAgents.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">No agents match your search.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredAgents.map((agent) => (
                   <Card key={agent.name} className="flex flex-col">
                     <CardHeader className="pb-2">

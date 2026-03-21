@@ -158,6 +158,8 @@ defmodule Mix.Tasks.Catalog.Sync do
     "[#{items}]"
   end
 
+  defp encode_tags(_), do: "[]"
+
   defp indent(text, prefix) do
     text
     |> String.split("\n")

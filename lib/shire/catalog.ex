@@ -47,6 +47,8 @@ defmodule Shire.Catalog do
     |> Enum.filter(&(&1.category == category))
   end
 
+  def list_agents(_opts), do: list_agents()
+
   @spec get_agent(String.t()) :: Agent.t() | nil
   def get_agent(name) when is_binary(name) do
     if String.contains?(name, ["..", "/", "\\"]) do
