@@ -15,6 +15,7 @@ defmodule ShireWeb.AgentLiveTest do
     end)
 
     stub(Shire.VirtualMachineMock, :destroy_vm, fn _name -> :ok end)
+    stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
 
     start_supervised!(Shire.ProjectManager)
 

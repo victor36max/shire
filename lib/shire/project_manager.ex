@@ -29,7 +29,12 @@ defmodule Shire.ProjectManager do
       status =
         case Registry.lookup(Shire.ProjectRegistry, {:coordinator, project.id}) do
           [{pid, _}] ->
-            if Process.alive?(pid), do: :running, else: :error
+            if Process.alive?(pid) do
+              # Coordinator is alive — derive status from VM state
+              @vm.vm_status(project.id)
+            else
+              :error
+            end
 
           [] ->
             :stopped

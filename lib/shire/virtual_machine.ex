@@ -24,6 +24,11 @@ defmodule Shire.VirtualMachine do
   @callback write_stdin(Sprites.Command.t(), binary()) :: :ok | {:error, term()}
   @callback resize(Sprites.Command.t(), integer(), integer()) :: :ok | {:error, term()}
 
+  # --- VM Status (non-blocking, reads from Registry) ---
+
+  @doc "Returns the current VM status for a project (:starting, :running, :idle, :unreachable, :stopped)."
+  @callback vm_status(String.t()) :: :starting | :running | :idle | :unreachable | :stopped
+
   # --- VM Management (module-level, not per-project) ---
 
   @doc "Destroys the underlying VM for a project."
