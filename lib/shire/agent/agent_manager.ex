@@ -186,6 +186,32 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
+  def handle_call({:send_message, text, :system}, _from_pid, %{status: :active} = state) do
+    envelope = %{
+      "ts" => System.system_time(:millisecond),
+      "type" => "system_message",
+      "from" => "system",
+      "payload" => %{"text" => text}
+    }
+
+    inbox_dir = "/workspace/agents/#{state.agent_id}/inbox"
+    filename = "#{envelope["ts"]}-#{random_suffix()}.yaml"
+    inbox_path = "#{inbox_dir}/#{filename}"
+
+    # Write directly to inbox without creating a DB message.
+    # The caller (ScheduleWorker / run-now handler) is responsible for
+    # persisting the log entry with the correct role and content.
+    case @vm.write(state.project_id, inbox_path, Ymlr.document!(envelope)) do
+      :ok ->
+        {:reply, {:ok, :sent}, state}
+
+      {:error, reason} ->
+        Logger.warning("Failed to send system message: #{inspect(reason)}")
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
   def handle_call({:send_message, text, _from}, _from_pid, %{status: :active} = state) do
     envelope = %{
       "ts" => System.system_time(:millisecond),

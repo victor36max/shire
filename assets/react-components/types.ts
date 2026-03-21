@@ -80,6 +80,21 @@ export interface InterAgentMessage {
   to_agent: string;
   text: string;
   ts: string;
+  trigger?: string;
+  task_label?: string;
+}
+
+export interface ScheduledTask {
+  id: string;
+  label: string;
+  agent_id: string;
+  agent_name: string;
+  message: string;
+  schedule_type: "once" | "recurring";
+  cron_expression: string | null;
+  scheduled_at: string | null;
+  enabled: boolean;
+  last_run_at: string | null;
 }
 
 export const harnessLabel = (harness: HarnessType): string => {

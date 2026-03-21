@@ -171,7 +171,11 @@ defmodule Shire.Agents do
 
     query =
       from m in Message,
-        where: m.project_id == ^project_id and m.role == "inter_agent",
+        where:
+          m.project_id == ^project_id and
+            (m.role == "inter_agent" or
+               (m.role == "system" and
+                  fragment("?->>'trigger' = 'scheduled_task'", m.content))),
         order_by: [desc: m.id],
         limit: ^limit
 

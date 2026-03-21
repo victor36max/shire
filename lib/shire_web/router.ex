@@ -28,6 +28,8 @@ defmodule ShireWeb.Router do
       live "/projects/:project_name/details", ProjectDetailsLive.Index, :index
 
       live "/projects/:project_name/shared", SharedDriveLive.Index, :index
+
+      live "/projects/:project_name/schedules", ScheduleLive.Index, :index
     end
   end
 
@@ -35,6 +37,14 @@ defmodule ShireWeb.Router do
     pipe_through :browser
 
     get "/projects/:project_name/shared/download", SharedDriveController, :download
+  end
+
+  import Oban.Web.Router
+
+  scope "/" do
+    pipe_through :browser
+
+    oban_dashboard("/oban")
   end
 
   # Other scopes may use custom stacks.
