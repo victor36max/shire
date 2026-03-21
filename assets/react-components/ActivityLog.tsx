@@ -49,9 +49,18 @@ export default function ActivityLog({ messages, hasMore, pushEvent }: ActivityLo
           <div key={msg.id} className="border rounded-lg p-3 space-y-1">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                <span className="font-medium text-foreground">{msg.from_agent}</span>
-                {" \u2192 "}
-                <span className="font-medium text-foreground">{msg.to_agent}</span>
+                {msg.trigger === "scheduled_task" ? (
+                  <>
+                    <span className="mr-1">&#128339;</span>
+                    <span className="font-medium text-foreground">{msg.task_label}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium text-foreground">{msg.from_agent}</span>
+                    {" \u2192 "}
+                    <span className="font-medium text-foreground">{msg.to_agent}</span>
+                  </>
+                )}
               </span>
               <time>{new Date(msg.ts).toLocaleString()}</time>
             </div>

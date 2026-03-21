@@ -70,7 +70,10 @@ defmodule Shire.MixProject do
       {:dotenv_parser, "~> 2.0", only: [:dev, :test]},
       {:yaml_elixir, "~> 2.11"},
       {:ymlr, "~> 5.0"},
-      {:mox, "~> 1.1", only: :test}
+      {:mox, "~> 1.1", only: :test},
+      {:oban, "~> 2.19"},
+      {:crontab, "~> 1.1"},
+      {:oban_web, "~> 2.11"}
     ]
   end
 
