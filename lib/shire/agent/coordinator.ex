@@ -466,7 +466,7 @@ defmodule Shire.Agent.Coordinator do
     harness_dir = Path.join(runner_dir, "harness")
 
     if File.dir?(harness_dir) do
-      with {:ok, _} <- @vm.cmd(project_id, "mkdir", ["-p", "/workspace/.runner/harness"], []) do
+      with :ok <- @vm.mkdir_p(project_id, "/workspace/.runner/harness") do
         Enum.reduce_while(File.ls!(harness_dir), :ok, fn file, :ok ->
           content = File.read!(Path.join(harness_dir, file))
 
@@ -484,31 +484,21 @@ defmodule Shire.Agent.Coordinator do
   defp read_agent_recipe(project_id, agent_id) do
     path = "/workspace/agents/#{agent_id}/recipe.yaml"
 
-    case @vm.cmd(
-           project_id,
-           "bash",
-           ["-c", "test -f #{path} && cat #{path} || echo '__NOT_FOUND__'"],
-           []
-         ) do
-      {:ok, output} ->
-        if String.trim(output) == "__NOT_FOUND__" do
-          %{}
-        else
-          case YamlElixir.read_from_string(output) do
-            {:ok, recipe} ->
-              recipe
+    case @vm.read(project_id, path) do
+      {:ok, content} ->
+        case YamlElixir.read_from_string(content) do
+          {:ok, recipe} ->
+            recipe
 
-            {:error, reason} ->
-              Logger.warning(
-                "Failed to parse recipe YAML for agent #{agent_id}: #{inspect(reason)}"
-              )
+          {:error, reason} ->
+            Logger.warning(
+              "Failed to parse recipe YAML for agent #{agent_id}: #{inspect(reason)}"
+            )
 
-              %{}
-          end
+            %{}
         end
 
-      {:error, reason} ->
-        Logger.warning("Failed to read recipe for agent #{agent_id}: #{inspect(reason)}")
+      {:error, _} ->
         %{}
     end
   end

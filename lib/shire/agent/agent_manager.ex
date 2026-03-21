@@ -451,7 +451,7 @@ defmodule Shire.Agent.AgentManager do
 
     # Create agent directory structure
     for subdir <- ["inbox", "outbox", "scripts", "documents", ".claude/skills"] do
-      @vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/#{subdir}"], [])
+      @vm.mkdir_p(project_id, "#{agent_dir}/#{subdir}")
     end
 
     # Read recipe to determine harness type
@@ -483,7 +483,7 @@ defmodule Shire.Agent.AgentManager do
   defp read_recipe(project_id, agent_id) do
     path = "/workspace/agents/#{agent_id}/recipe.yaml"
 
-    case @vm.cmd(project_id, "cat", [path], []) do
+    case @vm.read(project_id, path) do
       {:ok, content} ->
         case YamlElixir.read_from_string(content) do
           {:ok, %{} = recipe} -> recipe
@@ -505,11 +505,11 @@ defmodule Shire.Agent.AgentManager do
       end
 
     # Clean stale skills from previous recipe versions
-    @vm.cmd(project_id, "rm", ["-rf", skill_base], [])
+    @vm.rm_rf(project_id, skill_base)
 
     for skill <- skills do
       skill_dir = "#{skill_base}/#{skill["name"]}"
-      @vm.cmd(project_id, "mkdir", ["-p", skill_dir], [])
+      @vm.mkdir_p(project_id, skill_dir)
 
       skill_md = build_skill_md(skill)
       @vm.write(project_id, "#{skill_dir}/SKILL.md", skill_md)
@@ -587,7 +587,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp load_env_vars(project_id) do
-    case @vm.cmd(project_id, "cat", ["/workspace/.env"], []) do
+    case @vm.read(project_id, "/workspace/.env") do
       {:ok, content} ->
         content
         |> String.split("\n", trim: true)
