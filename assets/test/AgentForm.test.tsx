@@ -184,6 +184,42 @@ describe("AgentForm", () => {
     expect(localPushEvent).toHaveBeenCalledWith("create-agent", expect.objectContaining({ name: "valid-agent" }));
   });
 
+  it("submits create-agent with name when agent has empty id (catalog prefill)", async () => {
+    const localPushEvent = vi.fn();
+    const catalogAgent: Agent = {
+      id: "",
+      name: "frontend-developer",
+      description: "React specialist",
+      status: "idle",
+      harness: "claude_code",
+      model: "claude-sonnet-4-6",
+      system_prompt: "You are a frontend developer.",
+    };
+
+    render(
+      <AgentForm
+        open={true}
+        title="New Agent from Catalog"
+        agent={catalogAgent}
+        pushEvent={localPushEvent}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByText("Save Agent"));
+
+    expect(localPushEvent).toHaveBeenCalledWith(
+      "create-agent",
+      expect.objectContaining({
+        name: "frontend-developer",
+        recipe_yaml: expect.any(String),
+      }),
+    );
+    // Should NOT have id in payload
+    const payload = localPushEvent.mock.calls[0][1];
+    expect(payload).not.toHaveProperty("id");
+  });
+
   it("submits update-agent event with recipe_yaml for existing agent", async () => {
     const agent: Agent = {
       id: "a-existing",
