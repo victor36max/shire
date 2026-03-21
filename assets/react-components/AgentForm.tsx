@@ -98,12 +98,13 @@ export default function AgentForm({ open, title, agent, pushEvent, onClose }: Ag
 
     if (!SLUG_REGEX.test(finalName)) return;
 
-    const event = agent ? "update-agent" : "create-agent";
+    const isUpdate = Boolean(agent?.id);
+    const event = isUpdate ? "update-agent" : "create-agent";
     const payload: Record<string, unknown> = {
       recipe_yaml: recipeYaml,
     };
-    if (agent) {
-      payload.id = agent.id;
+    if (isUpdate) {
+      payload.id = agent!.id;
     } else {
       payload.name = finalName;
     }
