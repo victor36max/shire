@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import AgentDashboard from "../react-components/AgentDashboard";
-import { type Agent, type Project } from "../react-components/types";
+import { type Agent, type CatalogAgentSummary, type CatalogCategory, type Project } from "../react-components/types";
 
 const agents: Agent[] = [
   {
@@ -83,5 +83,66 @@ describe("AgentDashboard", () => {
     const buttons = screen.getAllByText("+ New Agent");
     await userEvent.click(buttons[buttons.length - 1]);
     expect(screen.getByText("Create a new agent to get started.")).toBeInTheDocument();
+  });
+
+  it("opens catalog browser and calls pushEvent on add", async () => {
+    const pushEvent = vi.fn();
+    const catalogAgents: CatalogAgentSummary[] = [
+      {
+        name: "frontend-developer",
+        display_name: "Frontend Developer",
+        description: "React specialist",
+        category: "engineering",
+        emoji: "⚛️",
+        tags: ["react"],
+        harness: "claude_code",
+        model: "claude-sonnet-4-6",
+      },
+    ];
+    const catalogCategories: CatalogCategory[] = [{ id: "engineering", name: "Engineering", description: "" }];
+
+    render(
+      <AgentDashboard
+        {...defaultProps}
+        agents={agents}
+        selectedAgent={null}
+        pushEvent={pushEvent}
+        catalogAgents={catalogAgents}
+        catalogCategories={catalogCategories}
+      />,
+    );
+
+    // Open catalog browser
+    await userEvent.click(screen.getByText("Browse Catalog"));
+    expect(screen.getByText("Agent Catalog")).toBeInTheDocument();
+    expect(screen.getByText("Frontend Developer")).toBeInTheDocument();
+
+    // Click Add button
+    await userEvent.click(screen.getByText("Add"));
+    expect(pushEvent).toHaveBeenCalledWith("get-catalog-agent", { name: "frontend-developer" });
+  });
+
+  it("pre-fills agent form when catalogSelectedAgent is provided", () => {
+    render(
+      <AgentDashboard
+        {...defaultProps}
+        agents={agents}
+        selectedAgent={null}
+        catalogSelectedAgent={{
+          name: "frontend-developer",
+          display_name: "Frontend Developer",
+          description: "React specialist",
+          category: "engineering",
+          emoji: "⚛️",
+          tags: ["react"],
+          harness: "claude_code",
+          model: "claude-sonnet-4-6",
+          system_prompt: "You are a frontend developer.",
+        }}
+      />,
+    );
+
+    // Form should open with catalog agent title
+    expect(screen.getByText("New Agent from Catalog")).toBeInTheDocument();
   });
 });

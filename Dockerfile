@@ -64,6 +64,9 @@ COPY lib lib
 # Compile the release
 RUN mix compile
 
+# Sync agent catalog from external repo
+RUN mix catalog.sync
+
 # copy full assets and build
 COPY assets assets
 
