@@ -536,6 +536,9 @@ defmodule Shire.Agent.AgentManagerTest do
       Mox.set_mox_global()
       stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+      stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
+      stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
 
       {:ok, pid} = start_manager(ctx)
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
@@ -624,6 +627,9 @@ defmodule Shire.Agent.AgentManagerTest do
       Mox.set_mox_global()
       stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+      stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
+      stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
 
       {:ok, pid} = start_manager(ctx)
       Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
@@ -652,9 +658,12 @@ defmodule Shire.Agent.AgentManagerTest do
     test "skips workspace setup on auto_restart (fast path)", ctx do
       Mox.set_mox_global()
       stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
 
-      # write should NOT be called — fast path skips setup_agent_workspace
+      # write/mkdir_p/rm_rf should NOT be called — fast path skips setup_agent_workspace
       Mox.expect(Shire.VirtualMachineMock, :write, 0, fn _project, _path, _content -> :ok end)
+      Mox.expect(Shire.VirtualMachineMock, :mkdir_p, 0, fn _project, _path -> :ok end)
+      Mox.expect(Shire.VirtualMachineMock, :rm_rf, 0, fn _project, _path -> :ok end)
 
       stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
         {:ok, %{ref: make_ref()}}
