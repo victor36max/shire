@@ -10,6 +10,8 @@ defmodule ShireWeb.ProjectDetailsLiveTest do
     stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
     stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:ok, ""} end)
     stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+    stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+    stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
 
     stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
       {:error, :not_available_in_test}

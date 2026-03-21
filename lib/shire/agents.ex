@@ -19,10 +19,10 @@ defmodule Shire.Agents do
     |> Multi.run(:vm_setup, fn _repo, %{agent: agent} ->
       agent_dir = "/workspace/agents/#{agent.id}"
 
-      with {:ok, _} <- vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/inbox"], []),
-           {:ok, _} <- vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/outbox"], []),
-           {:ok, _} <- vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/scripts"], []),
-           {:ok, _} <- vm.cmd(project_id, "mkdir", ["-p", "#{agent_dir}/documents"], []),
+      with :ok <- vm.mkdir_p(project_id, "#{agent_dir}/inbox"),
+           :ok <- vm.mkdir_p(project_id, "#{agent_dir}/outbox"),
+           :ok <- vm.mkdir_p(project_id, "#{agent_dir}/scripts"),
+           :ok <- vm.mkdir_p(project_id, "#{agent_dir}/documents"),
            :ok <- vm.write(project_id, "#{agent_dir}/recipe.yaml", recipe_yaml) do
         {:ok, agent.id}
       else
@@ -52,8 +52,8 @@ defmodule Shire.Agents do
     Multi.new()
     |> Multi.delete(:agent, agent)
     |> Multi.run(:rm_folder, fn _repo, _ ->
-      case vm.cmd(project_id, "rm", ["-rf", "/workspace/agents/#{agent.id}"], []) do
-        {:ok, _} ->
+      case vm.rm_rf(project_id, "/workspace/agents/#{agent.id}") do
+        :ok ->
           {:ok, :removed}
 
         {:error, reason} ->
