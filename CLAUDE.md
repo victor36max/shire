@@ -33,133 +33,54 @@
 
 ## Key Concepts
 
-**Projects:** First-class DB-backed entities (`projects` table, UUID primary key). Each project owns a dedicated Sprite VM and a set of agents. The `ProjectManager` GenServer boots all project VMs on application startup. Projects are created/deleted from the `ProjectDashboard` UI at `/`.
+**Projects** — DB-backed (`projects` table, UUID PK). Each project owns one Sprite VM and a set of agents. `ProjectManager` boots all project VMs on startup.
 
-**Sprite VM:** Each project gets its own Sprite VM (Firecracker). The VM name is derived from the project UUID. On boot, the `Coordinator` (started per-project) runs `bootstrap.sh`, deploys the agent runner, then scans `/workspace/agents/` for existing recipes. Each agent gets its own directory under `/workspace/agents/{name}/`.
+**Supervision tree:**
+- `ProjectManager` → `ProjectInstanceSupervisor` (per project, `one_for_all`) → `[VirtualMachineImpl, Coordinator, DynamicSupervisor]`
+- Registries: `AgentRegistry` (agents by name), `ProjectRegistry` (project supervisors by ID)
 
-**Supervision tree:** `ProjectManager` → `ProjectInstanceSupervisor` (one per project, `one_for_all` strategy) → `[VirtualMachineImpl, Coordinator, DynamicSupervisor]`. Two registries: `AgentRegistry` (agents by name) and `ProjectRegistry` (project supervisors by ID).
+**Recipes** — YAML files defining agents (`name`, `description`, `harness`, `scripts`). Live on the VM at `/workspace/agents/{name}/recipe.yaml` — no DB schema for recipes. Agents themselves are DB-backed with a unique constraint on `(project_id, name)`.
 
-**Recipe system:** Agents are defined by YAML recipes containing `name`, `description`, `harness`, and `scripts` (array of `{name, run}` steps). Recipes live on the VM filesystem as `/workspace/agents/{name}/recipe.yaml` — no database schema for recipes. Agents themselves are DB-backed (`agents` table) with a `belongs_to :project` relationship and a unique constraint on `(project_id, name)`. The agent runner executes setup scripts idempotently.
+**Agent lifecycle:**
+- `Coordinator` handles per-project agent CRUD — writes `recipe.yaml` to VM, starts `AgentManager` under `DynamicSupervisor`
+- `AgentManager` bootstraps workspace dirs (inbox, outbox, scripts, documents), writes communication prompts, spawns `agent-runner.ts`
 
-**Agent lifecycle:** The `Coordinator` manages per-project agent CRUD. Creating an agent writes `recipe.yaml` to the project's VM and starts an `AgentManager` under the project's `DynamicSupervisor`. Agents are registered by name in `AgentRegistry`. The `AgentManager` bootstraps the agent workspace (inbox, outbox, scripts, documents dirs), writes communication prompts, and spawns the `agent-runner.ts` daemon.
-
-**Inter-agent messaging:** File-based. Agents write JSON envelopes to their outbox directory. The `AgentManager` polls outbox every 2s (idle-aware — pauses after 15 min inactivity), reads messages, and routes them to the target agent's inbox via `AgentManager.send_message/3`. Messages are persisted to the DB with role `"inter_agent"`.
-
-**Shared drive:** `/drive` on the VM, synced to each agent at `/workspace/shared/`.
-
-**Terminal sessions:** Interactive TTY session (`bash -i`) on the VM, bridged to LiveView via PubSub and rendered with xterm.js in React.
-
-**Slug validation:** Project and agent names must be valid slugs (lowercase alphanumeric + hyphens, 2-50 chars). Enforced by the `Slug` module.
+**Inter-agent messaging** — Agents write JSON envelopes to outbox. `AgentManager` polls every 2s (pauses after 15 min idle), routes to target inbox. Messages persisted to DB as `role: "inter_agent"`.
 
 ## Folder Structure
 
 ```
-lib/
-  shire/
-    application.ex           # OTP supervision tree (ProjectManager, ProjectRegistry, ProjectSupervisor, AgentRegistry)
-    project_manager.ex       # GenServer: boots all project VMs on startup, creates/deletes projects
-    project_instance_supervisor.ex  # Per-project supervisor (one_for_all): VirtualMachineImpl + Coordinator + DynamicSupervisor
-    projects.ex              # Context: Project CRUD
-    projects/
-      project.ex             # Project Ecto schema (UUID PK, unique name)
-    agents.ex                # Context: Agent + Message CRUD
-    agents/
-      agent.ex               # Agent Ecto schema (belongs_to project, unique name per project)
-      message.ex             # Message schema (agent chat + inter-agent communication)
-    agent/
-      agent_manager.ex       # Per-agent GenServer: lifecycle, runner process, outbox polling, event persistence
-      coordinator.ex         # Per-project orchestrator: VM bootstrap, agent CRUD, message routing, env/scripts API
-      terminal_session.ex    # Interactive TTY session on the VM
-    slug.ex                  # Slug validation for project/agent names
-    workspace_settings.ex    # Per-project environment variables and scripts management
-    virtual_machine.ex       # Behaviour defining VM operations (cmd, read, write, spawn_command, etc.)
-    virtual_machine_impl.ex  # GenServer wrapping Sprites SDK with error handling and timeouts
-    mailer.ex
-    release.ex
-    repo.ex
-  shire_web/
-    router.ex
-    endpoint.ex
-    gettext.ex
-    telemetry.ex
-    components/
-      core_components.ex     # Core UI components (react helper, etc.)
-      layouts.ex             # Passthrough app layout + flash_group
-      layouts/root.html.heex
-    controllers/
-      page_controller.ex
-      page_html.ex
-      page_html/home.html.heex
-      error_html.ex
-      error_json.ex
-      shared_drive_controller.ex  # File download/stream endpoint
-    live/
-      project_live/
-        index.ex             # Renders <.react name="ProjectDashboard" /> (root "/" route)
-      agent_live/
-        index.ex             # Renders <.react name="AgentDashboard" /> (project-scoped)
-        show.ex              # Renders <.react name="AgentShow" />
-        agent_streaming.ex   # Agent event processing (JSONL parsing, PubSub bridge)
-        helpers.ex           # Message serialization helpers
-      settings_live/
-        index.ex             # Renders <.react name="SettingsPage" /> (project-scoped)
-      shared_drive_live/
-        index.ex             # Renders <.react name="SharedDrive" /> (project-scoped)
+lib/shire/
+  project_manager.ex              # Boots all project VMs on startup
+  project_instance_supervisor.ex  # Per-project: VirtualMachineImpl + Coordinator + DynamicSupervisor
+  projects.ex                     # Context: Project CRUD
+  agents.ex                       # Context: Agent + Message CRUD
+  agents/                         # Ecto schemas (agent.ex, message.ex)
+  agent/
+    agent_manager.ex              # Per-agent GenServer: lifecycle, runner, outbox polling
+    coordinator.ex                # Per-project: VM bootstrap, agent CRUD, message routing
+    terminal_session.ex           # Interactive TTY on the VM
+  virtual_machine.ex              # Behaviour (cmd, read, write, spawn_command, etc.)
+  virtual_machine_impl.ex         # GenServer wrapping Sprites SDK
+  workspace_settings.ex           # Per-project env vars and scripts
 
-assets/
-  js/app.js                  # LiveSocket + LiveReact hooks
-  css/app.css                # Tailwind v4 + shadcn theme variables
-  vite.config.js
-  react-components/
-    ProjectDashboard.tsx      # Projects list page with create/delete dialogs
-    ProjectSwitcher.tsx       # Project selector dropdown for navigation
-    AgentDashboard.tsx        # Main dashboard with agent sidebar + chat/welcome panel
-    AgentSidebar.tsx          # Agent list sidebar for dashboard
-    AgentShow.tsx             # Agent detail page with edit form
-    AgentForm.tsx             # Dialog form (controlled via open/onClose props)
-    ChatHeader.tsx            # Chat panel header with agent info + status badge
-    ChatPanel.tsx             # Chat/message panel for agent interaction
-    WelcomePanel.tsx          # Welcome/empty state panel
-    ActivityLog.tsx           # Inter-agent message timeline
-    SettingsPage.tsx          # Settings page (env, scripts, terminal, activity)
-    SharedDrive.tsx           # Shared drive file browser (upload/delete/navigate)
-    Terminal.tsx              # xterm.js interactive terminal via WebSocket bridge
-    types.ts                 # Shared TypeScript type definitions
-    index.ts                 # Barrel exports for LiveReact
-    components/
-      AppLayout.tsx           # Shared layout wrapper
-      Markdown.tsx            # React Markdown renderer (GitHub-flavored)
-      ui/                     # shadcn/ui components (button, card, dialog, alert-dialog, dropdown-menu, select, tabs, textarea, badge, table, input, label, etc.)
-    lib/
-      utils.ts                # cn() utility
-      navigate.ts             # LiveView navigation utility (smooth navigation without full page reload)
-  test/
-    setup.ts                  # Vitest test setup
-    ProjectDashboard.test.tsx
-    ProjectSwitcher.test.tsx
-    AgentDashboard.test.tsx
-    AgentForm.test.tsx
-    AgentShow.test.tsx
-    AgentSidebar.test.tsx
-    ActivityLog.test.tsx
-    ChatPanel.test.tsx
-    SettingsPage.test.tsx
-    SharedDrive.test.tsx
-    Terminal.test.tsx
-    navigate.test.ts
+lib/shire_web/live/
+  project_live/index.ex           # ProjectDashboard (root "/" route)
+  agent_live/                     # AgentDashboard, AgentShow, agent_streaming, helpers
+  settings_live/index.ex          # SettingsPage
+  shared_drive_live/index.ex      # SharedDrive
 
-priv/sprite/                  # Agent runtime (Bun/TypeScript), deployed to /workspace/.runner/
-  agent-runner.ts             # Main daemon: watches inbox, dispatches to harness, emits JSONL events
-  bootstrap.sh                # VM bootstrap script (creates /workspace dirs)
-  harness/
-    types.ts                  # Harness interface definition
-    index.ts                  # Harness factory (creates harness by type)
-    pi-harness.ts             # Pi SDK harness adapter
-    claude-code-harness.ts    # Claude Code CLI harness adapter
-  agent-runner.test.ts        # Agent runner tests
-  harness/
-    pi-harness.test.ts        # Pi harness tests
-    claude-code-harness.test.ts # Claude Code harness tests
+assets/react-components/
+  *.tsx                           # One page-level component per LiveView
+  components/ui/                  # shadcn/ui primitives
+  components/AppLayout.tsx        # Shared layout wrapper
+  lib/navigate.ts                 # LiveView navigation utility
+  test/                           # Vitest component tests (one per component)
+
+priv/sprite/                      # Agent runtime, deployed to /workspace/.runner/
+  agent-runner.ts                 # Daemon: watches inbox, dispatches to harness, emits JSONL
+  bootstrap.sh                    # VM bootstrap (creates /workspace dirs)
+  harness/                        # Adapter pattern: pi-harness.ts, claude-code-harness.ts
 ```
 
 ## Verification Commands
@@ -188,25 +109,13 @@ Full precommit (compile + format + test):
 mix precommit
 ```
 
-**Rules (CRITICAL — never skip these):**
-- **Always write tests for new features and bug fixes** — no exceptions, every new function/behavior must have corresponding test coverage
-- **Always run verification after implementing changes** — don't leave broken builds
-- **Fix ALL test failures before claiming work is done** — including pre-existing failures unrelated to your change. If tests are failing, fix them.
-- Fix warnings and type errors before considering work done
-- **Always fix any bug, lint, or type check issue you see along the way**, regardless of whether it's related to your current change — never dismiss failures as "pre-existing" or "unrelated"
-
 ## Guidelines
 
-- **Always use plan mode first** — never start implementation for new features or bug fixes without planning first
-- **Always use a git worktree for any implementation** — before creating the worktree, pull latest main (`git pull origin main`) to ensure you're building on the latest codebase
-- **Always dispatch a code review subagent after implementation and verification** — fix issues found, then verify again. Never submit code without review and verification.
-- **Work always ends in a PR** — never push to main directly or push to a branch without creating a PR
 - Use `bun` for all JS package management and scripts, never `npm` or `node`
 - Use `Req` for HTTP requests, never httpoison/tesla/httpc
 - Use `yaml_elixir` for YAML parsing in Elixir
 - Elixir schema fields use `:string` type even for text columns
-- Always generate migrations with `mix ecto.gen.migration`
-- Don't use `@apply` in CSS
-- Always use shadcn/ui components (Button, Input, Dialog, etc.) instead of plain HTML elements unless the library doesn't support the needed component
-- shadcn dialog animations: use fade + zoom only, no slide classes (they conflict with translate centering)
-- **Never use `eslint-disable` comments casually** — disabling lint rules is an anti-pattern. Fix the underlying issue (use proper types, runtime checks, etc.) instead. Only use `eslint-disable` when there is genuinely no other option.
+- Generate migrations with `mix ecto.gen.migration`
+- No `@apply` in CSS
+- Use shadcn/ui components (Button, Input, Dialog, etc.) over plain HTML elements
+- shadcn dialog animations: fade + zoom only, no slide classes (they conflict with translate centering)
