@@ -83,6 +83,19 @@ defmodule Shire.Workers.ScheduleWorker do
     end
   end
 
+  def build_job(task) do
+    case task.schedule_type do
+      :recurring ->
+        next_run = Schedules.compute_next_run(task.cron_expression)
+        schedule_in = DateTime.diff(next_run, DateTime.utc_now(), :second)
+        new(%{"scheduled_task_id" => task.id}, schedule_in: max(schedule_in, 1))
+
+      :once ->
+        schedule_in = DateTime.diff(task.scheduled_at, DateTime.utc_now(), :second)
+        new(%{"scheduled_task_id" => task.id}, schedule_in: max(schedule_in, 1))
+    end
+  end
+
   defp enqueue_recurring(task) do
     next_run = Schedules.compute_next_run(task.cron_expression)
     schedule_in = DateTime.diff(next_run, DateTime.utc_now(), :second)
