@@ -50,6 +50,12 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Oban job processing
+config :shire, Oban,
+  repo: Shire.Repo,
+  queues: [scheduled_tasks: 5],
+  plugins: [Oban.Plugins.Pruner]
+
 # Sprites client — token configured per-environment
 config :shire, :sprites_token, nil
 
