@@ -37,7 +37,13 @@ defmodule ShireWeb.AgentLive.Index do
            streaming_text: nil,
            busy_agents: MapSet.new(),
            agent_statuses: %{},
-           editing_agent: nil
+           editing_agent: nil,
+           catalog_agents:
+             Shire.Catalog.list_agents()
+             |> Enum.map(&Map.from_struct/1)
+             |> Enum.map(&Map.drop(&1, [:system_prompt])),
+           catalog_categories: Shire.Catalog.list_categories(),
+           catalog_selected_agent: nil
          )}
     end
   end
@@ -98,6 +104,7 @@ defmodule ShireWeb.AgentLive.Index do
          socket
          |> assign(:agents, agents)
          |> assign(:editing_agent, nil)
+         |> assign(:catalog_selected_agent, nil)
          |> put_flash(:info, "Agent created")}
 
       {:error, :already_exists} ->
@@ -108,6 +115,18 @@ defmodule ShireWeb.AgentLive.Index do
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to create agent: #{inspect(reason)}")}
+    end
+  end
+
+  def handle_event("get-catalog-agent", %{"name" => name}, socket) do
+    case Shire.Catalog.get_agent(name) do
+      %Shire.Catalog.Agent{} = agent ->
+        # Include timestamp so useEffect fires even if same agent clicked twice
+        agent_data = agent |> Map.from_struct() |> Map.put(:_ts, System.monotonic_time())
+        {:noreply, assign(socket, :catalog_selected_agent, agent_data)}
+
+      nil ->
+        {:noreply, put_flash(socket, :error, "Catalog agent not found")}
     end
   end
 
@@ -371,6 +390,9 @@ defmodule ShireWeb.AgentLive.Index do
       hasMore={@has_more}
       loadingMore={@loading_more}
       socket={@socket}
+      catalogAgents={@catalog_agents}
+      catalogCategories={@catalog_categories}
+      catalogSelectedAgent={@catalog_selected_agent}
     />
     """
   end
