@@ -48,10 +48,14 @@ defmodule Shire.Catalog do
   end
 
   @spec get_agent(String.t()) :: Agent.t() | nil
-  def get_agent(name) do
-    case Path.wildcard(Path.join(catalog_dir(), "agents/**/#{name}.yaml")) do
-      [path | _] -> load_agent(path)
-      [] -> nil
+  def get_agent(name) when is_binary(name) do
+    if String.contains?(name, ["..", "/", "\\"]) do
+      nil
+    else
+      case Path.wildcard(Path.join(catalog_dir(), "agents/**/#{name}.yaml")) do
+        [path | _] -> load_agent(path)
+        [] -> nil
+      end
     end
   end
 

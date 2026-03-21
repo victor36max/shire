@@ -124,7 +124,7 @@ defmodule Mix.Tasks.Catalog.Sync do
       "description: #{yaml_quote(map["description"])}",
       "category: #{map["category"]}",
       "emoji: #{yaml_quote(map["emoji"])}",
-      "tags: #{inspect(map["tags"])}",
+      "tags: #{encode_tags(map["tags"])}",
       "harness: #{map["harness"]}",
       "model: #{map["model"]}",
       "system_prompt: |",
@@ -148,6 +148,14 @@ defmodule Mix.Tasks.Catalog.Sync do
 
   defp yaml_quote(s) do
     ~s("#{String.replace(s, "\"", "\\\"")}")
+  end
+
+  defp encode_tags(nil), do: "[]"
+  defp encode_tags([]), do: "[]"
+
+  defp encode_tags(tags) when is_list(tags) do
+    items = Enum.map_join(tags, ", ", &to_string/1)
+    "[#{items}]"
   end
 
   defp indent(text, prefix) do
