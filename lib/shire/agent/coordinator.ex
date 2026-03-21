@@ -414,6 +414,13 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_info({:vm_woke_up, _project_id}, state) do
+    # Notify project lobby so dashboard status updates
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, state.project_id}
+    )
+
     idle_agents =
       Enum.filter(state.statuses, fn {_id, status} -> status == :idle end)
 
@@ -433,6 +440,28 @@ defmodule Shire.Agent.Coordinator do
         end)
       end)
     end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:vm_went_idle, _project_id}, state) do
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, state.project_id}
+    )
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:vm_unreachable, _project_id}, state) do
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, state.project_id}
+    )
 
     {:noreply, state}
   end

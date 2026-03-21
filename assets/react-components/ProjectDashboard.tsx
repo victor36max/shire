@@ -30,14 +30,16 @@ interface ProjectDashboardProps {
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }
 
-function projectStatusVariant(status: string): "default" | "secondary" | "destructive" {
+function projectStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   switch (status) {
     case "running":
       return "default";
     case "starting":
-      return "secondary";
     case "stopped":
       return "secondary";
+    case "idle":
+      return "outline";
+    case "unreachable":
     case "error":
       return "destructive";
     default:
@@ -99,7 +101,9 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
                     <Badge variant={projectStatusVariant(project.status)}>{project.status}</Badge>
                   </div>
                   <div className="mt-4 flex justify-end gap-2">
-                    {(project.status === "stopped" || project.status === "error") && (
+                    {(project.status === "stopped" ||
+                      project.status === "error" ||
+                      project.status === "unreachable") && (
                       <Button
                         variant="outline"
                         size="sm"

@@ -1,7 +1,7 @@
 export interface Project {
   id: string;
   name: string;
-  status: "running" | "starting" | "stopped" | "error";
+  status: "starting" | "running" | "idle" | "unreachable" | "stopped" | "error";
 }
 
 export type HarnessType = "pi" | "claude_code";

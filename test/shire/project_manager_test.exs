@@ -19,6 +19,7 @@ defmodule Shire.ProjectManagerTest do
     end)
 
     stub(Shire.VirtualMachineMock, :destroy_vm, fn _name -> :ok end)
+    stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
 
     start_supervised!(ProjectManager)
 
@@ -159,12 +160,8 @@ defmodule Shire.ProjectManagerTest do
 
       Phoenix.PubSub.subscribe(Shire.PubSub, "projects:lobby")
 
-      # Get the supervisor pid from the ProjectManager state
-      projects_state = :sys.get_state(ProjectManager)
-      sup_pid = Map.get(projects_state.projects, project.id)
-
-      # Kill the supervisor
-      Process.exit(sup_pid, :kill)
+      # Terminate the supervisor cleanly (avoids DynamicSupervisor restart race)
+      kill_project_supervisor(project.id)
 
       project_id = project.id
       assert_receive {:project_status_changed, ^project_id}, 1000
@@ -213,6 +210,36 @@ defmodule Shire.ProjectManagerTest do
 
       project_id = project.id
       assert_receive {:project_restarted, ^project_id}
+    end
+  end
+
+  describe "list_projects/0 reflects VM status" do
+    test "returns :idle status when VM reports idle" do
+      {:ok, project} = ProjectManager.create_project("idle-proj")
+
+      # Override vm_status to return :idle
+      Mox.stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :idle end)
+
+      projects = ProjectManager.list_projects()
+      assert hd(projects).status == :idle
+    end
+
+    test "returns :unreachable status when VM reports unreachable" do
+      {:ok, project} = ProjectManager.create_project("unreach-proj")
+
+      Mox.stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :unreachable end)
+
+      projects = ProjectManager.list_projects()
+      assert hd(projects).status == :unreachable
+    end
+
+    test "returns :starting status when VM reports starting" do
+      {:ok, project} = ProjectManager.create_project("starting-proj")
+
+      Mox.stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :starting end)
+
+      projects = ProjectManager.list_projects()
+      assert hd(projects).status == :starting
     end
   end
 
