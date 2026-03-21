@@ -1,0 +1,12 @@
+- id: engineering
+  name: Engineering
+  description: Software development agents
+- id: design
+  name: Design
+  description: UI/UX and visual design agents
+- id: product
+  name: Product
+  description: Product management agents
+- id: marketing
+  name: Marketing
+  description: Marketing and growth agents
