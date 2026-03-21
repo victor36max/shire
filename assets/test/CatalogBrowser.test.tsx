@@ -35,6 +35,16 @@ const agents: CatalogAgentSummary[] = [
     harness: "claude_code",
     model: "claude-sonnet-4-6",
   },
+  {
+    name: "senior-infrastructure-platform-engineer",
+    display_name: "Senior Full-Stack Infrastructure & Platform Engineer",
+    description: "Expert in cloud infrastructure and platform engineering",
+    category: "engineering",
+    emoji: "🔧",
+    tags: ["infrastructure", "platform"],
+    harness: "claude_code",
+    model: "claude-sonnet-4-6",
+  },
 ];
 
 const categories: CatalogCategory[] = [
@@ -118,5 +128,12 @@ describe("CatalogBrowser", () => {
   it("displays agent descriptions", () => {
     render(<CatalogBrowser {...defaultProps} />);
     expect(screen.getByText("Expert React/TypeScript developer")).toBeInTheDocument();
+  });
+
+  it("uses line-clamp instead of truncate for agent titles", () => {
+    render(<CatalogBrowser {...defaultProps} />);
+    const title = screen.getByText("Senior Full-Stack Infrastructure & Platform Engineer");
+    expect(title).toHaveClass("line-clamp-2");
+    expect(title).not.toHaveClass("truncate");
   });
 });
