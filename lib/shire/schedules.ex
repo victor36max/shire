@@ -70,10 +70,11 @@ defmodule Shire.Schedules do
   end
 
   defp cancel_pending_jobs(multi, task_id) do
-    Ecto.Multi.delete_all(
+    Ecto.Multi.update_all(
       multi,
       :cancel_jobs,
-      Shire.Workers.ScheduleWorker.pending_jobs_query(task_id)
+      Shire.Workers.ScheduleWorker.pending_jobs_query(task_id),
+      set: [state: "cancelled", cancelled_at: DateTime.utc_now()]
     )
   end
 
