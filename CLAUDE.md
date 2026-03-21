@@ -197,7 +197,10 @@ mix precommit
 
 ## Guidelines
 
-- **Always use a git worktree for new features and bug fixes** — before creating the worktree, pull latest main (`git pull origin main`) to ensure you're building on the latest codebase
+- **Always use plan mode first** — never start implementation for new features or bug fixes without planning first
+- **Always use a git worktree for any implementation** — before creating the worktree, pull latest main (`git pull origin main`) to ensure you're building on the latest codebase
+- **Always dispatch a code review subagent after implementation and verification** — fix issues found, then verify again. Never submit code without review and verification.
+- **Work always ends in a PR** — never push to main directly or push to a branch without creating a PR
 - Use `bun` for all JS package management and scripts, never `npm` or `node`
 - Use `Req` for HTTP requests, never httpoison/tesla/httpc
 - Use `yaml_elixir` for YAML parsing in Elixir
