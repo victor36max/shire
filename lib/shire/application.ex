@@ -33,7 +33,11 @@ defmodule Shire.Application do
 
     case result do
       {:ok, _pid} ->
-        Task.start(fn -> Shire.Schedules.ensure_jobs_enqueued() end)
+        oban_conf = Application.get_env(:shire, Oban, [])
+
+        unless oban_conf[:testing] do
+          Task.start(fn -> Shire.Schedules.ensure_jobs_enqueued() end)
+        end
 
       _ ->
         :ok

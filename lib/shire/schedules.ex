@@ -43,11 +43,11 @@ defmodule Shire.Schedules do
 
   def update_scheduled_task(%ScheduledTask{} = task, attrs) do
     changeset = ScheduledTask.changeset(task, attrs)
-    Shire.Workers.ScheduleWorker.cancel_pending(task.id)
 
     multi =
       Ecto.Multi.new()
       |> Ecto.Multi.update(:task, changeset)
+      |> cancel_pending_jobs(task.id)
       |> maybe_enqueue_job()
 
     case Repo.transaction(multi) do
@@ -69,9 +69,23 @@ defmodule Shire.Schedules do
     end)
   end
 
+  defp cancel_pending_jobs(multi, task_id) do
+    Ecto.Multi.delete_all(
+      multi,
+      :cancel_jobs,
+      Shire.Workers.ScheduleWorker.pending_jobs_query(task_id)
+    )
+  end
+
   def delete_scheduled_task(%ScheduledTask{} = task) do
-    Shire.Workers.ScheduleWorker.cancel_pending(task.id)
-    Repo.delete(task)
+    Ecto.Multi.new()
+    |> Ecto.Multi.delete(:task, task)
+    |> cancel_pending_jobs(task.id)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{task: task}} -> {:ok, task}
+      {:error, :task, changeset, _} -> {:error, changeset}
+    end
   end
 
   def toggle_scheduled_task(%ScheduledTask{} = task, enabled) do
@@ -105,14 +119,9 @@ defmodule Shire.Schedules do
     enabled_tasks = list_enabled_tasks()
 
     Enum.each(enabled_tasks, fn task ->
-      # Check if there's already a pending job for this task
-      import Ecto.Query
-
       pending_count =
-        Oban.Job
-        |> where([j], j.worker == "Shire.Workers.ScheduleWorker")
-        |> where([j], j.state in ["available", "scheduled"])
-        |> where([j], fragment("?->>'scheduled_task_id' = ?", j.args, ^to_string(task.id)))
+        task.id
+        |> Shire.Workers.ScheduleWorker.pending_jobs_query()
         |> Repo.aggregate(:count)
 
       if pending_count == 0 do

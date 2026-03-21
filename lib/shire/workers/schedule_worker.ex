@@ -25,7 +25,7 @@ defmodule Shire.Workers.ScheduleWorker do
                  :system
                ) do
             {:ok, _msg} ->
-              multi_result =
+              multi =
                 Ecto.Multi.new()
                 |> Ecto.Multi.insert(
                   :log,
@@ -43,9 +43,17 @@ defmodule Shire.Workers.ScheduleWorker do
                   })
                 )
                 |> Ecto.Multi.update(:mark_run, Schedules.mark_run_changeset(task))
-                |> Repo.transaction()
 
-              case multi_result do
+              multi =
+                if task.schedule_type == :recurring do
+                  Ecto.Multi.run(multi, :reschedule, fn _repo, _changes ->
+                    enqueue_recurring(task)
+                  end)
+                else
+                  multi
+                end
+
+              case Repo.transaction(multi) do
                 {:ok, _} ->
                   Phoenix.PubSub.broadcast(
                     Shire.PubSub,
@@ -59,13 +67,10 @@ defmodule Shire.Workers.ScheduleWorker do
                   )
               end
 
-              if task.schedule_type == :recurring do
-                enqueue_recurring(task)
-              end
-
             {:error, reason} ->
               Logger.warning("Scheduled task #{task.label} failed to send: #{inspect(reason)}")
 
+              # Still reschedule recurring tasks so the schedule continues
               if task.schedule_type == :recurring do
                 enqueue_recurring(task)
               end
@@ -114,14 +119,15 @@ defmodule Shire.Workers.ScheduleWorker do
   end
 
   def cancel_pending(task_id) do
+    Oban.cancel_all_jobs(pending_jobs_query(task_id))
+  end
+
+  def pending_jobs_query(task_id) do
     import Ecto.Query
 
-    queryable =
-      Oban.Job
-      |> where([j], j.worker == "Shire.Workers.ScheduleWorker")
-      |> where([j], j.state in ["available", "scheduled"])
-      |> where([j], fragment("?->>'scheduled_task_id' = ?", j.args, ^to_string(task_id)))
-
-    Oban.cancel_all_jobs(queryable)
+    Oban.Job
+    |> where([j], j.worker == "Shire.Workers.ScheduleWorker")
+    |> where([j], j.state in ["available", "scheduled"])
+    |> where([j], fragment("?->>'scheduled_task_id' = ?", j.args, ^to_string(task_id)))
   end
 end
