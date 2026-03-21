@@ -113,6 +113,6 @@ defmodule Shire.Catalog do
   end
 
   defp catalog_dir do
-    Application.app_dir(:shire, "priv/catalog")
+    Application.get_env(:shire, :catalog_dir) || Application.app_dir(:shire, "priv/catalog")
   end
 end
