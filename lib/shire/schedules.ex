@@ -25,46 +25,48 @@ defmodule Shire.Schedules do
   end
 
   def create_scheduled_task(attrs) do
-    result =
-      %ScheduledTask{}
-      |> ScheduledTask.changeset(attrs)
-      |> Repo.insert()
+    changeset = ScheduledTask.changeset(%ScheduledTask{}, attrs)
 
-    case result do
-      {:ok, task} ->
-        task = Repo.preload(task, :agent)
+    multi =
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:task, changeset)
+      |> maybe_enqueue_job()
 
-        if task.enabled do
-          Shire.Workers.ScheduleWorker.enqueue(task)
-        end
+    case Repo.transaction(multi) do
+      {:ok, %{task: task}} ->
+        {:ok, Repo.preload(task, :agent)}
 
-        {:ok, task}
-
-      error ->
-        error
+      {:error, :task, changeset, _} ->
+        {:error, changeset}
     end
   end
 
   def update_scheduled_task(%ScheduledTask{} = task, attrs) do
-    result =
-      task
-      |> ScheduledTask.changeset(attrs)
-      |> Repo.update()
+    changeset = ScheduledTask.changeset(task, attrs)
+    Shire.Workers.ScheduleWorker.cancel_pending(task.id)
 
-    case result do
-      {:ok, updated_task} ->
-        updated_task = Repo.preload(updated_task, :agent)
-        Shire.Workers.ScheduleWorker.cancel_pending(updated_task.id)
+    multi =
+      Ecto.Multi.new()
+      |> Ecto.Multi.update(:task, changeset)
+      |> maybe_enqueue_job()
 
-        if updated_task.enabled do
-          Shire.Workers.ScheduleWorker.enqueue(updated_task)
-        end
+    case Repo.transaction(multi) do
+      {:ok, %{task: updated_task}} ->
+        {:ok, Repo.preload(updated_task, :agent)}
 
-        {:ok, updated_task}
-
-      error ->
-        error
+      {:error, :task, changeset, _} ->
+        {:error, changeset}
     end
+  end
+
+  defp maybe_enqueue_job(multi) do
+    Ecto.Multi.run(multi, :enqueue, fn _repo, %{task: task} ->
+      if task.enabled do
+        Shire.Workers.ScheduleWorker.enqueue(task)
+      else
+        {:ok, :skipped}
+      end
+    end)
   end
 
   def delete_scheduled_task(%ScheduledTask{} = task) do
