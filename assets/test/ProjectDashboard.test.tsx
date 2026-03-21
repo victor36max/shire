@@ -36,6 +36,28 @@ describe("ProjectDashboard", () => {
     expect(screen.getByText("error")).toBeInTheDocument();
   });
 
+  it("shows idle and unreachable status badges", () => {
+    const vmProjects: Project[] = [
+      { id: "p9", name: "idle-project", status: "idle" },
+      { id: "p10", name: "unreachable-project", status: "unreachable" },
+    ];
+    render(<ProjectDashboard projects={vmProjects} pushEvent={vi.fn()} />);
+    expect(screen.getByText("idle")).toBeInTheDocument();
+    expect(screen.getByText("unreachable")).toBeInTheDocument();
+  });
+
+  it("shows Restart button for unreachable projects", () => {
+    const unreachableProjects: Project[] = [{ id: "p11", name: "unreachable-proj", status: "unreachable" }];
+    render(<ProjectDashboard projects={unreachableProjects} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Restart")).toBeInTheDocument();
+  });
+
+  it("does not show Restart button for idle projects", () => {
+    const idleProjects: Project[] = [{ id: "p12", name: "idle-proj", status: "idle" }];
+    render(<ProjectDashboard projects={idleProjects} pushEvent={vi.fn()} />);
+    expect(screen.queryByText("Restart")).not.toBeInTheDocument();
+  });
+
   it("opens create dialog when clicking + New Project", async () => {
     render(<ProjectDashboard projects={projects} pushEvent={vi.fn()} />);
     await userEvent.click(screen.getByText("+ New Project"));

@@ -161,10 +161,21 @@ defmodule Shire.VirtualMachineImpl do
 
   # --- GenServer Callbacks ---
 
+  @doc "Returns the VM status for a project by reading directly from Registry (non-blocking)."
+  @impl Shire.VirtualMachine
+  def vm_status(project_id) do
+    case Registry.lookup(Shire.ProjectRegistry, {:vm, project_id}) do
+      [{_pid, status}] -> status
+      [] -> :stopped
+    end
+  end
+
   @impl GenServer
   def init(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
     token = Application.get_env(:shire, :sprites_token)
+
+    update_registry_status(project_id, :starting)
 
     if token do
       vm_name = vm_name(project_id)
@@ -172,9 +183,17 @@ defmodule Shire.VirtualMachineImpl do
       case init_vm(token, vm_name) do
         {:ok, sprite, fs} ->
           Logger.info("VM #{vm_name} ready (project: #{project_id})")
+          update_registry_status(project_id, :running)
 
           {:ok,
-           %{sprite: sprite, fs: fs, project_id: project_id, ping_timer: nil, ping_until: nil}}
+           %{
+             sprite: sprite,
+             fs: fs,
+             project_id: project_id,
+             ping_timer: nil,
+             ping_until: nil,
+             vm_status: :running
+           }}
 
         {:error, reason} ->
           Logger.error("Failed to initialize VM #{vm_name}: #{inspect(reason)}")
@@ -182,7 +201,17 @@ defmodule Shire.VirtualMachineImpl do
       end
     else
       Logger.warning("No SPRITES_TOKEN configured — VM features disabled")
-      {:ok, %{sprite: nil, fs: nil, project_id: project_id, ping_timer: nil, ping_until: nil}}
+      update_registry_status(project_id, :running)
+
+      {:ok,
+       %{
+         sprite: nil,
+         fs: nil,
+         project_id: project_id,
+         ping_timer: nil,
+         ping_until: nil,
+         vm_status: :running
+       }}
     end
   end
 
@@ -360,17 +389,45 @@ defmodule Shire.VirtualMachineImpl do
     now = System.monotonic_time(:millisecond)
 
     if state.ping_until && now < state.ping_until do
+      vm_self = self()
+
       Task.start(fn ->
         try do
           Sprites.cmd(state.sprite, "echo", ["ping"], timeout: 5_000)
         rescue
-          _ -> :ok
+          _ -> send(vm_self, :ping_failed)
         end
       end)
 
       {:noreply, schedule_ping(state)}
     else
-      {:noreply, %{state | ping_timer: nil, ping_until: nil}}
+      update_registry_status(state.project_id, :idle)
+
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{state.project_id}:vm",
+        {:vm_went_idle, state.project_id}
+      )
+
+      {:noreply, %{state | ping_timer: nil, ping_until: nil, vm_status: :idle}}
+    end
+  end
+
+  @impl GenServer
+  def handle_info(:ping_failed, state) do
+    if state.vm_status != :unreachable do
+      Logger.warning("VM ping failed for project #{state.project_id}, marking as unreachable")
+      update_registry_status(state.project_id, :unreachable)
+
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{state.project_id}:vm",
+        {:vm_unreachable, state.project_id}
+      )
+
+      {:noreply, %{state | vm_status: :unreachable}}
+    else
+      {:noreply, state}
     end
   end
 
@@ -467,15 +524,34 @@ defmodule Shire.VirtualMachineImpl do
     state = %{state | ping_until: ping_until}
 
     if was_idle do
+      update_registry_status(state.project_id, :running)
+
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
         "project:#{state.project_id}:vm",
         {:vm_woke_up, state.project_id}
       )
 
-      schedule_ping(state)
+      %{schedule_ping(state) | vm_status: :running}
     else
-      state
+      # If recovering from unreachable, update status and notify
+      if state.vm_status == :unreachable do
+        update_registry_status(state.project_id, :running)
+
+        Phoenix.PubSub.broadcast(
+          Shire.PubSub,
+          "project:#{state.project_id}:vm",
+          {:vm_woke_up, state.project_id}
+        )
+
+        %{state | vm_status: :running}
+      else
+        state
+      end
     end
+  end
+
+  defp update_registry_status(project_id, status) do
+    Registry.update_value(Shire.ProjectRegistry, {:vm, project_id}, fn _ -> status end)
   end
 end
