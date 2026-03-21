@@ -65,7 +65,7 @@ defmodule Shire.CatalogTest do
     end
 
     test "matches on description" do
-      results = Catalog.search("component architecture")
+      results = Catalog.search("optimization")
       assert length(results) >= 1
     end
 
