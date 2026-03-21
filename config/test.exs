@@ -40,6 +40,9 @@ config :phoenix_live_view,
 config :shire, :vm, Shire.VirtualMachineMock
 config :shire, :skip_vm_boot, true
 
+# Oban: inline mode for tests
+config :shire, Oban, testing: :inline
+
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true

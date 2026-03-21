@@ -244,13 +244,25 @@ defmodule ShireWeb.SettingsLive.Index do
 
   defp serialize_inter_agent_messages(messages) do
     Enum.map(messages, fn msg ->
-      %{
+      base = %{
         id: msg.id,
-        from_agent: msg.content["from_agent"],
-        to_agent: msg.content["to_agent"],
         text: msg.content["text"],
         ts: msg.inserted_at |> to_string()
       }
+
+      if msg.content["trigger"] == "scheduled_task" do
+        Map.merge(base, %{
+          trigger: "scheduled_task",
+          task_label: msg.content["task_label"],
+          from_agent: "Scheduled",
+          to_agent: ""
+        })
+      else
+        Map.merge(base, %{
+          from_agent: msg.content["from_agent"],
+          to_agent: msg.content["to_agent"]
+        })
+      end
     end)
   end
 

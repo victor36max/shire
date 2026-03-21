@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
-import { FileText, Settings, FolderOpen } from "lucide-react";
+import { FileText, Settings, FolderOpen, Clock } from "lucide-react";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { navigate } from "./lib/navigate";
 import { type Agent, type AgentStatus, type Project } from "./types";
@@ -134,6 +134,15 @@ export default function AgentSidebar({
         >
           <FileText className="h-4 w-4" />
           Project Details
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2 text-muted-foreground"
+          onClick={() => navigate(`/projects/${project.name}/schedules`)}
+        >
+          <Clock className="h-4 w-4" />
+          Schedules
         </Button>
         <Button
           variant="ghost"

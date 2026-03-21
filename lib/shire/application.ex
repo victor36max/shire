@@ -8,6 +8,7 @@ defmodule Shire.Application do
     base_children = [
       ShireWeb.Telemetry,
       Shire.Repo,
+      {Oban, Application.fetch_env!(:shire, Oban)},
       {DNSCluster, query: Application.get_env(:shire, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Shire.PubSub},
       {Registry, keys: :unique, name: Shire.AgentRegistry},
@@ -28,7 +29,17 @@ defmodule Shire.Application do
         [ShireWeb.Endpoint]
 
     opts = [strategy: :one_for_one, name: Shire.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+
+    case result do
+      {:ok, _pid} ->
+        Task.start(fn -> Shire.Schedules.ensure_jobs_enqueued() end)
+
+      _ ->
+        :ok
+    end
+
+    result
   end
 
   @impl true
