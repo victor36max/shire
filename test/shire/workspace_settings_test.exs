@@ -14,7 +14,7 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "read_env/1" do
     test "returns {:ok, string} with VM content" do
-      stub(Shire.VirtualMachineMock, :cmd, fn @project, "bash", _args, _opts ->
+      stub(Shire.VirtualMachineMock, :read, fn @project, "/workspace/.env" ->
         {:ok, "MY_VAR=hello\n"}
       end)
 
@@ -23,8 +23,8 @@ defmodule Shire.WorkspaceSettingsTest do
     end
 
     test "returns {:ok, empty string} when .env does not exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn @project, "bash", _args, _opts ->
-        {:ok, ""}
+      stub(Shire.VirtualMachineMock, :read, fn @project, "/workspace/.env" ->
+        {:error, :enoent}
       end)
 
       assert {:ok, ""} = WorkspaceSettings.read_env(@project)
@@ -51,14 +51,21 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "list_scripts/1" do
     test "returns {:ok, []} when no scripts exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn @project, "bash", _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :ls, fn @project, "/workspace/.scripts" ->
+        {:error, :enoent}
+      end)
 
       assert {:ok, []} = WorkspaceSettings.list_scripts(@project)
     end
 
     test "returns {:ok, list} with .sh filenames when scripts exist" do
-      stub(Shire.VirtualMachineMock, :cmd, fn @project, "bash", _args, _opts ->
-        {:ok, "deploy.sh\nsetup.sh\nreadme.txt\n"}
+      stub(Shire.VirtualMachineMock, :ls, fn @project, "/workspace/.scripts" ->
+        {:ok,
+         [
+           %{"name" => "deploy.sh", "isDir" => false},
+           %{"name" => "setup.sh", "isDir" => false},
+           %{"name" => "readme.txt", "isDir" => false}
+         ]}
       end)
 
       assert {:ok, scripts} = WorkspaceSettings.list_scripts(@project)
@@ -70,17 +77,12 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "read_all_scripts/1" do
     test "returns scripts with content" do
-      stub(Shire.VirtualMachineMock, :cmd, fn @project, "bash", ["-c", cmd], _opts ->
-        cond do
-          String.contains?(cmd, "ls /workspace/.scripts") ->
-            {:ok, "setup.sh\n"}
+      stub(Shire.VirtualMachineMock, :ls, fn @project, "/workspace/.scripts" ->
+        {:ok, [%{"name" => "setup.sh", "isDir" => false}]}
+      end)
 
-          String.contains?(cmd, "cat /workspace/.scripts/setup.sh") ->
-            {:ok, "#!/bin/bash\necho hi"}
-
-          true ->
-            {:ok, ""}
-        end
+      stub(Shire.VirtualMachineMock, :read, fn @project, "/workspace/.scripts/setup.sh" ->
+        {:ok, "#!/bin/bash\necho hi"}
       end)
 
       assert {:ok, [%{name: "setup.sh", content: "#!/bin/bash\necho hi"}]} =
@@ -88,7 +90,9 @@ defmodule Shire.WorkspaceSettingsTest do
     end
 
     test "returns empty list when no scripts" do
-      stub(Shire.VirtualMachineMock, :cmd, fn @project, "bash", _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :ls, fn @project, "/workspace/.scripts" ->
+        {:error, :enoent}
+      end)
 
       assert {:ok, []} = WorkspaceSettings.read_all_scripts(@project)
     end
@@ -115,11 +119,8 @@ defmodule Shire.WorkspaceSettingsTest do
 
   describe "delete_script/2" do
     test "deletes the script file" do
-      expect(Shire.VirtualMachineMock, :cmd, fn @project,
-                                                "rm",
-                                                ["-f", "/workspace/.scripts/setup.sh"],
-                                                _opts ->
-        {:ok, ""}
+      expect(Shire.VirtualMachineMock, :rm, fn @project, "/workspace/.scripts/setup.sh" ->
+        :ok
       end)
 
       assert :ok = WorkspaceSettings.delete_script(@project, "setup.sh")

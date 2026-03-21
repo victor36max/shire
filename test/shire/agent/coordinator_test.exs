@@ -13,6 +13,9 @@ defmodule Shire.Agent.CoordinatorTest do
     # Stub all VM calls with safe defaults before starting the Coordinator
     stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
     stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+    stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
+    stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+    stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
 
     stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
       {:error, :not_available_in_test}
@@ -260,7 +263,7 @@ defmodule Shire.Agent.CoordinatorTest do
 
       agent = create_db_agent(project_id, "my-agent")
 
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, "bash", _args, _opts ->
+      stub(Shire.VirtualMachineMock, :read, fn _project, _path ->
         {:ok, recipe_yaml}
       end)
 
@@ -394,7 +397,7 @@ defmodule Shire.Agent.CoordinatorTest do
     } do
       unique_name = "coord-create-test-#{System.unique_integer([:positive])}"
 
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       result =
@@ -410,7 +413,7 @@ defmodule Shire.Agent.CoordinatorTest do
     test "returns {:error, :already_exists} for duplicate names", %{project_id: project_id} do
       unique_name = "coord-dup-test-#{System.unique_integer([:positive])}"
 
-      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       recipe = "version: 1\nname: #{unique_name}\n"
