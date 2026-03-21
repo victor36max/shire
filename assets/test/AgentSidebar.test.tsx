@@ -38,6 +38,7 @@ const defaultProps = {
   onSelectAgent: vi.fn(),
   onNewAgent: vi.fn(),
   onDeleteAgent: vi.fn(),
+  onBrowseCatalog: vi.fn(),
 };
 
 describe("AgentSidebar", () => {
@@ -98,5 +99,13 @@ describe("AgentSidebar", () => {
     const dots = container.querySelectorAll(".rounded-full");
     expect(dots[0]).toHaveClass("animate-pulse"); // active + busy
     expect(dots[1]).not.toHaveClass("animate-pulse"); // created + not busy
+  });
+
+  it("calls onBrowseCatalog when clicking Browse Catalog button", async () => {
+    const onBrowseCatalog = vi.fn();
+    render(<AgentSidebar {...defaultProps} agents={agents} onBrowseCatalog={onBrowseCatalog} />);
+
+    await userEvent.click(screen.getByText("Browse Catalog"));
+    expect(onBrowseCatalog).toHaveBeenCalled();
   });
 });
