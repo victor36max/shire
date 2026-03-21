@@ -16,6 +16,7 @@ defmodule ShireWeb.ProjectLiveTest do
 
     stub(Shire.VirtualMachineMock, :destroy_vm, fn _name -> :ok end)
     stub(Shire.VirtualMachineMock, :touch_keepalive, fn _project_id -> :ok end)
+    stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
 
     pid = start_supervised!(Shire.ProjectManager)
     Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
