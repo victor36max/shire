@@ -43,6 +43,7 @@ interface AgentSidebarProps {
   onSelectAgent: (id: string) => void;
   onNewAgent: () => void;
   onDeleteAgent: (agent: Agent) => void;
+  onBrowseCatalog: () => void;
 }
 
 export default function AgentSidebar({
@@ -53,6 +54,7 @@ export default function AgentSidebar({
   onSelectAgent,
   onNewAgent,
   onDeleteAgent,
+  onBrowseCatalog,
 }: AgentSidebarProps) {
   const [deleteAgent, setDeleteAgent] = React.useState<Agent | null>(null);
 
@@ -120,6 +122,9 @@ export default function AgentSidebar({
       <div className="p-3 border-t border-border space-y-1">
         <Button variant="outline" size="sm" className="w-full" onClick={onNewAgent}>
           + New Agent
+        </Button>
+        <Button variant="outline" size="sm" className="w-full" onClick={onBrowseCatalog}>
+          Browse Catalog
         </Button>
         <Button
           variant="ghost"
