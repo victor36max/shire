@@ -9,6 +9,7 @@ defmodule Shire.WorkspaceSettingsTest do
 
   setup do
     Mox.set_mox_global()
+    stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
     :ok
   end
 

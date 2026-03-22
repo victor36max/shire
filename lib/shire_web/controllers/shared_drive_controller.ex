@@ -1,12 +1,13 @@
 defmodule ShireWeb.SharedDriveController do
   use ShireWeb, :controller
 
+  alias Shire.Workspace
+
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-  @drive_path "/workspace/shared"
 
   def download(conn, %{"project_name" => project_name, "path" => path}) do
     project = Shire.Projects.get_project_by_name!(project_name)
-    vm_path = to_vm_path(path)
+    vm_path = to_vm_path(project.id, path)
 
     case @vm.read(project.id, vm_path) do
       {:ok, content} ->
@@ -26,13 +27,14 @@ defmodule ShireWeb.SharedDriveController do
     end
   end
 
-  defp to_vm_path(path) do
+  defp to_vm_path(project_id, path) do
+    drive_path = Workspace.shared_dir(project_id)
     clean = path |> String.trim_leading("/") |> String.trim_trailing("/")
 
     if clean == "" do
-      @drive_path
+      drive_path
     else
-      "#{@drive_path}/#{clean}"
+      Path.join(drive_path, clean)
     end
   end
 end

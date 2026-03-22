@@ -3,9 +3,9 @@ defmodule ShireWeb.SharedDriveLive.Index do
 
   alias Shire.Projects
   alias Shire.ProjectManager
+  alias Shire.Workspace
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-  @drive_path "/workspace/shared"
 
   @impl true
   def mount(%{"project_name" => project_name}, _session, socket) do
@@ -44,7 +44,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
     project_id = socket.assigns.project.id
     path = join_path(socket.assigns.current_path, name)
 
-    case @vm.mkdir_p(project_id, to_vm_path(path)) do
+    case @vm.mkdir_p(project_id, to_vm_path(project_id, path)) do
       :ok ->
         {:noreply,
          socket
@@ -59,7 +59,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
   def handle_event("delete-file", %{"path" => path}, socket) do
     project_id = socket.assigns.project.id
 
-    case @vm.rm(project_id, to_vm_path(path)) do
+    case @vm.rm(project_id, to_vm_path(project_id, path)) do
       :ok ->
         {:noreply, assign(socket, :files, list_files(project_id, socket.assigns.current_path))}
 
@@ -71,7 +71,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
   def handle_event("delete-directory", %{"path" => path}, socket) do
     project_id = socket.assigns.project.id
 
-    case @vm.rm_rf(project_id, to_vm_path(path)) do
+    case @vm.rm_rf(project_id, to_vm_path(project_id, path)) do
       :ok ->
         {:noreply, assign(socket, :files, list_files(project_id, socket.assigns.current_path))}
 
@@ -86,7 +86,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
 
     case Base.decode64(content) do
       {:ok, decoded} ->
-        vm_path = to_vm_path(path)
+        vm_path = to_vm_path(project_id, path)
 
         with :ok <- @vm.mkdir_p(project_id, Path.dirname(vm_path)),
              :ok <- @vm.write(project_id, vm_path, decoded) do
@@ -105,7 +105,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
   end
 
   defp list_files(project_id, path) do
-    vm_path = to_vm_path(path)
+    vm_path = to_vm_path(project_id, path)
 
     case @vm.ls(project_id, vm_path) do
       {:ok, entries} when is_list(entries) ->
@@ -135,13 +135,14 @@ defmodule ShireWeb.SharedDriveLive.Index do
     end
   end
 
-  defp to_vm_path(path) do
+  defp to_vm_path(project_id, path) do
+    drive_path = Workspace.shared_dir(project_id)
     clean = path |> String.trim_leading("/") |> String.trim_trailing("/")
 
     if clean == "" do
-      @drive_path
+      drive_path
     else
-      "#{@drive_path}/#{clean}"
+      Path.join(drive_path, clean)
     end
   end
 

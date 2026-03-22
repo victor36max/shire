@@ -12,6 +12,7 @@ defmodule Shire.Agent.AgentManagerTest do
   setup :set_mox_from_context
 
   setup do
+    stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
     stub(Shire.VirtualMachineMock, :touch_keepalive, fn _project_id -> :ok end)
 
     {:ok, project} = Projects.create_project("test-project-#{System.unique_integer([:positive])}")
