@@ -112,11 +112,10 @@ defmodule Shire.VirtualMachineE2B.StreamHandler do
     |> Enum.reduce({current_pid, got_exit}, fn line, {pid, exited} ->
       case Jason.decode(line) do
         {:ok, %{"result" => result}} ->
-          case handle_event(result, caller, ref) do
-            {:pid, new_pid} -> {new_pid, exited}
-            :exit -> {pid, true}
-            :ok -> {pid, exited}
-          end
+          dispatch_event(result, caller, ref, pid, exited)
+
+        {:ok, %{"event" => _} = event} ->
+          dispatch_event(event, caller, ref, pid, exited)
 
         {:ok, %{"error" => error}} ->
           Logger.error("E2B process error: #{inspect(error)}")
@@ -136,6 +135,14 @@ defmodule Shire.VirtualMachineE2B.StreamHandler do
 
   defp handle_stream_data(_data, _caller, _ref, current_pid, got_exit),
     do: {current_pid, got_exit}
+
+  defp dispatch_event(event, caller, ref, pid, exited) do
+    case handle_event(event, caller, ref) do
+      {:pid, new_pid} -> {new_pid, exited}
+      :exit -> {pid, true}
+      :ok -> {pid, exited}
+    end
+  end
 
   defp handle_event(%{"event" => %{"start" => %{"pid" => pid}}}, _caller, _ref) do
     {:pid, pid}
