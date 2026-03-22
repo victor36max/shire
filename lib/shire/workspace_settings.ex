@@ -29,7 +29,7 @@ defmodule Shire.WorkspaceSettings do
   @doc "Lists script filenames in `/workspace/.scripts/`."
   def list_scripts(project_id) do
     case @vm.ls(project_id, "/workspace/.scripts") do
-      {:ok, entries} ->
+      {:ok, entries} when is_list(entries) ->
         names =
           entries
           |> Enum.map(& &1["name"])
@@ -37,7 +37,7 @@ defmodule Shire.WorkspaceSettings do
 
         {:ok, names}
 
-      {:error, _} ->
+      _ ->
         {:ok, []}
     end
   end
