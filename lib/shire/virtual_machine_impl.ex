@@ -475,7 +475,7 @@ defmodule Shire.VirtualMachineImpl do
   end
 
   defp wait_for_ready(sprite, attempt \\ 1) do
-    Sprites.cmd(sprite, "echo", ["ready"], timeout: 10_000)
+    Sprites.cmd(sprite, "echo", ["ready"], timeout: @default_cmd_timeout)
     :ok
   rescue
     e ->
