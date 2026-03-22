@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useLiveReact } from "live_react";
+import { Square } from "lucide-react";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
@@ -296,7 +297,18 @@ export default function ChatPanel({
                 }
               }}
             />
-            <Button onClick={handleSend}>Send</Button>
+            {agent.busy ? (
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={() => pushEvent("interrupt-agent", {})}
+                aria-label="Stop"
+              >
+                <Square className="h-4 w-4 fill-current" />
+              </Button>
+            ) : (
+              <Button onClick={handleSend}>Send</Button>
+            )}
           </div>
         </div>
       ) : agent.status === "idle" ? (
