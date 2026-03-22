@@ -6,7 +6,7 @@
 - **Frontend:** LiveReact (React components inside Phoenix LiveView) + shadcn/ui (Radix + Tailwind v4)
 - **Build:** Vite (not esbuild), Bun (not npm/node)
 - **CSS:** Tailwind v4 with `@theme inline` + oklch CSS variables (shadcn default)
-- **VM:** Sprite VM (Firecracker), managed via `VirtualMachineImpl` GenServer
+- **VM:** Sprite VM (Firecracker), managed via `VirtualMachineSprite` GenServer
 - **Agent runtime:** Bun + multi-harness adapter pattern (Pi SDK, Claude Code CLI)
 - **Agent deployment:** Recipe-based (YAML recipes on the VM filesystem, no DB schema)
 - **Inter-agent comms:** File-based inbox/outbox directories + host-side outbox polling + peer discovery via `peers.json`
@@ -36,7 +36,7 @@
 **Projects** — DB-backed (`projects` table, UUID PK). Each project owns one Sprite VM and a set of agents. `ProjectManager` boots all project VMs on startup.
 
 **Supervision tree:**
-- `ProjectManager` → `ProjectInstanceSupervisor` (per project, `one_for_all`) → `[VirtualMachineImpl, Coordinator, DynamicSupervisor]`
+- `ProjectManager` → `ProjectInstanceSupervisor` (per project, `one_for_all`) → `[VirtualMachineSprite, Coordinator, DynamicSupervisor]`
 - Registries: `AgentRegistry` (agents by name), `ProjectRegistry` (project supervisors by ID)
 
 **Recipes** — YAML files defining agents (`name`, `description`, `harness`, `scripts`). Live on the VM at `/workspace/agents/{name}/recipe.yaml` — no DB schema for recipes. Agents themselves are DB-backed with a unique constraint on `(project_id, name)`.
@@ -52,7 +52,7 @@
 ```
 lib/shire/
   project_manager.ex              # Boots all project VMs on startup
-  project_instance_supervisor.ex  # Per-project: VirtualMachineImpl + Coordinator + DynamicSupervisor
+  project_instance_supervisor.ex  # Per-project: VirtualMachineSprite + Coordinator + DynamicSupervisor
   projects.ex                     # Context: Project CRUD
   agents.ex                       # Context: Agent + Message CRUD
   agents/                         # Ecto schemas (agent.ex, message.ex)
@@ -61,7 +61,7 @@ lib/shire/
     coordinator.ex                # Per-project: VM bootstrap, agent CRUD, message routing
     terminal_session.ex           # Interactive TTY on the VM
   virtual_machine.ex              # Behaviour (cmd, read, write, spawn_command, etc.)
-  virtual_machine_impl.ex         # GenServer wrapping Sprites SDK
+  virtual_machine_sprite.ex       # GenServer wrapping Sprites SDK
   workspace_settings.ex           # Per-project env vars and scripts
 
 lib/shire_web/live/

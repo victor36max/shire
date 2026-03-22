@@ -1,7 +1,7 @@
-defmodule Shire.VirtualMachineImplTest do
+defmodule Shire.VirtualMachineSpriteTest do
   use ExUnit.Case, async: true
 
-  alias Shire.VirtualMachineImpl, as: VM
+  alias Shire.VirtualMachineSprite, as: VM
 
   @project_id "test-project"
 
@@ -58,7 +58,7 @@ defmodule Shire.VirtualMachineImplTest do
       assert capture_log([level: :info], fn ->
                VM.terminate(:shutdown, %{sprite: nil, fs: nil, project_id: @project_id})
                Logger.flush()
-             end) =~ "VirtualMachineImpl stopping (no VM"
+             end) =~ "VirtualMachineSprite stopping (no VM"
     end
 
     test "handles active sprite state without crashing" do
@@ -67,7 +67,7 @@ defmodule Shire.VirtualMachineImplTest do
       assert capture_log([level: :info], fn ->
                VM.terminate(:shutdown, %{sprite: :fake, fs: :fake, project_id: @project_id})
                Logger.flush()
-             end) =~ "VirtualMachineImpl stopping"
+             end) =~ "VirtualMachineSprite stopping"
     end
   end
 

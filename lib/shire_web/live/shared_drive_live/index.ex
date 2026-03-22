@@ -147,7 +147,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
   defp join_path("/", name), do: name
   defp join_path(base, name), do: "#{String.trim_trailing(base, "/")}/#{name}"
 
-  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 
   @impl true
   def render(assigns) do

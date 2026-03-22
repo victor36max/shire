@@ -105,5 +105,5 @@ defmodule Shire.Agent.TerminalSession do
     Phoenix.PubSub.broadcast(Shire.PubSub, state.pubsub_topic, message)
   end
 
-  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

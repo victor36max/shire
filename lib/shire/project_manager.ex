@@ -70,7 +70,7 @@ defmodule Shire.ProjectManager do
     end
   end
 
-  @doc "Returns the VirtualMachineImpl pid for a project."
+  @doc "Returns the VirtualMachineSprite pid for a project."
   def lookup_vm(project_id) do
     case Registry.lookup(Shire.ProjectRegistry, {:vm, project_id}) do
       [{pid, _}] -> {:ok, pid}
@@ -281,5 +281,5 @@ defmodule Shire.ProjectManager do
     )
   end
 
-  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

@@ -40,7 +40,7 @@ if config_env() != :test do
   vm_module =
     case vm_type do
       "local" -> Shire.VirtualMachineLocal
-      _ -> Shire.VirtualMachineImpl
+      _ -> Shire.VirtualMachineSprite
     end
 
   config :shire, :vm, vm_module

@@ -602,5 +602,5 @@ defmodule Shire.Agent.Coordinator do
     end
   end
 
-  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end
