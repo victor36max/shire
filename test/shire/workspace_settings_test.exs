@@ -58,6 +58,14 @@ defmodule Shire.WorkspaceSettingsTest do
       assert {:ok, []} = WorkspaceSettings.list_scripts(@project)
     end
 
+    test "returns {:ok, []} when ls returns nil entries" do
+      stub(Shire.VirtualMachineMock, :ls, fn @project, "/workspace/.scripts" ->
+        {:ok, nil}
+      end)
+
+      assert {:ok, []} = WorkspaceSettings.list_scripts(@project)
+    end
+
     test "returns {:ok, list} with .sh filenames when scripts exist" do
       stub(Shire.VirtualMachineMock, :ls, fn @project, "/workspace/.scripts" ->
         {:ok,
