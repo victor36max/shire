@@ -253,7 +253,9 @@ export default function ChatPanel({
                   msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
                 }`}
               >
-                <Markdown className={msg.role === "user" ? "prose-invert" : ""}>{msg.text ?? ""}</Markdown>
+                <Markdown className={msg.role === "user" ? "prose-invert" : ""} inverted={msg.role === "user"}>
+                  {msg.text ?? ""}
+                </Markdown>
               </div>
             </div>
           ),
