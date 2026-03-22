@@ -5,8 +5,6 @@ defmodule ShireWeb.SharedDriveLive.Index do
   alias Shire.ProjectManager
   alias Shire.Workspace
 
-  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-
   @impl true
   def mount(%{"project_name" => project_name}, _session, socket) do
     project = Projects.get_project_by_name!(project_name)
@@ -44,7 +42,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
     project_id = socket.assigns.project.id
     path = join_path(socket.assigns.current_path, name)
 
-    case @vm.mkdir_p(project_id, to_vm_path(project_id, path)) do
+    case vm().mkdir_p(project_id, to_vm_path(project_id, path)) do
       :ok ->
         {:noreply,
          socket
@@ -59,7 +57,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
   def handle_event("delete-file", %{"path" => path}, socket) do
     project_id = socket.assigns.project.id
 
-    case @vm.rm(project_id, to_vm_path(project_id, path)) do
+    case vm().rm(project_id, to_vm_path(project_id, path)) do
       :ok ->
         {:noreply, assign(socket, :files, list_files(project_id, socket.assigns.current_path))}
 
@@ -71,7 +69,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
   def handle_event("delete-directory", %{"path" => path}, socket) do
     project_id = socket.assigns.project.id
 
-    case @vm.rm_rf(project_id, to_vm_path(project_id, path)) do
+    case vm().rm_rf(project_id, to_vm_path(project_id, path)) do
       :ok ->
         {:noreply, assign(socket, :files, list_files(project_id, socket.assigns.current_path))}
 
@@ -88,8 +86,8 @@ defmodule ShireWeb.SharedDriveLive.Index do
       {:ok, decoded} ->
         vm_path = to_vm_path(project_id, path)
 
-        with :ok <- @vm.mkdir_p(project_id, Path.dirname(vm_path)),
-             :ok <- @vm.write(project_id, vm_path, decoded) do
+        with :ok <- vm().mkdir_p(project_id, Path.dirname(vm_path)),
+             :ok <- vm().write(project_id, vm_path, decoded) do
           {:noreply,
            socket
            |> put_flash(:info, "File uploaded")
@@ -107,7 +105,7 @@ defmodule ShireWeb.SharedDriveLive.Index do
   defp list_files(project_id, path) do
     vm_path = to_vm_path(project_id, path)
 
-    case @vm.ls(project_id, vm_path) do
+    case vm().ls(project_id, vm_path) do
       {:ok, entries} when is_list(entries) ->
         entries
         |> Enum.sort_by(fn entry -> entry["name"] || to_string(entry) end)
@@ -148,6 +146,8 @@ defmodule ShireWeb.SharedDriveLive.Index do
 
   defp join_path("/", name), do: name
   defp join_path(base, name), do: "#{String.trim_trailing(base, "/")}/#{name}"
+
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
 
   @impl true
   def render(assigns) do

@@ -10,8 +10,6 @@ defmodule Shire.ProjectManager do
   alias Shire.Projects
   alias Shire.Projects.Project
 
-  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -31,7 +29,7 @@ defmodule Shire.ProjectManager do
           [{pid, _}] ->
             if Process.alive?(pid) do
               # Coordinator is alive — derive status from VM state
-              @vm.vm_status(project.id)
+              vm().vm_status(project.id)
             else
               :error
             end
@@ -158,7 +156,7 @@ defmodule Shire.ProjectManager do
         DynamicSupervisor.terminate_child(Shire.ProjectSupervisor, pid)
 
         # Destroy the underlying VM
-        case @vm.destroy_vm(project_id) do
+        case vm().destroy_vm(project_id) do
           :ok ->
             :ok
 
@@ -282,4 +280,6 @@ defmodule Shire.ProjectManager do
       {Shire.ProjectInstanceSupervisor, project_id: project_id}
     )
   end
+
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
 end
