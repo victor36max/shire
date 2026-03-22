@@ -1,9 +1,9 @@
 defmodule Shire.VirtualMachine do
   @moduledoc """
-  Behaviour defining the VM interface for all Sprite VM operations.
+  Behaviour defining the VM interface for all VM operations.
   All project-scoped operations take `project_id` as the first parameter.
-  Consumers use `@vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)`
-  to resolve the implementation at compile time.
+  The implementation is resolved at runtime via `Application.get_env(:shire, :vm)`.
+  Set `SHIRE_VM_TYPE=local` for local filesystem, or `SHIRE_VM_TYPE=sprites` (default) for Sprite VMs.
   """
 
   @type cmd_result :: {:ok, binary()} | {:error, term()}

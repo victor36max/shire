@@ -6,15 +6,15 @@ defmodule Shire.Agents do
   alias Shire.Agents.{Agent, Message}
   alias Shire.Workspace
 
-  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-
   # --- Agent CRUD ---
 
   @doc """
   Creates an agent record and sets up its workspace on the VM.
   Uses Ecto.Multi to ensure DB and VM operations are atomic.
   """
-  def create_agent_with_vm(project_id, name, recipe_yaml, vm \\ @vm) do
+  def create_agent_with_vm(project_id, name, recipe_yaml, vm \\ nil) do
+    vm = vm || vm()
+
     Multi.new()
     |> Multi.insert(:agent, Agent.changeset(%Agent{}, %{name: name, project_id: project_id}))
     |> Multi.run(:vm_setup, fn _repo, %{agent: agent} ->
@@ -49,7 +49,9 @@ defmodule Shire.Agents do
   Deletes an agent and removes its workspace from the VM.
   Uses Ecto.Multi to ensure DB and VM operations are atomic.
   """
-  def delete_agent_with_vm(project_id, %Agent{} = agent, vm \\ @vm) do
+  def delete_agent_with_vm(project_id, %Agent{} = agent, vm \\ nil) do
+    vm = vm || vm()
+
     Multi.new()
     |> Multi.delete(:agent, agent)
     |> Multi.run(:rm_folder, fn _repo, _ ->
@@ -105,7 +107,9 @@ defmodule Shire.Agents do
   @doc """
   Sends a message: inserts DB record and writes inbox file on VM atomically.
   """
-  def send_message_with_inbox(project_id, agent_id, text, inbox_path, envelope, vm \\ @vm) do
+  def send_message_with_inbox(project_id, agent_id, text, inbox_path, envelope, vm \\ nil) do
+    vm = vm || vm()
+
     Multi.new()
     |> Multi.insert(
       :message,
@@ -192,4 +196,6 @@ defmodule Shire.Agents do
 
     {messages, has_more}
   end
+
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

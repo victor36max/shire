@@ -10,8 +10,6 @@ defmodule Shire.Agent.AgentManager do
   alias Shire.Agents
   alias Shire.Workspace
 
-  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-
   defp comms_prompt(agent_name, agent_id, project_id) do
     peers_path = Workspace.peers_path(project_id)
     outbox_path = Path.join(Workspace.agent_dir(project_id, agent_id), "outbox/<any-name>.yaml")
@@ -172,7 +170,7 @@ defmodule Shire.Agent.AgentManager do
     kill_existing_runner(state.project_id, state.agent_id)
     env = load_env_vars(state.project_id)
 
-    case @vm.spawn_command(
+    case vm().spawn_command(
            state.project_id,
            "bun",
            ["run", runner_path, "--agent-dir", agent_dir],
@@ -208,7 +206,7 @@ defmodule Shire.Agent.AgentManager do
     # Write directly to inbox without creating a DB message.
     # The caller (ScheduleWorker / run-now handler) is responsible for
     # persisting the log entry with the correct role and content.
-    case @vm.write(state.project_id, inbox_path, Ymlr.document!(envelope)) do
+    case vm().write(state.project_id, inbox_path, Ymlr.document!(envelope)) do
       :ok ->
         {:reply, {:ok, :sent}, state}
 
@@ -484,7 +482,7 @@ defmodule Shire.Agent.AgentManager do
 
     # Create agent directory structure
     for subdir <- ["inbox", "outbox", "scripts", "documents", ".claude/skills"] do
-      @vm.mkdir_p(project_id, Path.join(agent_dir, subdir))
+      vm().mkdir_p(project_id, Path.join(agent_dir, subdir))
     end
 
     # Read recipe to determine harness type
@@ -498,7 +496,7 @@ defmodule Shire.Agent.AgentManager do
         _ -> "AGENTS.md"
       end
 
-    @vm.write(
+    vm().write(
       project_id,
       Path.join(agent_dir, comms_file),
       comms_prompt(agent_name, agent_id, project_id)
@@ -520,7 +518,7 @@ defmodule Shire.Agent.AgentManager do
   defp read_recipe(project_id, agent_id) do
     path = Path.join(Workspace.agent_dir(project_id, agent_id), "recipe.yaml")
 
-    case @vm.read(project_id, path) do
+    case vm().read(project_id, path) do
       {:ok, content} ->
         case YamlElixir.read_from_string(content) do
           {:ok, %{} = recipe} -> recipe
@@ -542,17 +540,17 @@ defmodule Shire.Agent.AgentManager do
       end
 
     # Clean stale skills from previous recipe versions
-    @vm.rm_rf(project_id, skill_base)
+    vm().rm_rf(project_id, skill_base)
 
     for skill <- skills do
       skill_dir = "#{skill_base}/#{skill["name"]}"
-      @vm.mkdir_p(project_id, skill_dir)
+      vm().mkdir_p(project_id, skill_dir)
 
       skill_md = build_skill_md(skill)
-      @vm.write(project_id, "#{skill_dir}/SKILL.md", skill_md)
+      vm().write(project_id, "#{skill_dir}/SKILL.md", skill_md)
 
       for ref <- skill["references"] || [] do
-        @vm.write(project_id, "#{skill_dir}/#{ref["name"]}", ref["content"])
+        vm().write(project_id, "#{skill_dir}/#{ref["name"]}", ref["content"])
       end
     end
 
@@ -579,7 +577,7 @@ defmodule Shire.Agent.AgentManager do
   defp kill_existing_runner(project_id, agent_id) do
     agent_dir = Workspace.agent_dir(project_id, agent_id)
 
-    @vm.cmd(
+    vm().cmd(
       project_id,
       "pkill",
       ["-f", "agent-runner.ts --agent-dir #{agent_dir}"],
@@ -618,7 +616,7 @@ defmodule Shire.Agent.AgentManager do
 
     if is_nil(state.last_keepalive_touch) ||
          now - state.last_keepalive_touch >= @keepalive_touch_interval do
-      @vm.touch_keepalive(state.project_id)
+      vm().touch_keepalive(state.project_id)
       %{state | last_keepalive_touch: now}
     else
       state
@@ -626,7 +624,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp load_env_vars(project_id) do
-    case @vm.read(project_id, Workspace.env_path(project_id)) do
+    case vm().read(project_id, Workspace.env_path(project_id)) do
       {:ok, content} ->
         content
         |> String.split("\n", trim: true)
@@ -848,4 +846,6 @@ defmodule Shire.Agent.AgentManager do
         Map.put(base, :text, msg.content["text"])
     end
   end
+
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

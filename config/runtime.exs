@@ -26,16 +26,24 @@ end
 
 config :shire, ShireWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
-# Sprites — optional in dev, required in prod
+# VM backend selection: "sprites" (default) or "local"
+vm_type = System.get_env("SHIRE_VM_TYPE", "sprites")
 sprites_token = System.get_env("SPRITES_TOKEN")
 sprite_vm_prefix = System.get_env("SPRITE_VM_PREFIX")
 
-if config_env() == :prod && is_nil(sprites_token) do
-  raise "environment variable SPRITES_TOKEN is missing."
+if config_env() == :prod && vm_type == "sprites" && is_nil(sprites_token) do
+  raise "environment variable SPRITES_TOKEN is missing (required when SHIRE_VM_TYPE=sprites)."
 end
 
 # Don't connect to real VMs in test — ProjectManager will skip discovery
 if config_env() != :test do
+  vm_module =
+    case vm_type do
+      "local" -> Shire.VirtualMachineLocal
+      _ -> Shire.VirtualMachineSprite
+    end
+
+  config :shire, :vm, vm_module
   config :shire, :sprites_token, sprites_token
 
   if sprite_vm_prefix do

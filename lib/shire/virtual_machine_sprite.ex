@@ -1,9 +1,9 @@
-defmodule Shire.VirtualMachineImpl do
+defmodule Shire.VirtualMachineSprite do
   @moduledoc """
   Per-project GenServer owning a Sprite VM lifecycle. Provides consistent
   error handling, default timeouts, and failure logging for all VM operations.
 
-  Each project gets its own VirtualMachineImpl instance, registered dynamically
+  Each project gets its own VirtualMachineSprite instance, registered dynamically
   via Shire.ProjectRegistry. The VM name is derived from the configurable prefix
   and the project name.
   """
@@ -436,12 +436,12 @@ defmodule Shire.VirtualMachineImpl do
   def terminate(reason, %{sprite: nil} = state),
     do:
       Logger.warning(
-        "VirtualMachineImpl stopping (no VM, project: #{state.project_id}): #{inspect(reason)}"
+        "VirtualMachineSprite stopping (no VM, project: #{state.project_id}): #{inspect(reason)}"
       )
 
   def terminate(reason, state) do
     Logger.warning(
-      "VirtualMachineImpl stopping (project: #{state.project_id}): #{inspect(reason)}"
+      "VirtualMachineSprite stopping (project: #{state.project_id}): #{inspect(reason)}"
     )
   end
 

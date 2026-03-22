@@ -13,13 +13,23 @@ defmodule Shire.ProjectInstanceSupervisor do
 
   @impl true
   def init(project_id) do
-    children = [
-      {Shire.VirtualMachineImpl, project_id: project_id},
-      {Shire.Agent.Coordinator, project_id: project_id},
-      {DynamicSupervisor,
-       name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
-       strategy: :one_for_one}
-    ]
+    vm_module = Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
+
+    vm_children =
+      if function_exported?(vm_module, :child_spec, 1) do
+        [{vm_module, project_id: project_id}]
+      else
+        []
+      end
+
+    children =
+      vm_children ++
+        [
+          {Shire.Agent.Coordinator, project_id: project_id},
+          {DynamicSupervisor,
+           name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
+           strategy: :one_for_one}
+        ]
 
     Supervisor.init(children, strategy: :one_for_all, max_restarts: 10, max_seconds: 300)
   end
