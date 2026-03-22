@@ -2,6 +2,8 @@ defmodule Shire.SchedulesTest do
   use Shire.DataCase, async: true
   use Oban.Testing, repo: Shire.Repo
 
+  import Mox
+
   alias Shire.Schedules
   alias Shire.Schedules.ScheduledTask
   alias Shire.Agents
@@ -9,7 +11,11 @@ defmodule Shire.SchedulesTest do
 
   @vm Shire.VirtualMachineStub
 
+  setup :set_mox_from_context
+
   setup do
+    stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
+
     {:ok, project} = Projects.create_project("schedule-project")
     {:ok, agent} = Agents.create_agent_with_vm(project.id, "sched-agent", "version: 1\n", @vm)
 

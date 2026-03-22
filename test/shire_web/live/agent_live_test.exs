@@ -7,6 +7,7 @@ defmodule ShireWeb.AgentLiveTest do
   setup do
     Mox.set_mox_global()
 
+    stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
     stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
     stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
     stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)

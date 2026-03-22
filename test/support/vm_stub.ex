@@ -46,6 +46,9 @@ defmodule Shire.VirtualMachineStub do
   def resize(_command, _rows, _cols), do: :ok
 
   @impl true
+  def workspace_root(_project_id), do: "/workspace"
+
+  @impl true
   def vm_status(_project_id), do: :running
 
   @impl true
