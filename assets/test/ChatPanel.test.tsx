@@ -243,6 +243,27 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("Your outbox message was invalid")).not.toBeInTheDocument();
   });
 
+  it("shows stop button when agent is busy", () => {
+    const busyAgent = { ...activeAgent, busy: true };
+    render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.getByLabelText("Stop")).toBeInTheDocument();
+    expect(screen.queryByText("Send")).not.toBeInTheDocument();
+  });
+
+  it("sends interrupt-agent event when stop button is clicked", async () => {
+    const busyAgent = { ...activeAgent, busy: true };
+    const pushEvent = vi.fn();
+    render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={pushEvent} />);
+    await userEvent.click(screen.getByLabelText("Stop"));
+    expect(pushEvent).toHaveBeenCalledWith("interrupt-agent", {});
+  });
+
+  it("shows send button when agent is not busy", () => {
+    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.getByText("Send")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Stop")).not.toBeInTheDocument();
+  });
+
   it("shows thinking indicator when agent is busy and not streaming", () => {
     const busyAgent = { ...activeAgent, busy: true };
     render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);

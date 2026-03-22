@@ -238,6 +238,27 @@ defmodule ShireWeb.AgentLive.Index do
     {:noreply, socket}
   end
 
+  @impl true
+  def handle_event("interrupt-agent", _params, socket) do
+    project_id = socket.assigns.project.id
+    agent_id = socket.assigns.selected_agent_id
+
+    if agent_id do
+      case Coordinator.interrupt_agent(project_id, agent_id) do
+        :ok ->
+          {:noreply, socket}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, "Failed to interrupt: #{inspect(reason)}")}
+      end
+    else
+      {:noreply, socket}
+    end
+  catch
+    :exit, _ ->
+      {:noreply, put_flash(socket, :error, "Agent is not running.")}
+  end
+
   # PubSub handlers (agent-specific topic)
 
   @impl true

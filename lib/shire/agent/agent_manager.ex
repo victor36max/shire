@@ -106,6 +106,10 @@ defmodule Shire.Agent.AgentManager do
     GenServer.call(via(project_id, agent_id), {:send_message, text, from}, 60_000)
   end
 
+  def interrupt(project_id, agent_id) do
+    GenServer.call(via(project_id, agent_id), :interrupt, 15_000)
+  end
+
   @spec get_state(atom() | pid() | {atom(), any()} | {:via, atom(), any()}) :: any()
   def get_state(server) do
     GenServer.call(server, :get_state, 60_000)
@@ -247,6 +251,34 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def handle_call({:send_message, _text, _from}, _from_pid, state) do
+    {:reply, {:error, :not_active}, state}
+  end
+
+  @impl true
+  def handle_call(:interrupt, _from, %{status: :active} = state) do
+    envelope = %{
+      "ts" => System.system_time(:millisecond),
+      "type" => "interrupt",
+      "from" => "user",
+      "payload" => %{}
+    }
+
+    inbox_dir = Path.join(Workspace.agent_dir(state.project_id, state.agent_id), "inbox")
+    filename = "#{envelope["ts"]}-#{random_suffix()}.yaml"
+    inbox_path = Path.join(inbox_dir, filename)
+
+    case vm().write(state.project_id, inbox_path, Ymlr.document!(envelope)) do
+      :ok ->
+        {:reply, :ok, state}
+
+      {:error, reason} ->
+        Logger.warning("Failed to write interrupt: #{inspect(reason)}")
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
+  def handle_call(:interrupt, _from, state) do
     {:reply, {:error, :not_active}, state}
   end
 

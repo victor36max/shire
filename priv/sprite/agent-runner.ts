@@ -103,6 +103,23 @@ export function agentName(): string {
   return peersIdToName.get(id) || id;
 }
 
+export async function tryHandleInterrupt(harness: Harness, filename: string, inboxDir = INBOX_DIR): Promise<boolean> {
+  try {
+    const path = join(inboxDir, filename);
+    const raw = await readFile(path, "utf-8");
+    const envelope = yaml.load(raw) as MessageEnvelope;
+    if (envelope.type === "interrupt") {
+      await harness.interrupt();
+      emit("interrupted", {});
+      await unlink(path);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function processMessage(harness: Harness, envelope: MessageEnvelope): Promise<void> {
   if (envelope.type === "user_message" || envelope.type === "agent_message" || envelope.type === "system_message") {
     const text = envelope.payload.text as string;
@@ -264,7 +281,11 @@ async function main() {
 
   // Watch for new inbox messages
   const inboxWatcher = watch(INBOX_DIR, async (_eventType: string, filename: string | null) => {
-    if ((!filename?.endsWith(".yaml") && !filename?.endsWith(".yml")) || processing) return;
+    if (!filename?.endsWith(".yaml") && !filename?.endsWith(".yml")) return;
+    if (processing) {
+      await tryHandleInterrupt(harness, filename);
+      return;
+    }
     processing = true;
     emit("processing", { active: true });
     try {
