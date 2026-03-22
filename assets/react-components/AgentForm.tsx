@@ -228,9 +228,7 @@ export default function AgentForm({ open, title, agent, pushEvent, onClose }: Ag
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="claude_code">Claude Code</SelectItem>
-                    <SelectItem value="pi" disabled>
-                      Pi (Coming soon)
-                    </SelectItem>
+                    <SelectItem value="pi">Pi</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
