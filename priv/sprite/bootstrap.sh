@@ -31,21 +31,8 @@ if ! command -v claude &> /dev/null; then
   curl -fsSL https://claude.ai/install.sh | bash || echo "Warning: Claude Code installation failed"
 fi
 
-# --- Write environment profile sourced by all shells ---
-# Use /etc/profile.d/ so both interactive and non-interactive login shells pick up paths
-PROFILE_SCRIPT="/etc/profile.d/shire-env.sh"
-cat > "$PROFILE_SCRIPT" << 'ENVSH'
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$HOME/.bun/install/global/node_modules/.bin:$PATH"
-ENVSH
-
-# Also write workspace-specific env sourcing to bashrc
+# Source workspace env vars in every interactive/login shell
 cat > "$HOME/.bashrc" << BASHRC
-# Source tool paths
-if [ -f "$PROFILE_SCRIPT" ]; then
-  . "$PROFILE_SCRIPT"
-fi
-# Source workspace env vars
 if [ -f "$WORKSPACE_ROOT/.env" ]; then
   set -a
   . "$WORKSPACE_ROOT/.env"
