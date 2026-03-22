@@ -131,7 +131,7 @@ defmodule Shire.WorkspaceSettings do
     script = File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
     root = Workspace.root(project_id)
 
-    case vm().cmd(project_id, "bash", ["-c", script, "bash", root], timeout: 120_000) do
+    case vm().cmd(project_id, "bash", ["-c", script, "bash", root], timeout: 300_000) do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end
