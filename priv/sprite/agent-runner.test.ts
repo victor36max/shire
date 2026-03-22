@@ -10,6 +10,7 @@ import {
   processInbox,
   processOutbox,
   writeSystemMessage,
+  tryHandleInterrupt,
   type MessageEnvelope,
 } from "./agent-runner";
 import type { Harness } from "./harness";
@@ -649,5 +650,60 @@ describe("writeSystemMessage()", () => {
     expect(envelope.from).toBe("system");
     expect(typeof envelope.ts).toBe("number");
     expect((envelope.payload as Record<string, unknown>).text).toBe("Something went wrong.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tryHandleInterrupt()
+// ---------------------------------------------------------------------------
+
+describe("tryHandleInterrupt()", () => {
+  const TEST_INTERRUPT_INBOX = "/tmp/test-interrupt-inbox";
+
+  beforeEach(() => {
+    rmSync(TEST_INTERRUPT_INBOX, { recursive: true, force: true });
+    mkdirSync(TEST_INTERRUPT_INBOX, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_INTERRUPT_INBOX, { recursive: true, force: true });
+  });
+
+  test("calls harness.interrupt() and returns true for interrupt envelope", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({ type: "interrupt", payload: {} });
+    const filename = "001-int.yaml";
+    writeFileSync(`${TEST_INTERRUPT_INBOX}/${filename}`, yaml.dump(envelope));
+
+    const events = await captureEmits(async () => {
+      const result = await tryHandleInterrupt(harness, filename, TEST_INTERRUPT_INBOX);
+      expect(result).toBe(true);
+    });
+
+    expect(harness.interrupt).toHaveBeenCalled();
+    expect(events.map((e) => e.type)).toContain("interrupted");
+    expect(existsSync(`${TEST_INTERRUPT_INBOX}/${filename}`)).toBe(false);
+  });
+
+  test("returns false and leaves file for non-interrupt envelope", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({ type: "user_message", payload: { text: "Hi" } });
+    const filename = "002-msg.yaml";
+    writeFileSync(`${TEST_INTERRUPT_INBOX}/${filename}`, yaml.dump(envelope));
+
+    const result = await tryHandleInterrupt(harness, filename, TEST_INTERRUPT_INBOX);
+
+    expect(result).toBe(false);
+    expect(harness.interrupt).not.toHaveBeenCalled();
+    expect(existsSync(`${TEST_INTERRUPT_INBOX}/${filename}`)).toBe(true);
+  });
+
+  test("returns false without crashing for non-existent file", async () => {
+    const harness = createMockHarness();
+
+    const result = await tryHandleInterrupt(harness, "does-not-exist.yaml", TEST_INTERRUPT_INBOX);
+
+    expect(result).toBe(false);
+    expect(harness.interrupt).not.toHaveBeenCalled();
   });
 });

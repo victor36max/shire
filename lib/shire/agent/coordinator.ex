@@ -54,6 +54,10 @@ defmodule Shire.Agent.Coordinator do
     AgentManager.send_message(project_id, agent_id, text, :user)
   end
 
+  def interrupt_agent(project_id, agent_id) do
+    AgentManager.interrupt(project_id, agent_id)
+  end
+
   @doc "Look up a running agent's pid by ID within a project."
   def lookup(project_id, agent_id) do
     case Registry.lookup(Shire.AgentRegistry, {project_id, agent_id}) do
