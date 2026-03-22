@@ -29,6 +29,7 @@ function createMockSession() {
         subscriber({ type: "agent_end" } as AgentSessionEvent);
       }
     }),
+    abort: mock(async () => {}),
     fireEvent: (event: AgentSessionEvent) => {
       if (subscriber) subscriber(event);
     },
@@ -158,16 +159,12 @@ describe("PiHarness", () => {
     expect(events).toHaveLength(0);
   });
 
-  test("interrupt() resets session", async () => {
+  test("interrupt() calls abort on the session", async () => {
     const harness = new PiHarness();
-    let sessionCount = 0;
-    harness._setSessionFactory(async () => {
-      sessionCount++;
-      return createMockSession();
-    });
+    const mockSession = createMockSession();
+    harness._setSessionFactory(async () => mockSession);
     await harness.start(baseConfig);
-    expect(sessionCount).toBe(1);
     await harness.interrupt();
-    expect(sessionCount).toBe(2);
+    expect(mockSession.abort).toHaveBeenCalledTimes(1);
   });
 });
