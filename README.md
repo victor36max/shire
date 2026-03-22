@@ -8,13 +8,15 @@ Shire is an open platform for deploying, orchestrating, and collaborating with A
 
 ## ✨ Why Shire?
 
-Most agent platforms treat agents as stateless API calls. Shire gives every agent a **home** — a persistent workspace with its own filesystem, tools, and mailbox, all running on a Sprite VM. Agents don't just run. They *live* here.
+Most agent platforms treat agents as stateless API calls. Shire gives every agent a **home** — a persistent workspace with its own filesystem, tools, and mailbox. Agents don't just run. They *live* here.
 
-- 📁 **Multi-project architecture** — Organize agents into projects, each with its own dedicated Sprite VM, shared drive, and settings. Spin up as many isolated environments as you need.
-- 🏠 **Persistent workspaces** — Each agent gets its own workspace directory with inbox/outbox, scripts, and documents — all backed by a Firecracker VM with a 100GB NVMe volume.
+- 📁 **Multi-project architecture** — Organize agents into projects, each with its own dedicated VM, shared drive, and settings. Spin up as many isolated environments as you need.
+- 🏠 **Persistent workspaces** — Each agent gets its own workspace directory with inbox/outbox, scripts, and documents — backed by a Firecracker VM in production or local filesystem in development.
 - 🔌 **Multi-harness architecture** — Bring your own runtime. Shire supports multiple agent harnesses (Pi SDK, Claude Code CLI) through a unified adapter pattern.
 - 📜 **Recipe-based deployment** — Define agents as simple YAML recipes with setup scripts that run idempotently. No Dockerfiles, no complex configs.
+- 📚 **Agent catalog** — Browse and deploy agents from a built-in catalog of pre-built templates organized by category (design, marketing, engineering, and more).
 - 💬 **Inter-agent communication** — Agents discover peers and exchange messages through a file-based mailbox system with automatic delivery.
+- ⏰ **Scheduled tasks** — Automate agent work with one-time or recurring scheduled messages — hourly, daily, weekly, monthly, or custom intervals.
 - 📂 **Shared drive** — A communal filesystem synced across all agents within a project for collaborative work.
 - 📊 **Real-time dashboard** — Monitor, chat with, and manage all your agents from a live web UI with streaming updates.
 - 🖥️ **Interactive terminal** — Drop into the VM with a full xterm.js terminal, right from your browser.
@@ -27,10 +29,12 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
 │                (Phoenix LiveView + React UI)                │
 ├─────────────────────────────────────────────────────────────┤
 │  ProjectDashboard (/)                                       │
-│  ├── AgentDashboard (/projects/:id)                         │
+│  ├── AgentDashboard (/projects/:name)                       │
 │  │   ├── Agent Sidebar  │  Chat/Stream Panel                │
-│  ├── Settings (/projects/:id/settings)                      │
-│  └── Shared Drive (/projects/:id/shared)                    │
+│  ├── Project Details (/projects/:name/details)              │
+│  ├── Settings (/projects/:name/settings)                    │
+│  ├── Schedules (/projects/:name/schedules)                  │
+│  └── Shared Drive (/projects/:name/shared)                  │
 └────────────────────────────┬────────────────────────────────┘
                              │
                              ▼
@@ -44,7 +48,7 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
 │  Project A                   │  │  Project B                   │
 │  (ProjectInstanceSupervisor) │  │  (ProjectInstanceSupervisor) │
 │  ┌────────────────────────┐  │  │  ┌────────────────────────┐  │
-│  │ VirtualMachineSprite     │  │  │  │ VirtualMachineSprite     │  │
+│  │ VM (Sprite or Local)   │  │  │  │ VM (Sprite or Local)   │  │
 │  │ Coordinator            │  │  │  │ Coordinator            │  │
 │  │ AgentMgr A, B, ...     │  │  │  │ AgentMgr C, D, ...     │  │
 │  │ Terminal Session       │  │  │  │ Terminal Session       │  │
@@ -53,19 +57,19 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
                │                                 │
                ▼                                 ▼
 ┌──────────────────────────────┐  ┌──────────────────────────────┐
-│  Sprite VM (A)               │  │  Sprite VM (B)               │
-│  (1 VM per project)          │  │  (1 VM per project)          │
+│  VM (A)                      │  │  VM (B)                      │
+│  Sprite or Local per project │  │  Sprite or Local per project │
 │                              │  │                              │
-│  /workspace/                 │  │  /workspace/                 │
+│  {workspace_root}/             │  │  {workspace_root}/             │
 │  ├── agents/                 │  │  ├── agents/                 │
 │  │   ├── researcher/         │  │  │   └── ...                 │
-│  │   │   ├── recipe.yaml     │  │  ├── shared/ ←── /drive      │
+│  │   │   ├── recipe.yaml     │  │  ├── shared/                 │
 │  │   │   ├── inbox/          │  │  └── .runner/                │
 │  │   │   ├── outbox/         │  └──────────────────────────────┘
 │  │   │   ├── scripts/        │
 │  │   │   └── documents/      │
 │  │   └── coder/              │
-│  ├── shared/ ←── /drive      │
+│  ├── shared/                 │
 │  └── .runner/                │
 └──────────────────────────────┘
 ```
@@ -85,6 +89,8 @@ Shire is built on top of [**Fly.io Sprites**](https://sprites.dev) — lightweig
 
 Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to manage VM lifecycles, execute commands, sync files, and stream terminal sessions — all from the Phoenix backend.
 
+> 💡 **Local development mode:** Don't have a Sprites account? Set `SHIRE_VM_TYPE=local` to use a local filesystem backend instead. Agent workspaces live at `~/.shire/projects/` and processes run as local Erlang ports.
+
 ## 🧰 Tech Stack
 
 | Layer | Technology |
@@ -93,7 +99,8 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 | Frontend | LiveReact (React inside Phoenix LiveView), shadcn/ui, Tailwind v4 |
 | Build | Vite, Bun |
 | Agent Runtime | Bun + TypeScript, multi-harness adapter pattern |
-| VM | [Fly.io Sprites](https://sprites.dev) (Firecracker) |
+| VM | Pluggable: [Fly.io Sprites](https://sprites.dev) (Firecracker) or Local (dev) |
+| Job Processing | [Oban](https://getoban.pro/) (scheduled tasks, recurring jobs) |
 
 ## 🚀 Getting Started
 
@@ -102,7 +109,7 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 - Elixir 1.17+
 - PostgreSQL
 - [Bun](https://bun.sh)
-- A [Sprites](https://sprites.dev) account (for the `SPRITES_TOKEN`)
+- A [Sprites](https://sprites.dev) account (for the `SPRITES_TOKEN`) — optional if using the local VM backend
 
 ### Environment Variables
 
@@ -112,11 +119,11 @@ Create a `.env` file in the project root. It's automatically loaded in dev/test 
 
 | Variable | Description |
 |----------|-------------|
-| `SPRITES_TOKEN` | Sprites SDK authentication token from [sprites.dev](https://sprites.dev) |
+| `SPRITES_TOKEN` | Sprites SDK authentication token from [sprites.dev](https://sprites.dev) (not needed with local VM backend) |
 | `DATABASE_URL` | PostgreSQL connection string (production only — dev uses local defaults) |
 | `SECRET_KEY_BASE` | Phoenix cookie/session secret. Generate with: `mix phx.gen.secret` |
 
-> 💡 In development, only `SPRITES_TOKEN` is needed — everything else has sensible defaults.
+> 💡 In development with local VM backend (`SHIRE_VM_TYPE=local`), no external tokens are needed. With Sprite VMs, only `SPRITES_TOKEN` is required.
 
 **Optional:**
 
@@ -128,6 +135,7 @@ Create a `.env` file in the project root. It's automatically loaded in dev/test 
 | `ECTO_IPV6` | — | Set to `true` to enable IPv6 for database connections |
 | `DNS_CLUSTER_QUERY` | — | DNS query for distributed Erlang node discovery |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key, passed to agents using the Pi SDK harness |
+| `SHIRE_VM_TYPE` | `sprites` | VM backend: `sprites` (Firecracker) or `local` (local filesystem for dev) |
 
 ### Setup
 
@@ -159,7 +167,7 @@ cd assets && bun run test          # Frontend tests
 
 ### 1. Create a Project
 
-Projects are the top-level unit in Shire. Each project gets its own dedicated Sprite VM with isolated storage and networking. Create one from the dashboard at `/`. 📁
+Projects are the top-level unit in Shire. Each project gets its own dedicated VM (Sprite or Local) with isolated storage and networking. Create one from the dashboard at `/`. 📁
 
 ### 2. Define a Recipe
 
@@ -179,13 +187,17 @@ scripts:
 
 ### 3. Deploy
 
-Navigate into your project, hit "Create Agent", paste your recipe, and Shire handles the rest — bootstrapping the workspace, executing setup scripts idempotently, and spawning the agent runner. ⚡
+Navigate into your project, hit "Create Agent", paste your recipe or pick one from the built-in catalog, and Shire handles the rest — bootstrapping the workspace, executing setup scripts idempotently, and spawning the agent runner. ⚡
 
 ### 4. Collaborate
 
-Agents within a project discover each other through `peers.json` and communicate via the file-based mailbox system. Drop files in the shared drive for all agents in the project to access. Chat with any agent directly from the dashboard. 🤝
+Agents within a project discover each other through `peers.yaml` and communicate via the file-based mailbox system. Drop files in the shared drive for all agents in the project to access. Chat with any agent directly from the dashboard. 🤝
 
-### 5. Sleep & Resume
+### 5. Automate
+
+Set up scheduled tasks to send messages to agents on a recurring basis — hourly, daily, weekly, or custom intervals. Great for periodic reports, health checks, or automated workflows. ⏰
+
+### 6. Sleep & Resume
 
 When agents go idle, the VM auto-sleeps — preserving installed packages, workspaces, and all state. When you need them again, everything wakes up instantly right where it left off. No rebuilding, no lost context. 💤
 
