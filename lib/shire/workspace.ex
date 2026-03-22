@@ -15,5 +15,5 @@ defmodule Shire.Workspace do
   def peers_path(project_id), do: Path.join(root(project_id), "peers.yaml")
   def project_doc_path(project_id), do: Path.join(root(project_id), "PROJECT.md")
 
-  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

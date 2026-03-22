@@ -197,5 +197,5 @@ defmodule Shire.Agents do
     {messages, has_more}
   end
 
-  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end
