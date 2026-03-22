@@ -105,6 +105,8 @@ defmodule Shire.VirtualMachineE2B.StreamHandler do
   end
 
   defp handle_stream_data(data, caller, ref, current_pid, got_exit) when is_binary(data) do
+    Logger.debug("E2B raw stream: #{inspect(String.slice(data, 0, 500))}")
+
     data
     |> String.split("\n", trim: true)
     |> Enum.reduce({current_pid, got_exit}, fn line, {pid, exited} ->
@@ -121,7 +123,12 @@ defmodule Shire.VirtualMachineE2B.StreamHandler do
           send(caller, {:exit, %{ref: ref}, 1})
           {pid, true}
 
-        _ ->
+        {:ok, other} ->
+          Logger.debug("E2B unhandled JSON: #{inspect(other)}")
+          {pid, exited}
+
+        {:error, _} ->
+          Logger.debug("E2B non-JSON line: #{inspect(line)}")
           {pid, exited}
       end
     end)
@@ -159,5 +166,8 @@ defmodule Shire.VirtualMachineE2B.StreamHandler do
     :exit
   end
 
-  defp handle_event(_event, _caller, _ref), do: :ok
+  defp handle_event(event, _caller, _ref) do
+    Logger.debug("E2B unhandled event: #{inspect(event)}")
+    :ok
+  end
 end
