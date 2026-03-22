@@ -226,14 +226,15 @@ defmodule Shire.VirtualMachineE2B do
     cwd = Keyword.get(opts, :dir, @workspace_root)
     env = build_env(Keyword.get(opts, :env))
 
-    full_cmd = Enum.join([command | args], " ")
-
     result =
       try do
-        run_cmd_sync(state.sandbox_id, state.access_token, full_cmd, cwd, env, timeout)
+        run_cmd_sync(state.sandbox_id, state.access_token, command, args, cwd, env, timeout)
       rescue
         e ->
-          Logger.error("E2B cmd exception: #{full_cmd} — #{Exception.message(e)}")
+          Logger.error(
+            "E2B cmd exception: #{command} #{Enum.join(args, " ")} — #{Exception.message(e)}"
+          )
+
           {:error, e}
       end
 
@@ -319,7 +320,7 @@ defmodule Shire.VirtualMachineE2B do
   def handle_call({:rm_rf, path}, _from, state) do
     result =
       try do
-        run_cmd_sync(state.sandbox_id, state.access_token, "rm -rf #{path}", "/", %{}, 30_000)
+        run_cmd_sync(state.sandbox_id, state.access_token, "rm", ["-rf", path], "/", %{}, 30_000)
         |> case do
           {:ok, _} -> :ok
           {:error, {:exit, _code, _output}} = err -> err
@@ -509,7 +510,7 @@ defmodule Shire.VirtualMachineE2B do
 
   # --- Private: Synchronous Command Execution ---
 
-  defp run_cmd_sync(sandbox_id, access_token, full_cmd, cwd, env, timeout) do
+  defp run_cmd_sync(sandbox_id, access_token, cmd, args, cwd, env, timeout) do
     opts = [
       cwd: cwd,
       envs: env,
@@ -519,7 +520,7 @@ defmodule Shire.VirtualMachineE2B do
     ]
 
     {:ok, %{ref: stream_ref, pid: handler_pid}} =
-      StreamHandler.start_link(sandbox_id, access_token, "/bin/bash", ["-c", full_cmd], opts)
+      StreamHandler.start_link(sandbox_id, access_token, cmd, args, opts)
 
     collect_cmd_output(stream_ref, handler_pid, "", timeout)
   end
@@ -537,7 +538,17 @@ defmodule Shire.VirtualMachineE2B do
     after
       timeout ->
         Process.exit(handler_pid, :kill)
+        flush_ref(ref)
         {:error, :timeout}
+    end
+  end
+
+  defp flush_ref(ref) do
+    receive do
+      {:stdout, %{ref: ^ref}, _} -> flush_ref(ref)
+      {:exit, %{ref: ^ref}, _} -> flush_ref(ref)
+    after
+      0 -> :ok
     end
   end
 
