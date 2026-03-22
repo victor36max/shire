@@ -160,17 +160,17 @@ defmodule Shire.VirtualMachineE2B.Client do
   end
 
   def mkdir_p(sandbox_id, access_token, path) do
-    connect_post(sandbox_id, access_token, "/filesystem.Filesystem/MakeDir", %{"path" => path})
+    json_post(sandbox_id, access_token, "/filesystem.Filesystem/MakeDir", %{"path" => path})
     |> normalize_ok_response()
   end
 
   def remove(sandbox_id, access_token, path) do
-    connect_post(sandbox_id, access_token, "/filesystem.Filesystem/Remove", %{"path" => path})
+    json_post(sandbox_id, access_token, "/filesystem.Filesystem/Remove", %{"path" => path})
     |> normalize_ok_response()
   end
 
   def list_dir(sandbox_id, access_token, path) do
-    case connect_post(sandbox_id, access_token, "/filesystem.Filesystem/ListDir", %{
+    case json_post(sandbox_id, access_token, "/filesystem.Filesystem/ListDir", %{
            "path" => path,
            "depth" => 1
          }) do
@@ -186,7 +186,7 @@ defmodule Shire.VirtualMachineE2B.Client do
   end
 
   def stat_path(sandbox_id, access_token, path) do
-    connect_post(sandbox_id, access_token, "/filesystem.Filesystem/Stat", %{"path" => path})
+    json_post(sandbox_id, access_token, "/filesystem.Filesystem/Stat", %{"path" => path})
   end
 
   # --- Sandbox Process API ---
@@ -219,7 +219,9 @@ defmodule Shire.VirtualMachineE2B.Client do
     req =
       sandbox_req(sandbox_id, access_token)
       |> Req.merge(
-        headers: connect_headers(),
+        headers: [
+          {"content-type", "application/json"}
+        ],
         url: "/process.Process/Start",
         method: :post,
         body: Jason.encode!(body),
@@ -245,7 +247,7 @@ defmodule Shire.VirtualMachineE2B.Client do
       "input" => input
     }
 
-    connect_post(sandbox_id, access_token, "/process.Process/SendInput", body)
+    json_post(sandbox_id, access_token, "/process.Process/SendInput", body)
     |> normalize_ok_response()
   end
 
@@ -255,30 +257,16 @@ defmodule Shire.VirtualMachineE2B.Client do
       "pty" => %{"size" => %{"cols" => cols, "rows" => rows}}
     }
 
-    connect_post(sandbox_id, access_token, "/process.Process/Update", body)
+    json_post(sandbox_id, access_token, "/process.Process/Update", body)
     |> normalize_ok_response()
   end
 
-  # --- Connect Protocol Helpers ---
+  # --- JSON RPC Helpers ---
 
-  defp connect_headers do
-    [
-      {"connect-protocol-version", "1"},
-      {"content-type", "application/connect+json"}
-    ]
-  end
-
-  defp connect_post(sandbox_id, access_token, path, body) do
+  defp json_post(sandbox_id, access_token, path, body) do
     req = sandbox_req(sandbox_id, access_token)
 
-    case Req.post(req,
-           url: path,
-           headers: connect_headers(),
-           body: Jason.encode!(body)
-         ) do
-      {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
-        Jason.decode(body)
-
+    case Req.post(req, url: path, json: body) do
       {:ok, %Req.Response{status: 200, body: body}} ->
         {:ok, body}
 
@@ -291,7 +279,6 @@ defmodule Shire.VirtualMachineE2B.Client do
   end
 
   defp normalize_ok_response({:ok, _}), do: :ok
-  defp normalize_ok_response(:ok), do: :ok
   defp normalize_ok_response({:error, _} = err), do: err
 
   defp sandbox_base_url(sandbox_id) do
