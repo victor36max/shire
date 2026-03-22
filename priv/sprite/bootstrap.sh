@@ -31,8 +31,13 @@ if ! command -v claude &> /dev/null; then
   curl -fsSL https://claude.ai/install.sh | bash || echo "Warning: Claude Code installation failed"
 fi
 
-# Source workspace env vars in every interactive/login shell
-cat > "$HOME/.bashrc" << BASHRC
+# Set up tool paths and workspace env vars for all shells
+cat > "$HOME/.bashrc" << 'BASHRC'
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$HOME/.claude/local:$PATH"
+BASHRC
+
+cat >> "$HOME/.bashrc" << BASHRC
 if [ -f "$WORKSPACE_ROOT/.env" ]; then
   set -a
   . "$WORKSPACE_ROOT/.env"
