@@ -4,6 +4,7 @@ import type { Harness, HarnessConfig, EventCallback } from "./types";
 export type SessionLike = {
   subscribe: (cb: AgentSessionEventListener) => void;
   prompt: (text: string) => Promise<void>;
+  abort: () => Promise<void>;
 };
 
 type SessionFactory = (config: HarnessConfig) => Promise<SessionLike>;
@@ -41,9 +42,8 @@ export class PiHarness implements Harness {
   }
 
   async interrupt(): Promise<void> {
-    if (!this.config) return;
-    this.session = await this.createSession(this.config);
-    this.subscribeToSession(this.session);
+    if (!this.session) return;
+    await this.session.abort();
   }
 
   async stop(): Promise<void> {
@@ -73,10 +73,7 @@ export class PiHarness implements Harness {
     } = await import("@mariozechner/pi-coding-agent");
     const { getModel } = await import("@mariozechner/pi-ai");
 
-    const authStorage = AuthStorage.create();
-    if (process.env.ANTHROPIC_API_KEY) {
-      authStorage.setRuntimeApiKey("anthropic", process.env.ANTHROPIC_API_KEY);
-    }
+    const authStorage = AuthStorage.inMemory();
     const modelRegistry = new ModelRegistry(authStorage);
     const [provider, modelName] = config.model.split("/");
     const model = getModel(provider, modelName);
@@ -89,7 +86,10 @@ export class PiHarness implements Harness {
     const loader = new DefaultResourceLoader({
       cwd: config.cwd,
       settingsManager,
-      systemPromptOverride: () => config.systemPrompt,
+      systemPromptOverride: (base) => {
+        const parts = [base, config.systemPrompt].filter(Boolean);
+        return parts.length > 0 ? parts.join("\n\n") : undefined;
+      },
     });
     await loader.reload();
 
