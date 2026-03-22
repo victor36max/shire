@@ -8,10 +8,16 @@ defmodule Shire.Agent.AgentManager do
   require Logger
 
   alias Shire.Agents
+  alias Shire.Workspace
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
-  defp comms_prompt(agent_name, agent_id) do
+  defp comms_prompt(agent_name, agent_id, project_id) do
+    peers_path = Workspace.peers_path(project_id)
+    outbox_path = Path.join(Workspace.agent_dir(project_id, agent_id), "outbox/<any-name>.yaml")
+    shared_path = Workspace.shared_dir(project_id)
+    project_doc = Workspace.project_doc_path(project_id)
+
     """
     # Inter-Agent Communication
 
@@ -25,12 +31,12 @@ defmodule Shire.Agent.AgentManager do
     - The user sees YOUR output, not the other agents' — always produce the complete response
 
     ## Discovering Peers
-    Read `/workspace/peers.yaml` to see available agents and their descriptions.
+    Read `#{peers_path}` to see available agents and their descriptions.
 
     ## Sending Messages
     To message another agent, write a YAML file to your **outbox**:
 
-    **Path:** `/workspace/agents/#{agent_id}/outbox/<any-name>.yaml`
+    **Path:** `#{outbox_path}`
 
     **Format:**
     ```yaml
@@ -57,16 +63,16 @@ defmodule Shire.Agent.AgentManager do
     - `documents/` — Store internal documents, notes, or references worth keeping
 
     ## Shared Drive
-    All agents can read and write files in `/workspace/shared/`. Use this for sharing documents,
+    All agents can read and write files in `#{shared_path}/`. Use this for sharing documents,
     data, or artifacts that multiple agents need access to.
 
     ## Project Document
-    Before starting any task, read `/workspace/PROJECT.md` for project context, goals, and conventions.
+    Before starting any task, read `#{project_doc}` for project context, goals, and conventions.
     After completing a task, review the document and update it if your work changes any project-level
     context (e.g., new conventions, completed milestones, architectural decisions).
 
     ## Guidelines
-    - Read `/workspace/peers.yaml` before messaging to confirm the target agent exists
+    - Read `#{peers_path}` before messaging to confirm the target agent exists
     - Be specific about what you need from the other agent
     - Don't send messages unnecessarily — only when collaboration genuinely helps
     """
@@ -161,14 +167,15 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def handle_continue(:spawn_runner, state) do
-    agent_dir = "/workspace/agents/#{state.agent_id}"
+    agent_dir = Workspace.agent_dir(state.project_id, state.agent_id)
+    runner_path = Path.join(Workspace.runner_dir(state.project_id), "agent-runner.ts")
     kill_existing_runner(state.project_id, state.agent_id)
     env = load_env_vars(state.project_id)
 
     case @vm.spawn_command(
            state.project_id,
            "bun",
-           ["run", "/workspace/.runner/agent-runner.ts", "--agent-dir", agent_dir],
+           ["run", runner_path, "--agent-dir", agent_dir],
            env: env,
            dir: agent_dir
          ) do
@@ -194,9 +201,9 @@ defmodule Shire.Agent.AgentManager do
       "payload" => %{"text" => text}
     }
 
-    inbox_dir = "/workspace/agents/#{state.agent_id}/inbox"
+    inbox_dir = Path.join(Workspace.agent_dir(state.project_id, state.agent_id), "inbox")
     filename = "#{envelope["ts"]}-#{random_suffix()}.yaml"
-    inbox_path = "#{inbox_dir}/#{filename}"
+    inbox_path = Path.join(inbox_dir, filename)
 
     # Write directly to inbox without creating a DB message.
     # The caller (ScheduleWorker / run-now handler) is responsible for
@@ -220,9 +227,9 @@ defmodule Shire.Agent.AgentManager do
       "payload" => %{"text" => text}
     }
 
-    inbox_dir = "/workspace/agents/#{state.agent_id}/inbox"
+    inbox_dir = Path.join(Workspace.agent_dir(state.project_id, state.agent_id), "inbox")
     filename = "#{envelope["ts"]}-#{random_suffix()}.yaml"
-    inbox_path = "#{inbox_dir}/#{filename}"
+    inbox_path = Path.join(inbox_dir, filename)
 
     case Agents.send_message_with_inbox(
            state.project_id,
@@ -473,11 +480,11 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp setup_agent_workspace(project_id, agent_id, agent_name) do
-    agent_dir = "/workspace/agents/#{agent_id}"
+    agent_dir = Workspace.agent_dir(project_id, agent_id)
 
     # Create agent directory structure
     for subdir <- ["inbox", "outbox", "scripts", "documents", ".claude/skills"] do
-      @vm.mkdir_p(project_id, "#{agent_dir}/#{subdir}")
+      @vm.mkdir_p(project_id, Path.join(agent_dir, subdir))
     end
 
     # Read recipe to determine harness type
@@ -491,7 +498,11 @@ defmodule Shire.Agent.AgentManager do
         _ -> "AGENTS.md"
       end
 
-    @vm.write(project_id, "#{agent_dir}/#{comms_file}", comms_prompt(agent_name, agent_id))
+    @vm.write(
+      project_id,
+      Path.join(agent_dir, comms_file),
+      comms_prompt(agent_name, agent_id, project_id)
+    )
 
     # Deploy skills from recipe
     deploy_skills(project_id, recipe, agent_dir)
@@ -507,7 +518,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp read_recipe(project_id, agent_id) do
-    path = "/workspace/agents/#{agent_id}/recipe.yaml"
+    path = Path.join(Workspace.agent_dir(project_id, agent_id), "recipe.yaml")
 
     case @vm.read(project_id, path) do
       {:ok, content} ->
@@ -566,10 +577,12 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp kill_existing_runner(project_id, agent_id) do
+    agent_dir = Workspace.agent_dir(project_id, agent_id)
+
     @vm.cmd(
       project_id,
       "pkill",
-      ["-f", "agent-runner.ts --agent-dir /workspace/agents/#{agent_id}"],
+      ["-f", "agent-runner.ts --agent-dir #{agent_dir}"],
       []
     )
 
@@ -613,7 +626,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   defp load_env_vars(project_id) do
-    case @vm.read(project_id, "/workspace/.env") do
+    case @vm.read(project_id, Workspace.env_path(project_id)) do
       {:ok, content} ->
         content
         |> String.split("\n", trim: true)

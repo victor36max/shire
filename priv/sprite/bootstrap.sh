@@ -1,26 +1,29 @@
 #!/bin/bash
-# bootstrap.sh — Sets up the base directory structure on the shared Sprite VM.
+# bootstrap.sh — Sets up the base directory structure on the workspace.
 # Run once when the VM is first created.
+# Accepts workspace root as $1, defaults to /workspace for Sprite VMs.
 
 set -euo pipefail
 
-mkdir -p /workspace/.runner
-mkdir -p /workspace/.scripts
-mkdir -p /workspace/shared
-mkdir -p /workspace/agents
+WORKSPACE_ROOT="${1:-/workspace}"
+
+mkdir -p "$WORKSPACE_ROOT/.runner"
+mkdir -p "$WORKSPACE_ROOT/.scripts"
+mkdir -p "$WORKSPACE_ROOT/shared"
+mkdir -p "$WORKSPACE_ROOT/agents"
 
 # Source workspace env vars in every interactive/login shell
-cat > /root/.bashrc << 'BASHRC'
-if [ -f /workspace/.env ]; then
+cat > /root/.bashrc << BASHRC
+if [ -f $WORKSPACE_ROOT/.env ]; then
   set -a
-  . /workspace/.env
+  . $WORKSPACE_ROOT/.env
   set +a
 fi
 BASHRC
 
 # Create default PROJECT.md if it doesn't exist
-if [ ! -f /workspace/PROJECT.md ]; then
-  cat > /workspace/PROJECT.md << 'PROJECTMD'
+if [ ! -f "$WORKSPACE_ROOT/PROJECT.md" ]; then
+  cat > "$WORKSPACE_ROOT/PROJECT.md" << 'PROJECTMD'
 # Project
 
 Describe your project here. All agents will check this document for context before starting tasks and update it after completing work.

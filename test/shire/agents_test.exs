@@ -1,12 +1,18 @@
 defmodule Shire.AgentsTest do
   use Shire.DataCase, async: true
 
+  import Mox
+
   alias Shire.Agents
   alias Shire.Projects
 
   @vm Shire.VirtualMachineStub
 
+  setup :set_mox_from_context
+
   setup do
+    stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
+
     {:ok, project} = Projects.create_project("test-project")
     {:ok, agent} = Agents.create_agent_with_vm(project.id, "test-agent", "version: 1\n", @vm)
     {:ok, agent2} = Agents.create_agent_with_vm(project.id, "chat-agent", "version: 1\n", @vm)
@@ -165,6 +171,9 @@ defmodule Shire.AgentsTest do
         def write_stdin(_c, _d), do: :ok
         def resize(_c, _r, _cols), do: :ok
 
+        def workspace_root(_p), do: "/workspace"
+        def touch_keepalive(_p), do: :ok
+        def vm_status(_p), do: :running
         def destroy_vm(_p), do: :ok
       end
 
