@@ -92,6 +92,38 @@ defmodule Shire.Agent.AgentManagerTest do
     end
   end
 
+  describe "interrupt/2" do
+    test "returns error when agent is not active", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      assert {:error, :not_active} = GenServer.call(pid, :interrupt)
+    end
+
+    test "writes interrupt envelope to inbox when active", ctx do
+      Mox.set_mox_global()
+      test_pid = self()
+
+      expect(Shire.VirtualMachineMock, :write, fn _project, path, content ->
+        send(test_pid, {:write_called, path, content})
+        :ok
+      end)
+
+      {:ok, pid} = start_manager(ctx)
+
+      ref = make_ref()
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      assert :ok = GenServer.call(pid, :interrupt)
+
+      assert_receive {:write_called, path, content}, 1_000
+      assert path =~ "/inbox/"
+      assert content =~ "interrupt"
+    end
+  end
+
   describe "responsiveness" do
     test "get_state responds immediately even during non-idle statuses", ctx do
       {:ok, pid} = start_manager(ctx)

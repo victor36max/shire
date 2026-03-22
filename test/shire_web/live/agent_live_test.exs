@@ -233,6 +233,20 @@ defmodule ShireWeb.AgentLiveTest do
       assert html =~ "AgentDashboard"
     end
 
+    # --- interrupt-agent ---
+
+    test "interrupt-agent with no selected agent is a no-op", %{
+      conn: conn,
+      project_name: project_name
+    } do
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}")
+
+      render_hook(view, "interrupt-agent", %{})
+
+      html = render(view)
+      assert html =~ "AgentDashboard"
+    end
+
     test "agent_event for non-selected agent is ignored", %{
       conn: conn,
       project_id: project_id,
