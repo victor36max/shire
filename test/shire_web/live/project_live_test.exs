@@ -22,13 +22,17 @@ defmodule ShireWeb.ProjectLiveTest do
     stub(Shire.VirtualMachineMock, :touch_keepalive, fn _project_id -> :ok end)
     stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
 
-    pid = start_supervised!(Shire.ProjectManager)
+    pid = start_supervised!({Shire.ProjectManager, []}, restart: :temporary)
     Ecto.Adapters.SQL.Sandbox.allow(Shire.Repo, self(), pid)
 
     on_exit(fn ->
-      for {_, pid, _, _} <- DynamicSupervisor.which_children(Shire.ProjectSupervisor),
-          is_pid(pid) do
-        DynamicSupervisor.terminate_child(Shire.ProjectSupervisor, pid)
+      try do
+        for {_, child_pid, _, _} <- DynamicSupervisor.which_children(Shire.ProjectSupervisor),
+            is_pid(child_pid) do
+          DynamicSupervisor.terminate_child(Shire.ProjectSupervisor, child_pid)
+        end
+      catch
+        :exit, _ -> :ok
       end
     end)
 
@@ -63,6 +67,9 @@ defmodule ShireWeb.ProjectLiveTest do
 
     test "delete-project event removes a project", %{conn: conn} do
       {:ok, project} = Shire.ProjectManager.create_project("delete-me")
+      # Wait for the Coordinator's handle_continue to complete so it doesn't
+      # hold a DB connection when we terminate the subtree.
+      wait_for_coordinator(project.id)
       {:ok, view, _html} = live(conn, ~p"/")
 
       render_hook(view, "delete-project", %{"id" => project.id})
@@ -75,7 +82,6 @@ defmodule ShireWeb.ProjectLiveTest do
 
       {:ok, _project} = Shire.ProjectManager.create_project("pubsub-proj")
 
-      # The PubSub broadcast from create_project should refresh the LiveView
       html = render(view)
       assert html =~ "ProjectDashboard"
     end
@@ -84,8 +90,6 @@ defmodule ShireWeb.ProjectLiveTest do
       {:ok, project} = Shire.ProjectManager.create_project("destroy-proj")
       {:ok, view, _html} = live(conn, ~p"/")
 
-      # Broadcast directly to test the LiveView PubSub handler
-      # (destroy_project is already exercised via render_hook in the delete test above)
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
         "projects:lobby",
@@ -95,5 +99,22 @@ defmodule ShireWeb.ProjectLiveTest do
       html = render(view)
       assert html =~ "ProjectDashboard"
     end
+  end
+
+  defp wait_for_coordinator(project_id, retries \\ 10) do
+    case Registry.lookup(Shire.ProjectRegistry, {:coordinator, project_id}) do
+      [{pid, _}] ->
+        :sys.get_state(pid, 5_000)
+        :ok
+
+      [] when retries > 0 ->
+        Process.sleep(10)
+        wait_for_coordinator(project_id, retries - 1)
+
+      [] ->
+        :ok
+    end
+  catch
+    :exit, _ -> :ok
   end
 end
