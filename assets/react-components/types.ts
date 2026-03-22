@@ -102,6 +102,6 @@ export const harnessLabel = (harness: HarnessType): string => {
     case "claude_code":
       return "Claude Code";
     case "pi":
-      return "Pi (Coming soon)";
+      return "Pi";
   }
 };
