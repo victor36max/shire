@@ -28,13 +28,7 @@ fi
 # --- Install Claude Code if not available (best-effort, requires bun or npm) ---
 if ! command -v claude &> /dev/null; then
   echo "Installing Claude Code..."
-  if command -v bun &> /dev/null; then
-    bun install -g @anthropic-ai/claude-code || echo "Warning: Claude Code installation failed"
-  elif command -v npm &> /dev/null; then
-    npm install -g @anthropic-ai/claude-code || echo "Warning: Claude Code installation failed"
-  else
-    echo "Warning: Neither bun nor npm available, skipping Claude Code install"
-  fi
+  curl -fsSL https://claude.ai/install.sh | bash || echo "Warning: Claude Code installation failed"
 fi
 
 # --- Write environment profile sourced by all shells ---
