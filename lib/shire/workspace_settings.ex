@@ -6,13 +6,11 @@ defmodule Shire.WorkspaceSettings do
 
   alias Shire.Workspace
 
-  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-
   # --- Environment ---
 
   @doc "Reads `.env` from the workspace and returns it as a string."
   def read_env(project_id) do
-    case @vm.read(project_id, Workspace.env_path(project_id)) do
+    case vm().read(project_id, Workspace.env_path(project_id)) do
       {:ok, content} -> {:ok, content}
       {:error, _} -> {:ok, ""}
     end
@@ -20,7 +18,7 @@ defmodule Shire.WorkspaceSettings do
 
   @doc "Writes the given string to `.env` in the workspace."
   def write_env(project_id, content) do
-    case @vm.write(project_id, Workspace.env_path(project_id), content) do
+    case vm().write(project_id, Workspace.env_path(project_id), content) do
       :ok -> :ok
       {:error, reason} -> {:error, reason}
     end
@@ -30,7 +28,7 @@ defmodule Shire.WorkspaceSettings do
 
   @doc "Lists script filenames in the workspace `.scripts/` directory."
   def list_scripts(project_id) do
-    case @vm.ls(project_id, Workspace.scripts_dir(project_id)) do
+    case vm().ls(project_id, Workspace.scripts_dir(project_id)) do
       {:ok, entries} when is_list(entries) ->
         names =
           entries
@@ -66,7 +64,7 @@ defmodule Shire.WorkspaceSettings do
   def read_script(project_id, name) do
     path = Workspace.script_path(project_id, name)
 
-    case @vm.read(project_id, path) do
+    case vm().read(project_id, path) do
       {:ok, content} -> {:ok, content}
       {:error, :enoent} -> {:error, :not_found}
       {:error, reason} -> {:error, reason}
@@ -77,8 +75,8 @@ defmodule Shire.WorkspaceSettings do
   def write_script(project_id, name, content) do
     path = Workspace.script_path(project_id, name)
 
-    with :ok <- @vm.write(project_id, path, content),
-         {:ok, _} <- @vm.cmd(project_id, "chmod", ["+x", path], []) do
+    with :ok <- vm().write(project_id, path, content),
+         {:ok, _} <- vm().cmd(project_id, "chmod", ["+x", path], []) do
       :ok
     else
       {:error, reason} -> {:error, reason}
@@ -89,7 +87,7 @@ defmodule Shire.WorkspaceSettings do
   def delete_script(project_id, name) do
     path = Workspace.script_path(project_id, name)
 
-    case @vm.rm(project_id, path) do
+    case vm().rm(project_id, path) do
       :ok -> :ok
       {:error, :enoent} -> :ok
       {:error, reason} -> {:error, reason}
@@ -102,7 +100,7 @@ defmodule Shire.WorkspaceSettings do
     env_path = Workspace.env_path(project_id)
     script_cmd = "[ -f #{env_path} ] && set -a && . #{env_path} && set +a; bash #{path}"
 
-    case @vm.cmd(project_id, "bash", ["-c", script_cmd], timeout: 120_000) do
+    case vm().cmd(project_id, "bash", ["-c", script_cmd], timeout: 120_000) do
       {:ok, output} -> {:ok, output}
       {:error, reason} -> {:error, reason}
     end
@@ -112,7 +110,7 @@ defmodule Shire.WorkspaceSettings do
 
   @doc "Reads `PROJECT.md` from the workspace."
   def read_project_doc(project_id) do
-    case @vm.read(project_id, Workspace.project_doc_path(project_id)) do
+    case vm().read(project_id, Workspace.project_doc_path(project_id)) do
       {:ok, content} -> {:ok, content}
       {:error, _} -> {:ok, ""}
     end
@@ -120,7 +118,7 @@ defmodule Shire.WorkspaceSettings do
 
   @doc "Writes the given string to `PROJECT.md` in the workspace."
   def write_project_doc(project_id, content) do
-    case @vm.write(project_id, Workspace.project_doc_path(project_id), content) do
+    case vm().write(project_id, Workspace.project_doc_path(project_id), content) do
       :ok -> :ok
       {:error, reason} -> {:error, reason}
     end
@@ -133,9 +131,11 @@ defmodule Shire.WorkspaceSettings do
     script = File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
     root = Workspace.root(project_id)
 
-    case @vm.cmd(project_id, "bash", ["-c", script, "bash", root], timeout: 120_000) do
+    case vm().cmd(project_id, "bash", ["-c", script, "bash", root], timeout: 120_000) do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineImpl)
 end
