@@ -128,6 +128,10 @@ defmodule Shire.Agent.Coordinator do
     Logger.info("Project #{state.project_id}: started #{map_size(monitors)} agents")
 
     {:noreply, %{state | monitors: monitors}}
+  rescue
+    e ->
+      Logger.error("Deploy and scan failed for #{state.project_id}: #{Exception.message(e)}")
+      {:noreply, state}
   end
 
   @impl true
