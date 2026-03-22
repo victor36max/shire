@@ -13,8 +13,7 @@ defmodule Shire.VirtualMachineE2B.Client do
   def management_req(api_key) do
     Req.new(
       base_url: @management_base_url,
-      headers: [{"x-api-key", api_key}],
-      json: true
+      headers: [{"x-api-key", api_key}]
     )
   end
 
@@ -131,12 +130,23 @@ defmodule Shire.VirtualMachineE2B.Client do
 
   def write_file(sandbox_id, access_token, path, content) do
     req = sandbox_req(sandbox_id, access_token)
+    boundary = "----E2BUpload" <> Base.encode16(:crypto.strong_rand_bytes(16))
+    filename = path |> Path.basename() |> String.replace(~S["], ~S[\"])
+
+    body =
+      "--#{boundary}\r\n" <>
+        "Content-Disposition: form-data; name=\"file\"; filename=\"#{filename}\"\r\n" <>
+        "Content-Type: application/octet-stream\r\n" <>
+        "\r\n" <>
+        content <>
+        "\r\n" <>
+        "--#{boundary}--\r\n"
 
     case Req.post(req,
            url: "/files",
            params: [path: path],
-           headers: [{"content-type", "application/octet-stream"}],
-           body: content
+           headers: [{"content-type", "multipart/form-data; boundary=#{boundary}"}],
+           body: body
          ) do
       {:ok, %Req.Response{status: status}} when status in [200, 204] ->
         :ok
