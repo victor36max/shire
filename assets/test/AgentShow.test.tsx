@@ -170,7 +170,7 @@ describe("AgentShow", () => {
         pushEvent={vi.fn()}
       />,
     );
-    expect(screen.getByText("Pi (Coming soon)")).toBeInTheDocument();
+    expect(screen.getByText("Pi")).toBeInTheDocument();
   });
 
   it("shows Edit button and opens edit form dialog", async () => {
