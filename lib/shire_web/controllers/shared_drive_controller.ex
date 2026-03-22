@@ -3,13 +3,11 @@ defmodule ShireWeb.SharedDriveController do
 
   alias Shire.Workspace
 
-  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-
   def download(conn, %{"project_name" => project_name, "path" => path}) do
     project = Shire.Projects.get_project_by_name!(project_name)
     vm_path = to_vm_path(project.id, path)
 
-    case @vm.read(project.id, vm_path) do
+    case vm().read(project.id, vm_path) do
       {:ok, content} ->
         filename = Path.basename(path)
         content_type = MIME.from_path(path)
@@ -37,4 +35,6 @@ defmodule ShireWeb.SharedDriveController do
       Path.join(drive_path, clean)
     end
   end
+
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

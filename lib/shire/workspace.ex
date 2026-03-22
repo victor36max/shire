@@ -4,9 +4,7 @@ defmodule Shire.Workspace do
   Delegates to the configured VM implementation for the workspace root.
   """
 
-  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-
-  def root(project_id), do: @vm.workspace_root(project_id)
+  def root(project_id), do: vm().workspace_root(project_id)
   def agents_dir(project_id), do: Path.join(root(project_id), "agents")
   def agent_dir(project_id, agent_id), do: Path.join(agents_dir(project_id), "#{agent_id}")
   def shared_dir(project_id), do: Path.join(root(project_id), "shared")
@@ -16,4 +14,6 @@ defmodule Shire.Workspace do
   def runner_dir(project_id), do: Path.join(root(project_id), ".runner")
   def peers_path(project_id), do: Path.join(root(project_id), "peers.yaml")
   def project_doc_path(project_id), do: Path.join(root(project_id), "PROJECT.md")
+
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

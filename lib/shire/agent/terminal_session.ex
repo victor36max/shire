@@ -7,8 +7,6 @@ defmodule Shire.Agent.TerminalSession do
   use GenServer
   require Logger
 
-  @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
-
   defstruct [:project_id, :command, :command_ref, :pubsub_topic]
 
   # --- Public API ---
@@ -52,7 +50,7 @@ defmodule Shire.Agent.TerminalSession do
       pubsub_topic: "project:#{project_id}:terminal"
     }
 
-    case @vm.spawn_command(project_id, "bash", ["-i"],
+    case vm().spawn_command(project_id, "bash", ["-i"],
            tty: true,
            stdin: true,
            tty_rows: 24,
@@ -68,13 +66,13 @@ defmodule Shire.Agent.TerminalSession do
 
   @impl true
   def handle_cast({:write, data}, state) do
-    @vm.write_stdin(state.command, data)
+    vm().write_stdin(state.command, data)
     {:noreply, state}
   end
 
   @impl true
   def handle_cast({:resize, rows, cols}, state) do
-    @vm.resize(state.command, rows, cols)
+    vm().resize(state.command, rows, cols)
     {:noreply, state}
   end
 
@@ -106,4 +104,6 @@ defmodule Shire.Agent.TerminalSession do
   defp broadcast(state, message) do
     Phoenix.PubSub.broadcast(Shire.PubSub, state.pubsub_topic, message)
   end
+
+  defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

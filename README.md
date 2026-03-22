@@ -44,7 +44,7 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
 │  Project A                   │  │  Project B                   │
 │  (ProjectInstanceSupervisor) │  │  (ProjectInstanceSupervisor) │
 │  ┌────────────────────────┐  │  │  ┌────────────────────────┐  │
-│  │ VirtualMachineImpl     │  │  │  │ VirtualMachineImpl     │  │
+│  │ VirtualMachineSprite     │  │  │  │ VirtualMachineSprite     │  │
 │  │ Coordinator            │  │  │  │ Coordinator            │  │
 │  │ AgentMgr A, B, ...     │  │  │  │ AgentMgr C, D, ...     │  │
 │  │ Terminal Session       │  │  │  │ Terminal Session       │  │
