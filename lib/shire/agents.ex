@@ -4,6 +4,7 @@ defmodule Shire.Agents do
   alias Ecto.Multi
   alias Shire.Repo
   alias Shire.Agents.{Agent, Message}
+  alias Shire.Workspace
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
@@ -17,13 +18,13 @@ defmodule Shire.Agents do
     Multi.new()
     |> Multi.insert(:agent, Agent.changeset(%Agent{}, %{name: name, project_id: project_id}))
     |> Multi.run(:vm_setup, fn _repo, %{agent: agent} ->
-      agent_dir = "/workspace/agents/#{agent.id}"
+      agent_dir = Workspace.agent_dir(project_id, agent.id)
 
-      with :ok <- vm.mkdir_p(project_id, "#{agent_dir}/inbox"),
-           :ok <- vm.mkdir_p(project_id, "#{agent_dir}/outbox"),
-           :ok <- vm.mkdir_p(project_id, "#{agent_dir}/scripts"),
-           :ok <- vm.mkdir_p(project_id, "#{agent_dir}/documents"),
-           :ok <- vm.write(project_id, "#{agent_dir}/recipe.yaml", recipe_yaml) do
+      with :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "inbox")),
+           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "outbox")),
+           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "scripts")),
+           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "documents")),
+           :ok <- vm.write(project_id, Path.join(agent_dir, "recipe.yaml"), recipe_yaml) do
         {:ok, agent.id}
       else
         {:error, reason} -> {:error, reason}
@@ -52,14 +53,14 @@ defmodule Shire.Agents do
     Multi.new()
     |> Multi.delete(:agent, agent)
     |> Multi.run(:rm_folder, fn _repo, _ ->
-      case vm.rm_rf(project_id, "/workspace/agents/#{agent.id}") do
+      agent_dir = Workspace.agent_dir(project_id, agent.id)
+
+      case vm.rm_rf(project_id, agent_dir) do
         :ok ->
           {:ok, :removed}
 
         {:error, reason} ->
-          Logger.warning(
-            "Failed to remove agent directory /workspace/agents/#{agent.id}: #{inspect(reason)}"
-          )
+          Logger.warning("Failed to remove agent directory #{agent_dir}: #{inspect(reason)}")
 
           {:ok, :cleanup_failed}
       end

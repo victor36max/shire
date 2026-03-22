@@ -113,7 +113,9 @@ defmodule Shire.VirtualMachineImpl do
   end
 
   @impl Shire.VirtualMachine
-  @spec write_stdin(Sprites.Command.t(), binary()) :: :ok | {:error, term()}
+  def workspace_root(_project_id), do: "/workspace"
+
+  @impl Shire.VirtualMachine
   def write_stdin(command, data) do
     Sprites.write(command, data)
   catch
@@ -123,7 +125,6 @@ defmodule Shire.VirtualMachineImpl do
   end
 
   @impl Shire.VirtualMachine
-  @spec resize(Sprites.Command.t(), integer(), integer()) :: :ok | {:error, term()}
   def resize(command, rows, cols) do
     Sprites.resize(command, rows, cols)
   catch

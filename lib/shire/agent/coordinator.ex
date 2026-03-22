@@ -9,6 +9,7 @@ defmodule Shire.Agent.Coordinator do
 
   alias Shire.Agents
   alias Shire.Agent.AgentManager
+  alias Shire.Workspace
 
   @vm Application.compile_env(:shire, :vm, Shire.VirtualMachineImpl)
 
@@ -194,7 +195,7 @@ defmodule Shire.Agent.Coordinator do
                :ok <-
                  @vm.write(
                    state.project_id,
-                   "/workspace/agents/#{agent_id}/recipe.yaml",
+                   Path.join(Workspace.agent_dir(state.project_id, agent_id), "recipe.yaml"),
                    recipe_yaml
                  ) do
             case lookup(state.project_id, agent_id) do
@@ -475,14 +476,15 @@ defmodule Shire.Agent.Coordinator do
   # --- Private ---
 
   defp deploy_runner(project_id) do
-    runner_dir = Application.app_dir(:shire, "priv/sprite")
+    source_dir = Application.app_dir(:shire, "priv/sprite")
+    ws_runner_dir = Workspace.runner_dir(project_id)
 
-    content = File.read!(Path.join(runner_dir, "agent-runner.ts"))
+    content = File.read!(Path.join(source_dir, "agent-runner.ts"))
 
-    with :ok <- @vm.write(project_id, "/workspace/.runner/agent-runner.ts", content),
-         :ok <- deploy_harness(project_id, runner_dir),
+    with :ok <- @vm.write(project_id, Path.join(ws_runner_dir, "agent-runner.ts"), content),
+         :ok <- deploy_harness(project_id, source_dir),
          {:ok, _} <-
-           @vm.cmd(project_id, "bash", ["-c", "cd /workspace/.runner && bun install"],
+           @vm.cmd(project_id, "bash", ["-c", "cd #{ws_runner_dir} && bun install"],
              timeout: 120_000
            ) do
       :ok
@@ -491,15 +493,16 @@ defmodule Shire.Agent.Coordinator do
     end
   end
 
-  defp deploy_harness(project_id, runner_dir) do
-    harness_dir = Path.join(runner_dir, "harness")
+  defp deploy_harness(project_id, source_dir) do
+    harness_dir = Path.join(source_dir, "harness")
+    ws_harness_dir = Path.join(Workspace.runner_dir(project_id), "harness")
 
     if File.dir?(harness_dir) do
-      with :ok <- @vm.mkdir_p(project_id, "/workspace/.runner/harness") do
+      with :ok <- @vm.mkdir_p(project_id, ws_harness_dir) do
         Enum.reduce_while(File.ls!(harness_dir), :ok, fn file, :ok ->
           content = File.read!(Path.join(harness_dir, file))
 
-          case @vm.write(project_id, "/workspace/.runner/harness/#{file}", content) do
+          case @vm.write(project_id, Path.join(ws_harness_dir, file), content) do
             :ok -> {:cont, :ok}
             {:error, reason} -> {:halt, {:error, reason}}
           end
@@ -511,7 +514,7 @@ defmodule Shire.Agent.Coordinator do
   end
 
   defp read_agent_recipe(project_id, agent_id) do
-    path = "/workspace/agents/#{agent_id}/recipe.yaml"
+    path = Path.join(Workspace.agent_dir(project_id, agent_id), "recipe.yaml")
 
     case @vm.read(project_id, path) do
       {:ok, content} ->
@@ -591,7 +594,7 @@ defmodule Shire.Agent.Coordinator do
           end) <> "\n"
       end
 
-    case @vm.write(project_id, "/workspace/peers.yaml", yaml_content) do
+    case @vm.write(project_id, Workspace.peers_path(project_id), yaml_content) do
       :ok ->
         :ok
 

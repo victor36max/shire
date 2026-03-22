@@ -20,9 +20,14 @@ defmodule Shire.VirtualMachine do
   @callback stat(String.t(), binary()) :: {:ok, map()} | {:error, term()}
   @callback touch_keepalive(String.t()) :: :ok
   @callback spawn_command(String.t(), binary(), [binary()], keyword()) ::
-              {:ok, Sprites.Command.t()} | {:error, term()}
-  @callback write_stdin(Sprites.Command.t(), binary()) :: :ok | {:error, term()}
-  @callback resize(Sprites.Command.t(), integer(), integer()) :: :ok | {:error, term()}
+              {:ok, term()} | {:error, term()}
+  @callback write_stdin(term(), binary()) :: :ok | {:error, term()}
+  @callback resize(term(), integer(), integer()) :: :ok | {:error, term()}
+
+  # --- Workspace Root ---
+
+  @doc "Returns the absolute workspace root path for a project."
+  @callback workspace_root(String.t()) :: String.t()
 
   # --- VM Status (non-blocking, reads from Registry) ---
 
