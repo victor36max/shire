@@ -116,7 +116,7 @@ export default function AgentDashboard({
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 md:hidden" aria-hidden="true" onClick={() => setSidebarOpen(false)}>
-          <div className="absolute inset-0 bg-background/80" />
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
         </div>
       )}
 
