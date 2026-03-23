@@ -195,6 +195,59 @@ defmodule Shire.AgentsTest do
       refute Enum.any?(messages, &(&1.content["text"] == "fail"))
     end
 
+    test "send_message_with_inbox stores attachments in content map", %{
+      project: project,
+      agent: agent
+    } do
+      inbox_path = "/workspace/agents/#{agent.id}/inbox/msg-att.yaml"
+      envelope = %{"role" => "user", "content" => "with files"}
+
+      attachments = [
+        %{
+          "id" => "abc12345",
+          "filename" => "report.pdf",
+          "size" => 1024,
+          "content_type" => "application/pdf"
+        }
+      ]
+
+      assert {:ok, msg} =
+               Agents.send_message_with_inbox(
+                 project.id,
+                 agent.id,
+                 "check this file",
+                 inbox_path,
+                 envelope,
+                 @vm,
+                 attachments: attachments
+               )
+
+      assert msg.content["text"] == "check this file"
+      assert msg.content["attachments"] == attachments
+    end
+
+    test "send_message_with_inbox omits attachments key when empty", %{
+      project: project,
+      agent: agent
+    } do
+      inbox_path = "/workspace/agents/#{agent.id}/inbox/msg-noatt.yaml"
+      envelope = %{"role" => "user", "content" => "no files"}
+
+      assert {:ok, msg} =
+               Agents.send_message_with_inbox(
+                 project.id,
+                 agent.id,
+                 "just text",
+                 inbox_path,
+                 envelope,
+                 @vm,
+                 attachments: []
+               )
+
+      assert msg.content == %{"text" => "just text"}
+      refute Map.has_key?(msg.content, "attachments")
+    end
+
     test "delete_agent_with_vm/3 deletes agent and its messages", %{project: project} do
       {:ok, del_agent} =
         Agents.create_agent_with_vm(project.id, "delete-test", "version: 1\n", @vm)

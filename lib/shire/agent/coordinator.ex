@@ -65,8 +65,8 @@ defmodule Shire.Agent.Coordinator do
     GenServer.cast(via(project_id), {:watch_agent, agent_id})
   end
 
-  def send_message(project_id, agent_id, text) do
-    AgentManager.send_message(project_id, agent_id, text, :user)
+  def send_message(project_id, agent_id, text, opts \\ []) do
+    AgentManager.send_message(project_id, agent_id, text, :user, opts)
   end
 
   def interrupt_agent(project_id, agent_id) do

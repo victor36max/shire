@@ -1,11 +1,18 @@
 import * as React from "react";
 import { useLiveReact } from "live_react";
-import { Square } from "lucide-react";
+import { Paperclip, Square, X, FileIcon, Download } from "lucide-react";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
 import Markdown from "./components/Markdown";
 import { type Agent } from "./types";
+
+export interface Attachment {
+  id: string;
+  filename: string;
+  size: number;
+  content_type: string;
+}
 
 export interface Message {
   id?: number;
@@ -18,6 +25,68 @@ export interface Message {
   output?: string | null;
   is_error?: boolean;
   from_agent?: string;
+  attachments?: Attachment[];
+}
+
+interface PendingFile {
+  name: string;
+  size: number;
+  base64: string;
+  content_type: string;
+}
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function AttachmentDisplay({
+  attachments,
+  projectName,
+  agentId,
+}: {
+  attachments: Attachment[];
+  projectName: string;
+  agentId: string;
+}) {
+  if (!attachments.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {attachments.map((att) => {
+        const url = `/projects/${projectName}/agents/${agentId}/attachments/${att.id}/${att.filename}`;
+        const isImage = att.content_type.startsWith("image/");
+
+        return isImage ? (
+          <a
+            key={att.id}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-md border border-border overflow-hidden hover:opacity-90 transition-opacity"
+          >
+            <img src={url} alt={att.filename} className="max-w-48 max-h-32 object-cover" />
+          </a>
+        ) : (
+          <a
+            key={att.id}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border hover:bg-muted/50 text-sm"
+          >
+            <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate max-w-40">{att.filename}</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">({formatFileSize(att.size)})</span>
+            <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </a>
+        );
+      })}
+    </div>
+  );
 }
 
 function ToolCallMessage({ msg }: { msg: Message }) {
@@ -114,6 +183,7 @@ function SystemMessage({ msg }: { msg: Message }) {
 
 interface ChatPanelProps {
   agent: Agent;
+  projectName: string;
   messages?: Message[];
   hasMore?: boolean;
   loadingMore?: boolean;
@@ -122,6 +192,7 @@ interface ChatPanelProps {
 
 export default function ChatPanel({
   agent,
+  projectName,
   messages = [],
   hasMore = false,
   loadingMore = false,
@@ -130,6 +201,8 @@ export default function ChatPanel({
   const { handleEvent, removeHandleEvent } = useLiveReact();
   const [input, setInput] = React.useState("");
   const [streamingText, setStreamingText] = React.useState("");
+  const [pendingFiles, setPendingFiles] = React.useState<PendingFile[]>([]);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -215,11 +288,49 @@ export default function ChatPanel({
     }
   }, [hasMore, loadingMore, pushEvent, messages]);
 
+  const handleFileSelect = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        setPendingFiles((prev) => [
+          ...prev,
+          { name: file.name, size: file.size, base64, content_type: file.type || "application/octet-stream" },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset so the same file can be selected again
+    e.target.value = "";
+  }, []);
+
+  const removePendingFile = React.useCallback((index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   const handleSend = () => {
     const text = input.trim();
-    if (!text) return;
-    pushEvent("send-message", { text });
+    if (!text && pendingFiles.length === 0) return;
+
+    const payload: Record<string, unknown> = { text: text || "" };
+    if (pendingFiles.length > 0) {
+      payload.attachments = pendingFiles.map((f) => ({
+        name: f.name,
+        content: f.base64,
+        content_type: f.content_type,
+      }));
+    }
+
+    pushEvent("send-message", payload);
     setInput("");
+    setPendingFiles([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -273,9 +384,14 @@ export default function ChatPanel({
                   msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
                 }`}
               >
-                <Markdown className={msg.role === "user" ? "prose-invert" : ""} inverted={msg.role === "user"}>
-                  {msg.text ?? ""}
-                </Markdown>
+                {msg.text ? (
+                  <Markdown className={msg.role === "user" ? "prose-invert" : ""} inverted={msg.role === "user"}>
+                    {msg.text}
+                  </Markdown>
+                ) : null}
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <AttachmentDisplay attachments={msg.attachments} projectName={projectName} agentId={agent.id} />
+                )}
               </div>
             </div>
           ),
@@ -297,7 +413,38 @@ export default function ChatPanel({
       </div>
       {agent.status === "active" ? (
         <div className="border-t border-border p-4">
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
+          {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {pendingFiles.map((file, i) => (
+                <div
+                  key={`${file.name}-${i}`}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-muted/50 text-xs"
+                >
+                  <FileIcon className="h-3 w-3 text-muted-foreground" />
+                  <span className="truncate max-w-32">{file.name}</span>
+                  <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingFile(i)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2 items-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Attach file"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
             <Textarea
               ref={textareaRef}
               value={input}

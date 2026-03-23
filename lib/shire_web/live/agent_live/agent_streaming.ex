@@ -111,6 +111,9 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
       %{"type" => "system_message", "message" => msg} ->
         {messages ++ [msg], nil}
 
+      %{"type" => "attachment", "message" => msg} ->
+        {messages ++ [msg], nil}
+
       %{"type" => "turn_complete"} ->
         {messages, nil}
 
