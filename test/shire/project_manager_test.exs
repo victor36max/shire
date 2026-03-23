@@ -104,6 +104,7 @@ defmodule Shire.ProjectManagerTest do
   describe "destroy_project/1" do
     test "removes a project from the list" do
       {:ok, project} = ProjectManager.create_project("destroy-me")
+      wait_for_coordinator(project.id)
       assert :ok = ProjectManager.destroy_project(project.id)
       assert ProjectManager.list_projects() == []
     end
@@ -115,6 +116,7 @@ defmodule Shire.ProjectManagerTest do
 
     test "broadcasts {:project_destroyed, project_id} via PubSub" do
       {:ok, project} = ProjectManager.create_project("destroy-broadcast")
+      wait_for_coordinator(project.id)
 
       Phoenix.PubSub.subscribe(Shire.PubSub, "projects:lobby")
 
@@ -288,8 +290,29 @@ defmodule Shire.ProjectManagerTest do
     end
   end
 
+  # Waits for the Coordinator's handle_continue to finish so it doesn't
+  # hold a DB connection when we terminate the subtree.
+  defp wait_for_coordinator(project_id, retries \\ 10) do
+    case Registry.lookup(Shire.ProjectRegistry, {:coordinator, project_id}) do
+      [{pid, _}] ->
+        :sys.get_state(pid, 5_000)
+        :ok
+
+      [] when retries > 0 ->
+        Process.sleep(10)
+        wait_for_coordinator(project_id, retries - 1)
+
+      [] ->
+        :ok
+    end
+  catch
+    :exit, _ -> :ok
+  end
+
   # Terminates the project supervisor cleanly and waits for registry cleanup
   defp kill_project_supervisor(project_id) do
+    wait_for_coordinator(project_id)
+
     projects_state = :sys.get_state(ProjectManager)
     sup_pid = Map.get(projects_state.projects, project_id)
 

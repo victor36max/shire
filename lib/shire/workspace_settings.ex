@@ -124,18 +124,5 @@ defmodule Shire.WorkspaceSettings do
     end
   end
 
-  # --- Bootstrap ---
-
-  @doc "Runs the bootstrap script to initialize workspace directories on the VM."
-  def bootstrap_workspace(project_id) do
-    script = File.read!(Application.app_dir(:shire, "priv/sprite/bootstrap.sh"))
-    root = Workspace.root(project_id)
-
-    case vm().cmd(project_id, "bash", ["-c", script, "bash", root], timeout: 300_000) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

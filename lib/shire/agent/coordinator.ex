@@ -105,17 +105,6 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_continue(:deploy_and_scan, state) do
-    case Shire.WorkspaceSettings.bootstrap_workspace(state.project_id) do
-      :ok -> :ok
-      {:error, reason} -> Logger.error("Bootstrap failed: #{inspect(reason)}")
-    end
-
-    case deploy_runner(state.project_id) do
-      :ok -> :ok
-      {:error, reason} -> Logger.error("Runner deployment failed: #{inspect(reason)}")
-    end
-
-    # Write peers.yaml before starting any agents
     write_peers_yaml(state.project_id)
 
     # Get agents from DB and start managers for those with folders on VM
@@ -480,44 +469,6 @@ defmodule Shire.Agent.Coordinator do
   end
 
   # --- Private ---
-
-  defp deploy_runner(project_id) do
-    source_dir = Application.app_dir(:shire, "priv/sprite")
-    ws_runner_dir = Workspace.runner_dir(project_id)
-
-    content = File.read!(Path.join(source_dir, "agent-runner.ts"))
-
-    with :ok <- vm().write(project_id, Path.join(ws_runner_dir, "agent-runner.ts"), content),
-         :ok <- deploy_harness(project_id, source_dir),
-         {:ok, _} <-
-           vm().cmd(project_id, "bash", ["-c", "cd #{ws_runner_dir} && bun install"],
-             timeout: 120_000
-           ) do
-      :ok
-    else
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp deploy_harness(project_id, source_dir) do
-    harness_dir = Path.join(source_dir, "harness")
-    ws_harness_dir = Path.join(Workspace.runner_dir(project_id), "harness")
-
-    if File.dir?(harness_dir) do
-      with :ok <- vm().mkdir_p(project_id, ws_harness_dir) do
-        Enum.reduce_while(File.ls!(harness_dir), :ok, fn file, :ok ->
-          content = File.read!(Path.join(harness_dir, file))
-
-          case vm().write(project_id, Path.join(ws_harness_dir, file), content) do
-            :ok -> {:cont, :ok}
-            {:error, reason} -> {:halt, {:error, reason}}
-          end
-        end)
-      end
-    else
-      :ok
-    end
-  end
 
   defp read_agent_recipe(project_id, agent_id) do
     path = Path.join(Workspace.agent_dir(project_id, agent_id), "recipe.yaml")
