@@ -106,7 +106,7 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 
 ### Prerequisites
 
-- Elixir 1.17+
+- Elixir 1.15+
 - PostgreSQL
 - [Bun](https://bun.sh)
 - A [Sprites](https://sprites.dev) account (for the `SPRITES_TOKEN`) — optional if using the local VM backend
