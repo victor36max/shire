@@ -119,7 +119,9 @@ export default function AgentShow({
           <Card>
             <CardContent className="pt-6">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">System Prompt</h3>
-              <pre className="whitespace-pre-wrap font-sans text-sm">{agent.system_prompt || "Not set"}</pre>
+              <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
+                {agent.system_prompt || "Not set"}
+              </pre>
             </CardContent>
           </Card>
         </div>

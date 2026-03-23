@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Button } from "./components/ui/button";
+import { Clock } from "lucide-react";
 import type { InterAgentMessage } from "./types";
 
 interface ActivityLogProps {
@@ -51,7 +52,7 @@ export default function ActivityLog({ messages, hasMore, pushEvent }: ActivityLo
               <span>
                 {msg.trigger === "scheduled_task" ? (
                   <>
-                    <span className="mr-1">&#128339;</span>
+                    <Clock className="inline h-3 w-3 mr-1" />
                     <span className="font-medium text-foreground">{msg.task_label}</span>
                   </>
                 ) : (
