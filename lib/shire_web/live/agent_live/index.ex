@@ -21,7 +21,7 @@ defmodule ShireWeb.AgentLive.Index do
 
       {:ok, _pid} ->
         if connected?(socket) do
-          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
+          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents")
         end
 
         agents = Coordinator.list_agents(project_id)

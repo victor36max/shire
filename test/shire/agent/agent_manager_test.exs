@@ -548,6 +548,25 @@ defmodule Shire.Agent.AgentManagerTest do
       assert_receive {:agent_status, _, :idle}, 1_000
     end
 
+    test "broadcasts status to project agents topic", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{ctx.project_id}:agents"
+      )
+
+      ref = make_ref()
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      send(pid, {:exit, %{ref: ref}, 1})
+
+      assert_receive {:agent_status, _, :idle}, 1_000
+    end
+
     test "transitions to idle when runner errors", ctx do
       {:ok, pid} = start_manager(ctx)
 
@@ -562,6 +581,28 @@ defmodule Shire.Agent.AgentManagerTest do
       state = AgentManager.get_state(pid)
       assert state.status == :idle
       assert state.command == nil
+    end
+  end
+
+  describe "processing event" do
+    test "broadcasts agent_busy to project agents topic", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      Phoenix.PubSub.subscribe(
+        Shire.PubSub,
+        "project:#{ctx.project_id}:agents"
+      )
+
+      ref = make_ref()
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      line = Jason.encode!(%{"type" => "processing", "payload" => %{"active" => true}})
+      send(pid, {:stdout, %{ref: ref}, line <> "\n"})
+
+      assert_receive {:agent_busy, _, true}, 1_000
     end
   end
 
