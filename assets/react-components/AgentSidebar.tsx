@@ -77,23 +77,25 @@ export default function AgentSidebar({
 
       <div className="flex-1 overflow-y-auto py-1">
         {agents.map((agent) => (
-          <div
-            key={agent.id}
-            className={`group flex items-center gap-2 px-3 py-2 mx-1 rounded-md cursor-pointer text-sm ${
-              selectedAgentId === agent.id ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
-            }`}
-            onClick={() => onSelectAgent(agent.id)}
-          >
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
-            />
-            <span className="truncate flex-1">{agent.name}</span>
+          <div key={agent.id} className="group flex items-center mx-1">
+            <button
+              type="button"
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm flex-1 min-w-0 text-left ${
+                selectedAgentId === agent.id ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
+              }`}
+              onClick={() => onSelectAgent(agent.id)}
+            >
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
+              />
+              <span className="truncate">{agent.name}</span>
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-background text-muted-foreground"
-                  onClick={(e) => e.stopPropagation()}
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 rounded hover:bg-background text-muted-foreground"
+                  aria-label={`${agent.name} actions`}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                     <circle cx="8" cy="3" r="1.5" />

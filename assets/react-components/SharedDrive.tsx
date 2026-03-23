@@ -92,9 +92,17 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
     setDeleteTarget(null);
   };
 
+  const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50 MB
+
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > MAX_UPLOAD_SIZE) {
+      alert(`File is too large (${formatSize(file.size)}). Maximum upload size is ${formatSize(MAX_UPLOAD_SIZE)}.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -155,13 +163,14 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
                   <TableRow key={file.path}>
                     <TableCell>
                       {file.type === "directory" ? (
-                        <button
-                          className="flex items-center gap-2 hover:underline text-left"
+                        <Button
+                          variant="link"
+                          className="flex items-center gap-2 text-foreground h-auto p-0"
                           onClick={() => navigate("/" + file.path)}
                         >
                           <span className="text-muted-foreground">📁</span>
                           {file.name}
-                        </button>
+                        </Button>
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="text-muted-foreground">📄</span>

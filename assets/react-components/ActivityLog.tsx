@@ -66,12 +66,14 @@ export default function ActivityLog({ messages, hasMore, pushEvent }: ActivityLo
             </div>
             <p className="text-sm whitespace-pre-wrap">{displayText}</p>
             {isLong && (
-              <button
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => toggleExpand(msg.id)}
-                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 {isExpanded ? "Show less" : "Show more"}
-              </button>
+              </Button>
             )}
           </div>
         );

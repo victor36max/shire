@@ -1,7 +1,14 @@
 import * as React from "react";
 import AppLayout from "./components/AppLayout";
 import { Button } from "./components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "./components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -349,17 +356,17 @@ export default function SchedulesPage({ project, agents, tasks, pushEvent }: Sch
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => handleRunNow(task)} title="Run now">
+                      <Button variant="ghost" size="sm" onClick={() => handleRunNow(task)} aria-label="Run now">
                         <Play className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(task)} title="Edit">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(task)} aria-label="Edit">
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setDeleteId(task.id)}
-                        title="Delete"
+                        aria-label="Delete"
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -378,6 +385,11 @@ export default function SchedulesPage({ project, agents, tasks, pushEvent }: Sch
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Schedule" : "New Schedule"}</DialogTitle>
+            <DialogDescription>
+              {editingId
+                ? "Modify the schedule settings below."
+                : "Configure a scheduled message to be sent to an agent automatically."}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
