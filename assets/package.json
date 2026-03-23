@@ -12,6 +12,7 @@
     "format:check": "prettier --check 'react-components/**/*.{ts,tsx}' 'test/**/*.{ts,tsx}' 'js/**/*.js'"
   },
   "dependencies": {
+    "@fontsource-variable/dm-sans": "^5.2.8",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
