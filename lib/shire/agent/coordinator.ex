@@ -60,9 +60,9 @@ defmodule Shire.Agent.Coordinator do
     GenServer.cast(via(project_id), :restart_idle_agents)
   end
 
-  @doc "Subscribe the coordinator to an agent's PubSub topic (for status relay)."
-  def watch_agent(project_id, agent_id) do
-    GenServer.cast(via(project_id), {:watch_agent, agent_id})
+  @doc "Reports an agent's status directly to the Coordinator (updates internal tracking)."
+  def report_status(project_id, agent_id, status) do
+    GenServer.cast(via(project_id), {:report_status, agent_id, status})
   end
 
   def send_message(project_id, agent_id, text, opts \\ []) do
@@ -147,7 +147,7 @@ defmodule Shire.Agent.Coordinator do
             {:ok, pid, monitors} ->
               Phoenix.PubSub.broadcast(
                 Shire.PubSub,
-                "project:#{state.project_id}:agents:lobby",
+                "project:#{state.project_id}:agents",
                 {:agent_created, agent.id}
               )
 
@@ -214,7 +214,7 @@ defmodule Shire.Agent.Coordinator do
 
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "project:#{state.project_id}:agents:lobby",
+              "project:#{state.project_id}:agents",
               event
             )
 
@@ -262,7 +262,6 @@ defmodule Shire.Agent.Coordinator do
       end)
 
     if ref, do: Process.demonitor(ref, [:flush])
-    Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{state.project_id}:agent:#{agent_id}")
 
     # Delete agent (Multi: rm folder + delete DB record)
     case Agents.get_agent(agent_id) do
@@ -277,7 +276,7 @@ defmodule Shire.Agent.Coordinator do
 
             Phoenix.PubSub.broadcast(
               Shire.PubSub,
-              "project:#{state.project_id}:agents:lobby",
+              "project:#{state.project_id}:agents",
               {:agent_deleted, agent_id}
             )
 
@@ -383,7 +382,7 @@ defmodule Shire.Agent.Coordinator do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{state.project_id}:agents:lobby",
+        "project:#{state.project_id}:agents",
         {:agent_status, agent_id, :crashed}
       )
 
@@ -391,30 +390,6 @@ defmodule Shire.Agent.Coordinator do
     else
       {:noreply, %{state | monitors: monitors}}
     end
-  end
-
-  @impl true
-  def handle_info({:agent_status, agent_id, status}, state) do
-    statuses = Map.put(state.statuses, agent_id, status)
-
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "project:#{state.project_id}:agents:lobby",
-      {:agent_status, agent_id, status}
-    )
-
-    {:noreply, %{state | statuses: statuses}}
-  end
-
-  @impl true
-  def handle_info({:agent_busy, agent_id, active}, state) do
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "project:#{state.project_id}:agents:lobby",
-      {:agent_busy, agent_id, active}
-    )
-
-    {:noreply, state}
   end
 
   @impl true
@@ -457,9 +432,9 @@ defmodule Shire.Agent.Coordinator do
   end
 
   @impl true
-  def handle_cast({:watch_agent, agent_id}, state) do
-    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{state.project_id}:agent:#{agent_id}")
-    {:noreply, state}
+  def handle_cast({:report_status, agent_id, status}, state) do
+    statuses = Map.put(state.statuses, agent_id, status)
+    {:noreply, %{state | statuses: statuses}}
   end
 
   # --- Private ---
@@ -481,11 +456,11 @@ defmodule Shire.Agent.Coordinator do
         end
       end)
 
-    # Broadcast bootstrapping status to lobby so already-mounted LiveViews see it
+    # Broadcast bootstrapping status so already-mounted LiveViews see it
     Enum.each(started_ids, fn agent_id ->
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{state.project_id}:agents:lobby",
+        "project:#{state.project_id}:agents",
         {:agent_status, agent_id, :bootstrapping}
       )
     end)
@@ -541,9 +516,6 @@ defmodule Shire.Agent.Coordinator do
     opts = [project_id: project_id, agent_id: agent_id, agent_name: agent_name]
     agent_sup = {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}}
 
-    # Subscribe before starting child to catch the initial :bootstrapping broadcast
-    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
-
     case DynamicSupervisor.start_child(agent_sup, {AgentManager, opts}) do
       {:ok, pid} ->
         ref = Process.monitor(pid)
@@ -552,7 +524,6 @@ defmodule Shire.Agent.Coordinator do
         {:ok, pid, monitors}
 
       {:error, reason} ->
-        Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
         Logger.error("Failed to start agent #{agent_name} (#{agent_id}): #{inspect(reason)}")
         {:error, reason}
     end
