@@ -6,13 +6,13 @@
 - **Frontend:** LiveReact (React components inside Phoenix LiveView) + shadcn/ui (Radix + Tailwind v4)
 - **Build:** Vite (not esbuild), Bun (not npm/node)
 - **CSS:** Tailwind v4 with `@theme inline` + oklch CSS variables (shadcn default)
-- **VM:** Pluggable VM backend via `VirtualMachine` behaviour — `VirtualMachineSprite` (Firecracker) for production, `VirtualMachineLocal` (local filesystem + Erlang ports) for development. Selected via `SHIRE_VM_TYPE` env var.
+- **VM:** Pluggable VM backend via `VirtualMachine` behaviour — `VirtualMachineSprite` (Firecracker) for production, `VirtualMachineSSH` (SSH to any VPS) for remote servers, `VirtualMachineLocal` (local filesystem + Erlang ports) for development. Selected via `SHIRE_VM_TYPE` env var.
 - **Agent runtime:** Bun + multi-harness adapter pattern (Pi SDK, Claude Code CLI)
 - **Agent deployment:** Recipe-based (YAML recipes on the VM filesystem, no DB schema)
 - **Agent catalog:** Static YAML agent templates in `priv/catalog/agents/`, read on demand by `Shire.Catalog`
 - **Scheduled tasks:** Oban-based job processing for recurring/one-time automated agent messaging
 - **Inter-agent comms:** File-based inbox/outbox directories + host-side outbox polling + peer discovery via `peers.yaml`
-- **Shared drive:** `/drive` on the VM (Sprite) or local filesystem (Local), synced to all agents at `{workspace_root}/shared/`
+- **Shared drive:** Shared filesystem synced to all agents at `{workspace_root}/shared/` (also mounted at `/drive` on Sprite VMs)
 
 ## Architecture: LiveView + React Split
 
@@ -35,18 +35,19 @@
 
 ## Key Concepts
 
-**Projects** — DB-backed (`projects` table, UUID PK). Each project owns one VM (Sprite or Local) and a set of agents. `ProjectManager` boots all project VMs on startup.
+**Projects** — DB-backed (`projects` table, UUID PK). Each project owns one VM (Sprite, SSH, or Local) and a set of agents. `ProjectManager` boots all project VMs on startup.
 
 **Supervision tree:**
 - `ProjectManager` → `ProjectInstanceSupervisor` (per project, `one_for_all`) → `[VM module, Coordinator, DynamicSupervisor]`
-- VM module is selected at runtime via config (`VirtualMachineSprite` or `VirtualMachineLocal`)
+- VM module is selected at runtime via config (`VirtualMachineSprite`, `VirtualMachineSSH`, or `VirtualMachineLocal`)
 - Registries: `AgentRegistry` (agents by name), `ProjectRegistry` (project supervisors by ID)
 
 **VM backends:**
 - `VirtualMachineSprite` — Production backend using Fly.io Sprites (Firecracker VMs). Workspace at `/workspace`.
+- `VirtualMachineSSH` — SSH backend for connecting to any VPS. Uses SSH key-based auth (via `KeyCb` callback) + SFTP for filesystem operations. Workspace root configurable via `SHIRE_SSH_WORKSPACE_ROOT`.
 - `VirtualMachineLocal` — Development backend using local filesystem (`~/.shire/projects/{project_id}/`) + Erlang ports for process execution.
-- Both implement the `Shire.VirtualMachine` behaviour. `Shire.Workspace` delegates path resolution to the configured backend.
-- `VirtualMachine.Setup` — Shared setup logic (bootstrap + runner deployment) used by both backends during init.
+- All implement the `Shire.VirtualMachine` behaviour. `Shire.Workspace` delegates path resolution to the configured backend.
+- `VirtualMachine.Setup` — Shared setup logic (bootstrap + runner deployment) used by all backends during init.
 
 **Recipes** — YAML files defining agents (`name`, `description`, `harness`, `scripts`). Live on the VM at `{workspace_root}/agents/{id}/recipe.yaml` — no DB schema for recipes. Agents themselves are DB-backed with a unique constraint on `(project_id, name)`.
 
@@ -76,13 +77,19 @@ lib/shire/
     coordinator.ex                # Per-project: VM bootstrap, agent CRUD, message routing
     terminal_session.ex           # Interactive TTY on the VM
   catalog.ex                      # Reads agent templates from priv/catalog/
+  projects/
+    project.ex                    # Ecto schema for projects
   schedules.ex                    # Context: Scheduled task CRUD
   schedules/
     scheduled_task.ex             # Ecto schema for scheduled tasks
+  slug.ex                         # Slug generation
   virtual_machine.ex              # Behaviour (cmd, read, write, spawn_command, etc.)
   virtual_machine/
     setup.ex                      # Shared VM setup logic (bootstrap + runner deployment)
   virtual_machine_sprite.ex       # GenServer wrapping Sprites SDK (production)
+  virtual_machine_ssh.ex          # SSH to any VPS via SSH + SFTP
+  virtual_machine_ssh/
+    key_cb.ex                     # SSH client key callback for key-based auth
   virtual_machine_local.ex        # Local filesystem + Erlang ports (development)
   workspace.ex                    # Workspace path resolution (delegates to VM backend)
   workspace_settings.ex           # Per-project env vars and scripts
@@ -102,11 +109,27 @@ lib/shire_web/live/
   schedule_live/index.ex          # SchedulesPage
 
 assets/react-components/
-  *.tsx                           # One page-level component per LiveView + shared components
-  components/ui/                  # shadcn/ui primitives
+  AgentDashboard.tsx              # Agent list + chat panel for a project
+  AgentShow.tsx                   # Single agent detail view
+  AgentForm.tsx                   # Agent creation/edit form
+  ProjectDashboard.tsx            # Root "/" — project list
+  ProjectDetailsPage.tsx          # Project rename, edit PROJECT.md
+  SettingsPage.tsx                # Project settings (env vars, scripts)
+  SharedDrive.tsx                 # Shared drive file browser
+  SchedulesPage.tsx               # Scheduled tasks management
+  ActivityLog.tsx                 # Agent activity log
+  CatalogBrowser.tsx              # Browse agent catalog templates
+  WelcomePanel.tsx                # Welcome/onboarding panel
+  Terminal.tsx                    # xterm.js interactive terminal
+  ProjectSwitcher.tsx             # Project dropdown switcher
+  AgentSidebar.tsx                # Agent list sidebar
+  ChatHeader.tsx                  # Chat panel header
+  ChatPanel.tsx                   # Chat message list + input
   components/AppLayout.tsx        # Shared layout wrapper
+  components/Markdown.tsx         # Markdown renderer
+  components/ui/                  # shadcn/ui primitives
   lib/navigate.ts                 # LiveView navigation utility
-  test/                           # Vitest component tests (one per component)
+  lib/utils.ts                    # Shared utilities (cn, etc.)
 
 priv/sprite/                      # Agent runtime, deployed to {workspace_root}/.runner/
   agent-runner.ts                 # Daemon: watches inbox, dispatches to harness, emits JSONL
@@ -146,8 +169,11 @@ mix precommit
 
 ## Environment
 
-- `SHIRE_VM_TYPE` — selects VM backend: `sprites` (default, Firecracker) or `local` (local filesystem for dev)
+- `SHIRE_VM_TYPE` — selects VM backend: `sprites` (default, Firecracker), `ssh` (any VPS via SSH), or `local` (local filesystem for dev)
 - `SPRITES_TOKEN` — required when using the Sprite backend
+- `SHIRE_SSH_HOST` / `SHIRE_SSH_USER` / `SHIRE_SSH_KEY` — required when using the SSH backend
+- `SHIRE_SSH_PORT` — SSH port (default: `22`)
+- `SHIRE_SSH_WORKSPACE_ROOT` — workspace root on the remote host (default: `/home/{user}/shire/projects`)
 - `ANTHROPIC_API_KEY` — passed to agents using the Pi SDK harness
 
 ## Guidelines
