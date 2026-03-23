@@ -643,6 +643,61 @@ defmodule Shire.Agent.CoordinatorTest do
     end
   end
 
+  describe "deploy_and_scan bootstrapping status propagation" do
+    test "broadcasts :bootstrapping to lobby when agents start during deploy_and_scan" do
+      Mox.set_mox_global()
+
+      stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
+      stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+
+      stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
+        {:error, :not_available_in_test}
+      end)
+
+      # Start with VM not ready so deploy_and_scan defers
+      stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :starting end)
+
+      {:ok, project} = Projects.create_project("test-bootstrap-status")
+      project_id = project.id
+
+      # Create DB agents before starting the coordinator
+      agent_one = create_db_agent(project_id, "boot-agent-one")
+      agent_two = create_db_agent(project_id, "boot-agent-two")
+
+      start_supervised!(
+        {DynamicSupervisor,
+         name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
+         strategy: :one_for_one},
+        id: :agent_sup_bootstrap
+      )
+
+      start_supervised!(
+        {Shire.Agent.Coordinator, project_id: project_id},
+        id: :coordinator_bootstrap
+      )
+
+      Process.sleep(50)
+
+      # Subscribe to lobby to verify broadcasts
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
+
+      # Now simulate VM becoming ready
+      stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
+      Coordinator.deploy_and_scan(project_id)
+
+      # Lobby should receive :bootstrapping broadcasts for both agents
+      # (agents may subsequently transition to :idle, but the broadcast must happen)
+      agent_one_id = agent_one.id
+      agent_two_id = agent_two.id
+      assert_receive {:agent_status, ^agent_one_id, :bootstrapping}, 1_000
+      assert_receive {:agent_status, ^agent_two_id, :bootstrapping}, 1_000
+    end
+  end
+
   describe "update_agent/3 with invalid new name" do
     test "rejects rename to an invalid slug", %{project_id: project_id} do
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)

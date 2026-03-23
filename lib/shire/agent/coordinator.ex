@@ -469,17 +469,30 @@ defmodule Shire.Agent.Coordinator do
 
     db_agents = Agents.list_agents(state.project_id)
 
-    monitors =
-      Enum.reduce(db_agents, state.monitors, fn agent, acc ->
-        case start_agent_manager(state.project_id, agent.id, agent.name, acc) do
-          {:ok, _pid, updated_monitors} -> updated_monitors
-          {:error, _} -> acc
+    {monitors, statuses, started_ids} =
+      Enum.reduce(db_agents, {state.monitors, state.statuses, []}, fn agent,
+                                                                      {acc_m, acc_s, acc_ids} ->
+        case start_agent_manager(state.project_id, agent.id, agent.name, acc_m) do
+          {:ok, _pid, updated_monitors} ->
+            {updated_monitors, Map.put(acc_s, agent.id, :bootstrapping), [agent.id | acc_ids]}
+
+          {:error, _} ->
+            {acc_m, acc_s, acc_ids}
         end
       end)
 
+    # Broadcast bootstrapping status to lobby so already-mounted LiveViews see it
+    Enum.each(started_ids, fn agent_id ->
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{state.project_id}:agents:lobby",
+        {:agent_status, agent_id, :bootstrapping}
+      )
+    end)
+
     Logger.info("Project #{state.project_id}: started #{map_size(monitors)} agents")
 
-    {:noreply, %{state | monitors: monitors, deployed: true}}
+    {:noreply, %{state | monitors: monitors, statuses: statuses, deployed: true}}
   rescue
     e ->
       Logger.error("Deploy and scan failed for #{state.project_id}: #{Exception.message(e)}")
@@ -528,15 +541,18 @@ defmodule Shire.Agent.Coordinator do
     opts = [project_id: project_id, agent_id: agent_id, agent_name: agent_name]
     agent_sup = {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}}
 
+    # Subscribe before starting child to catch the initial :bootstrapping broadcast
+    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
+
     case DynamicSupervisor.start_child(agent_sup, {AgentManager, opts}) do
       {:ok, pid} ->
         ref = Process.monitor(pid)
         monitors = Map.put(monitors, ref, agent_id)
-        Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
         Logger.info("Started agent #{agent_name} (#{agent_id}) in project #{project_id}")
         {:ok, pid, monitors}
 
       {:error, reason} ->
+        Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
         Logger.error("Failed to start agent #{agent_name} (#{agent_id}): #{inspect(reason)}")
         {:error, reason}
     end
