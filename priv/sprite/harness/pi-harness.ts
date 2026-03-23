@@ -14,6 +14,7 @@ export class PiHarness implements Harness {
   private processing = false;
   private stopped = false;
   private session: SessionLike | null = null;
+  private sessionPending: Promise<SessionLike> | null = null;
   private config: HarnessConfig | null = null;
   private sessionFactory: SessionFactory | null = null;
 
@@ -24,16 +25,29 @@ export class PiHarness implements Harness {
   async start(config: HarnessConfig): Promise<void> {
     this.config = config;
     this.stopped = false;
-    this.session = await this.createSession(config);
-    this.subscribeToSession(this.session);
+  }
+
+  private async ensureSession(): Promise<SessionLike> {
+    if (this.stopped) throw new Error("Harness is stopped");
+    if (this.session) return this.session;
+    if (!this.config) throw new Error("Harness not started");
+    if (!this.sessionPending) {
+      this.sessionPending = this.createSession(this.config).then((s) => {
+        this.subscribeToSession(s);
+        this.session = s;
+        this.sessionPending = null;
+        return s;
+      });
+    }
+    return this.sessionPending;
   }
 
   async sendMessage(text: string, from?: string): Promise<void> {
-    if (!this.session) throw new Error("Harness not started");
+    const session = await this.ensureSession();
     const content = from ? `[Message from agent "${from}"]\n${text}` : text;
     this.processing = true;
     try {
-      await this.session.prompt(content);
+      await session.prompt(content);
     } catch (err) {
       this.emitEvent({ type: "error", payload: { message: String(err) } });
     } finally {
