@@ -577,17 +577,18 @@ defmodule Shire.Agent.AgentManager do
     agent_dir = Workspace.agent_dir(project_id, agent_id)
 
     # Create agent directory structure
-    for subdir <- [
-          "inbox",
-          "outbox",
-          "scripts",
-          "documents",
-          "attachments",
-          "attachments/outbox",
-          ".claude/skills"
-        ] do
-      vm().mkdir_p(project_id, Path.join(agent_dir, subdir))
-    end
+    dirs =
+      for subdir <- [
+            "inbox",
+            "outbox",
+            "scripts",
+            "documents",
+            "attachments/outbox",
+            ".claude/skills"
+          ],
+          do: Path.join(agent_dir, subdir)
+
+    vm().cmd!(project_id, "mkdir", ["-p" | dirs], [])
 
     # Read recipe to determine harness type
     recipe = read_recipe(project_id, agent_id)
