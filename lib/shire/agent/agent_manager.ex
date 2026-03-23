@@ -61,10 +61,8 @@ defmodule Shire.Agent.AgentManager do
     - `documents/` — Store internal documents, notes, or references worth keeping
 
     ## Attachments
-    To share files with the user in chat, write them to your attachments directory:
-    1. Generate a unique ID (e.g. 8 hex characters)
-    2. Create a subdirectory: `attachments/{unique-id}/`
-    3. Write the file inside it: `attachments/{unique-id}/filename.ext`
+    To share files with the user in chat, write them to your attachments outbox:
+      attachments/outbox/filename.ext
     The file will automatically appear as a downloadable attachment in the user's chat.
 
     ## Shared Drive
@@ -449,34 +447,28 @@ defmodule Shire.Agent.AgentManager do
             broadcast(acc, {:agent_busy, acc.agent_id, active})
             acc
 
-          {:ok,
-           %{
-             "type" => "attachment",
-             "payload" =>
-               %{
-                 "id" => att_id,
-                 "filename" => filename,
-                 "size" => size,
-                 "content_type" => content_type
-               } = _payload
-           }} ->
-            attachment_meta = %{
-              "id" => att_id,
-              "filename" => filename,
-              "size" => size,
-              "content_type" => content_type
-            }
+          {:ok, %{"type" => "attachment", "payload" => %{"id" => att_id, "files" => files}}}
+          when is_list(files) ->
+            attachments =
+              Enum.map(files, fn f ->
+                %{
+                  "id" => att_id,
+                  "filename" => f["filename"],
+                  "size" => f["size"],
+                  "content_type" => f["content_type"]
+                }
+              end)
 
             case Agents.create_message(%{
                    project_id: acc.project_id,
                    agent_id: acc.agent_id,
                    role: "agent",
-                   content: %{"text" => "", "attachments" => [attachment_meta]}
+                   content: %{"text" => "", "attachments" => attachments}
                  }) do
               {:ok, msg} ->
                 event = %{
                   "type" => "attachment",
-                  "payload" => attachment_meta,
+                  "payload" => %{"attachments" => attachments},
                   "message" => serialize_message(msg)
                 }
 
@@ -568,7 +560,15 @@ defmodule Shire.Agent.AgentManager do
     agent_dir = Workspace.agent_dir(project_id, agent_id)
 
     # Create agent directory structure
-    for subdir <- ["inbox", "outbox", "scripts", "documents", "attachments", ".claude/skills"] do
+    for subdir <- [
+          "inbox",
+          "outbox",
+          "scripts",
+          "documents",
+          "attachments",
+          "attachments/outbox",
+          ".claude/skills"
+        ] do
       vm().mkdir_p(project_id, Path.join(agent_dir, subdir))
     end
 

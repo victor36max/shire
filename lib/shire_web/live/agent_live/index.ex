@@ -384,49 +384,52 @@ defmodule ShireWeb.AgentLive.Index do
 
   defp store_attachments(project_id, agent_id, raw_attachments) do
     vm = Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
+    suffix = :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
+    attachment_id = "#{System.system_time(:millisecond)}-#{suffix}"
+    dir = Workspace.attachment_dir(project_id, agent_id, attachment_id)
 
-    Enum.reduce_while(raw_attachments, {:ok, []}, fn att, {:ok, acc} ->
-      name = att["name"]
-      base64_content = att["content"]
-      content_type = att["content_type"] || "application/octet-stream"
+    with :ok <- vm.mkdir_p(project_id, dir) do
+      Enum.reduce_while(raw_attachments, {:ok, []}, fn att, {:ok, acc} ->
+        name = att["name"]
+        base64_content = att["content"]
+        content_type = att["content_type"] || "application/octet-stream"
 
-      # Strip data URI prefix if present (e.g. "data:image/png;base64,...")
-      raw_b64 =
-        case String.split(base64_content, ",", parts: 2) do
-          [_prefix, data] -> data
-          [data] -> data
-        end
-
-      case Base.decode64(raw_b64) do
-        {:ok, bytes} ->
-          if byte_size(bytes) > @max_attachment_size do
-            {:halt, {:error, "File #{name} exceeds 50MB limit"}}
-          else
-            safe_name = Path.basename(name)
-            attachment_id = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
-            dir = Workspace.attachment_dir(project_id, agent_id, attachment_id)
-            path = Workspace.attachment_path(project_id, agent_id, attachment_id, safe_name)
-
-            with :ok <- vm.mkdir_p(project_id, dir),
-                 :ok <- vm.write(project_id, path, bytes) do
-              meta = %{
-                "id" => attachment_id,
-                "filename" => safe_name,
-                "size" => byte_size(bytes),
-                "content_type" => content_type
-              }
-
-              {:cont, {:ok, acc ++ [meta]}}
-            else
-              {:error, reason} ->
-                {:halt, {:error, "Failed to store #{name}: #{inspect(reason)}"}}
-            end
+        # Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+        raw_b64 =
+          case String.split(base64_content, ",", parts: 2) do
+            [_prefix, data] -> data
+            [data] -> data
           end
 
-        :error ->
-          {:halt, {:error, "Invalid base64 for #{name}"}}
-      end
-    end)
+        case Base.decode64(raw_b64) do
+          {:ok, bytes} ->
+            if byte_size(bytes) > @max_attachment_size do
+              {:halt, {:error, "File #{name} exceeds 50MB limit"}}
+            else
+              safe_name = Path.basename(name)
+              path = Workspace.attachment_path(project_id, agent_id, attachment_id, safe_name)
+
+              case vm.write(project_id, path, bytes) do
+                :ok ->
+                  meta = %{
+                    "id" => attachment_id,
+                    "filename" => safe_name,
+                    "size" => byte_size(bytes),
+                    "content_type" => content_type
+                  }
+
+                  {:cont, {:ok, acc ++ [meta]}}
+
+                {:error, reason} ->
+                  {:halt, {:error, "Failed to store #{name}: #{inspect(reason)}"}}
+              end
+            end
+
+          :error ->
+            {:halt, {:error, "Invalid base64 for #{name}"}}
+        end
+      end)
+    end
   end
 
   @impl true

@@ -1,7 +1,7 @@
 // agent-runner.ts — Bun daemon that watches the inbox/outbox and dispatches to configured harness.
 // Each agent runs in its own workspace directory under /workspace/agents/{id}/.
 import { watch } from "fs";
-import { readFile, readdir, unlink, writeFile, mkdir, stat } from "fs/promises";
+import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/promises";
 import { basename, join } from "path";
 import { parseArgs } from "util";
 import yaml from "js-yaml";
@@ -20,6 +20,7 @@ const AGENT_DIR = (typeof values["agent-dir"] === "string" ? values["agent-dir"]
 const INBOX_DIR = join(AGENT_DIR, "inbox");
 const OUTBOX_DIR = join(AGENT_DIR, "outbox");
 const ATTACHMENTS_DIR = join(AGENT_DIR, "attachments");
+const ATTACHMENT_OUTBOX_DIR = join(ATTACHMENTS_DIR, "outbox");
 const AGENTS_ROOT = join(AGENT_DIR, "../");
 const RECIPE_PATH = join(AGENT_DIR, "recipe.yaml");
 const PEERS_PATH = join(AGENTS_ROOT, "../peers.yaml");
@@ -290,41 +291,61 @@ function mimeFromPath(filename: string): string {
   return MIME_TYPES[ext] || "application/octet-stream";
 }
 
-// Track already-emitted attachment IDs to avoid duplicates
-const emittedAttachments = new Set<string>();
-
-async function scanAttachments(attachmentsDir: string): Promise<void> {
-  let dirs: string[];
+async function processAttachmentOutbox(attachmentsDir: string): Promise<number> {
+  const outboxDir = join(attachmentsDir, "outbox");
+  let entries: string[];
   try {
-    dirs = await readdir(attachmentsDir);
+    entries = (await readdir(outboxDir)).sort();
   } catch {
-    return;
+    return 0;
   }
 
-  for (const attachmentId of dirs) {
-    if (emittedAttachments.has(attachmentId)) continue;
-    const subdir = join(attachmentsDir, attachmentId);
+  // Collect regular files, skip dotfiles and directories
+  const files: Array<{ name: string; path: string; size: number }> = [];
+  for (const entry of entries) {
+    if (entry.startsWith(".") || entry.includes("/") || entry.includes("\\")) continue;
+    const filePath = join(outboxDir, entry);
     try {
-      const s = await stat(subdir);
-      if (!s.isDirectory()) continue;
-      const files = (await readdir(subdir)).sort();
-      if (files.length === 0) continue;
-      const filename = files[0];
-      const filePath = join(subdir, filename);
-      const fileStat = await stat(filePath);
-      if (!fileStat.isFile()) continue;
-      emittedAttachments.add(attachmentId);
-      emit("attachment", {
-        id: attachmentId,
-        filename,
-        path: filePath,
-        content_type: mimeFromPath(filename),
-        size: fileStat.size,
-      });
+      const s = await stat(filePath);
+      if (s.isFile()) {
+        files.push({ name: entry, path: filePath, size: s.size });
+      }
     } catch {
       // skip unreadable entries
     }
   }
+
+  if (files.length === 0) return 0;
+
+  // Batch all files into one timestamped folder
+  const attachmentId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const destDir = join(attachmentsDir, attachmentId);
+  await mkdir(destDir, { recursive: true });
+
+  const movedFiles: Array<{ filename: string; content_type: string; size: number }> = [];
+
+  for (const file of files) {
+    const destPath = join(destDir, file.name);
+    try {
+      await rename(file.path, destPath);
+      movedFiles.push({
+        filename: file.name,
+        content_type: mimeFromPath(file.name),
+        size: file.size,
+      });
+    } catch (err) {
+      emit("error", { message: `Failed to move attachment ${file.name}: ${err}` });
+    }
+  }
+
+  if (movedFiles.length > 0) {
+    emit("attachment", {
+      id: attachmentId,
+      files: movedFiles,
+    });
+  }
+
+  return movedFiles.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -335,8 +356,8 @@ async function main() {
   const config = await loadConfig();
   await loadPeers();
 
-  // Ensure attachments directory exists
-  await mkdir(ATTACHMENTS_DIR, { recursive: true });
+  // Ensure attachments directories exist
+  await mkdir(ATTACHMENT_OUTBOX_DIR, { recursive: true });
 
   const harness = createHarness(config.harness);
 
@@ -394,9 +415,20 @@ async function main() {
     }
   });
 
-  // Watch attachments directory for agent-created files
-  const attachmentsWatcher = watch(ATTACHMENTS_DIR, async () => {
-    await scanAttachments(ATTACHMENTS_DIR);
+  // Watch attachments outbox for agent-created files
+  await processAttachmentOutbox(ATTACHMENTS_DIR);
+  let processingAttachments = false;
+  const attachmentsWatcher = watch(ATTACHMENT_OUTBOX_DIR, async () => {
+    if (processingAttachments) return;
+    processingAttachments = true;
+    try {
+      let count: number;
+      do {
+        count = await processAttachmentOutbox(ATTACHMENTS_DIR);
+      } while (count > 0);
+    } finally {
+      processingAttachments = false;
+    }
   });
 
   // Heartbeat every 30 seconds

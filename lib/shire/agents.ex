@@ -25,6 +25,7 @@ defmodule Shire.Agents do
            :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "scripts")),
            :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "documents")),
            :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "attachments")),
+           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "attachments/outbox")),
            :ok <- vm.write(project_id, Path.join(agent_dir, "recipe.yaml"), recipe_yaml) do
         {:ok, agent.id}
       else

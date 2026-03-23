@@ -210,7 +210,7 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
         text: "",
         attachments: [
           %{
-            "id" => "abc123",
+            "id" => "1711234567890",
             "filename" => "report.csv",
             "size" => 1024,
             "content_type" => "text/csv"
@@ -224,10 +224,14 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
       event = %{
         "type" => "attachment",
         "payload" => %{
-          "id" => "abc123",
-          "filename" => "report.csv",
-          "size" => 1024,
-          "content_type" => "text/csv"
+          "attachments" => [
+            %{
+              "id" => "1711234567890",
+              "filename" => "report.csv",
+              "size" => 1024,
+              "content_type" => "text/csv"
+            }
+          ]
         },
         "message" => msg
       }
