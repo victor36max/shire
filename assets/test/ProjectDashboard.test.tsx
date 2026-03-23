@@ -23,7 +23,8 @@ describe("ProjectDashboard", () => {
 
   it("shows empty state when no projects", () => {
     render(<ProjectDashboard projects={[]} pushEvent={vi.fn()} />);
-    expect(screen.getByText("No projects yet. Create one to get started.")).toBeInTheDocument();
+    expect(screen.getByText("No projects yet")).toBeInTheDocument();
+    expect(screen.getByText("Create Your First Project")).toBeInTheDocument();
   });
 
   it("shows status badges on project cards", () => {

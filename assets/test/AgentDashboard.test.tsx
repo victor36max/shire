@@ -40,6 +40,7 @@ describe("AgentDashboard", () => {
     expect(screen.getByText("Agent Two")).toBeInTheDocument();
     // Welcome panel shows
     expect(screen.getByText("Shire")).toBeInTheDocument();
+    // Welcome panel shows — with agents, it shows the selection prompt
     expect(screen.getByText("Select an agent from the sidebar to start chatting.")).toBeInTheDocument();
   });
 
@@ -57,7 +58,7 @@ describe("AgentDashboard", () => {
     // Message shows
     expect(screen.getByText("Hello")).toBeInTheDocument();
     // Welcome panel should not show
-    expect(screen.queryByText("Select an agent from the sidebar to start chatting.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Shire")).not.toBeInTheDocument();
   });
 
   it("calls pushEvent with select-agent when clicking sidebar agent", async () => {
@@ -74,6 +75,12 @@ describe("AgentDashboard", () => {
     // Click the sidebar "+ New Agent" button
     await userEvent.click(screen.getAllByText("+ New Agent")[0]);
     expect(screen.getByText("Create a new agent to get started.")).toBeInTheDocument();
+  });
+
+  it("shows onboarding content in welcome panel when no agents", () => {
+    render(<AgentDashboard {...defaultProps} agents={[]} selectedAgent={null} />);
+    expect(screen.getByText(/agents that work together/)).toBeInTheDocument();
+    expect(screen.getAllByText("Browse Catalog")).toHaveLength(2);
   });
 
   it("opens new agent dialog from welcome panel", async () => {

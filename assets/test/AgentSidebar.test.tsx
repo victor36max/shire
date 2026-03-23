@@ -52,6 +52,7 @@ describe("AgentSidebar", () => {
   it("renders empty state when no agents", () => {
     render(<AgentSidebar {...defaultProps} agents={[]} />);
     expect(screen.getByText("No agents yet")).toBeInTheDocument();
+    expect(screen.getByText(/browse the catalog/)).toBeInTheDocument();
   });
 
   it("calls onSelectAgent with name when clicking an agent", async () => {
