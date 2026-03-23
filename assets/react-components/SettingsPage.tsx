@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button } from "./components/ui/button";
+import { Button, buttonVariants } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
@@ -259,7 +259,10 @@ export default function SettingsPage({
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => pushEvent("delete-script", { name: draft.originalName })}>
+                            <AlertDialogAction
+                              className={buttonVariants({ variant: "destructive" })}
+                              onClick={() => pushEvent("delete-script", { name: draft.originalName })}
+                            >
                               Delete
                             </AlertDialogAction>
                           </AlertDialogFooter>

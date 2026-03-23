@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button } from "./components/ui/button";
+import { Button, buttonVariants } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
 import {
@@ -21,6 +21,8 @@ import {
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
 import AppLayout from "./components/AppLayout";
+import { ChevronLeft } from "lucide-react";
+import { navigate as navigateTo } from "./lib/navigate";
 
 export interface SharedDriveFile {
   name: string;
@@ -126,7 +128,12 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
   return (
     <AppLayout>
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">Shared Drive</h1>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigateTo(`/projects/${project.name}`)}>
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">Shared Drive</h1>
+        </div>
         {/* Toolbar */}
         <div className="flex items-center justify-between">
           <Breadcrumbs path={current_path} onNavigate={navigate} />
@@ -252,7 +259,12 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteTarget && handleDelete(deleteTarget)}>Delete</AlertDialogAction>
+            <AlertDialogAction
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={() => deleteTarget && handleDelete(deleteTarget)}
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
