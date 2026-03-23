@@ -26,7 +26,7 @@ end
 
 config :shire, ShireWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
-# VM backend selection: "sprites" (default), "local"
+# VM backend selection: "sprites" (default), "local", "ssh"
 vm_type = System.get_env("SHIRE_VM_TYPE", "sprites")
 sprites_token = System.get_env("SPRITES_TOKEN")
 sprite_vm_prefix = System.get_env("SPRITE_VM_PREFIX")
@@ -40,6 +40,7 @@ if config_env() != :test do
   vm_module =
     case vm_type do
       "local" -> Shire.VirtualMachineLocal
+      "ssh" -> Shire.VirtualMachineSSH
       _ -> Shire.VirtualMachineSprite
     end
 
@@ -48,6 +49,25 @@ if config_env() != :test do
 
   if sprite_vm_prefix do
     config :shire, :sprite_vm_prefix, sprite_vm_prefix
+  end
+
+  if vm_type == "ssh" do
+    config :shire, :ssh,
+      host:
+        System.get_env("SHIRE_SSH_HOST") ||
+          raise("SHIRE_SSH_HOST is required when SHIRE_VM_TYPE=ssh"),
+      port: String.to_integer(System.get_env("SHIRE_SSH_PORT", "22")),
+      user:
+        System.get_env("SHIRE_SSH_USER") ||
+          raise("SHIRE_SSH_USER is required when SHIRE_VM_TYPE=ssh"),
+      key_path:
+        System.get_env("SHIRE_SSH_KEY") ||
+          raise("SHIRE_SSH_KEY is required when SHIRE_VM_TYPE=ssh"),
+      workspace_root:
+        System.get_env(
+          "SHIRE_SSH_WORKSPACE_ROOT",
+          "/home/#{System.get_env("SHIRE_SSH_USER")}/shire/projects"
+        )
   end
 end
 
