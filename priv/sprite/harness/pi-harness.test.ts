@@ -43,10 +43,40 @@ describe("PiHarness", () => {
     expect(harness.isProcessing()).toBe(false);
   });
 
-  test("start() initializes without throwing", async () => {
+  test("start() initializes without throwing and does not create session", async () => {
+    const factory = mock(async () => createMockSession());
+    const harness = new PiHarness();
+    harness._setSessionFactory(factory);
+    await harness.start(baseConfig);
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  test("session is created lazily on first sendMessage()", async () => {
+    const factory = mock(async () => createMockSession());
+    const harness = new PiHarness();
+    harness.onEvent(() => {});
+    harness._setSessionFactory(factory);
+    await harness.start(baseConfig);
+    expect(factory).not.toHaveBeenCalled();
+    await harness.sendMessage("Hi");
+    expect(factory).toHaveBeenCalledTimes(1);
+  });
+
+  test("session is reused across multiple sendMessage() calls", async () => {
+    const factory = mock(async () => createMockSession());
+    const harness = new PiHarness();
+    harness.onEvent(() => {});
+    harness._setSessionFactory(factory);
+    await harness.start(baseConfig);
+    await harness.sendMessage("Hi");
+    await harness.sendMessage("Again");
+    expect(factory).toHaveBeenCalledTimes(1);
+  });
+
+  test("sendMessage() throws if start() was not called", async () => {
     const harness = new PiHarness();
     harness._setSessionFactory(async () => createMockSession());
-    await harness.start(baseConfig);
+    await expect(harness.sendMessage("Hi")).rejects.toThrow("Harness not started");
   });
 
   test("sendMessage() maps text_delta events correctly", async () => {
@@ -161,10 +191,41 @@ describe("PiHarness", () => {
 
   test("interrupt() calls abort on the session", async () => {
     const harness = new PiHarness();
+    harness.onEvent(() => {});
     const mockSession = createMockSession();
     harness._setSessionFactory(async () => mockSession);
     await harness.start(baseConfig);
+    // Create session by sending a message first
+    await harness.sendMessage("init");
     await harness.interrupt();
     expect(mockSession.abort).toHaveBeenCalledTimes(1);
+  });
+
+  test("interrupt() is a no-op before session is created", async () => {
+    const harness = new PiHarness();
+    harness._setSessionFactory(async () => createMockSession());
+    await harness.start(baseConfig);
+    // Should not throw even though no session exists yet
+    await harness.interrupt();
+  });
+
+  test("concurrent sendMessage() calls only create one session", async () => {
+    const factory = mock(async () => createMockSession());
+    const harness = new PiHarness();
+    harness.onEvent(() => {});
+    harness._setSessionFactory(factory);
+    await harness.start(baseConfig);
+    await Promise.all([harness.sendMessage("A"), harness.sendMessage("B")]);
+    expect(factory).toHaveBeenCalledTimes(1);
+  });
+
+  test("sendMessage() after stop() does not create a new session", async () => {
+    const factory = mock(async () => createMockSession());
+    const harness = new PiHarness();
+    harness._setSessionFactory(factory);
+    await harness.start(baseConfig);
+    await harness.stop();
+    await expect(harness.sendMessage("too late")).rejects.toThrow("Harness is stopped");
+    expect(factory).not.toHaveBeenCalled();
   });
 });
