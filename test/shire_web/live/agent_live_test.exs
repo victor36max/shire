@@ -53,7 +53,7 @@ defmodule ShireWeb.AgentLiveTest do
       assert html =~ "AgentDashboard"
     end
 
-    test "handles {:agent_status, agent_id, status} from lobby", %{
+    test "handles {:agent_status, agent_id, status} from project agents topic", %{
       conn: conn,
       project_id: project_id,
       project_name: project_name
@@ -62,7 +62,7 @@ defmodule ShireWeb.AgentLiveTest do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{project_id}:agents:lobby",
+        "project:#{project_id}:agents",
         {:agent_status, "test-agent", :active}
       )
 
@@ -79,7 +79,7 @@ defmodule ShireWeb.AgentLiveTest do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{project_id}:agents:lobby",
+        "project:#{project_id}:agents",
         {:agent_busy, "test-agent", true}
       )
 
@@ -187,7 +187,7 @@ defmodule ShireWeb.AgentLiveTest do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{project_id}:agents:lobby",
+        "project:#{project_id}:agents",
         {:agent_status, "my-agent", :bootstrapping}
       )
 
@@ -206,7 +206,7 @@ defmodule ShireWeb.AgentLiveTest do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{project_id}:agents:lobby",
+        "project:#{project_id}:agents",
         {:agent_updated, "some-agent"}
       )
 
@@ -225,7 +225,7 @@ defmodule ShireWeb.AgentLiveTest do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{project_id}:agents:lobby",
+        "project:#{project_id}:agents",
         {:agent_deleted, "some-agent"}
       )
 
@@ -256,7 +256,7 @@ defmodule ShireWeb.AgentLiveTest do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{project_id}:agents:lobby",
+        "project:#{project_id}:agents",
         {:agent_event, "unselected-agent", %{"type" => "text_delta"}}
       )
 

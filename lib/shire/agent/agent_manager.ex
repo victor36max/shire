@@ -447,6 +447,13 @@ defmodule Shire.Agent.AgentManager do
 
           {:ok, %{"type" => "processing", "payload" => %{"active" => active}}} ->
             broadcast(acc, {:agent_busy, acc.agent_id, active})
+
+            Phoenix.PubSub.broadcast(
+              Shire.PubSub,
+              "project:#{acc.project_id}:agents",
+              {:agent_busy, acc.agent_id, active}
+            )
+
             acc
 
           {:ok, %{"type" => "attachment", "payload" => %{"id" => att_id, "files" => files}}}
@@ -554,6 +561,14 @@ defmodule Shire.Agent.AgentManager do
       "project:#{state.project_id}:agent:#{state.agent_id}",
       {:agent_status, state.agent_id, status}
     )
+
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "project:#{state.project_id}:agents",
+      {:agent_status, state.agent_id, status}
+    )
+
+    Shire.Agent.Coordinator.report_status(state.project_id, state.agent_id, status)
 
     state
   end
