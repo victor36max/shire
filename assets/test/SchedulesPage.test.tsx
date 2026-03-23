@@ -110,7 +110,7 @@ describe("SchedulesPage", () => {
     render(<SchedulesPage {...defaultProps} tasks={sampleTasks} pushEvent={pushEvent} />);
 
     // Edit pre-fills the form including agent_id (avoids Radix Select jsdom limitation)
-    const editButtons = screen.getAllByTitle("Edit");
+    const editButtons = screen.getAllByRole("button", { name: "Edit" });
     await user.click(editButtons[0]);
 
     // Modify the label
@@ -132,7 +132,7 @@ describe("SchedulesPage", () => {
 
   it("opens delete confirmation dialog", async () => {
     render(<SchedulesPage {...defaultProps} tasks={sampleTasks} />);
-    const deleteButtons = screen.getAllByTitle("Delete");
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
     await userEvent.click(deleteButtons[0]);
 
     expect(screen.getByText("Delete Schedule")).toBeInTheDocument();
@@ -145,7 +145,7 @@ describe("SchedulesPage", () => {
     const pushEvent = vi.fn();
     render(<SchedulesPage {...defaultProps} tasks={sampleTasks} pushEvent={pushEvent} />);
 
-    const deleteButtons = screen.getAllByTitle("Delete");
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
     await userEvent.click(deleteButtons[0]);
 
     const alertDialog = screen.getByRole("alertdialog");
@@ -160,7 +160,7 @@ describe("SchedulesPage", () => {
   it("cancels delete confirmation dialog", async () => {
     render(<SchedulesPage {...defaultProps} tasks={sampleTasks} />);
 
-    const deleteButtons = screen.getAllByTitle("Delete");
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
     await userEvent.click(deleteButtons[0]);
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
 
@@ -188,7 +188,7 @@ describe("SchedulesPage", () => {
     const pushEvent = vi.fn();
     render(<SchedulesPage {...defaultProps} tasks={sampleTasks} pushEvent={pushEvent} />);
 
-    const runButtons = screen.getAllByTitle("Run now");
+    const runButtons = screen.getAllByRole("button", { name: "Run now" });
     await userEvent.click(runButtons[0]);
     expect(pushEvent).toHaveBeenCalledWith("run-now", { id: "t1" });
   });
@@ -196,7 +196,7 @@ describe("SchedulesPage", () => {
   it("opens edit dialog with pre-filled form", async () => {
     render(<SchedulesPage {...defaultProps} tasks={sampleTasks} />);
 
-    const editButtons = screen.getAllByTitle("Edit");
+    const editButtons = screen.getAllByRole("button", { name: "Edit" });
     await userEvent.click(editButtons[0]);
 
     expect(screen.getByRole("heading", { name: "Edit Schedule" })).toBeInTheDocument();

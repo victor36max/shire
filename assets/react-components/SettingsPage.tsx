@@ -240,13 +240,13 @@ export default function SettingsPage({
                         variant="ghost"
                         size="sm"
                         onClick={() => pushEvent("run-script", { name: draft.originalName })}
-                        title="Run script"
+                        aria-label="Run script"
                       >
                         <Play className="h-4 w-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" title="Delete script">
+                          <Button variant="ghost" size="sm" aria-label="Delete script">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
