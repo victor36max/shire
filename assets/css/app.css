@@ -5,6 +5,7 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 @import "@xterm/xterm/css/xterm.css";
+@import "@fontsource-variable/dm-sans";
 
 @source "../css";
 @source "../js";
@@ -23,6 +24,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -155,6 +157,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
