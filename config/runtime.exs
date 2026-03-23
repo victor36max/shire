@@ -26,19 +26,13 @@ end
 
 config :shire, ShireWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
-# VM backend selection: "sprites" (default), "local", or "e2b"
+# VM backend selection: "sprites" (default), "local"
 vm_type = System.get_env("SHIRE_VM_TYPE", "sprites")
 sprites_token = System.get_env("SPRITES_TOKEN")
 sprite_vm_prefix = System.get_env("SPRITE_VM_PREFIX")
-e2b_api_key = System.get_env("E2B_API_KEY")
-e2b_template_id = System.get_env("E2B_TEMPLATE_ID")
 
 if config_env() == :prod && vm_type == "sprites" && is_nil(sprites_token) do
   raise "environment variable SPRITES_TOKEN is missing (required when SHIRE_VM_TYPE=sprites)."
-end
-
-if config_env() == :prod && vm_type == "e2b" && is_nil(e2b_api_key) do
-  raise "environment variable E2B_API_KEY is missing (required when SHIRE_VM_TYPE=e2b)."
 end
 
 # Don't connect to real VMs in test — ProjectManager will skip discovery
@@ -46,20 +40,14 @@ if config_env() != :test do
   vm_module =
     case vm_type do
       "local" -> Shire.VirtualMachineLocal
-      "e2b" -> Shire.VirtualMachineE2B
       _ -> Shire.VirtualMachineSprite
     end
 
   config :shire, :vm, vm_module
   config :shire, :sprites_token, sprites_token
-  config :shire, :e2b_api_key, e2b_api_key
 
   if sprite_vm_prefix do
     config :shire, :sprite_vm_prefix, sprite_vm_prefix
-  end
-
-  if e2b_template_id do
-    config :shire, :e2b_template_id, e2b_template_id
   end
 end
 

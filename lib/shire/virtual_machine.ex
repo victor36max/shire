@@ -3,7 +3,7 @@ defmodule Shire.VirtualMachine do
   Behaviour defining the VM interface for all VM operations.
   All project-scoped operations take `project_id` as the first parameter.
   The implementation is resolved at runtime via `Application.get_env(:shire, :vm)`.
-  Set `SHIRE_VM_TYPE=local` for local filesystem, `SHIRE_VM_TYPE=e2b` for E2B sandboxes,
+  Set `SHIRE_VM_TYPE=local` for local filesystem,
   or `SHIRE_VM_TYPE=sprites` (default) for Sprite VMs.
   """
 
