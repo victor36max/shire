@@ -147,6 +147,20 @@ describe("AgentDashboard", () => {
     expect(container.querySelector(".fixed.inset-0.z-40")).not.toBeInTheDocument();
   });
 
+  it("applies safe area insets to root container", () => {
+    const { container } = render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain("safe-area-inset-top");
+    expect(root.className).toContain("safe-area-inset-bottom");
+  });
+
+  it("uses dvh for viewport height", () => {
+    const { container } = render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain("h-dvh");
+    expect(root.className).not.toContain("h-screen");
+  });
+
   it("pre-fills agent form when catalogSelectedAgent is provided", () => {
     render(
       <AgentDashboard
