@@ -52,4 +52,10 @@ Describe your project here. All agents will check this document for context befo
 PROJECTMD
 fi
 
+# --- Install runner dependencies ---
+if [ -f "$WORKSPACE_ROOT/.runner/package.json" ]; then
+  echo "Installing runner dependencies..."
+  cd "$WORKSPACE_ROOT/.runner" && bun install
+fi
+
 echo "Bootstrap complete"
