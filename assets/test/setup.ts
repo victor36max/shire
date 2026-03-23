@@ -12,6 +12,17 @@ class MockResizeObserver {
 }
 global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 
+// Mock matchMedia for jsdom (ThemeProvider uses it)
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })),
+});
+
 // Mock useLiveReact globally — individual tests can override via vi.mocked()
 vi.mock("live_react", () => ({
   useLiveReact: vi.fn(() => ({
