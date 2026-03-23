@@ -153,7 +153,12 @@ export default function AgentDashboard({
             </div>
           </>
         ) : (
-          <WelcomePanel onNewAgent={handleNew} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+          <WelcomePanel
+            onNewAgent={handleNew}
+            onBrowseCatalog={handleBrowseCatalog}
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            hasAgents={agents.length > 0}
+          />
         )}
       </div>
 

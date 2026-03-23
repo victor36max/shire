@@ -236,8 +236,27 @@ export default function ChatPanel({
           </div>
         )}
         {!hasMessages && (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-muted-foreground">No messages yet. Send a message to talk to the agent.</p>
+          <div className="flex flex-col items-center justify-center h-full gap-4 max-w-sm mx-auto text-center">
+            <p className="text-sm text-muted-foreground">
+              {agent.description || "Send a message to start working with this agent."}
+            </p>
+            {agent.status === "active" && (
+              <div className="flex flex-wrap justify-center gap-2">
+                {["What can you help me with?", "What tools do you have?"].map((suggestion) => (
+                  <Button
+                    key={suggestion}
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => {
+                      pushEvent("send-message", { text: suggestion });
+                    }}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {messages.map((msg, i) =>
