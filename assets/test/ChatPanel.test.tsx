@@ -25,13 +25,13 @@ const messages: Message[] = [
 
 describe("ChatPanel", () => {
   it("renders empty state when no messages", () => {
-    render(<ChatPanel agent={activeAgent} messages={[]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[]} pushEvent={vi.fn()} />);
     expect(screen.getByText(/Send a message to start working/)).toBeInTheDocument();
   });
 
   it("shows suggestion chips in empty state for active agent", async () => {
     const pushEvent = vi.fn();
-    render(<ChatPanel agent={activeAgent} messages={[]} pushEvent={pushEvent} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[]} pushEvent={pushEvent} />);
     const chip = screen.getByText("What can you help me with?");
     expect(chip).toBeInTheDocument();
     await userEvent.click(chip);
@@ -40,18 +40,18 @@ describe("ChatPanel", () => {
 
   it("shows agent description in empty state when available", () => {
     const agentWithDesc = { ...activeAgent, description: "I help write tests." };
-    render(<ChatPanel agent={agentWithDesc} messages={[]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={agentWithDesc} projectName="test-project" messages={[]} pushEvent={vi.fn()} />);
     expect(screen.getByText("I help write tests.")).toBeInTheDocument();
   });
 
   it("renders messages", () => {
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
     expect(screen.getByText("Hello agent")).toBeInTheDocument();
     expect(screen.getByText("Hello human")).toBeInTheDocument();
   });
 
   it("shows input bar when agent is active", () => {
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
     expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
     expect(screen.getByText("Send")).toBeInTheDocument();
   });
@@ -63,7 +63,7 @@ describe("ChatPanel", () => {
 
   it("sends message on click", async () => {
     const pushEvent = vi.fn();
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={pushEvent} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={pushEvent} />);
 
     fireEvent.change(screen.getByPlaceholderText("Type a message..."), { target: { value: "test message" } });
     await userEvent.click(screen.getByText("Send"));
@@ -73,7 +73,7 @@ describe("ChatPanel", () => {
 
   it("sends message on enter key", async () => {
     const pushEvent = vi.fn();
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={pushEvent} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={pushEvent} />);
 
     fireEvent.change(screen.getByPlaceholderText("Type a message..."), { target: { value: "test message" } });
     fireEvent.keyDown(screen.getByPlaceholderText("Type a message..."), { key: "Enter" });
@@ -83,7 +83,7 @@ describe("ChatPanel", () => {
 
   it("does not send on shift+enter (allows newline)", () => {
     const pushEvent = vi.fn();
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={pushEvent} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={pushEvent} />);
 
     fireEvent.change(screen.getByPlaceholderText("Type a message..."), { target: { value: "line one" } });
     fireEvent.keyDown(screen.getByPlaceholderText("Type a message..."), { key: "Enter", shiftKey: true });
@@ -93,7 +93,7 @@ describe("ChatPanel", () => {
 
   it("does not send empty message", async () => {
     const pushEvent = vi.fn();
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={pushEvent} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={pushEvent} />);
 
     await userEvent.click(screen.getByText("Send"));
 
@@ -111,14 +111,16 @@ describe("ChatPanel", () => {
       is_error: false,
       ts: "2026-03-17T00:00:02Z",
     };
-    render(<ChatPanel agent={activeAgent} messages={[toolMsg]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[toolMsg]} pushEvent={vi.fn()} />);
     expect(screen.getByText("read_file")).toBeInTheDocument();
     expect(screen.getByText("done")).toBeInTheDocument();
   });
 
   it("sends load-more with before param when scrolled to top", () => {
     const pushEvent = vi.fn();
-    const { container } = render(<ChatPanel agent={activeAgent} messages={messages} hasMore pushEvent={pushEvent} />);
+    const { container } = render(
+      <ChatPanel agent={activeAgent} projectName="test-project" messages={messages} hasMore pushEvent={pushEvent} />,
+    );
 
     const scrollContainer = container.querySelector(".overflow-y-auto")!;
     Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
@@ -129,7 +131,9 @@ describe("ChatPanel", () => {
 
   it("does not send load-more when no messages", () => {
     const pushEvent = vi.fn();
-    const { container } = render(<ChatPanel agent={activeAgent} messages={[]} hasMore pushEvent={pushEvent} />);
+    const { container } = render(
+      <ChatPanel agent={activeAgent} projectName="test-project" messages={[]} hasMore pushEvent={pushEvent} />,
+    );
 
     const scrollContainer = container.querySelector(".overflow-y-auto")!;
     Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
@@ -139,7 +143,16 @@ describe("ChatPanel", () => {
   });
 
   it("shows loading indicator when loadingMore", () => {
-    render(<ChatPanel agent={activeAgent} messages={messages} hasMore loadingMore pushEvent={vi.fn()} />);
+    render(
+      <ChatPanel
+        agent={activeAgent}
+        projectName="test-project"
+        messages={messages}
+        hasMore
+        loadingMore
+        pushEvent={vi.fn()}
+      />,
+    );
     expect(screen.getByText("Loading older messages...")).toBeInTheDocument();
   });
 
@@ -157,7 +170,7 @@ describe("ChatPanel", () => {
       uploadTo: vi.fn(),
     });
 
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
 
     // Simulate text_delta events
     act(() => {
@@ -185,7 +198,7 @@ describe("ChatPanel", () => {
       from_agent: "researcher",
       ts: "2026-03-17T00:00:03Z",
     };
-    render(<ChatPanel agent={activeAgent} messages={[interAgentMsg]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[interAgentMsg]} pushEvent={vi.fn()} />);
     expect(screen.getByText("Message from researcher")).toBeInTheDocument();
     expect(screen.queryByText("Here is the analysis result")).not.toBeInTheDocument();
   });
@@ -198,7 +211,7 @@ describe("ChatPanel", () => {
       from_agent: "researcher",
       ts: "2026-03-17T00:00:03Z",
     };
-    render(<ChatPanel agent={activeAgent} messages={[interAgentMsg]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[interAgentMsg]} pushEvent={vi.fn()} />);
     await userEvent.click(screen.getByText("Message from researcher"));
     expect(screen.getByText("Here is the analysis result")).toBeInTheDocument();
   });
@@ -211,7 +224,7 @@ describe("ChatPanel", () => {
       from_agent: "researcher",
       ts: "2026-03-17T00:00:03Z",
     };
-    render(<ChatPanel agent={activeAgent} messages={[interAgentMsg]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[interAgentMsg]} pushEvent={vi.fn()} />);
     const toggle = screen.getByText("Message from researcher");
     await userEvent.click(toggle);
     expect(screen.getByText("Here is the analysis result")).toBeInTheDocument();
@@ -226,7 +239,7 @@ describe("ChatPanel", () => {
       text: "Your outbox message was invalid",
       ts: "2026-03-17T00:00:04Z",
     };
-    render(<ChatPanel agent={activeAgent} messages={[sysMsg]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[sysMsg]} pushEvent={vi.fn()} />);
     expect(screen.getByText("System notification")).toBeInTheDocument();
     expect(screen.queryByText("Your outbox message was invalid")).not.toBeInTheDocument();
   });
@@ -238,7 +251,7 @@ describe("ChatPanel", () => {
       text: "Your outbox message was invalid",
       ts: "2026-03-17T00:00:04Z",
     };
-    render(<ChatPanel agent={activeAgent} messages={[sysMsg]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[sysMsg]} pushEvent={vi.fn()} />);
     await userEvent.click(screen.getByText("System notification"));
     expect(screen.getByText("Your outbox message was invalid")).toBeInTheDocument();
   });
@@ -250,7 +263,7 @@ describe("ChatPanel", () => {
       text: "Your outbox message was invalid",
       ts: "2026-03-17T00:00:04Z",
     };
-    render(<ChatPanel agent={activeAgent} messages={[sysMsg]} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[sysMsg]} pushEvent={vi.fn()} />);
     const toggle = screen.getByText("System notification");
     await userEvent.click(toggle);
     expect(screen.getByText("Your outbox message was invalid")).toBeInTheDocument();
@@ -260,7 +273,7 @@ describe("ChatPanel", () => {
 
   it("shows stop button when agent is busy", () => {
     const busyAgent = { ...activeAgent, busy: true };
-    render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={busyAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
     expect(screen.getByLabelText("Stop")).toBeInTheDocument();
     expect(screen.queryByText("Send")).not.toBeInTheDocument();
   });
@@ -268,20 +281,20 @@ describe("ChatPanel", () => {
   it("sends interrupt-agent event when stop button is clicked", async () => {
     const busyAgent = { ...activeAgent, busy: true };
     const pushEvent = vi.fn();
-    render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={pushEvent} />);
+    render(<ChatPanel agent={busyAgent} projectName="test-project" messages={messages} pushEvent={pushEvent} />);
     await userEvent.click(screen.getByLabelText("Stop"));
     expect(pushEvent).toHaveBeenCalledWith("interrupt-agent", {});
   });
 
   it("shows send button when agent is not busy", () => {
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
     expect(screen.getByText("Send")).toBeInTheDocument();
     expect(screen.queryByLabelText("Stop")).not.toBeInTheDocument();
   });
 
   it("shows thinking indicator when agent is busy and not streaming", () => {
     const busyAgent = { ...activeAgent, busy: true };
-    render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={busyAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
     expect(screen.getByText("Thinking...")).toBeInTheDocument();
   });
 
@@ -300,7 +313,7 @@ describe("ChatPanel", () => {
     });
 
     const busyAgent = { ...activeAgent, busy: true };
-    render(<ChatPanel agent={busyAgent} messages={messages} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={busyAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
 
     act(() => {
       handlers["text_delta"]({ delta: "streaming..." });
@@ -310,14 +323,14 @@ describe("ChatPanel", () => {
   });
 
   it("does not show thinking indicator when agent is not busy", () => {
-    render(<ChatPanel agent={activeAgent} messages={messages} pushEvent={vi.fn()} />);
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
     expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
   });
 
   it("shows idle message and restart button when agent is idle", () => {
     const idleAgent: Agent = { ...activeAgent, status: "idle" };
     const pushEvent = vi.fn();
-    render(<ChatPanel agent={idleAgent} messages={messages} pushEvent={pushEvent} />);
+    render(<ChatPanel agent={idleAgent} projectName="test-project" messages={messages} pushEvent={pushEvent} />);
     expect(screen.getByText(/Agent is idle/)).toBeInTheDocument();
     expect(screen.getByText("Restart")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Type a message...")).not.toBeInTheDocument();
@@ -326,8 +339,54 @@ describe("ChatPanel", () => {
   it("sends restart-agent event when restart button is clicked", async () => {
     const idleAgent: Agent = { ...activeAgent, status: "idle" };
     const pushEvent = vi.fn();
-    render(<ChatPanel agent={idleAgent} messages={messages} pushEvent={pushEvent} />);
+    render(<ChatPanel agent={idleAgent} projectName="test-project" messages={messages} pushEvent={pushEvent} />);
     await userEvent.click(screen.getByText("Restart"));
     expect(pushEvent).toHaveBeenCalledWith("restart-agent", {});
+  });
+
+  it("shows attach button when agent is active", () => {
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
+    expect(screen.getByLabelText("Attach file")).toBeInTheDocument();
+  });
+
+  it("renders file attachment as download link", () => {
+    const msgWithAtt: Message = {
+      id: 30,
+      role: "agent",
+      text: "Here is your report",
+      ts: "2026-03-17T00:00:05Z",
+      attachments: [{ id: "abc123", filename: "report.pdf", size: 1024, content_type: "application/pdf" }],
+    };
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[msgWithAtt]} pushEvent={vi.fn()} />);
+    const link = screen.getByText("report.pdf").closest("a");
+    expect(link).toHaveAttribute("href", "/projects/test-project/agents/a1/attachments/abc123/report.pdf");
+  });
+
+  it("renders image attachment as preview", () => {
+    const msgWithImg: Message = {
+      id: 31,
+      role: "agent",
+      text: "",
+      ts: "2026-03-17T00:00:06Z",
+      attachments: [{ id: "img001", filename: "screenshot.png", size: 2048, content_type: "image/png" }],
+    };
+    render(<ChatPanel agent={activeAgent} projectName="test-project" messages={[msgWithImg]} pushEvent={vi.fn()} />);
+    const img = screen.getByAltText("screenshot.png");
+    expect(img).toHaveAttribute("src", "/projects/test-project/agents/a1/attachments/img001/screenshot.png");
+  });
+
+  it("renders user message with attachments", () => {
+    const userMsgWithAtt: Message = {
+      id: 32,
+      role: "user",
+      text: "Check this file",
+      ts: "2026-03-17T00:00:07Z",
+      attachments: [{ id: "def456", filename: "data.csv", size: 512, content_type: "text/csv" }],
+    };
+    render(
+      <ChatPanel agent={activeAgent} projectName="test-project" messages={[userMsgWithAtt]} pushEvent={vi.fn()} />,
+    );
+    expect(screen.getByText("Check this file")).toBeInTheDocument();
+    expect(screen.getByText("data.csv")).toBeInTheDocument();
   });
 });

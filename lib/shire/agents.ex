@@ -24,6 +24,8 @@ defmodule Shire.Agents do
            :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "outbox")),
            :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "scripts")),
            :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "documents")),
+           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "attachments")),
+           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "attachments/outbox")),
            :ok <- vm.write(project_id, Path.join(agent_dir, "recipe.yaml"), recipe_yaml) do
         {:ok, agent.id}
       else
@@ -107,8 +109,23 @@ defmodule Shire.Agents do
   @doc """
   Sends a message: inserts DB record and writes inbox file on VM atomically.
   """
-  def send_message_with_inbox(project_id, agent_id, text, inbox_path, envelope, vm \\ nil) do
+  def send_message_with_inbox(
+        project_id,
+        agent_id,
+        text,
+        inbox_path,
+        envelope,
+        vm \\ nil,
+        opts \\ []
+      ) do
     vm = vm || vm()
+    attachments = Keyword.get(opts, :attachments, [])
+
+    content =
+      case attachments do
+        [] -> %{"text" => text}
+        _ -> %{"text" => text, "attachments" => attachments}
+      end
 
     Multi.new()
     |> Multi.insert(
@@ -117,7 +134,7 @@ defmodule Shire.Agents do
         project_id: project_id,
         agent_id: agent_id,
         role: "user",
-        content: %{"text" => text}
+        content: content
       })
     )
     |> Multi.run(:write_inbox, fn _repo, _changes ->

@@ -5,7 +5,10 @@ defmodule ShireWeb.AgentLive.Index do
   alias Shire.Projects
   alias Shire.Agent.Coordinator
   alias Shire.ProjectManager
+  alias Shire.Workspace
   alias ShireWeb.AgentLive.{AgentStreaming, Helpers}
+
+  @max_attachment_size 50 * 1024 * 1024
 
   @impl true
   def mount(%{"project_name" => project_name}, _session, socket) do
@@ -179,20 +182,29 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
-  def handle_event("send-message", %{"text" => text}, socket) do
+  def handle_event("send-message", %{"text" => text} = params, socket) do
     project_id = socket.assigns.project.id
     agent_id = socket.assigns.selected_agent_id
+    raw_attachments = Map.get(params, "attachments", [])
 
-    case Coordinator.send_message(project_id, agent_id, text) do
-      {:ok, msg} ->
-        messages = socket.assigns.messages ++ [Helpers.serialize_message(msg)]
-        {:noreply, assign(socket, :messages, messages)}
+    case store_attachments(project_id, agent_id, raw_attachments) do
+      {:ok, attachment_metas} ->
+        opts = if attachment_metas == [], do: [], else: [attachments: attachment_metas]
 
-      :ok ->
-        {:noreply, socket}
+        case Coordinator.send_message(project_id, agent_id, text, opts) do
+          {:ok, msg} ->
+            messages = socket.assigns.messages ++ [Helpers.serialize_message(msg)]
+            {:noreply, assign(socket, :messages, messages)}
+
+          :ok ->
+            {:noreply, socket}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to send: #{inspect(reason)}")}
+        end
 
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to send: #{inspect(reason)}")}
+        {:noreply, put_flash(socket, :error, "Attachment error: #{reason}")}
     end
   catch
     :exit, _ ->
@@ -364,6 +376,60 @@ defmodule ShireWeb.AgentLive.Index do
       end
 
     {:noreply, assign(socket, agent_statuses: statuses, selected_agent: selected_agent)}
+  end
+
+  # --- Private helpers ---
+
+  defp store_attachments(_project_id, _agent_id, []), do: {:ok, []}
+
+  defp store_attachments(project_id, agent_id, raw_attachments) do
+    vm = Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
+    suffix = :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
+    attachment_id = "#{System.system_time(:millisecond)}-#{suffix}"
+    dir = Workspace.attachment_dir(project_id, agent_id, attachment_id)
+
+    with :ok <- vm.mkdir_p(project_id, dir) do
+      Enum.reduce_while(raw_attachments, {:ok, []}, fn att, {:ok, acc} ->
+        name = att["name"]
+        base64_content = att["content"]
+        content_type = att["content_type"] || "application/octet-stream"
+
+        # Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+        raw_b64 =
+          case String.split(base64_content, ",", parts: 2) do
+            [_prefix, data] -> data
+            [data] -> data
+          end
+
+        case Base.decode64(raw_b64) do
+          {:ok, bytes} ->
+            if byte_size(bytes) > @max_attachment_size do
+              {:halt, {:error, "File #{name} exceeds 50MB limit"}}
+            else
+              safe_name = Path.basename(name)
+              path = Workspace.attachment_path(project_id, agent_id, attachment_id, safe_name)
+
+              case vm.write(project_id, path, bytes) do
+                :ok ->
+                  meta = %{
+                    "id" => attachment_id,
+                    "filename" => safe_name,
+                    "size" => byte_size(bytes),
+                    "content_type" => content_type
+                  }
+
+                  {:cont, {:ok, acc ++ [meta]}}
+
+                {:error, reason} ->
+                  {:halt, {:error, "Failed to store #{name}: #{inspect(reason)}"}}
+              end
+            end
+
+          :error ->
+            {:halt, {:error, "Invalid base64 for #{name}"}}
+        end
+      end)
+    end
   end
 
   @impl true

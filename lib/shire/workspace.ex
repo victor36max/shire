@@ -15,5 +15,14 @@ defmodule Shire.Workspace do
   def peers_path(project_id), do: Path.join(root(project_id), "peers.yaml")
   def project_doc_path(project_id), do: Path.join(root(project_id), "PROJECT.md")
 
+  def attachments_dir(project_id, agent_id),
+    do: Path.join(agent_dir(project_id, agent_id), "attachments")
+
+  def attachment_dir(project_id, agent_id, attachment_id),
+    do: Path.join(attachments_dir(project_id, agent_id), attachment_id)
+
+  def attachment_path(project_id, agent_id, attachment_id, filename),
+    do: Path.join(attachment_dir(project_id, agent_id, attachment_id), filename)
+
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end
