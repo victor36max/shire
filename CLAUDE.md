@@ -46,14 +46,17 @@
 - `VirtualMachineSprite` — Production backend using Fly.io Sprites (Firecracker VMs). Workspace at `/workspace`.
 - `VirtualMachineLocal` — Development backend using local filesystem (`~/.shire/projects/{project_id}/`) + Erlang ports for process execution.
 - Both implement the `Shire.VirtualMachine` behaviour. `Shire.Workspace` delegates path resolution to the configured backend.
+- `VirtualMachine.Setup` — Shared setup logic (bootstrap + runner deployment) used by both backends during init.
 
-**Recipes** — YAML files defining agents (`name`, `description`, `harness`, `scripts`). Live on the VM at `{workspace_root}/agents/{name}/recipe.yaml` — no DB schema for recipes. Agents themselves are DB-backed with a unique constraint on `(project_id, name)`.
+**Recipes** — YAML files defining agents (`name`, `description`, `harness`, `scripts`). Live on the VM at `{workspace_root}/agents/{id}/recipe.yaml` — no DB schema for recipes. Agents themselves are DB-backed with a unique constraint on `(project_id, name)`.
 
 **Catalog** — YAML agent templates in `priv/catalog/agents/` organized by category. Populated by `mix catalog.sync` (gitignored, not checked in). `Shire.Catalog` reads them on demand — no GenServer, no DB schema. Categories defined in `priv/catalog/categories.yaml`.
 
 **Agent lifecycle:**
 - `Coordinator` handles per-project agent CRUD — writes `recipe.yaml` to VM, starts `AgentManager` under `DynamicSupervisor`
 - `AgentManager` bootstraps workspace dirs (inbox, outbox, scripts, documents), writes communication prompts, spawns `agent-runner.ts`
+
+**File attachments** — Agents can send and receive file attachments. Stored on the VM at `{workspace_root}/agents/{id}/attachments/{attachment_id}/{filename}`. Served to the browser via `AttachmentController`.
 
 **Inter-agent messaging** — Agents write JSON envelopes to outbox. `AgentManager` polls every 2s (pauses after 15 min idle), routes to target inbox. Messages persisted to DB as `role: "inter_agent"`.
 
@@ -77,12 +80,18 @@ lib/shire/
   schedules/
     scheduled_task.ex             # Ecto schema for scheduled tasks
   virtual_machine.ex              # Behaviour (cmd, read, write, spawn_command, etc.)
+  virtual_machine/
+    setup.ex                      # Shared VM setup logic (bootstrap + runner deployment)
   virtual_machine_sprite.ex       # GenServer wrapping Sprites SDK (production)
   virtual_machine_local.ex        # Local filesystem + Erlang ports (development)
   workspace.ex                    # Workspace path resolution (delegates to VM backend)
   workspace_settings.ex           # Per-project env vars and scripts
   workers/
     schedule_worker.ex            # Oban worker for scheduled task execution
+
+lib/shire_web/controllers/
+  attachment_controller.ex          # File attachment download endpoint
+  shared_drive_controller.ex        # Shared drive file operations
 
 lib/shire_web/live/
   project_live/index.ex           # ProjectDashboard (root "/" route)
