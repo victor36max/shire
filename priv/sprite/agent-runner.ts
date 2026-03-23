@@ -300,14 +300,14 @@ async function processAttachmentOutbox(attachmentsDir: string): Promise<number> 
     return 0;
   }
 
-  // Collect regular files, skip dotfiles and directories
+  // Collect regular files, skip dotfiles, directories, and files still being written (size 0)
   const files: Array<{ name: string; path: string; size: number }> = [];
   for (const entry of entries) {
     if (entry.startsWith(".") || entry.includes("/") || entry.includes("\\")) continue;
     const filePath = join(outboxDir, entry);
     try {
       const s = await stat(filePath);
-      if (s.isFile()) {
+      if (s.isFile() && s.size > 0) {
         files.push({ name: entry, path: filePath, size: s.size });
       }
     } catch {
