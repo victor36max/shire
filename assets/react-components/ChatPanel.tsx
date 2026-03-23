@@ -270,7 +270,7 @@ export default function ChatPanel({
         )}
         {agent.busy && !streamingText && (
           <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-status-active animate-pulse" />
             Thinking...
           </div>
         )}

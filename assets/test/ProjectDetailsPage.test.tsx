@@ -15,9 +15,9 @@ describe("ProjectDetailsPage", () => {
     expect(screen.getByRole("heading", { name: "Project Details" })).toBeInTheDocument();
   });
 
-  it("renders back link", () => {
+  it("renders back button", () => {
     render(<ProjectDetailsPage {...defaultProps} />);
-    expect(screen.getByText("Back to dashboard")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
   });
 
   it("shows project name in input", () => {

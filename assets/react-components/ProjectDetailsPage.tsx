@@ -40,20 +40,15 @@ export default function ProjectDetailsPage({ project, project_doc, pushEvent }: 
 
   return (
     <AppLayout>
-      <div className="space-y-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1 text-muted-foreground"
-          onClick={() => navigate(`/projects/${project.name}`)}
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Back to dashboard
-        </Button>
-
-        <div>
-          <h1 className="text-2xl font-bold">Project Details</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage project name and documentation.</p>
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate(`/projects/${project.name}`)}>
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Project Details</h1>
+            <p className="text-sm text-muted-foreground">Manage project name and documentation.</p>
+          </div>
         </div>
 
         <div className="space-y-2">

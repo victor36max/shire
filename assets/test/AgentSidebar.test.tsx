@@ -84,9 +84,9 @@ describe("AgentSidebar", () => {
     const { container } = render(<AgentSidebar {...defaultProps} agents={agents} />);
 
     const dots = container.querySelectorAll(".rounded-full");
-    expect(dots[0]).toHaveClass("bg-green-500"); // active
-    expect(dots[1]).toHaveClass("bg-gray-400"); // created
-    expect(dots[2]).toHaveClass("bg-gray-400"); // idle
+    expect(dots[0]).toHaveClass("bg-status-active"); // active
+    expect(dots[1]).toHaveClass("bg-status-idle"); // created
+    expect(dots[2]).toHaveClass("bg-status-idle"); // idle
   });
 
   it("pulses the status dot when agent is active and busy", () => {
