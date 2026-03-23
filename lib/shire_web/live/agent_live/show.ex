@@ -124,7 +124,7 @@ defmodule ShireWeb.AgentLive.Show do
   end
 
   @impl true
-  def handle_info({:status, status}, socket) do
+  def handle_info({:agent_status, _agent_id, status}, socket) do
     agent = Map.put(socket.assigns.agent, :status, status)
 
     {:noreply,
