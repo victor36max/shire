@@ -178,6 +178,12 @@ defmodule Shire.VirtualMachineSprite do
 
     update_registry_status(project_id, :starting)
 
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "project:#{project_id}:vm",
+      {:vm_starting, project_id}
+    )
+
     if token do
       vm_name = vm_name(project_id)
 

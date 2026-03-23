@@ -20,7 +20,13 @@ defmodule Shire.ProjectManagerTest do
     end)
 
     stub(Shire.VirtualMachineMock, :destroy_vm, fn _name -> :ok end)
-    stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
+
+    stub(Shire.VirtualMachineMock, :vm_status, fn project_id ->
+      case Registry.lookup(Shire.ProjectRegistry, {:coordinator, project_id}) do
+        [{pid, _}] -> if Process.alive?(pid), do: :running, else: :stopped
+        [] -> :stopped
+      end
+    end)
 
     start_supervised!(ProjectManager)
 
