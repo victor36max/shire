@@ -122,6 +122,31 @@ describe("AgentDashboard", () => {
     expect(pushEvent).toHaveBeenCalledWith("get-catalog-agent", { name: "frontend-developer" });
   });
 
+  it("renders menu toggle button in chat header", () => {
+    render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={agents[0]} />);
+    expect(screen.getByRole("button", { name: "Open menu" })).toBeInTheDocument();
+  });
+
+  it("renders menu toggle button in welcome panel", () => {
+    render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} />);
+    expect(screen.getByRole("button", { name: "Open menu" })).toBeInTheDocument();
+  });
+
+  it("shows backdrop when menu toggle is clicked", async () => {
+    const { container } = render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(container.querySelector(".fixed.inset-0.z-40")).toBeInTheDocument();
+  });
+
+  it("closes sidebar backdrop when clicked", async () => {
+    const { container } = render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const backdrop = container.querySelector(".fixed.inset-0.z-40");
+    expect(backdrop).toBeInTheDocument();
+    await userEvent.click(backdrop!);
+    expect(container.querySelector(".fixed.inset-0.z-40")).not.toBeInTheDocument();
+  });
+
   it("pre-fills agent form when catalogSelectedAgent is provided", () => {
     render(
       <AgentDashboard
