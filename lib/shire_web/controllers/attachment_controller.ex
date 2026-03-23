@@ -39,7 +39,7 @@ defmodule ShireWeb.AttachmentController do
     end
   end
 
-  defp validate_id(id), do: if(Regex.match?(~r/\A[a-f0-9\-]+\z/i, id), do: :ok, else: :error)
+  defp validate_id(id), do: if(Regex.match?(~r/\A[a-z0-9\-]+\z/i, id), do: :ok, else: :error)
 
   defp validate_filename(name) do
     if String.contains?(name, ["../", "/", "\\", "\""]) or name == "" do
