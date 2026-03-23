@@ -202,6 +202,48 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
     end
   end
 
+  describe "process_agent_event/2 with attachment" do
+    test "appends attachment message and clears streaming text" do
+      msg = %{
+        id: 10,
+        role: "agent",
+        text: "",
+        attachments: [
+          %{
+            "id" => "1711234567890",
+            "filename" => "report.csv",
+            "size" => 1024,
+            "content_type" => "text/csv"
+          }
+        ],
+        ts: "2024-01-01T00:00:00Z"
+      }
+
+      socket = mock_socket(%{streaming_text: "partial"})
+
+      event = %{
+        "type" => "attachment",
+        "payload" => %{
+          "attachments" => [
+            %{
+              "id" => "1711234567890",
+              "filename" => "report.csv",
+              "size" => 1024,
+              "content_type" => "text/csv"
+            }
+          ]
+        },
+        "message" => msg
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      att_msg = List.last(socket.assigns.messages)
+      assert att_msg[:role] == "agent"
+      assert length(att_msg[:attachments]) == 1
+      assert socket.assigns.streaming_text == nil
+    end
+  end
+
   describe "process_agent_event/2 with turn_complete" do
     test "clears streaming text" do
       socket = mock_socket(%{streaming_text: "partial text"})

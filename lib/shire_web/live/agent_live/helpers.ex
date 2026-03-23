@@ -25,7 +25,9 @@ defmodule ShireWeb.AgentLive.Helpers do
         })
 
       _ ->
-        Map.put(base, :text, msg.content["text"])
+        base
+        |> Map.put(:text, msg.content["text"])
+        |> Map.put(:attachments, msg.content["attachments"] || [])
     end
   end
 end

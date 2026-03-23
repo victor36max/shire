@@ -1,7 +1,7 @@
 // agent-runner.ts — Bun daemon that watches the inbox/outbox and dispatches to configured harness.
 // Each agent runs in its own workspace directory under /workspace/agents/{id}/.
 import { watch } from "fs";
-import { readFile, readdir, unlink, writeFile } from "fs/promises";
+import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/promises";
 import { basename, join } from "path";
 import { parseArgs } from "util";
 import yaml from "js-yaml";
@@ -19,6 +19,8 @@ const { values } = parseArgs({
 const AGENT_DIR = (typeof values["agent-dir"] === "string" ? values["agent-dir"] : null) || "/workspace/agents/default";
 const INBOX_DIR = join(AGENT_DIR, "inbox");
 const OUTBOX_DIR = join(AGENT_DIR, "outbox");
+const ATTACHMENTS_DIR = join(AGENT_DIR, "attachments");
+const ATTACHMENT_OUTBOX_DIR = join(ATTACHMENTS_DIR, "outbox");
 const AGENTS_ROOT = join(AGENT_DIR, "../");
 const RECIPE_PATH = join(AGENT_DIR, "recipe.yaml");
 const PEERS_PATH = join(AGENTS_ROOT, "../peers.yaml");
@@ -122,9 +124,19 @@ export async function tryHandleInterrupt(harness: Harness, filename: string, inb
 
 export async function processMessage(harness: Harness, envelope: MessageEnvelope): Promise<void> {
   if (envelope.type === "user_message" || envelope.type === "agent_message" || envelope.type === "system_message") {
-    const text = envelope.payload.text as string;
+    let text = envelope.payload.text as string;
     const from = envelope.type === "agent_message" ? envelope.from : undefined;
     const prefix = envelope.type === "system_message" ? "[System] " : "";
+
+    // Append attachment file references so the agent can access them
+    const attachments = envelope.payload.attachments as
+      | Array<{ filename: string; content_type: string; path: string }>
+      | undefined;
+    if (attachments?.length) {
+      const refs = attachments.map((a) => `[Attached file: ${a.filename} (${a.content_type}) at ${a.path}]`).join("\n");
+      text = text ? `${text}\n\n${refs}` : refs;
+    }
+
     if (envelope.type === "agent_message") {
       emit("agent_message_received", { from_agent: envelope.from, text });
     } else if (envelope.type === "system_message") {
@@ -252,12 +264,100 @@ export async function processOutbox(
 }
 
 // ---------------------------------------------------------------------------
+// Attachments — detect agent-created files and emit events
+// ---------------------------------------------------------------------------
+
+const MIME_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".pdf": "application/pdf",
+  ".json": "application/json",
+  ".csv": "text/csv",
+  ".txt": "text/plain",
+  ".md": "text/markdown",
+  ".html": "text/html",
+  ".xml": "application/xml",
+  ".zip": "application/zip",
+  ".tar": "application/x-tar",
+  ".gz": "application/gzip",
+};
+
+function mimeFromPath(filename: string): string {
+  const ext = filename.slice(filename.lastIndexOf(".")).toLowerCase();
+  return MIME_TYPES[ext] || "application/octet-stream";
+}
+
+async function processAttachmentOutbox(attachmentsDir: string): Promise<number> {
+  const outboxDir = join(attachmentsDir, "outbox");
+  let entries: string[];
+  try {
+    entries = (await readdir(outboxDir)).sort();
+  } catch {
+    return 0;
+  }
+
+  // Collect regular files, skip dotfiles and directories
+  const files: Array<{ name: string; path: string; size: number }> = [];
+  for (const entry of entries) {
+    if (entry.startsWith(".") || entry.includes("/") || entry.includes("\\")) continue;
+    const filePath = join(outboxDir, entry);
+    try {
+      const s = await stat(filePath);
+      if (s.isFile()) {
+        files.push({ name: entry, path: filePath, size: s.size });
+      }
+    } catch {
+      // skip unreadable entries
+    }
+  }
+
+  if (files.length === 0) return 0;
+
+  // Batch all files into one timestamped folder
+  const attachmentId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const destDir = join(attachmentsDir, attachmentId);
+  await mkdir(destDir, { recursive: true });
+
+  const movedFiles: Array<{ filename: string; content_type: string; size: number }> = [];
+
+  for (const file of files) {
+    const destPath = join(destDir, file.name);
+    try {
+      await rename(file.path, destPath);
+      movedFiles.push({
+        filename: file.name,
+        content_type: mimeFromPath(file.name),
+        size: file.size,
+      });
+    } catch (err) {
+      emit("error", { message: `Failed to move attachment ${file.name}: ${err}` });
+    }
+  }
+
+  if (movedFiles.length > 0) {
+    emit("attachment", {
+      id: attachmentId,
+      files: movedFiles,
+    });
+  }
+
+  return movedFiles.length;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 async function main() {
   const config = await loadConfig();
   await loadPeers();
+
+  // Ensure attachments directories exist
+  await mkdir(ATTACHMENT_OUTBOX_DIR, { recursive: true });
 
   const harness = createHarness(config.harness);
 
@@ -315,6 +415,22 @@ async function main() {
     }
   });
 
+  // Watch attachments outbox for agent-created files
+  await processAttachmentOutbox(ATTACHMENTS_DIR);
+  let processingAttachments = false;
+  const attachmentsWatcher = watch(ATTACHMENT_OUTBOX_DIR, async () => {
+    if (processingAttachments) return;
+    processingAttachments = true;
+    try {
+      let count: number;
+      do {
+        count = await processAttachmentOutbox(ATTACHMENTS_DIR);
+      } while (count > 0);
+    } finally {
+      processingAttachments = false;
+    }
+  });
+
   // Heartbeat every 30 seconds
   setInterval(() => {
     emit("heartbeat", { status: "alive" });
@@ -324,6 +440,7 @@ async function main() {
   process.on("SIGTERM", () => {
     inboxWatcher.close();
     outboxWatcher.close();
+    attachmentsWatcher.close();
     harness.stop();
     emit("shutdown", {});
     process.exit(0);

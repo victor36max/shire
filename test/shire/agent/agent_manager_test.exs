@@ -67,7 +67,7 @@ defmodule Shire.Agent.AgentManagerTest do
     test "returns error when agent is not active", ctx do
       {:ok, pid} = start_manager(ctx)
 
-      assert {:error, :not_active} = GenServer.call(pid, {:send_message, "hello", :user})
+      assert {:error, :not_active} = GenServer.call(pid, {:send_message, "hello", :user, []})
     end
 
     test "persists user message to DB when from is :user", ctx do
@@ -84,7 +84,7 @@ defmodule Shire.Agent.AgentManagerTest do
       end)
 
       assert {:ok, %Shire.Agents.Message{}} =
-               GenServer.call(pid, {:send_message, "hello from user", :user})
+               GenServer.call(pid, {:send_message, "hello from user", :user, []})
 
       {messages, _} = Agents.list_messages_for_agent(ctx.project_id, ctx.agent_id)
       user_msgs = Enum.filter(messages, &(&1.role == "user"))
