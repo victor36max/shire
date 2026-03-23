@@ -317,7 +317,7 @@ export default function SchedulesPage({ project, agents, tasks, pushEvent }: Sch
             <p className="text-sm mt-1">Create a schedule to automatically send messages to agents.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-md border">
+          <div className="overflow-x-auto rounded-md border tabular-nums">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -433,27 +433,23 @@ export default function SchedulesPage({ project, agents, tasks, pushEvent }: Sch
 
             <div className="space-y-2">
               <Label>Type</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="schedule_type"
-                    checked={form.schedule_type === "recurring"}
-                    onChange={() => updateForm("schedule_type", "recurring")}
-                    className="accent-primary"
-                  />
-                  <span className="text-sm">Recurring</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="schedule_type"
-                    checked={form.schedule_type === "once"}
-                    onChange={() => updateForm("schedule_type", "once")}
-                    className="accent-primary"
-                  />
-                  <span className="text-sm">Once</span>
-                </label>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant={form.schedule_type === "recurring" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateForm("schedule_type", "recurring")}
+                >
+                  Recurring
+                </Button>
+                <Button
+                  type="button"
+                  variant={form.schedule_type === "once" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateForm("schedule_type", "once")}
+                >
+                  Once
+                </Button>
               </div>
             </div>
 
