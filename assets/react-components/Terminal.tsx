@@ -115,6 +115,16 @@ export default function Terminal({ pushEvent }: TerminalProps) {
   const fitAddonRef = React.useRef<FitAddon | null>(null);
   const [exited, setExited] = React.useState(false);
 
+  // Stable refs so the mount-only effect doesn't need these in its deps
+  const pushEventRef = React.useRef(pushEvent);
+  const handleEventRef = React.useRef(handleEvent);
+  const removeHandleEventRef = React.useRef(removeHandleEvent);
+  React.useEffect(() => {
+    pushEventRef.current = pushEvent;
+    handleEventRef.current = handleEvent;
+    removeHandleEventRef.current = removeHandleEvent;
+  });
+
   React.useEffect(() => {
     if (!containerRef.current) return;
 
@@ -142,18 +152,18 @@ export default function Terminal({ pushEvent }: TerminalProps) {
     // Send keystrokes to server with local echo prediction
     const dataDisposable = term.onData((data) => {
       predictor.predict(data);
-      pushEvent("terminal-input", { data });
+      pushEventRef.current("terminal-input", { data });
     });
 
     // Receive output from server — route through predictor
-    const outputRef = handleEvent("terminal-output", (payload: Record<string, unknown>) => {
+    const outputRef = handleEventRef.current("terminal-output", (payload: Record<string, unknown>) => {
       const data = payload.data as string;
       const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
       predictor.handleOutput(bytes);
     });
 
     // Handle terminal exit
-    const exitRef = handleEvent("terminal-exit", (payload: Record<string, unknown>) => {
+    const exitRef = handleEventRef.current("terminal-exit", (payload: Record<string, unknown>) => {
       const code = payload.code as number;
       term.writeln(`\r\n\x1b[31m[Session ended with code ${code}]\x1b[0m`);
       setExited(true);
@@ -166,27 +176,27 @@ export default function Terminal({ pushEvent }: TerminalProps) {
       resizeTimeout = setTimeout(() => {
         fitAddon.fit();
         const { rows, cols } = term;
-        pushEvent("terminal-resize", { rows, cols });
+        pushEventRef.current("terminal-resize", { rows, cols });
       }, 150);
     });
     observer.observe(containerRef.current);
 
     // Connect to server
-    pushEvent("connect-terminal", {});
+    pushEventRef.current("connect-terminal", {});
 
     return () => {
       clearTimeout(resizeTimeout);
       observer.disconnect();
       predictor.dispose();
       dataDisposable.dispose();
-      removeHandleEvent(outputRef);
-      removeHandleEvent(exitRef);
-      pushEvent("disconnect-terminal", {});
+      removeHandleEventRef.current(outputRef);
+      removeHandleEventRef.current(exitRef);
+      pushEventRef.current("disconnect-terminal", {});
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleReconnect = () => {
     setExited(false);
