@@ -62,6 +62,10 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-status-active: var(--status-active);
+  --color-status-starting: var(--status-starting);
+  --color-status-error: var(--status-error);
+  --color-status-idle: var(--status-idle);
 }
 
 :root {
@@ -97,6 +101,12 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --status-active: oklch(0.6 0.2 145);
+  --status-starting: oklch(0.7 0.15 85);
+  --status-error: oklch(0.6 0.2 25);
+  --status-idle: oklch(0.556 0 0);
+  --terminal-bg: oklch(0.16 0 0);
+  --terminal-fg: oklch(0.9 0 0);
 }
 
 .dark {
@@ -131,6 +141,12 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --status-active: oklch(0.65 0.2 150);
+  --status-starting: oklch(0.75 0.15 85);
+  --status-error: oklch(0.65 0.2 25);
+  --status-idle: oklch(0.708 0 0);
+  --terminal-bg: oklch(0.16 0 0);
+  --terminal-fg: oklch(0.9 0 0);
 }
 
 @layer base {

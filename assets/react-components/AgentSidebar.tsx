@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button } from "./components/ui/button";
+import { Button, buttonVariants } from "./components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,14 +24,14 @@ import { type Agent, type AgentStatus, type Project } from "./types";
 function statusDotColor(status: AgentStatus): string {
   switch (status) {
     case "active":
-      return "bg-green-500";
+      return "bg-status-active";
     case "starting":
     case "bootstrapping":
-      return "bg-yellow-500";
+      return "bg-status-starting";
     case "crashed":
-      return "bg-red-500";
+      return "bg-status-error";
     default:
-      return "bg-gray-400";
+      return "bg-status-idle";
   }
 }
 
@@ -181,10 +181,7 @@ export default function AgentSidebar({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDeleteConfirm}
-            >
+            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={handleDeleteConfirm}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

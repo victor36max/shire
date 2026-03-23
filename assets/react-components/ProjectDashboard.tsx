@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button } from "./components/ui/button";
+import { Button, buttonVariants } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Card, CardContent } from "./components/ui/card";
 import { Badge } from "./components/ui/badge";
@@ -180,10 +180,7 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
-            >
+            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={handleDelete}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
