@@ -133,8 +133,8 @@ export default function Terminal({ pushEvent }: TerminalProps) {
       fontSize: 14,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       theme: {
-        background: "#1a1a1a",
-        foreground: "#e5e5e5",
+        background: getComputedStyle(document.documentElement).getPropertyValue("--terminal-bg").trim() || "#1a1a1a",
+        foreground: getComputedStyle(document.documentElement).getPropertyValue("--terminal-fg").trim() || "#e5e5e5",
       },
     });
 
@@ -208,11 +208,11 @@ export default function Terminal({ pushEvent }: TerminalProps) {
     <div className="relative">
       <div
         ref={containerRef}
-        className="w-full rounded-lg overflow-hidden p-3"
-        style={{ height: "480px", backgroundColor: "#1a1a1a" }}
+        className="w-full rounded-lg overflow-hidden p-3 bg-[var(--terminal-bg)]"
+        style={{ height: "480px" }}
       />
       {exited && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-lg">
           <Button onClick={handleReconnect}>Reconnect</Button>
         </div>
       )}

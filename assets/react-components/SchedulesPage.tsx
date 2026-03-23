@@ -1,6 +1,6 @@
 import * as React from "react";
 import AppLayout from "./components/AppLayout";
-import { Button } from "./components/ui/button";
+import { Button, buttonVariants } from "./components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
 import { Textarea } from "./components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
-import { ArrowLeft, Plus, Play, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, Plus, Play, Pencil, Trash2 } from "lucide-react";
 import { navigate } from "./lib/navigate";
 import { type ScheduledTask } from "./types";
 
@@ -300,10 +300,9 @@ export default function SchedulesPage({ project, agents, tasks, pushEvent }: Sch
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${project.name}`)}>
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" aria-label="Back" onClick={() => navigate(`/projects/${project.name}`)}>
+            <ChevronLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-2xl font-bold flex-1">Scheduled Tasks</h1>
           <Button onClick={openCreate}>
@@ -613,10 +612,7 @@ export default function SchedulesPage({ project, agents, tasks, pushEvent }: Sch
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
-            >
+            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={handleDelete}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
