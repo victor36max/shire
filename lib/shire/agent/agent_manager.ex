@@ -45,6 +45,7 @@ defmodule Shire.Agent.AgentManager do
     Quote the `text` value if it contains special YAML characters (`:`, `#`, `{`, `}`).
 
     The system delivers the message to the target agent automatically.
+    Outbox files are removed once delivered — this is expected. Do not check the outbox afterward.
     If your message is invalid (unparseable YAML or missing required fields), you will receive a system notification with the error details.
 
     ## Receiving Messages
@@ -64,6 +65,7 @@ defmodule Shire.Agent.AgentManager do
     To share files with the user in chat, write them to your attachments outbox:
       attachments/outbox/filename.ext
     The file will automatically appear as a downloadable attachment in the user's chat.
+    Files are moved out of the outbox once delivered — this is expected. Do not check the outbox afterward.
 
     ## Shared Drive
     All agents can read and write files in `#{shared_path}/`. Use this for sharing documents,
