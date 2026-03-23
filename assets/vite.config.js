@@ -17,6 +17,7 @@ export default defineConfig(({ command }) => {
     optimizeDeps: {
       include: ["react", "react-dom"],
     },
+    base: isDev ? "/" : "/assets/",
     build: {
       outDir: "../priv/static/assets",
       emptyOutDir: true,
