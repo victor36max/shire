@@ -50,6 +50,11 @@ defmodule Shire.Agent.Coordinator do
     GenServer.call(via(project_id), {:restart_agent, agent_id}, 60_000)
   end
 
+  @doc "Subscribe the coordinator to an agent's PubSub topic (for status relay)."
+  def watch_agent(project_id, agent_id) do
+    GenServer.cast(via(project_id), {:watch_agent, agent_id})
+  end
+
   def send_message(project_id, agent_id, text) do
     AgentManager.send_message(project_id, agent_id, text, :user)
   end
@@ -91,7 +96,6 @@ defmodule Shire.Agent.Coordinator do
   def init(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
 
-    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
     Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:vm")
 
     state = %{
@@ -243,13 +247,14 @@ defmodule Shire.Agent.Coordinator do
         :ok
     end
 
-    # Clean up monitor
+    # Clean up monitor and subscription
     {ref, monitors} =
       Enum.find_value(state.monitors, {nil, state.monitors}, fn {ref, id} ->
         if id == agent_id, do: {ref, Map.delete(state.monitors, ref)}
       end)
 
     if ref, do: Process.demonitor(ref, [:flush])
+    Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{state.project_id}:agent:#{agent_id}")
 
     # Delete agent (Multi: rm folder + delete DB record)
     case Agents.get_agent(agent_id) do
@@ -370,12 +375,6 @@ defmodule Shire.Agent.Coordinator do
 
       Phoenix.PubSub.broadcast(
         Shire.PubSub,
-        "project:#{state.project_id}:agent:#{agent_id}",
-        {:status, :crashed}
-      )
-
-      Phoenix.PubSub.broadcast(
-        Shire.PubSub,
         "project:#{state.project_id}:agents:lobby",
         {:agent_status, agent_id, :crashed}
       )
@@ -389,7 +388,25 @@ defmodule Shire.Agent.Coordinator do
   @impl true
   def handle_info({:agent_status, agent_id, status}, state) do
     statuses = Map.put(state.statuses, agent_id, status)
+
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "project:#{state.project_id}:agents:lobby",
+      {:agent_status, agent_id, status}
+    )
+
     {:noreply, %{state | statuses: statuses}}
+  end
+
+  @impl true
+  def handle_info({:agent_busy, agent_id, active}, state) do
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "project:#{state.project_id}:agents:lobby",
+      {:agent_busy, agent_id, active}
+    )
+
+    {:noreply, state}
   end
 
   @impl true
@@ -428,6 +445,12 @@ defmodule Shire.Agent.Coordinator do
 
   @impl true
   def handle_info(_msg, state) do
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:watch_agent, agent_id}, state) do
+    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{state.project_id}:agent:#{agent_id}")
     {:noreply, state}
   end
 
@@ -501,6 +524,7 @@ defmodule Shire.Agent.Coordinator do
       {:ok, pid} ->
         ref = Process.monitor(pid)
         monitors = Map.put(monitors, ref, agent_id)
+        Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
         Logger.info("Started agent #{agent_name} (#{agent_id}) in project #{project_id}")
         {:ok, pid, monitors}
 

@@ -259,27 +259,7 @@ defmodule ShireWeb.AgentLive.Index do
       {:noreply, put_flash(socket, :error, "Agent is not running.")}
   end
 
-  # PubSub handlers (agent-specific topic)
-
-  @impl true
-  def handle_info({:status, status}, socket) do
-    agent_id = socket.assigns.selected_agent_id
-
-    if agent_id do
-      statuses = Map.put(socket.assigns.agent_statuses, agent_id, status)
-
-      selected_agent =
-        if socket.assigns.selected_agent do
-          Map.put(socket.assigns.selected_agent, :status, status)
-        else
-          socket.assigns.selected_agent
-        end
-
-      {:noreply, assign(socket, agent_statuses: statuses, selected_agent: selected_agent)}
-    else
-      {:noreply, socket}
-    end
-  end
+  # PubSub handlers
 
   @impl true
   def handle_info({:agent_event, agent_id, event}, socket) do
