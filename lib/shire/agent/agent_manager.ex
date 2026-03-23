@@ -413,18 +413,7 @@ defmodule Shire.Agent.AgentManager do
             acc
 
           {:ok, %{"type" => "processing", "payload" => %{"active" => active}}} ->
-            Phoenix.PubSub.broadcast(
-              Shire.PubSub,
-              "project:#{acc.project_id}:agents:lobby",
-              {:agent_busy, acc.agent_id, active}
-            )
-
-            Phoenix.PubSub.broadcast(
-              Shire.PubSub,
-              "project:#{acc.project_id}:agent:#{acc.agent_id}",
-              {:agent_busy, acc.agent_id, active}
-            )
-
+            broadcast(acc, {:agent_busy, acc.agent_id, active})
             acc
 
           {:ok, event} ->
@@ -497,12 +486,6 @@ defmodule Shire.Agent.AgentManager do
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
       "project:#{state.project_id}:agent:#{state.agent_id}",
-      {:status, status}
-    )
-
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "project:#{state.project_id}:agents:lobby",
       {:agent_status, state.agent_id, status}
     )
 
