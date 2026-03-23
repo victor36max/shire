@@ -118,7 +118,12 @@ export default function AgentSidebar({
             </DropdownMenu>
           </div>
         ))}
-        {agents.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground text-center">No agents yet</p>}
+        {agents.length === 0 && (
+          <div className="px-3 py-6 text-center">
+            <p className="text-sm text-muted-foreground mb-1">No agents yet</p>
+            <p className="text-xs text-muted-foreground">Create one or browse the catalog to get started.</p>
+          </div>
+        )}
       </div>
 
       <div className="p-3 border-t border-border space-y-1">

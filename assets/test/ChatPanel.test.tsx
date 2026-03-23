@@ -26,7 +26,22 @@ const messages: Message[] = [
 describe("ChatPanel", () => {
   it("renders empty state when no messages", () => {
     render(<ChatPanel agent={activeAgent} messages={[]} pushEvent={vi.fn()} />);
-    expect(screen.getByText(/No messages yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Send a message to start working/)).toBeInTheDocument();
+  });
+
+  it("shows suggestion chips in empty state for active agent", async () => {
+    const pushEvent = vi.fn();
+    render(<ChatPanel agent={activeAgent} messages={[]} pushEvent={pushEvent} />);
+    const chip = screen.getByText("What can you help me with?");
+    expect(chip).toBeInTheDocument();
+    await userEvent.click(chip);
+    expect(pushEvent).toHaveBeenCalledWith("send-message", { text: "What can you help me with?" });
+  });
+
+  it("shows agent description in empty state when available", () => {
+    const agentWithDesc = { ...activeAgent, description: "I help write tests." };
+    render(<ChatPanel agent={agentWithDesc} messages={[]} pushEvent={vi.fn()} />);
+    expect(screen.getByText("I help write tests.")).toBeInTheDocument();
   });
 
   it("renders messages", () => {
