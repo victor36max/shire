@@ -369,12 +369,8 @@ defmodule Shire.Agent.CoordinatorTest do
         "project:#{project_id}:agent:#{agent.id}"
       )
 
-      # Simulate VM waking up
-      Phoenix.PubSub.broadcast(
-        Shire.PubSub,
-        "project:#{project_id}:vm",
-        {:vm_woke_up, project_id}
-      )
+      # Simulate VM waking up — ProjectManager calls restart_idle_agents
+      Coordinator.restart_idle_agents(project_id)
 
       # Should receive bootstrapping status (restart triggers bootstrap)
       assert_receive {:agent_status, _, :bootstrapping}, 1_000
@@ -393,12 +389,8 @@ defmodule Shire.Agent.CoordinatorTest do
         "project:#{project_id}:agent:#{agent.id}"
       )
 
-      # Simulate VM waking up
-      Phoenix.PubSub.broadcast(
-        Shire.PubSub,
-        "project:#{project_id}:vm",
-        {:vm_woke_up, project_id}
-      )
+      # Simulate VM waking up — ProjectManager calls restart_idle_agents
+      Coordinator.restart_idle_agents(project_id)
 
       # Should NOT receive any restart-related status change
       refute_receive {:agent_status, _, :bootstrapping}, 300
@@ -542,7 +534,7 @@ defmodule Shire.Agent.CoordinatorTest do
              )
     end
 
-    test "triggers deploy_and_scan when vm_ready is received" do
+    test "triggers deploy_and_scan when deploy_and_scan/1 is called" do
       Mox.set_mox_global()
 
       stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
@@ -589,17 +581,65 @@ defmodule Shire.Agent.CoordinatorTest do
       # peers.yaml should NOT have been written yet (VM not ready)
       refute_received :peers_yaml_written
 
-      # Now simulate VM becoming ready
+      # Now simulate VM becoming ready — ProjectManager calls deploy_and_scan
       stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
-
-      Phoenix.PubSub.broadcast(
-        Shire.PubSub,
-        "project:#{project_id}:vm",
-        {:vm_ready, project_id}
-      )
+      Coordinator.deploy_and_scan(project_id)
 
       # peers.yaml should now be written
       assert_receive :peers_yaml_written, 1_000
+    end
+
+    test "deploy_and_scan/1 is a no-op when already deployed" do
+      Mox.set_mox_global()
+
+      stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
+      stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
+
+      stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
+        {:error, :not_available_in_test}
+      end)
+
+      # VM is running from the start
+      stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
+
+      test_pid = self()
+      write_count = :counters.new(1, [:atomics])
+
+      stub(Shire.VirtualMachineMock, :write, fn _project, path, _content ->
+        if String.ends_with?(path, "peers.yaml") do
+          :counters.add(write_count, 1, 1)
+          send(test_pid, :peers_yaml_written)
+        end
+
+        :ok
+      end)
+
+      {:ok, project} = Projects.create_project("test-no-double-deploy")
+      project_id = project.id
+
+      start_supervised!(
+        {DynamicSupervisor,
+         name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
+         strategy: :one_for_one},
+        id: :agent_sup_no_double
+      )
+
+      start_supervised!(
+        {Shire.Agent.Coordinator, project_id: project_id},
+        id: :coordinator_no_double
+      )
+
+      # Wait for initial deploy (VM was running, so handle_continue deploys)
+      assert_receive :peers_yaml_written, 1_000
+
+      # Calling deploy_and_scan again should be a no-op
+      Coordinator.deploy_and_scan(project_id)
+      Process.sleep(50)
+
+      assert :counters.get(write_count, 1) == 1
     end
   end
 
