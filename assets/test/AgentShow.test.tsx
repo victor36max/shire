@@ -21,6 +21,10 @@ const agent: Agent = {
   harness: "claude_code",
 };
 
+async function openMoreMenu() {
+  await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+}
+
 describe("AgentShow", () => {
   it("renders agent details", () => {
     render(<AgentShow project={{ id: "p1", name: "test-project" }} agent={agent} pushEvent={vi.fn()} />);
@@ -41,7 +45,7 @@ describe("AgentShow", () => {
     expect(screen.getAllByText("Not set")).toHaveLength(2);
   });
 
-  it("shows Start and Delete buttons for created agent", () => {
+  it("shows Start button for created agent", () => {
     render(
       <AgentShow
         project={{ id: "p1", name: "test-project" }}
@@ -50,10 +54,21 @@ describe("AgentShow", () => {
       />,
     );
     expect(screen.getByText("Start Agent")).toBeInTheDocument();
+  });
+
+  it("shows Delete Agent in more menu", async () => {
+    render(
+      <AgentShow
+        project={{ id: "p1", name: "test-project" }}
+        agent={{ ...agent, status: "created" }}
+        pushEvent={vi.fn()}
+      />,
+    );
+    await openMoreMenu();
     expect(screen.getByText("Delete Agent")).toBeInTheDocument();
   });
 
-  it("shows Restart and Delete buttons for active agent", () => {
+  it("shows Restart button for active agent", () => {
     render(
       <AgentShow
         project={{ id: "p1", name: "test-project" }}
@@ -62,7 +77,6 @@ describe("AgentShow", () => {
       />,
     );
     expect(screen.getByText("Restart Agent")).toBeInTheDocument();
-    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
   });
 
   it("calls pushEvent with start-agent", async () => {
@@ -92,7 +106,7 @@ describe("AgentShow", () => {
     expect(pushEvent).toHaveBeenCalledWith("restart-agent", {});
   });
 
-  it("calls pushEvent with delete-agent after confirming", async () => {
+  it("calls pushEvent with delete-agent after confirming via more menu", async () => {
     const pushEvent = vi.fn();
     render(
       <AgentShow
@@ -101,12 +115,13 @@ describe("AgentShow", () => {
         pushEvent={pushEvent}
       />,
     );
+    await openMoreMenu();
     await userEvent.click(screen.getByText("Delete Agent"));
     await userEvent.click(screen.getByText("Delete"));
     expect(pushEvent).toHaveBeenCalledWith("delete-agent", {});
   });
 
-  it("shows Start and Delete buttons for crashed agent", () => {
+  it("shows Start button for crashed agent", () => {
     render(
       <AgentShow
         project={{ id: "p1", name: "test-project" }}
@@ -115,10 +130,9 @@ describe("AgentShow", () => {
       />,
     );
     expect(screen.getByText("Start Agent")).toBeInTheDocument();
-    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
   });
 
-  it("shows Restart and Delete buttons for bootstrapping agent", () => {
+  it("shows Restart button for bootstrapping agent", () => {
     render(
       <AgentShow
         project={{ id: "p1", name: "test-project" }}
@@ -127,11 +141,10 @@ describe("AgentShow", () => {
       />,
     );
     expect(screen.getByText("Restart Agent")).toBeInTheDocument();
-    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
     expect(screen.queryByText("Start Agent")).not.toBeInTheDocument();
   });
 
-  it("shows Delete button for idle agent", () => {
+  it("shows Start button for idle agent", () => {
     render(
       <AgentShow
         project={{ id: "p1", name: "test-project" }}
@@ -139,7 +152,6 @@ describe("AgentShow", () => {
         pushEvent={vi.fn()}
       />,
     );
-    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
     expect(screen.getByText("Start Agent")).toBeInTheDocument();
   });
 
@@ -152,6 +164,7 @@ describe("AgentShow", () => {
         pushEvent={pushEvent}
       />,
     );
+    await openMoreMenu();
     await userEvent.click(screen.getByText("Delete Agent"));
     await userEvent.click(screen.getByText("Delete"));
     expect(pushEvent).toHaveBeenCalledWith("delete-agent", {});
@@ -180,5 +193,11 @@ describe("AgentShow", () => {
     await userEvent.click(editBtn);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Edit Agent")).toBeInTheDocument();
+  });
+
+  it("renders system prompt in its own card", () => {
+    render(<AgentShow project={{ id: "p1", name: "test-project" }} agent={agent} pushEvent={vi.fn()} />);
+    expect(screen.getByText("System Prompt")).toBeInTheDocument();
+    expect(screen.getByText("You are a helpful assistant.")).toBeInTheDocument();
   });
 });
