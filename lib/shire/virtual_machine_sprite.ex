@@ -178,6 +178,8 @@ defmodule Shire.VirtualMachineSprite do
 
     update_registry_status(project_id, :starting)
 
+    Logger.info("VM starting (project: #{project_id})")
+
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
       "project:#{project_id}:vm",
