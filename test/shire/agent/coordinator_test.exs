@@ -22,6 +22,8 @@ defmodule Shire.Agent.CoordinatorTest do
       {:error, :not_available_in_test}
     end)
 
+    stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
+
     # Create a DB-backed project
     {:ok, project} = Projects.create_project("test-project")
     project_id = project.id
@@ -483,6 +485,110 @@ defmodule Shire.Agent.CoordinatorTest do
         })
 
       assert {:error, :invalid_name} = result
+    end
+  end
+
+  describe "vm_ready deploy_and_scan" do
+    test "defers deploy_and_scan when VM is not running" do
+      Mox.set_mox_global()
+
+      stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
+      stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
+      stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
+
+      stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
+        {:error, :not_available_in_test}
+      end)
+
+      # VM reports :starting (not ready yet)
+      stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :starting end)
+
+      {:ok, project} = Projects.create_project("test-vm-deferred")
+      project_id = project.id
+
+      start_supervised!(
+        {DynamicSupervisor,
+         name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
+         strategy: :one_for_one},
+        id: :agent_sup_deferred
+      )
+
+      start_supervised!(
+        {Shire.Agent.Coordinator, project_id: project_id},
+        id: :coordinator_deferred
+      )
+
+      Process.sleep(50)
+
+      # Coordinator should still be alive (no crash)
+      assert Process.alive?(
+               GenServer.whereis(
+                 {:via, Registry, {Shire.ProjectRegistry, {:coordinator, project_id}}}
+               )
+             )
+    end
+
+    test "triggers deploy_and_scan when vm_ready is received" do
+      Mox.set_mox_global()
+
+      stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
+      stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
+      stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
+
+      stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
+        {:error, :not_available_in_test}
+      end)
+
+      # Start with VM not ready
+      stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :starting end)
+
+      # Track write calls to verify peers.yaml is written after vm_ready
+      test_pid = self()
+
+      stub(Shire.VirtualMachineMock, :write, fn _project, path, _content ->
+        if String.ends_with?(path, "peers.yaml") do
+          send(test_pid, :peers_yaml_written)
+        end
+
+        :ok
+      end)
+
+      {:ok, project} = Projects.create_project("test-vm-ready-trigger")
+      project_id = project.id
+
+      start_supervised!(
+        {DynamicSupervisor,
+         name: {:via, Registry, {Shire.ProjectRegistry, {:agent_sup, project_id}}},
+         strategy: :one_for_one},
+        id: :agent_sup_trigger
+      )
+
+      start_supervised!(
+        {Shire.Agent.Coordinator, project_id: project_id},
+        id: :coordinator_trigger
+      )
+
+      Process.sleep(50)
+
+      # peers.yaml should NOT have been written yet (VM not ready)
+      refute_received :peers_yaml_written
+
+      # Now simulate VM becoming ready
+      stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
+
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{project_id}:vm",
+        {:vm_ready, project_id}
+      )
+
+      # peers.yaml should now be written
+      assert_receive :peers_yaml_written, 1_000
     end
   end
 

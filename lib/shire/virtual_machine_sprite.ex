@@ -192,6 +192,12 @@ defmodule Shire.VirtualMachineSprite do
 
           update_registry_status(project_id, :running)
 
+          Phoenix.PubSub.broadcast(
+            Shire.PubSub,
+            "project:#{project_id}:vm",
+            {:vm_ready, project_id}
+          )
+
           {:ok,
            %{
              sprite: sprite,
@@ -209,6 +215,12 @@ defmodule Shire.VirtualMachineSprite do
     else
       Logger.warning("No SPRITES_TOKEN configured — VM features disabled")
       update_registry_status(project_id, :running)
+
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{project_id}:vm",
+        {:vm_ready, project_id}
+      )
 
       {:ok,
        %{

@@ -253,6 +253,12 @@ defmodule Shire.VirtualMachineLocal do
     Logger.info("Local VM ready for project #{project_id} at #{root}")
     update_registry_status(project_id, :running)
 
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "project:#{project_id}:vm",
+      {:vm_ready, project_id}
+    )
+
     {:ok, %{project_id: project_id, root: root}}
   end
 
