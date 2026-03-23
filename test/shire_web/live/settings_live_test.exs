@@ -74,5 +74,15 @@ defmodule ShireWeb.SettingsLiveTest do
       assert html =~ "Hello from Alice"
       assert html =~ "Alice"
     end
+
+    test "terminal-input does not crash when no session exists", %{
+      conn: conn,
+      project_name: project_name
+    } do
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}/settings")
+      # Send terminal input without connecting first — should not crash
+      render_hook(view, "terminal-input", %{"data" => "hello"})
+      assert render(view) =~ "SettingsPage"
+    end
   end
 end

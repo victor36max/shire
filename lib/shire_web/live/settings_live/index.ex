@@ -176,25 +176,13 @@ defmodule ShireWeb.SettingsLive.Index do
 
   @impl true
   def handle_event("terminal-input", %{"data" => data}, socket) do
-    project_id = socket.assigns.project.id
-
-    case TerminalSession.find(project_id) do
-      {:ok, _pid} -> TerminalSession.write(project_id, data)
-      :error -> :ok
-    end
-
+    TerminalSession.write(socket.assigns.project.id, data)
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("terminal-resize", %{"rows" => rows, "cols" => cols}, socket) do
-    project_id = socket.assigns.project.id
-
-    case TerminalSession.find(project_id) do
-      {:ok, _pid} -> TerminalSession.resize(project_id, rows, cols)
-      :error -> :ok
-    end
-
+    TerminalSession.resize(socket.assigns.project.id, rows, cols)
     {:noreply, socket}
   end
 
