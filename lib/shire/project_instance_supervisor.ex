@@ -14,6 +14,7 @@ defmodule Shire.ProjectInstanceSupervisor do
   @impl true
   def init(project_id) do
     vm_module = Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
+    Code.ensure_loaded(vm_module)
 
     vm_children =
       if function_exported?(vm_module, :child_spec, 1) do
