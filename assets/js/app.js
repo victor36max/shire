@@ -10,6 +10,7 @@ import { LiveSocket } from "phoenix_live_view";
 import { getHooks } from "live_react";
 import components from "../react-components";
 import topbar from "topbar";
+import "@fontsource-variable/dm-sans";
 import "../css/app.css";
 
 const hooks = {
