@@ -5,7 +5,6 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 @import "@xterm/xterm/css/xterm.css";
-@import "@fontsource-variable/dm-sans";
 
 @source "../css";
 @source "../js";
