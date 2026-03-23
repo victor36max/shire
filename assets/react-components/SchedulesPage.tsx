@@ -317,65 +317,67 @@ export default function SchedulesPage({ project, agents, tasks, pushEvent }: Sch
             <p className="text-sm mt-1">Create a schedule to automatically send messages to agents.</p>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Label</TableHead>
-                <TableHead>Agent</TableHead>
-                <TableHead>Schedule</TableHead>
-                <TableHead>Last Run</TableHead>
-                <TableHead>Enabled</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tasks.map((task) => (
-                <TableRow key={task.id} className={!task.enabled ? "opacity-50" : ""}>
-                  <TableCell className="font-medium">{task.label}</TableCell>
-                  <TableCell>{task.agent_name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {task.schedule_type === "recurring" && task.cron_expression
-                      ? describeCron(task.cron_expression)
-                      : task.scheduled_at
-                        ? new Date(task.scheduled_at).toLocaleString()
-                        : "—"}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {task.last_run_at ? timeAgo(task.last_run_at) : "Never"}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant={task.enabled ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => handleToggle(task)}
-                    >
-                      {task.enabled ? "On" : "Off"}
-                    </Button>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => handleRunNow(task)} aria-label="Run now">
-                        <Play className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(task)} aria-label="Edit">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteId(task.id)}
-                        aria-label="Delete"
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Label</TableHead>
+                  <TableHead>Agent</TableHead>
+                  <TableHead>Schedule</TableHead>
+                  <TableHead>Last Run</TableHead>
+                  <TableHead>Enabled</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {tasks.map((task) => (
+                  <TableRow key={task.id} className={!task.enabled ? "opacity-50" : ""}>
+                    <TableCell className="font-medium">{task.label}</TableCell>
+                    <TableCell>{task.agent_name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {task.schedule_type === "recurring" && task.cron_expression
+                        ? describeCron(task.cron_expression)
+                        : task.scheduled_at
+                          ? new Date(task.scheduled_at).toLocaleString()
+                          : "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {task.last_run_at ? timeAgo(task.last_run_at) : "Never"}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant={task.enabled ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => handleToggle(task)}
+                      >
+                        {task.enabled ? "On" : "Off"}
+                      </Button>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => handleRunNow(task)} aria-label="Run now">
+                          <Play className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(task)} aria-label="Edit">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteId(task.id)}
+                          aria-label="Delete"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
 
@@ -541,7 +543,7 @@ export default function SchedulesPage({ project, agents, tasks, pushEvent }: Sch
                           type="button"
                           variant={form.days_of_week.includes(i + 1) ? "default" : "outline"}
                           size="sm"
-                          className="h-8 w-10 text-xs"
+                          className="h-10 w-11 text-xs"
                           onClick={() => toggleDay(i + 1)}
                         >
                           {label}
