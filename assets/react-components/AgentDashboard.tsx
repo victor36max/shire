@@ -112,7 +112,7 @@ export default function AgentDashboard({
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 md:hidden" aria-hidden="true" onClick={() => setSidebarOpen(false)}>
@@ -122,7 +122,7 @@ export default function AgentDashboard({
 
       {/* Sidebar — always visible on md+, slide-in overlay on mobile */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200 md:static md:translate-x-0 ${
+        className={`fixed top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-50 w-64 transition-transform duration-200 md:static md:inset-auto md:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
