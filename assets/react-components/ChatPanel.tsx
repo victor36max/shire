@@ -381,14 +381,10 @@ export default function ChatPanel({
             <div key={msg.id ?? `msg-${i}`} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
                 className={`px-3 py-1.5 rounded-lg text-sm w-fit max-w-[80%] ${
-                  msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                  msg.role === "user" ? "bg-primary/10 text-foreground" : "bg-muted"
                 }`}
               >
-                {msg.text ? (
-                  <Markdown className={msg.role === "user" ? "prose-invert" : ""} inverted={msg.role === "user"}>
-                    {msg.text}
-                  </Markdown>
-                ) : null}
+                {msg.text ? <Markdown>{msg.text}</Markdown> : null}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <AttachmentDisplay attachments={msg.attachments} projectName={projectName} agentId={agent.id} />
                 )}

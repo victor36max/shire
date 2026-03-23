@@ -5,11 +5,10 @@ import remarkGfm from "remark-gfm";
 interface MarkdownProps {
   children: string;
   className?: string;
-  inverted?: boolean;
 }
 
-export default function Markdown({ children, className, inverted }: MarkdownProps) {
-  const codeBg = inverted ? "bg-background/20 text-inherit" : "bg-foreground text-background";
+export default function Markdown({ children, className }: MarkdownProps) {
+  const codeBg = "bg-muted text-foreground";
 
   return (
     <div className={`prose prose-sm max-w-none dark:prose-invert break-words ${className ?? ""}`}>
