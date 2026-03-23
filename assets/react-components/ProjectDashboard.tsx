@@ -83,9 +83,12 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
         </div>
 
         {projects.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground mb-4">No projects yet. Create one to get started.</p>
-            <Button onClick={() => setCreateOpen(true)}>Create Project</Button>
+          <div className="text-center py-16 max-w-md mx-auto">
+            <h2 className="text-lg font-semibold mb-2">No projects yet</h2>
+            <p className="text-muted-foreground mb-6">
+              Each project gets its own isolated VM with a team of AI agents that can collaborate on tasks together.
+            </p>
+            <Button onClick={() => setCreateOpen(true)}>Create Your First Project</Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
