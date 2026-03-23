@@ -249,6 +249,7 @@ defmodule Shire.ProjectManager do
 
   @impl true
   def handle_info({:vm_ready, project_id}, state) do
+    Logger.info("VM ready for project #{project_id}, deploying and scanning")
     Shire.Agent.Coordinator.deploy_and_scan(project_id)
 
     Phoenix.PubSub.broadcast(
