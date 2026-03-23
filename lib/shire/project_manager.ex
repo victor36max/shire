@@ -24,19 +24,7 @@ defmodule Shire.ProjectManager do
   def list_projects do
     Projects.list_projects()
     |> Enum.map(fn project ->
-      status =
-        case Registry.lookup(Shire.ProjectRegistry, {:coordinator, project.id}) do
-          [{pid, _}] ->
-            if Process.alive?(pid) do
-              # Coordinator is alive — derive status from VM state
-              vm().vm_status(project.id)
-            else
-              :error
-            end
-
-          [] ->
-            :stopped
-        end
+      status = vm().vm_status(project.id)
 
       %{id: project.id, name: project.name, status: status}
     end)
@@ -91,6 +79,8 @@ defmodule Shire.ProjectManager do
     manager = self()
 
     for project <- db_projects do
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project.id}:vm")
+
       Task.start(fn ->
         case start_project_subtree(project.id) do
           {:ok, pid} ->
@@ -119,6 +109,8 @@ defmodule Shire.ProjectManager do
       else
         case Projects.create_project(name) do
           {:ok, project} ->
+            Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project.id}:vm")
+
             case start_project_subtree(project.id) do
               {:ok, pid} ->
                 Process.monitor(pid)
@@ -154,6 +146,7 @@ defmodule Shire.ProjectManager do
       {pid, projects} ->
         # Stop the supervision subtree first
         DynamicSupervisor.terminate_child(Shire.ProjectSupervisor, pid)
+        Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:vm")
 
         # Destroy the underlying VM
         case vm().destroy_vm(project_id) do
@@ -193,6 +186,8 @@ defmodule Shire.ProjectManager do
           {:reply, {:error, :already_running}, state}
         else
           projects = Map.delete(state.projects, project_id)
+          Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:vm")
+          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:vm")
 
           case start_project_subtree(project_id) do
             {:ok, new_pid} ->
@@ -240,6 +235,7 @@ defmodule Shire.ProjectManager do
   @impl true
   def handle_info({:project_started, project_id, sup_pid}, state) do
     Process.monitor(sup_pid)
+    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:vm")
     projects = Map.put(state.projects, project_id, sup_pid)
 
     Phoenix.PubSub.broadcast(
@@ -252,11 +248,24 @@ defmodule Shire.ProjectManager do
   end
 
   @impl true
+  def handle_info({event, project_id}, state)
+      when event in [:vm_starting, :vm_ready, :vm_woke_up, :vm_went_idle, :vm_unreachable] do
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, project_id}
+    )
+
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     case Enum.find(state.projects, fn {_id, p} -> p == pid end) do
       {project_id, _pid} ->
         Logger.warning("Project #{project_id} supervisor went down, marking as stopped")
 
+        Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:vm")
         projects = Map.delete(state.projects, project_id)
 
         Phoenix.PubSub.broadcast(
