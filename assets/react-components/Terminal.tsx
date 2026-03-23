@@ -8,6 +8,106 @@ interface TerminalProps {
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }
 
+function isPrintable(data: string): boolean {
+  if (data.length !== 1) return false;
+  const code = data.charCodeAt(0);
+  return code >= 0x20 && code <= 0x7e;
+}
+
+/**
+ * Predictive local echo for reducing perceived keystroke latency.
+ * Displays typed printable characters immediately in dim style,
+ * then confirms or rolls back when the server responds.
+ */
+export class LocalEchoPredictor {
+  private pending = "";
+  private term: XTerm;
+  private resetTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(term: XTerm) {
+    this.term = term;
+  }
+
+  predict(data: string): void {
+    if (!isPrintable(data)) {
+      this.clearPredictions();
+      return;
+    }
+
+    this.term.write(`\x1b[2m${data}\x1b[22m`);
+    this.pending += data;
+    this.scheduleReset();
+  }
+
+  handleOutput(data: Uint8Array): void {
+    if (this.pending.length === 0) {
+      this.term.write(data);
+      return;
+    }
+
+    const text = new TextDecoder().decode(data);
+    let matched = 0;
+
+    for (let i = 0; i < text.length && matched < this.pending.length; i++) {
+      if (text[i] === this.pending[matched]) {
+        matched++;
+      } else {
+        break;
+      }
+    }
+
+    if (matched > 0) {
+      // Move cursor back over all dim predicted chars, write full server output,
+      // then re-draw any remaining unconfirmed predictions
+      const totalDim = this.pending.length;
+      this.term.write(`\x1b[${totalDim}D`);
+      this.pending = this.pending.slice(matched);
+      this.term.write(data);
+
+      if (this.pending.length > 0) {
+        this.term.write(`\x1b[2m${this.pending}\x1b[22m`);
+        this.scheduleReset();
+      } else {
+        this.cancelReset();
+      }
+    } else {
+      // Mismatch — erase all dim predictions and write server output
+      this.clearPredictions();
+      this.term.write(data);
+    }
+  }
+
+  clearPredictions(): void {
+    if (this.pending.length > 0) {
+      this.term.write(`\x1b[${this.pending.length}D\x1b[0K`);
+      this.pending = "";
+    }
+    this.cancelReset();
+  }
+
+  get pendingCount(): number {
+    return this.pending.length;
+  }
+
+  dispose(): void {
+    this.cancelReset();
+  }
+
+  private scheduleReset(): void {
+    this.cancelReset();
+    this.resetTimer = setTimeout(() => {
+      this.clearPredictions();
+    }, 1000);
+  }
+
+  private cancelReset(): void {
+    if (this.resetTimer !== null) {
+      clearTimeout(this.resetTimer);
+      this.resetTimer = null;
+    }
+  }
+}
+
 export default function Terminal({ pushEvent }: TerminalProps) {
   const { handleEvent, removeHandleEvent } = useLiveReact();
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -37,16 +137,19 @@ export default function Terminal({ pushEvent }: TerminalProps) {
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Send keystrokes to server
+    const predictor = new LocalEchoPredictor(term);
+
+    // Send keystrokes to server with local echo prediction
     const dataDisposable = term.onData((data) => {
+      predictor.predict(data);
       pushEvent("terminal-input", { data });
     });
 
-    // Receive output from server
+    // Receive output from server — route through predictor
     const outputRef = handleEvent("terminal-output", (payload: Record<string, unknown>) => {
       const data = payload.data as string;
       const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-      term.write(bytes);
+      predictor.handleOutput(bytes);
     });
 
     // Handle terminal exit
@@ -74,6 +177,7 @@ export default function Terminal({ pushEvent }: TerminalProps) {
     return () => {
       clearTimeout(resizeTimeout);
       observer.disconnect();
+      predictor.dispose();
       dataDisposable.dispose();
       removeHandleEvent(outputRef);
       removeHandleEvent(exitRef);
