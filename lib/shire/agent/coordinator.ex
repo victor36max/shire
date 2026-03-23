@@ -393,45 +393,16 @@ defmodule Shire.Agent.Coordinator do
   end
 
   @impl true
-  def handle_info({:agent_busy, _agent_id, _active}, state) do
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:agent_created, _id}, state) do
-    {:noreply, state}
-  end
-
-  @impl true
   def handle_info({:vm_ready, _project_id}, %{deployed: true} = state) do
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "projects:lobby",
-      {:project_status_changed, state.project_id}
-    )
-
     {:noreply, state}
   end
 
   def handle_info({:vm_ready, _project_id}, state) do
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "projects:lobby",
-      {:project_status_changed, state.project_id}
-    )
-
     do_deploy_and_scan(state)
   end
 
   @impl true
   def handle_info({:vm_woke_up, _project_id}, state) do
-    # Notify project lobby so dashboard status updates
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "projects:lobby",
-      {:project_status_changed, state.project_id}
-    )
-
     idle_agents =
       Enum.filter(state.statuses, fn {_id, status} -> status == :idle end)
 
@@ -456,30 +427,7 @@ defmodule Shire.Agent.Coordinator do
   end
 
   @impl true
-  def handle_info({:vm_went_idle, _project_id}, state) do
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "projects:lobby",
-      {:project_status_changed, state.project_id}
-    )
-
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:vm_unreachable, _project_id}, state) do
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "projects:lobby",
-      {:project_status_changed, state.project_id}
-    )
-
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info(msg, state) do
-    Logger.debug("Coordinator unexpected message: #{inspect(msg)}")
+  def handle_info(_msg, state) do
     {:noreply, state}
   end
 

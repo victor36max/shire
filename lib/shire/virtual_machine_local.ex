@@ -243,6 +243,12 @@ defmodule Shire.VirtualMachineLocal do
     root = workspace_root(project_id)
     update_registry_status(project_id, :starting)
 
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "project:#{project_id}:vm",
+      {:vm_starting, project_id}
+    )
+
     File.mkdir_p!(root)
 
     case Shire.VirtualMachine.Setup.run(build_setup_ops(root)) do
