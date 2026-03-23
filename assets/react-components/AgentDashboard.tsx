@@ -43,6 +43,11 @@ export default function AgentDashboard({
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
+  // Close mobile sidebar when the selected agent changes (e.g. server-driven navigation)
+  React.useEffect(() => {
+    setSidebarOpen(false);
+  }, [selectedAgent?.id]);
+
   React.useEffect(() => {
     if (editAgent) {
       setCurrentAgent(editAgent);
