@@ -10,6 +10,7 @@ defmodule ShireWeb.AttachmentControllerTest do
 
   setup do
     stub(Shire.VirtualMachineMock, :workspace_root, fn _p -> "/workspace" end)
+    stub(Shire.VirtualMachineMock, :cmd!, fn _p, _cmd, _args, _opts -> "" end)
     stub(Shire.VirtualMachineMock, :mkdir_p, fn _p, _path -> :ok end)
     stub(Shire.VirtualMachineMock, :write, fn _p, _path, _c -> :ok end)
     stub(Shire.VirtualMachineMock, :rm_rf, fn _p, _path -> :ok end)
