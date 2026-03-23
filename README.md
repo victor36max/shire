@@ -11,7 +11,8 @@ Shire is an open platform for deploying, orchestrating, and collaborating with A
 Most agent platforms treat agents as stateless API calls. Shire gives every agent a **home** — a persistent workspace with its own filesystem, tools, and mailbox. Agents don't just run. They *live* here.
 
 - 📁 **Multi-project architecture** — Organize agents into projects, each with its own dedicated VM, shared drive, and settings. Spin up as many isolated environments as you need.
-- 🏠 **Persistent workspaces** — Each agent gets its own workspace directory with inbox/outbox, scripts, and documents — backed by a Firecracker VM in production or local filesystem in development.
+- 🏠 **Persistent workspaces** — Each agent gets its own workspace directory with inbox/outbox, scripts, and documents — backed by a Firecracker VM, remote VPS via SSH, or local filesystem.
+- 🌐 **SSH VM backend** — Connect to any VPS over SSH. Run agents on your own infrastructure with key-based authentication and SFTP file operations.
 - 🔌 **Multi-harness architecture** — Bring your own runtime. Shire supports multiple agent harnesses (Pi SDK, Claude Code CLI) through a unified adapter pattern.
 - 📜 **Recipe-based deployment** — Define agents as simple YAML recipes with setup scripts that run idempotently. No Dockerfiles, no complex configs.
 - 📚 **Agent catalog** — Browse and deploy agents from a built-in catalog of pre-built templates organized by category (design, marketing, engineering, and more).
@@ -48,7 +49,7 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
 │  Project A                   │  │  Project B                   │
 │  (ProjectInstanceSupervisor) │  │  (ProjectInstanceSupervisor) │
 │  ┌────────────────────────┐  │  │  ┌────────────────────────┐  │
-│  │ VM (Sprite or Local)   │  │  │  │ VM (Sprite or Local)   │  │
+│  │ VM (Sprite/SSH/Local)  │  │  │  │ VM (Sprite/SSH/Local)  │  │
 │  │ Coordinator            │  │  │  │ Coordinator            │  │
 │  │ AgentMgr A, B, ...     │  │  │  │ AgentMgr C, D, ...     │  │
 │  │ Terminal Session       │  │  │  │ Terminal Session       │  │
@@ -58,7 +59,7 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
                ▼                                 ▼
 ┌──────────────────────────────┐  ┌──────────────────────────────┐
 │  VM (A)                      │  │  VM (B)                      │
-│  Sprite or Local per project │  │  Sprite or Local per project │
+│  Sprite, SSH, or Local       │  │  Sprite, SSH, or Local       │
 │                              │  │                              │
 │  {workspace_root}/             │  │  {workspace_root}/             │
 │  ├── agents/                 │  │  ├── agents/                 │
@@ -89,7 +90,7 @@ Shire is built on top of [**Fly.io Sprites**](https://sprites.dev) — lightweig
 
 Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to manage VM lifecycles, execute commands, sync files, and stream terminal sessions — all from the Phoenix backend.
 
-> 💡 **Local development mode:** Don't have a Sprites account? Set `SHIRE_VM_TYPE=local` to use a local filesystem backend instead. Agent workspaces live at `~/.shire/projects/` and processes run as local Erlang ports.
+> 💡 **Alternative backends:** Don't have a Sprites account? Set `SHIRE_VM_TYPE=ssh` to connect to any VPS over SSH, or `SHIRE_VM_TYPE=local` to use a local filesystem backend. Agent workspaces live at `~/.shire/projects/` in local mode and processes run as local Erlang ports.
 
 ## 🧰 Tech Stack
 
@@ -99,7 +100,7 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 | Frontend | LiveReact (React inside Phoenix LiveView), shadcn/ui, Tailwind v4 |
 | Build | Vite, Bun |
 | Agent Runtime | Bun + TypeScript, multi-harness adapter pattern |
-| VM | Pluggable: [Fly.io Sprites](https://sprites.dev) (Firecracker) or Local (dev) |
+| VM | Pluggable: [Fly.io Sprites](https://sprites.dev) (Firecracker), SSH (any VPS), or Local (dev) |
 | Job Processing | [Oban](https://getoban.pro/) (scheduled tasks, recurring jobs) |
 
 ## 🚀 Getting Started
@@ -109,7 +110,7 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 - Elixir 1.15+
 - PostgreSQL
 - [Bun](https://bun.sh)
-- A [Sprites](https://sprites.dev) account (for the `SPRITES_TOKEN`) — optional if using the local VM backend
+- A [Sprites](https://sprites.dev) account (for the `SPRITES_TOKEN`) — optional if using the SSH or local VM backend
 
 ### Environment Variables
 
@@ -119,11 +120,11 @@ Create a `.env` file in the project root. It's automatically loaded in dev/test 
 
 | Variable | Description |
 |----------|-------------|
-| `SPRITES_TOKEN` | Sprites SDK authentication token from [sprites.dev](https://sprites.dev) (not needed with local VM backend) |
+| `SPRITES_TOKEN` | Sprites SDK authentication token from [sprites.dev](https://sprites.dev) (not needed with SSH or local VM backend) |
 | `DATABASE_URL` | PostgreSQL connection string (production only — dev uses local defaults) |
 | `SECRET_KEY_BASE` | Phoenix cookie/session secret. Generate with: `mix phx.gen.secret` |
 
-> 💡 In development with local VM backend (`SHIRE_VM_TYPE=local`), no external tokens are needed. With Sprite VMs, only `SPRITES_TOKEN` is required.
+> 💡 In development with local VM backend (`SHIRE_VM_TYPE=local`), no external tokens are needed. The SSH backend (`SHIRE_VM_TYPE=ssh`) requires `SHIRE_SSH_HOST`, `SHIRE_SSH_USER`, and `SHIRE_SSH_KEY`. With Sprite VMs, only `SPRITES_TOKEN` is required.
 
 **Optional:**
 
@@ -135,7 +136,12 @@ Create a `.env` file in the project root. It's automatically loaded in dev/test 
 | `ECTO_IPV6` | — | Set to `true` to enable IPv6 for database connections |
 | `DNS_CLUSTER_QUERY` | — | DNS query for distributed Erlang node discovery |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key, passed to agents using the Pi SDK harness |
-| `SHIRE_VM_TYPE` | `sprites` | VM backend: `sprites` (Firecracker) or `local` (local filesystem for dev) |
+| `SHIRE_VM_TYPE` | `sprites` | VM backend: `sprites` (Firecracker), `ssh` (any VPS), or `local` (local filesystem for dev) |
+| `SHIRE_SSH_HOST` | — | SSH hostname (required when `SHIRE_VM_TYPE=ssh`) |
+| `SHIRE_SSH_USER` | — | SSH username (required when `SHIRE_VM_TYPE=ssh`) |
+| `SHIRE_SSH_KEY` | — | Path to SSH private key (required when `SHIRE_VM_TYPE=ssh`) |
+| `SHIRE_SSH_PORT` | `22` | SSH port |
+| `SHIRE_SSH_WORKSPACE_ROOT` | `/home/$SHIRE_SSH_USER/shire/projects` | Workspace root on the remote host |
 
 ### Setup
 
@@ -167,7 +173,7 @@ cd assets && bun run test          # Frontend tests
 
 ### 1. Create a Project
 
-Projects are the top-level unit in Shire. Each project gets its own dedicated VM (Sprite or Local) with isolated storage and networking. Create one from the dashboard at `/`. 📁
+Projects are the top-level unit in Shire. Each project gets its own dedicated VM (Sprite, SSH, or Local) with isolated storage and networking. Create one from the dashboard at `/`. 📁
 
 ### 2. Define a Recipe
 
