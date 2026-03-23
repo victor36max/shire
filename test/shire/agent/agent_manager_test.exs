@@ -545,7 +545,7 @@ defmodule Shire.Agent.AgentManagerTest do
       assert state.command == nil
       assert state.command_ref == nil
 
-      assert_receive {:status, :idle}, 1_000
+      assert_receive {:agent_status, _, :idle}, 1_000
     end
 
     test "transitions to idle when runner errors", ctx do
@@ -590,7 +590,7 @@ defmodule Shire.Agent.AgentManagerTest do
 
       assert :ok = AgentManager.restart(ctx.project_id, ctx.agent_id)
 
-      assert_receive {:status, :bootstrapping}, 1_000
+      assert_receive {:agent_status, _, :bootstrapping}, 1_000
     end
   end
 
@@ -674,7 +674,7 @@ defmodule Shire.Agent.AgentManagerTest do
       )
 
       assert :ok = AgentManager.auto_restart(ctx.project_id, ctx.agent_id)
-      assert_receive {:status, :bootstrapping}, 1_000
+      assert_receive {:agent_status, _, :bootstrapping}, 1_000
     end
 
     test "returns {:error, :max_retries} after too many consecutive failures", ctx do

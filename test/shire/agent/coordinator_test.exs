@@ -48,7 +48,7 @@ defmodule Shire.Agent.CoordinatorTest do
   defp broadcast_status(project_id, agent_id, status) do
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
-      "project:#{project_id}:agents:lobby",
+      "project:#{project_id}:agent:#{agent_id}",
       {:agent_status, agent_id, status}
     )
 
@@ -59,11 +59,18 @@ defmodule Shire.Agent.CoordinatorTest do
   defp start_agent_manager(project_id, agent_id, opts \\ []) do
     supervisor_id = Keyword.get(opts, :id, agent_id)
 
-    start_supervised(
-      {AgentManager,
-       project_id: project_id, agent_id: agent_id, agent_name: "test-agent", skip_sprite: true},
-      id: supervisor_id
-    )
+    result =
+      start_supervised(
+        {AgentManager,
+         project_id: project_id, agent_id: agent_id, agent_name: "test-agent", skip_sprite: true},
+        id: supervisor_id
+      )
+
+    # Ensure the Coordinator subscribes to this agent's topic for status relay
+    Coordinator.watch_agent(project_id, agent_id)
+    Process.sleep(10)
+
+    result
   end
 
   defp create_db_agent(project_id, name \\ "coord-test-agent") do
@@ -160,8 +167,12 @@ defmodule Shire.Agent.CoordinatorTest do
   end
 
   describe "status updates via PubSub" do
-    test "coordinator updates internal state from lobby broadcasts", %{project_id: project_id} do
+    test "coordinator updates internal state from agent topic broadcasts", %{
+      project_id: project_id
+    } do
       agent = create_db_agent(project_id)
+      Coordinator.watch_agent(project_id, agent.id)
+      Process.sleep(10)
       broadcast_status(project_id, agent.id, :active)
       assert :active == Coordinator.agent_status(project_id, agent.id)
     end
@@ -366,7 +377,7 @@ defmodule Shire.Agent.CoordinatorTest do
       )
 
       # Should receive bootstrapping status (restart triggers bootstrap)
-      assert_receive {:status, :bootstrapping}, 1_000
+      assert_receive {:agent_status, _, :bootstrapping}, 1_000
     end
 
     test "does not restart non-idle agents when VM wakes up", %{project_id: project_id} do
@@ -390,7 +401,7 @@ defmodule Shire.Agent.CoordinatorTest do
       )
 
       # Should NOT receive any restart-related status change
-      refute_receive {:status, :bootstrapping}, 300
+      refute_receive {:agent_status, _, :bootstrapping}, 300
     end
   end
 
