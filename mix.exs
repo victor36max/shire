@@ -21,7 +21,7 @@ defmodule Shire.MixProject do
   def application do
     [
       mod: {Shire.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :ssh]
     ]
   end
 
