@@ -4,7 +4,6 @@ import { Button, buttonVariants } from "./components/ui/button";
 import { Card, CardContent } from "./components/ui/card";
 import {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogFooter,
@@ -13,11 +12,19 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "./components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu";
 import AppLayout from "./components/AppLayout";
 import { navigate } from "./lib/navigate";
 import AgentForm from "./AgentForm";
-import { ChevronLeft, Pencil } from "lucide-react";
+import { ChevronLeft, MoreHorizontal, Pencil } from "lucide-react";
 import { type Agent, statusVariant, harnessLabel } from "./types";
+
+const isRunning = (status: string) => status === "active" || status === "starting" || status === "bootstrapping";
 
 export default function AgentShow({
   project,
@@ -29,6 +36,8 @@ export default function AgentShow({
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }) {
   const [editOpen, setEditOpen] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [restartOpen, setRestartOpen] = React.useState(false);
 
   return (
     <AppLayout>
@@ -46,93 +55,74 @@ export default function AgentShow({
               <Pencil className="h-4 w-4 mr-1" />
               Edit
             </Button>
-            {(agent.status === "active" || agent.status === "starting" || agent.status === "bootstrapping") && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline">Restart Agent</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Restart Agent</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will stop the current runner and restart the agent. The VM will be preserved.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => pushEvent("restart-agent", {})}>Restart</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-            {agent.status !== "active" && agent.status !== "starting" && agent.status !== "bootstrapping" && (
+            {isRunning(agent.status) ? (
+              <Button variant="outline" onClick={() => setRestartOpen(true)}>
+                Restart Agent
+              </Button>
+            ) : (
               <Button onClick={() => pushEvent("start-agent", {})}>Start Agent</Button>
             )}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">Delete Agent</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Agent</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will stop the agent and permanently remove its workspace directory. This cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className={buttonVariants({ variant: "destructive" })}
-                    onClick={() => pushEvent("delete-agent", {})}
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="More actions">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  Delete Agent
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <dl className="divide-y divide-border">
-              <div className="py-3 grid grid-cols-3 gap-4">
-                <dt className="text-sm font-medium text-muted-foreground">Name</dt>
-                <dd className="text-sm col-span-2">{agent.name}</dd>
-              </div>
-              {agent.description && (
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="pt-6">
+              <dl className="divide-y divide-border">
                 <div className="py-3 grid grid-cols-3 gap-4">
-                  <dt className="text-sm font-medium text-muted-foreground">Description</dt>
-                  <dd className="text-sm col-span-2">{agent.description}</dd>
+                  <dt className="text-sm font-medium text-muted-foreground">Name</dt>
+                  <dd className="text-sm col-span-2">{agent.name}</dd>
                 </div>
-              )}
-              <div className="py-3 grid grid-cols-3 gap-4">
-                <dt className="text-sm font-medium text-muted-foreground">Model</dt>
-                <dd className="text-sm col-span-2">{agent.model || "Not set"}</dd>
-              </div>
-              {agent.harness && (
+                {agent.description && (
+                  <div className="py-3 grid grid-cols-3 gap-4">
+                    <dt className="text-sm font-medium text-muted-foreground">Description</dt>
+                    <dd className="text-sm col-span-2">{agent.description}</dd>
+                  </div>
+                )}
                 <div className="py-3 grid grid-cols-3 gap-4">
-                  <dt className="text-sm font-medium text-muted-foreground">Harness</dt>
+                  <dt className="text-sm font-medium text-muted-foreground">Model</dt>
+                  <dd className="text-sm col-span-2">{agent.model || "Not set"}</dd>
+                </div>
+                {agent.harness && (
+                  <div className="py-3 grid grid-cols-3 gap-4">
+                    <dt className="text-sm font-medium text-muted-foreground">Harness</dt>
+                    <dd className="text-sm col-span-2">
+                      <Badge variant="outline">{harnessLabel(agent.harness)}</Badge>
+                    </dd>
+                  </div>
+                )}
+                <div className="py-3 grid grid-cols-3 gap-4">
+                  <dt className="text-sm font-medium text-muted-foreground">Status</dt>
                   <dd className="text-sm col-span-2">
-                    <Badge variant="outline">{harnessLabel(agent.harness)}</Badge>
+                    <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
                   </dd>
                 </div>
-              )}
-              <div className="py-3 grid grid-cols-3 gap-4">
-                <dt className="text-sm font-medium text-muted-foreground">Status</dt>
-                <dd className="text-sm col-span-2">
-                  <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
-                </dd>
-              </div>
-              <div className="py-3 grid grid-cols-3 gap-4">
-                <dt className="text-sm font-medium text-muted-foreground">System Prompt</dt>
-                <dd className="text-sm col-span-2">
-                  <pre className="whitespace-pre-wrap font-sans">{agent.system_prompt || "Not set"}</pre>
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">System Prompt</h3>
+              <pre className="whitespace-pre-wrap font-sans text-sm">{agent.system_prompt || "Not set"}</pre>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <AgentForm
@@ -142,6 +132,41 @@ export default function AgentShow({
         pushEvent={pushEvent}
         onClose={() => setEditOpen(false)}
       />
+
+      <AlertDialog open={restartOpen} onOpenChange={setRestartOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restart Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will stop the current runner and restart the agent. The VM will be preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pushEvent("restart-agent", {})}>Restart</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will stop the agent and permanently remove its workspace directory. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={() => pushEvent("delete-agent", {})}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

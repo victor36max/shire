@@ -21,8 +21,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu";
 import AppLayout from "./components/AppLayout";
 import { navigate } from "./lib/navigate";
+import { MoreHorizontal } from "lucide-react";
 import type { Project } from "./types";
 
 interface ProjectDashboardProps {
@@ -101,36 +108,43 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-lg">{project.name}</h3>
-                    <Badge variant={projectStatusVariant(project.status)}>{project.status}</Badge>
-                  </div>
-                  <div className="mt-4 flex justify-end gap-2">
-                    {(project.status === "stopped" ||
-                      project.status === "error" ||
-                      project.status === "unreachable") && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={restartingId === project.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRestartingId(project.id);
-                          pushEvent("restart-project", { id: project.id });
-                        }}
-                      >
-                        {restartingId === project.id ? "Restarting..." : "Restart"}
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteProject(project);
-                      }}
-                    >
-                      Delete
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={projectStatusVariant(project.status)}>{project.status}</Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            aria-label={`${project.name} actions`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {(project.status === "stopped" ||
+                            project.status === "error" ||
+                            project.status === "unreachable") && (
+                            <DropdownMenuItem
+                              disabled={restartingId === project.id}
+                              onClick={() => {
+                                setRestartingId(project.id);
+                                pushEvent("restart-project", { id: project.id });
+                              }}
+                            >
+                              {restartingId === project.id ? "Restarting..." : "Restart"}
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteProject(project)}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
