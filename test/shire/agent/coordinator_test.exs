@@ -45,14 +45,10 @@ defmodule Shire.Agent.CoordinatorTest do
     %{project_id: project_id}
   end
 
-  defp broadcast_status(project_id, agent_id, status) do
-    Phoenix.PubSub.broadcast(
-      Shire.PubSub,
-      "project:#{project_id}:agent:#{agent_id}",
-      {:agent_status, agent_id, status}
-    )
+  defp report_status(project_id, agent_id, status) do
+    Coordinator.report_status(project_id, agent_id, status)
 
-    # Give the Coordinator time to process the async message
+    # Give the Coordinator time to process the async cast
     Process.sleep(50)
   end
 
@@ -65,10 +61,6 @@ defmodule Shire.Agent.CoordinatorTest do
          project_id: project_id, agent_id: agent_id, agent_name: "test-agent", skip_sprite: true},
         id: supervisor_id
       )
-
-    # Ensure the Coordinator subscribes to this agent's topic for status relay
-    Coordinator.watch_agent(project_id, agent_id)
-    Process.sleep(10)
 
     result
   end
@@ -99,8 +91,8 @@ defmodule Shire.Agent.CoordinatorTest do
   end
 
   describe "delete_agent/2" do
-    test "broadcasts {:agent_deleted, id} on lobby", %{project_id: project_id} do
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
+    test "broadcasts {:agent_deleted, id} on project agents topic", %{project_id: project_id} do
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents")
 
       agent = create_db_agent(project_id, "coord-delete-broadcast")
 
@@ -116,7 +108,7 @@ defmodule Shire.Agent.CoordinatorTest do
       agent = create_db_agent(project_id)
       {:ok, _pid} = start_agent_manager(project_id, agent.id)
 
-      broadcast_status(project_id, agent.id, :idle)
+      report_status(project_id, agent.id, :idle)
       assert :idle == Coordinator.agent_status(project_id, agent.id)
 
       # Restart should succeed for a running (idle) agent
@@ -148,7 +140,7 @@ defmodule Shire.Agent.CoordinatorTest do
     test "returns status after PubSub broadcast", %{project_id: project_id} do
       agent = create_db_agent(project_id)
       {:ok, _pid} = start_agent_manager(project_id, agent.id)
-      broadcast_status(project_id, agent.id, :active)
+      report_status(project_id, agent.id, :active)
       assert :active == Coordinator.agent_status(project_id, agent.id)
     end
   end
@@ -157,7 +149,7 @@ defmodule Shire.Agent.CoordinatorTest do
     test "returns status map for given agent IDs", %{project_id: project_id} do
       agent = create_db_agent(project_id)
       {:ok, _pid} = start_agent_manager(project_id, agent.id)
-      broadcast_status(project_id, agent.id, :bootstrapping)
+      report_status(project_id, agent.id, :bootstrapping)
 
       nonexistent = "00000000-0000-0000-0000-000000000000"
       result = Coordinator.agent_statuses(project_id, [agent.id, nonexistent])
@@ -166,14 +158,12 @@ defmodule Shire.Agent.CoordinatorTest do
     end
   end
 
-  describe "status updates via PubSub" do
-    test "coordinator updates internal state from agent topic broadcasts", %{
+  describe "status updates via report_status" do
+    test "coordinator updates internal state from report_status", %{
       project_id: project_id
     } do
       agent = create_db_agent(project_id)
-      Coordinator.watch_agent(project_id, agent.id)
-      Process.sleep(10)
-      broadcast_status(project_id, agent.id, :active)
+      report_status(project_id, agent.id, :active)
       assert :active == Coordinator.agent_status(project_id, agent.id)
     end
   end
@@ -234,7 +224,7 @@ defmodule Shire.Agent.CoordinatorTest do
       {:ok, _pid} = start_agent_manager(project_id, agent.id)
 
       # Mark as active so restart is meaningful
-      broadcast_status(project_id, agent.id, :active)
+      report_status(project_id, agent.id, :active)
 
       result =
         Coordinator.update_agent(project_id, agent.id, %{
@@ -244,10 +234,10 @@ defmodule Shire.Agent.CoordinatorTest do
       assert result == :ok
     end
 
-    test "broadcasts {:agent_updated, id} on lobby", %{project_id: project_id} do
+    test "broadcasts {:agent_updated, id} on project agents topic", %{project_id: project_id} do
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents")
 
       agent = create_db_agent(project_id, "coord-update-broadcast")
 
@@ -325,7 +315,7 @@ defmodule Shire.Agent.CoordinatorTest do
       agent = create_db_agent(project_id, "coord-rename-old")
       new_name = "coord-rename-new-#{System.unique_integer([:positive])}"
 
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents")
 
       result =
         Coordinator.update_agent(project_id, agent.id, %{
@@ -360,7 +350,7 @@ defmodule Shire.Agent.CoordinatorTest do
       {:ok, _pid} = start_agent_manager(project_id, agent.id)
 
       # Mark agent as idle (simulating VM sleep killed the runner)
-      broadcast_status(project_id, agent.id, :idle)
+      report_status(project_id, agent.id, :idle)
       assert :idle == Coordinator.agent_status(project_id, agent.id)
 
       # Subscribe to see the restart status change
@@ -381,7 +371,7 @@ defmodule Shire.Agent.CoordinatorTest do
       {:ok, _pid} = start_agent_manager(project_id, agent.id)
 
       # Mark agent as active
-      broadcast_status(project_id, agent.id, :active)
+      report_status(project_id, agent.id, :active)
 
       # Subscribe to see if status changes
       Phoenix.PubSub.subscribe(
@@ -644,7 +634,7 @@ defmodule Shire.Agent.CoordinatorTest do
   end
 
   describe "deploy_and_scan bootstrapping status propagation" do
-    test "broadcasts :bootstrapping to lobby when agents start during deploy_and_scan" do
+    test "broadcasts :bootstrapping to project topic when agents start during deploy_and_scan" do
       Mox.set_mox_global()
 
       stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
@@ -682,14 +672,14 @@ defmodule Shire.Agent.CoordinatorTest do
 
       Process.sleep(50)
 
-      # Subscribe to lobby to verify broadcasts
-      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents:lobby")
+      # Subscribe to project agents topic to verify broadcasts
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents")
 
       # Now simulate VM becoming ready
       stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
       Coordinator.deploy_and_scan(project_id)
 
-      # Lobby should receive :bootstrapping broadcasts for both agents
+      # Project agents topic should receive :bootstrapping broadcasts for both agents
       # (agents may subsequently transition to :idle, but the broadcast must happen)
       agent_one_id = agent_one.id
       agent_two_id = agent_two.id
