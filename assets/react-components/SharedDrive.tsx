@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
 import AppLayout from "./components/AppLayout";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Folder, File } from "lucide-react";
 import { navigate as navigateTo } from "./lib/navigate";
 
 export interface SharedDriveFile {
@@ -72,9 +72,11 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
   const [newFolderOpen, setNewFolderOpen] = React.useState(false);
   const [newFolderName, setNewFolderName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const navigate = (path: string) => {
+    setUploadError(null);
     pushEvent("navigate", { path });
   };
 
@@ -101,10 +103,14 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
     if (!file) return;
 
     if (file.size > MAX_UPLOAD_SIZE) {
-      alert(`File is too large (${formatSize(file.size)}). Maximum upload size is ${formatSize(MAX_UPLOAD_SIZE)}.`);
+      setUploadError(
+        `File is too large (${formatSize(file.size)}). Maximum upload size is ${formatSize(MAX_UPLOAD_SIZE)}.`,
+      );
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
+
+    setUploadError(null);
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -148,6 +154,8 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
           </div>
         </div>
 
+        {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
+
         {/* File Table */}
         <div className="rounded-md border">
           <Table>
@@ -175,12 +183,12 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
                           className="flex items-center gap-2 text-foreground h-auto p-0"
                           onClick={() => navigate("/" + file.path)}
                         >
-                          <span className="text-muted-foreground">📁</span>
+                          <Folder className="h-4 w-4 text-muted-foreground" />
                           {file.name}
                         </Button>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground">📄</span>
+                          <File className="h-4 w-4 text-muted-foreground" />
                           {file.name}
                         </div>
                       )}
