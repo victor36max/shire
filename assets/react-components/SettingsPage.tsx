@@ -17,6 +17,7 @@ import {
 } from "./components/ui/alert-dialog";
 import { ChevronLeft, Play, Trash2, Plus, X } from "lucide-react";
 import AppLayout from "./components/AppLayout";
+import ThemeSelector from "./components/ThemeSelector";
 import { navigate } from "./lib/navigate";
 import ActivityLog from "./ActivityLog";
 import Terminal from "./Terminal";
@@ -151,6 +152,7 @@ export default function SettingsPage({
             <TabsTrigger value="scripts">Scripts</TabsTrigger>
             <TabsTrigger value="terminal">Terminal</TabsTrigger>
             <TabsTrigger value="activity">Activity Log</TabsTrigger>
+            <TabsTrigger value="appearance">Appearance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="environment" className="space-y-4 pt-4">
@@ -288,6 +290,10 @@ export default function SettingsPage({
 
           <TabsContent value="activity" className="pt-4">
             <ActivityLog messages={messages} hasMore={has_more_messages} pushEvent={pushEvent} />
+          </TabsContent>
+
+          <TabsContent value="appearance" className="space-y-4 pt-4">
+            <ThemeSelector />
           </TabsContent>
         </Tabs>
       </div>

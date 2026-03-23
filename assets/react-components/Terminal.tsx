@@ -184,9 +184,18 @@ export default function Terminal({ pushEvent }: TerminalProps) {
     // Connect to server
     pushEventRef.current("connect-terminal", {});
 
+    // Re-read terminal CSS vars when theme changes (`.dark` class toggled on <html>)
+    const themeObserver = new MutationObserver(() => {
+      const bg = getComputedStyle(document.documentElement).getPropertyValue("--terminal-bg").trim() || "#1a1a1a";
+      const fg = getComputedStyle(document.documentElement).getPropertyValue("--terminal-fg").trim() || "#e5e5e5";
+      term.options = { theme: { ...term.options.theme, background: bg, foreground: fg } };
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+
     return () => {
       clearTimeout(resizeTimeout);
       observer.disconnect();
+      themeObserver.disconnect();
       predictor.dispose();
       dataDisposable.dispose();
       removeHandleEventRef.current(outputRef);

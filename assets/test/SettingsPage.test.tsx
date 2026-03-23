@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import SettingsPage from "../react-components/SettingsPage";
 
 vi.mock("../react-components/Terminal", () => ({
@@ -17,6 +17,21 @@ const defaultProps = {
 };
 
 const messages = [{ id: 1, from_agent: "Alice", to_agent: "Bob", text: "Hello!", ts: "2026-03-17T10:00:00Z" }];
+
+beforeEach(() => {
+  localStorage.clear();
+  document.documentElement.classList.remove("dark");
+
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  });
+});
 
 describe("SettingsPage", () => {
   it("renders with Settings heading", () => {
@@ -141,5 +156,46 @@ describe("SettingsPage", () => {
     await userEvent.type(valueInput, "new");
     await userEvent.click(screen.getByRole("button", { name: "Save Environment" }));
     expect(pushEvent).toHaveBeenCalledWith("save-env", { content: "OLD=new" });
+  });
+
+  it("shows Appearance tab with theme options", async () => {
+    render(<SettingsPage {...defaultProps} />);
+    await userEvent.click(screen.getByText("Appearance"));
+    expect(screen.getByText("Light")).toBeInTheDocument();
+    expect(screen.getByText("Dark")).toBeInTheDocument();
+    expect(screen.getByText("System")).toBeInTheDocument();
+  });
+
+  it("defaults to System theme active in Appearance tab", async () => {
+    render(<SettingsPage {...defaultProps} />);
+    await userEvent.click(screen.getByText("Appearance"));
+    const systemButton = screen.getByRole("button", { name: /System/ });
+    expect(systemButton.getAttribute("data-active")).toBe("true");
+  });
+
+  it("highlights current theme in Appearance tab", async () => {
+    localStorage.setItem("theme", "dark");
+    render(<SettingsPage {...defaultProps} />);
+    await userEvent.click(screen.getByText("Appearance"));
+    const darkButton = screen.getByRole("button", { name: /Dark/ });
+    expect(darkButton.getAttribute("data-active")).toBe("true");
+  });
+
+  it("switches theme when clicking a theme option", async () => {
+    render(<SettingsPage {...defaultProps} />);
+    await userEvent.click(screen.getByText("Appearance"));
+    await userEvent.click(screen.getByRole("button", { name: /Dark/ }));
+    expect(localStorage.getItem("theme")).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+
+  it("removes .dark class when switching to Light", async () => {
+    localStorage.setItem("theme", "dark");
+    document.documentElement.classList.add("dark");
+    render(<SettingsPage {...defaultProps} />);
+    await userEvent.click(screen.getByText("Appearance"));
+    await userEvent.click(screen.getByRole("button", { name: /Light/ }));
+    expect(localStorage.getItem("theme")).toBe("light");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 });
