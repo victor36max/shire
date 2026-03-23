@@ -47,15 +47,17 @@ describe("ProjectDashboard", () => {
     expect(screen.getByText("unreachable")).toBeInTheDocument();
   });
 
-  it("shows Restart button for unreachable projects", () => {
+  it("shows Restart option in menu for unreachable projects", async () => {
     const unreachableProjects: Project[] = [{ id: "p11", name: "unreachable-proj", status: "unreachable" }];
     render(<ProjectDashboard projects={unreachableProjects} pushEvent={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.getByText("Restart")).toBeInTheDocument();
   });
 
-  it("does not show Restart button for idle projects", () => {
+  it("does not show Restart option for idle projects", async () => {
     const idleProjects: Project[] = [{ id: "p12", name: "idle-proj", status: "idle" }];
     render(<ProjectDashboard projects={idleProjects} pushEvent={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.queryByText("Restart")).not.toBeInTheDocument();
   });
 
@@ -89,10 +91,12 @@ describe("ProjectDashboard", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows delete confirmation when clicking Delete on a project card", async () => {
+  it("shows delete confirmation when clicking Delete in card menu", async () => {
     render(<ProjectDashboard projects={projects} pushEvent={vi.fn()} />);
-    const deleteButtons = screen.getAllByText("Delete");
-    await userEvent.click(deleteButtons[0]);
+    // Open the first card's dropdown menu
+    const menuButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(menuButtons[0]);
+    await userEvent.click(screen.getByText("Delete"));
     expect(screen.getByText(/destroy the VM and all its data/)).toBeInTheDocument();
   });
 
@@ -100,9 +104,10 @@ describe("ProjectDashboard", () => {
     const pushEvent = vi.fn();
     render(<ProjectDashboard projects={projects} pushEvent={pushEvent} />);
 
-    // Click Delete on first project card
-    const deleteButtons = screen.getAllByText("Delete");
-    await userEvent.click(deleteButtons[0]);
+    // Open the first card's dropdown menu and click Delete
+    const menuButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(menuButtons[0]);
+    await userEvent.click(screen.getByText("Delete"));
 
     // Confirm in alert dialog
     const confirmDelete = screen.getAllByText("Delete").find((el) => el.closest("[role='alertdialog']"));
@@ -111,28 +116,33 @@ describe("ProjectDashboard", () => {
     expect(pushEvent).toHaveBeenCalledWith("delete-project", { id: "p1" });
   });
 
-  it("shows Restart button for stopped projects", () => {
+  it("shows Restart option in menu for stopped projects", async () => {
     const stoppedProjects: Project[] = [{ id: "p5", name: "stopped-proj", status: "stopped" }];
     render(<ProjectDashboard projects={stoppedProjects} pushEvent={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.getByText("Restart")).toBeInTheDocument();
   });
 
-  it("shows Restart button for error projects", () => {
+  it("shows Restart option in menu for error projects", async () => {
     const errorProjects: Project[] = [{ id: "p6", name: "error-proj", status: "error" }];
     render(<ProjectDashboard projects={errorProjects} pushEvent={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.getByText("Restart")).toBeInTheDocument();
   });
 
-  it("does not show Restart button for running projects", () => {
+  it("does not show Restart option for running projects", async () => {
     render(<ProjectDashboard projects={projects} pushEvent={vi.fn()} />);
+    const menuButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(menuButtons[0]);
     expect(screen.queryByText("Restart")).not.toBeInTheDocument();
   });
 
-  it("calls pushEvent with restart-project when clicking Restart", async () => {
+  it("calls pushEvent with restart-project when clicking Restart in menu", async () => {
     const pushEvent = vi.fn();
     const stoppedProjects: Project[] = [{ id: "p7", name: "restart-me", status: "stopped" }];
     render(<ProjectDashboard projects={stoppedProjects} pushEvent={pushEvent} />);
 
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     await userEvent.click(screen.getByText("Restart"));
     expect(pushEvent).toHaveBeenCalledWith("restart-project", { id: "p7" });
   });
@@ -142,7 +152,10 @@ describe("ProjectDashboard", () => {
     const stoppedProjects: Project[] = [{ id: "p8", name: "restarting-proj", status: "stopped" }];
     render(<ProjectDashboard projects={stoppedProjects} pushEvent={pushEvent} />);
 
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     await userEvent.click(screen.getByText("Restart"));
+    // Reopen menu to check the text
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.getByText("Restarting...")).toBeInTheDocument();
   });
 });

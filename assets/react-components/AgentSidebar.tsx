@@ -126,49 +126,53 @@ export default function AgentSidebar({
         )}
       </div>
 
-      <div className="p-3 border-t border-border space-y-1">
-        <Button variant="outline" size="sm" className="w-full" onClick={onNewAgent}>
-          + New Agent
-        </Button>
-        <Button variant="outline" size="sm" className="w-full" onClick={onBrowseCatalog}>
-          Browse Catalog
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={() => navigate(`/projects/${project.name}/details`)}
-        >
-          <FileText className="h-4 w-4" />
-          Project Details
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={() => navigate(`/projects/${project.name}/schedules`)}
-        >
-          <Clock className="h-4 w-4" />
-          Schedules
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={() => navigate(`/projects/${project.name}/settings`)}
-        >
-          <Settings className="h-4 w-4" />
-          Settings
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-muted-foreground"
-          onClick={() => navigate(`/projects/${project.name}/shared`)}
-        >
-          <FolderOpen className="h-4 w-4" />
-          Shared Drive
-        </Button>
+      <div className="border-t border-border">
+        <div className="p-3 space-y-1.5">
+          <Button variant="outline" size="sm" className="w-full" onClick={onNewAgent}>
+            + New Agent
+          </Button>
+          <Button variant="outline" size="sm" className="w-full" onClick={onBrowseCatalog}>
+            Browse Catalog
+          </Button>
+        </div>
+        <div className="border-t border-border px-3 py-2 space-y-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-muted-foreground"
+            onClick={() => navigate(`/projects/${project.name}/details`)}
+          >
+            <FileText className="h-4 w-4" />
+            Project Details
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-muted-foreground"
+            onClick={() => navigate(`/projects/${project.name}/schedules`)}
+          >
+            <Clock className="h-4 w-4" />
+            Schedules
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-muted-foreground"
+            onClick={() => navigate(`/projects/${project.name}/settings`)}
+          >
+            <Settings className="h-4 w-4" />
+            Settings
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-muted-foreground"
+            onClick={() => navigate(`/projects/${project.name}/shared`)}
+          >
+            <FolderOpen className="h-4 w-4" />
+            Shared Drive
+          </Button>
+        </div>
       </div>
 
       <AlertDialog
