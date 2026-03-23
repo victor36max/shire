@@ -248,8 +248,34 @@ defmodule Shire.ProjectManager do
   end
 
   @impl true
+  def handle_info({:vm_ready, project_id}, state) do
+    Shire.Agent.Coordinator.deploy_and_scan(project_id)
+
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, project_id}
+    )
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:vm_woke_up, project_id}, state) do
+    Shire.Agent.Coordinator.restart_idle_agents(project_id)
+
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, project_id}
+    )
+
+    {:noreply, state}
+  end
+
+  @impl true
   def handle_info({event, project_id}, state)
-      when event in [:vm_starting, :vm_ready, :vm_woke_up, :vm_went_idle, :vm_unreachable] do
+      when event in [:vm_starting, :vm_went_idle, :vm_unreachable] do
     Phoenix.PubSub.broadcast(
       Shire.PubSub,
       "projects:lobby",
