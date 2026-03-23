@@ -97,34 +97,28 @@ defmodule Shire.Agent.Coordinator do
     state = %{
       project_id: project_id,
       monitors: %{},
-      statuses: %{}
+      statuses: %{},
+      deployed: false
     }
 
     {:ok, state, {:continue, :deploy_and_scan}}
   end
 
   @impl true
+  def handle_continue(:deploy_and_scan, %{deployed: true} = state), do: {:noreply, state}
+
   def handle_continue(:deploy_and_scan, state) do
-    write_peers_yaml(state.project_id)
+    case vm().vm_status(state.project_id) do
+      :running ->
+        do_deploy_and_scan(state)
 
-    # Get agents from DB and start managers for those with folders on VM
-    db_agents = Agents.list_agents(state.project_id)
+      status ->
+        Logger.info(
+          "VM not ready (#{status}) for project #{state.project_id}, deferring deploy_and_scan"
+        )
 
-    monitors =
-      Enum.reduce(db_agents, state.monitors, fn agent, acc ->
-        case start_agent_manager(state.project_id, agent.id, agent.name, acc) do
-          {:ok, _pid, updated_monitors} -> updated_monitors
-          {:error, _} -> acc
-        end
-      end)
-
-    Logger.info("Project #{state.project_id}: started #{map_size(monitors)} agents")
-
-    {:noreply, %{state | monitors: monitors}}
-  rescue
-    e ->
-      Logger.error("Deploy and scan failed for #{state.project_id}: #{Exception.message(e)}")
-      {:noreply, state}
+        {:noreply, state}
+    end
   end
 
   @impl true
@@ -409,6 +403,27 @@ defmodule Shire.Agent.Coordinator do
   end
 
   @impl true
+  def handle_info({:vm_ready, _project_id}, %{deployed: true} = state) do
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, state.project_id}
+    )
+
+    {:noreply, state}
+  end
+
+  def handle_info({:vm_ready, _project_id}, state) do
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "projects:lobby",
+      {:project_status_changed, state.project_id}
+    )
+
+    do_deploy_and_scan(state)
+  end
+
+  @impl true
   def handle_info({:vm_woke_up, _project_id}, state) do
     # Notify project lobby so dashboard status updates
     Phoenix.PubSub.broadcast(
@@ -470,6 +485,28 @@ defmodule Shire.Agent.Coordinator do
 
   # --- Private ---
 
+  defp do_deploy_and_scan(state) do
+    write_peers_yaml(state.project_id)
+
+    db_agents = Agents.list_agents(state.project_id)
+
+    monitors =
+      Enum.reduce(db_agents, state.monitors, fn agent, acc ->
+        case start_agent_manager(state.project_id, agent.id, agent.name, acc) do
+          {:ok, _pid, updated_monitors} -> updated_monitors
+          {:error, _} -> acc
+        end
+      end)
+
+    Logger.info("Project #{state.project_id}: started #{map_size(monitors)} agents")
+
+    {:noreply, %{state | monitors: monitors, deployed: true}}
+  rescue
+    e ->
+      Logger.error("Deploy and scan failed for #{state.project_id}: #{Exception.message(e)}")
+      {:noreply, state}
+  end
+
   defp read_agent_recipe(project_id, agent_id) do
     path = Path.join(Workspace.agent_dir(project_id, agent_id), "recipe.yaml")
 
@@ -525,8 +562,7 @@ defmodule Shire.Agent.Coordinator do
     end
   end
 
-  @doc false
-  def write_peers_yaml(project_id) do
+  defp write_peers_yaml(project_id) do
     agents = Agents.list_agents(project_id)
 
     peers =
@@ -559,6 +595,10 @@ defmodule Shire.Agent.Coordinator do
         Logger.warning("Failed to write peers.yaml: #{inspect(reason)}")
         {:error, reason}
     end
+  catch
+    :exit, reason ->
+      Logger.warning("Failed to write peers.yaml (VM not available): #{inspect(reason)}")
+      {:error, :vm_not_available}
   end
 
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)

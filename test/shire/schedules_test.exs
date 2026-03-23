@@ -15,6 +15,7 @@ defmodule Shire.SchedulesTest do
 
   setup do
     stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
+    stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
 
     {:ok, project} = Projects.create_project("schedule-project")
     {:ok, agent} = Agents.create_agent_with_vm(project.id, "sched-agent", "version: 1\n", @vm)
