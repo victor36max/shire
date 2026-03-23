@@ -50,6 +50,16 @@ defmodule Shire.Agent.Coordinator do
     GenServer.call(via(project_id), {:restart_agent, agent_id}, 60_000)
   end
 
+  @doc "Triggers deploy_and_scan if not already deployed. Called by ProjectManager on vm_ready."
+  def deploy_and_scan(project_id) do
+    GenServer.cast(via(project_id), :deploy_and_scan)
+  end
+
+  @doc "Restarts idle agents after VM wake-up. Called by ProjectManager on vm_woke_up."
+  def restart_idle_agents(project_id) do
+    GenServer.cast(via(project_id), :restart_idle_agents)
+  end
+
   @doc "Subscribe the coordinator to an agent's PubSub topic (for status relay)."
   def watch_agent(project_id, agent_id) do
     GenServer.cast(via(project_id), {:watch_agent, agent_id})
@@ -95,8 +105,6 @@ defmodule Shire.Agent.Coordinator do
   @impl true
   def init(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
-
-    Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:vm")
 
     state = %{
       project_id: project_id,
@@ -410,16 +418,21 @@ defmodule Shire.Agent.Coordinator do
   end
 
   @impl true
-  def handle_info({:vm_ready, _project_id}, %{deployed: true} = state) do
+  def handle_info(_msg, state) do
     {:noreply, state}
   end
 
-  def handle_info({:vm_ready, _project_id}, state) do
+  @impl true
+  def handle_cast(:deploy_and_scan, %{deployed: true} = state) do
+    {:noreply, state}
+  end
+
+  def handle_cast(:deploy_and_scan, state) do
     do_deploy_and_scan(state)
   end
 
   @impl true
-  def handle_info({:vm_woke_up, _project_id}, state) do
+  def handle_cast(:restart_idle_agents, state) do
     idle_agents =
       Enum.filter(state.statuses, fn {_id, status} -> status == :idle end)
 
@@ -440,11 +453,6 @@ defmodule Shire.Agent.Coordinator do
       end)
     end
 
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info(_msg, state) do
     {:noreply, state}
   end
 
