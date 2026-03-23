@@ -245,7 +245,10 @@ defmodule Shire.VirtualMachineLocal do
 
     File.mkdir_p!(root)
 
-    bootstrap_workspace(root)
+    case Shire.VirtualMachine.Setup.run(build_setup_ops(root)) do
+      :ok -> :ok
+      {:error, reason} -> Logger.error("Local VM setup failed: #{inspect(reason)}")
+    end
 
     Logger.info("Local VM ready for project #{project_id} at #{root}")
     update_registry_status(project_id, :running)
@@ -326,20 +329,40 @@ defmodule Shire.VirtualMachineLocal do
     end
   end
 
-  defp bootstrap_workspace(root) do
-    for dir <- [".runner", ".scripts", "shared", "agents"] do
-      File.mkdir_p!(Path.join(root, dir))
-    end
+  defp build_setup_ops(root) do
+    %{
+      write: fn path, content ->
+        File.mkdir_p!(Path.dirname(path))
 
-    project_md = Path.join(root, "PROJECT.md")
+        case File.write(path, content) do
+          :ok -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+      end,
+      mkdir_p: fn path ->
+        case File.mkdir_p(path) do
+          :ok -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+      end,
+      cmd: fn command, args, opts ->
+        timeout = Keyword.get(opts, :timeout, 30_000)
+        cmd_path = System.find_executable(command) || command
 
-    unless File.exists?(project_md) do
-      File.write!(project_md, """
-      # Project
+        task =
+          Task.async(fn ->
+            System.cmd(cmd_path, args, stderr_to_stdout: true, cd: root)
+          end)
 
-      Describe your project here. All agents will check this document for context before starting tasks and update it after completing work.
-      """)
-    end
+        case Task.yield(task, timeout) || Task.shutdown(task) do
+          {:ok, {output, 0}} -> {:ok, output}
+          {:ok, {output, code}} -> {:error, {:exit, code, output}}
+          nil -> {:error, :timeout}
+        end
+      end,
+      runner_dir: Path.join(root, ".runner"),
+      workspace_root: root
+    }
   end
 
   defp shell_escape(arg) do

@@ -184,6 +184,12 @@ defmodule Shire.VirtualMachineSprite do
       case init_vm(token, vm_name) do
         {:ok, sprite, fs} ->
           Logger.info("VM #{vm_name} ready (project: #{project_id})")
+
+          case Shire.VirtualMachine.Setup.run(build_setup_ops(sprite, fs)) do
+            :ok -> :ok
+            {:error, reason} -> Logger.error("VM setup failed: #{inspect(reason)}")
+          end
+
           update_registry_status(project_id, :running)
 
           {:ok,
@@ -550,6 +556,43 @@ defmodule Shire.VirtualMachineSprite do
         state
       end
     end
+  end
+
+  defp build_setup_ops(sprite, fs) do
+    ws_root = "/workspace"
+
+    %{
+      write: fn path, content ->
+        try do
+          Sprites.Filesystem.write!(fs, path, content)
+          :ok
+        rescue
+          e -> {:error, e}
+        end
+      end,
+      mkdir_p: fn path ->
+        try do
+          Sprites.Filesystem.mkdir_p!(fs, path)
+          :ok
+        rescue
+          e -> {:error, e}
+        end
+      end,
+      cmd: fn command, args, opts ->
+        timeout = Keyword.get(opts, :timeout, @default_cmd_timeout)
+
+        try do
+          case Sprites.cmd(sprite, command, args, timeout: timeout) do
+            {output, 0} -> {:ok, output}
+            {output, code} -> {:error, {:exit, code, output}}
+          end
+        rescue
+          e -> {:error, e}
+        end
+      end,
+      runner_dir: Path.join(ws_root, ".runner"),
+      workspace_root: ws_root
+    }
   end
 
   defp update_registry_status(project_id, status) do
