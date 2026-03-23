@@ -145,6 +145,7 @@ export default function AgentDashboard({
             <div className="flex-1 min-h-0">
               <ChatPanel
                 agent={selectedAgent}
+                projectName={project.name}
                 messages={messages}
                 hasMore={hasMore}
                 loadingMore={loadingMore}

@@ -60,6 +60,13 @@ defmodule Shire.Agent.AgentManager do
     - `scripts/` — Save reusable automation scripts (bash, JS/TS, Python) for future use
     - `documents/` — Store internal documents, notes, or references worth keeping
 
+    ## Attachments
+    To share files with the user in chat, write them to your attachments directory:
+    1. Generate a unique ID (e.g. 8 hex characters)
+    2. Create a subdirectory: `attachments/{unique-id}/`
+    3. Write the file inside it: `attachments/{unique-id}/filename.ext`
+    The file will automatically appear as a downloadable attachment in the user's chat.
+
     ## Shared Drive
     All agents can read and write files in `#{shared_path}/`. Use this for sharing documents,
     data, or artifacts that multiple agents need access to.
@@ -102,8 +109,8 @@ defmodule Shire.Agent.AgentManager do
     GenServer.start_link(__MODULE__, opts, name: via(project_id, agent_id))
   end
 
-  def send_message(project_id, agent_id, text, from \\ :user) do
-    GenServer.call(via(project_id, agent_id), {:send_message, text, from}, 60_000)
+  def send_message(project_id, agent_id, text, from \\ :user, opts \\ []) do
+    GenServer.call(via(project_id, agent_id), {:send_message, text, from, opts}, 60_000)
   end
 
   def interrupt(project_id, agent_id) do
@@ -221,12 +228,36 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
-  def handle_call({:send_message, text, _from}, _from_pid, %{status: :active} = state) do
+  def handle_call({:send_message, text, _from, opts}, _from_pid, %{status: :active} = state) do
+    attachments = Keyword.get(opts, :attachments, [])
+
+    payload =
+      case attachments do
+        [] ->
+          %{"text" => text}
+
+        _ ->
+          attachments_with_paths =
+            Enum.map(attachments, fn att ->
+              path =
+                Workspace.attachment_path(
+                  state.project_id,
+                  state.agent_id,
+                  att["id"],
+                  att["filename"]
+                )
+
+              Map.put(att, "path", path)
+            end)
+
+          %{"text" => text, "attachments" => attachments_with_paths}
+      end
+
     envelope = %{
       "ts" => System.system_time(:millisecond),
       "type" => "user_message",
       "from" => "user",
-      "payload" => %{"text" => text}
+      "payload" => payload
     }
 
     inbox_dir = Path.join(Workspace.agent_dir(state.project_id, state.agent_id), "inbox")
@@ -238,7 +269,9 @@ defmodule Shire.Agent.AgentManager do
            state.agent_id,
            text,
            inbox_path,
-           envelope
+           envelope,
+           nil,
+           attachments: attachments
          ) do
       {:ok, msg} ->
         {:reply, {:ok, msg}, state}
@@ -250,7 +283,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
-  def handle_call({:send_message, _text, _from}, _from_pid, state) do
+  def handle_call({:send_message, _text, _from, _opts}, _from_pid, state) do
     {:reply, {:error, :not_active}, state}
   end
 
@@ -416,6 +449,45 @@ defmodule Shire.Agent.AgentManager do
             broadcast(acc, {:agent_busy, acc.agent_id, active})
             acc
 
+          {:ok,
+           %{
+             "type" => "attachment",
+             "payload" =>
+               %{
+                 "id" => att_id,
+                 "filename" => filename,
+                 "size" => size,
+                 "content_type" => content_type
+               } = _payload
+           }} ->
+            attachment_meta = %{
+              "id" => att_id,
+              "filename" => filename,
+              "size" => size,
+              "content_type" => content_type
+            }
+
+            case Agents.create_message(%{
+                   project_id: acc.project_id,
+                   agent_id: acc.agent_id,
+                   role: "agent",
+                   content: %{"text" => "", "attachments" => [attachment_meta]}
+                 }) do
+              {:ok, msg} ->
+                event = %{
+                  "type" => "attachment",
+                  "payload" => attachment_meta,
+                  "message" => serialize_message(msg)
+                }
+
+                broadcast(acc, {:agent_event, acc.agent_id, event})
+
+              {:error, _} ->
+                :ok
+            end
+
+            acc
+
           {:ok, event} ->
             persist_and_broadcast(acc, event)
 
@@ -496,7 +568,7 @@ defmodule Shire.Agent.AgentManager do
     agent_dir = Workspace.agent_dir(project_id, agent_id)
 
     # Create agent directory structure
-    for subdir <- ["inbox", "outbox", "scripts", "documents", ".claude/skills"] do
+    for subdir <- ["inbox", "outbox", "scripts", "documents", "attachments", ".claude/skills"] do
       vm().mkdir_p(project_id, Path.join(agent_dir, subdir))
     end
 
@@ -858,7 +930,9 @@ defmodule Shire.Agent.AgentManager do
         })
 
       _ ->
-        Map.put(base, :text, msg.content["text"])
+        base
+        |> Map.put(:text, msg.content["text"])
+        |> Map.put(:attachments, msg.content["attachments"] || [])
     end
   end
 
