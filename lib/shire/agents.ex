@@ -20,16 +20,19 @@ defmodule Shire.Agents do
     |> Multi.run(:vm_setup, fn _repo, %{agent: agent} ->
       agent_dir = Workspace.agent_dir(project_id, agent.id)
 
-      with :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "inbox")),
-           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "outbox")),
-           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "scripts")),
-           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "documents")),
-           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "attachments")),
-           :ok <- vm.mkdir_p(project_id, Path.join(agent_dir, "attachments/outbox")),
-           :ok <- vm.write(project_id, Path.join(agent_dir, "recipe.yaml"), recipe_yaml) do
-        {:ok, agent.id}
-      else
-        {:error, reason} -> {:error, reason}
+      dirs =
+        for subdir <- ["inbox", "outbox", "scripts", "documents", "attachments/outbox"],
+            do: Path.join(agent_dir, subdir)
+
+      try do
+        vm.cmd!(project_id, "mkdir", ["-p" | dirs], [])
+
+        case vm.write(project_id, Path.join(agent_dir, "recipe.yaml"), recipe_yaml) do
+          :ok -> {:ok, agent.id}
+          {:error, reason} -> {:error, reason}
+        end
+      rescue
+        e -> {:error, Exception.message(e)}
       end
     end)
     |> Repo.transaction()
