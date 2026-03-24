@@ -226,40 +226,33 @@ defmodule Shire.Agents do
   Only counts messages with role "agent" (assistant text).
   """
   def unread_counts(project_id, last_read_ids) do
-    agent_ids =
-      from(a in Agent, where: a.project_id == ^project_id, select: a.id) |> Repo.all()
+    # Use the minimum last_read as a floor so the DB filters most rows,
+    # then count per agent with GROUP BY via Ecto subquery.
+    min_last_read =
+      last_read_ids
+      |> Map.values()
+      |> Enum.reject(&is_nil/1)
+      |> case do
+        [] -> 0
+        vals -> Enum.min(vals)
+      end
 
-    thresholds = Enum.map(agent_ids, &{&1, Map.get(last_read_ids, &1) || 0})
+    unread_sub =
+      from(m in Message,
+        where: m.project_id == ^project_id and m.role == "agent" and m.id > ^min_last_read,
+        group_by: m.agent_id,
+        select: %{agent_id: m.agent_id, count: count(m.id)}
+      )
 
-    if thresholds == [] do
-      %{}
-    else
-      # Build a VALUES virtual table with per-agent thresholds, then LEFT JOIN
-      # messages to count unread per agent in a single query.
-      # Agent IDs come from our DB and thresholds from GenServer state, so
-      # inlining them is safe.
-      values_sql =
-        thresholds
-        |> Enum.map(fn {aid, thr} ->
-          {:ok, uuid} = Ecto.UUID.cast(aid)
-          "('#{uuid}'::uuid, #{thr}::bigint)"
-        end)
-        |> Enum.join(", ")
-
-      sql = """
-      SELECT t.agent_id, COUNT(m.id)
-      FROM (VALUES #{values_sql}) AS t(agent_id, threshold)
-      LEFT JOIN messages m
-        ON m.agent_id = t.agent_id AND m.role = 'agent' AND m.id > t.threshold
-      GROUP BY t.agent_id
-      """
-
-      Repo.query!(sql, []).rows
-      |> Map.new(fn [agent_id_bin, count] ->
-        {:ok, agent_id} = Ecto.UUID.load(agent_id_bin)
-        {agent_id, count}
-      end)
-    end
+    from(a in Agent,
+      where: a.project_id == ^project_id,
+      left_join: u in subquery(unread_sub),
+      on: u.agent_id == a.id,
+      select: {a.id, u.count},
+      group_by: [a.id, u.count]
+    )
+    |> Repo.all()
+    |> Map.new(fn {agent_id, count} -> {agent_id, count || 0} end)
   end
 
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
