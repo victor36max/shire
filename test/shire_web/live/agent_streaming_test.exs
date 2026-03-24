@@ -262,6 +262,55 @@ defmodule ShireWeb.AgentLive.AgentStreamingTest do
     end
   end
 
+  describe "process_agent_event/2 with error" do
+    test "appends error message from broadcast when message is included" do
+      msg = %{
+        id: 20,
+        role: "system",
+        content: %{"text" => "Error: Rate limit exceeded"},
+        ts: "2024-01-01T00:00:00Z"
+      }
+
+      socket = mock_socket(%{streaming_text: "partial"})
+
+      event = %{
+        "type" => "error",
+        "payload" => %{"message" => "Rate limit exceeded"},
+        "message" => msg
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert List.last(socket.assigns.messages) == msg
+      assert socket.assigns.streaming_text == nil
+    end
+
+    test "creates fallback error message when no message in broadcast" do
+      socket = mock_socket()
+
+      event = %{
+        "type" => "error",
+        "payload" => %{"message" => "Something went wrong"}
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      error_msg = List.last(socket.assigns.messages)
+      assert error_msg[:role] == "system"
+      assert error_msg[:text] == "Error: Something went wrong"
+    end
+
+    test "pushes streaming_flush when streaming text was pending" do
+      socket = mock_socket(%{streaming_text: "partial"})
+
+      event = %{
+        "type" => "error",
+        "payload" => %{"message" => "Error occurred"}
+      }
+
+      socket = AgentStreaming.process_agent_event(socket, event)
+      assert ["streaming_flush", %{}] in pushed_events(socket)
+    end
+  end
+
   describe "display-only (no DB calls)" do
     test "does not create messages in DB for text events" do
       msg = %{id: 999, role: "agent", text: "Hello", ts: "2024-01-01T00:00:00Z"}

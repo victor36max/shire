@@ -117,6 +117,18 @@ defmodule ShireWeb.AgentLive.AgentStreaming do
       %{"type" => "turn_complete"} ->
         {messages, nil}
 
+      %{"type" => "error", "message" => msg} ->
+        {messages ++ [msg], nil}
+
+      %{"type" => "error", "payload" => %{"message" => error_msg}} ->
+        error_message = %{
+          role: "system",
+          text: "Error: #{error_msg}",
+          ts: DateTime.utc_now() |> to_string()
+        }
+
+        {messages ++ [error_message], nil}
+
       _ ->
         {messages, nil}
     end
