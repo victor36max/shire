@@ -398,7 +398,7 @@ export default function SharedDrive({ project, files, current_path, pushEvent }:
 
           {/* Preview Panel */}
           {previewFile && (
-            <div className="w-1/2 min-w-0 rounded-md border flex flex-col">
+            <div className="w-1/2 min-w-0 rounded-md border flex flex-col max-h-[calc(100vh-12rem)]">
               <div className="flex items-center justify-between border-b px-4 py-2">
                 <span className="text-sm font-medium truncate">{previewFile.name}</span>
                 <div className="flex items-center gap-1">
