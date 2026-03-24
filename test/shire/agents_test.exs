@@ -253,7 +253,12 @@ defmodule Shire.AgentsTest do
       agent: agent,
       agent2: agent2
     } do
-      counts = Agents.unread_counts(project.id, %{})
+      agents = [
+        %{id: agent.id, last_read_message_id: nil},
+        %{id: agent2.id, last_read_message_id: nil}
+      ]
+
+      counts = Agents.unread_counts(project.id, agents)
       assert Map.get(counts, agent.id) == 0
       assert Map.get(counts, agent2.id) == 0
     end
@@ -298,7 +303,8 @@ defmodule Shire.AgentsTest do
           content: %{"text" => "response"}
         })
 
-      counts = Agents.unread_counts(project.id, %{})
+      agents = [%{id: agent.id, last_read_message_id: nil}]
+      counts = Agents.unread_counts(project.id, agents)
       assert Map.get(counts, agent.id) == 1
     end
 
@@ -323,11 +329,13 @@ defmodule Shire.AgentsTest do
         })
 
       # All read
-      counts = Agents.unread_counts(project.id, %{agent.id => m2.id})
+      agents = [%{id: agent.id, last_read_message_id: m2.id}]
+      counts = Agents.unread_counts(project.id, agents)
       assert Map.get(counts, agent.id) == 0
 
       # Only first read
-      counts = Agents.unread_counts(project.id, %{agent.id => m1.id})
+      agents = [%{id: agent.id, last_read_message_id: m1.id}]
+      counts = Agents.unread_counts(project.id, agents)
       assert Map.get(counts, agent.id) == 1
     end
 
