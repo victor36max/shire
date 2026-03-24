@@ -751,6 +751,7 @@ defmodule Shire.Agent.AgentManager do
 
   defp persist_and_broadcast(state, %{"type" => "text_delta"} = event) do
     delta = get_in(event, ["payload", "delta"]) || ""
+    Logger.debug("text_delta for #{state.agent_name}: #{byte_size(delta)} bytes")
     state = %{state | streaming_text: (state.streaming_text || "") <> delta}
     broadcast(state, {:agent_event, state.agent_id, event})
     state
@@ -892,6 +893,30 @@ defmodule Shire.Agent.AgentManager do
   defp persist_and_broadcast(state, %{"type" => "turn_complete"} = event) do
     state = flush_and_broadcast_streaming(state)
     broadcast(state, {:agent_event, state.agent_id, event})
+    state
+  end
+
+  defp persist_and_broadcast(
+         state,
+         %{"type" => "error", "payload" => %{"message" => error_msg}} = event
+       ) do
+    state = flush_and_broadcast_streaming(state)
+    Logger.warning("Agent error for #{state.agent_name}: #{error_msg}")
+
+    case Agents.create_message(%{
+           project_id: state.project_id,
+           agent_id: state.agent_id,
+           role: "system",
+           content: %{"text" => "Error: #{error_msg}"}
+         }) do
+      {:ok, msg} ->
+        enriched = put_in(event, ["message"], serialize_message(msg))
+        broadcast(state, {:agent_event, state.agent_id, enriched})
+
+      {:error, _} ->
+        broadcast(state, {:agent_event, state.agent_id, event})
+    end
+
     state
   end
 
