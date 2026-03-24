@@ -78,6 +78,28 @@ defmodule ShireWeb.SharedDriveLive.Index do
     end
   end
 
+  @max_preview_size 1_048_576
+
+  def handle_event("preview-file", %{"path" => path}, socket) do
+    project_id = socket.assigns.project.id
+    vm_path = to_vm_path(project_id, path)
+
+    case vm().read(project_id, vm_path) do
+      {:ok, content} when byte_size(content) > @max_preview_size ->
+        {:reply, %{error: "File too large to preview"}, socket}
+
+      {:ok, content} ->
+        if String.valid?(content) do
+          {:reply, %{content: content}, socket}
+        else
+          {:reply, %{error: "File contains binary data and cannot be previewed as text"}, socket}
+        end
+
+      {:error, _} ->
+        {:reply, %{error: "Failed to read file"}, socket}
+    end
+  end
+
   def handle_event("upload-file", %{"name" => name, "content" => content}, socket) do
     project_id = socket.assigns.project.id
     path = join_path(socket.assigns.current_path, name)
@@ -136,12 +158,16 @@ defmodule ShireWeb.SharedDriveLive.Index do
   defp to_vm_path(project_id, path) do
     drive_path = Workspace.shared_dir(project_id)
     clean = path |> String.trim_leading("/") |> String.trim_trailing("/")
+    candidate = if clean == "", do: drive_path, else: Path.join(drive_path, clean)
 
-    if clean == "" do
-      drive_path
-    else
-      Path.join(drive_path, clean)
+    expanded = Path.expand(candidate)
+    expanded_root = Path.expand(drive_path)
+
+    unless expanded == expanded_root or String.starts_with?(expanded, expanded_root <> "/") do
+      raise ArgumentError, "path traversal detected"
     end
+
+    candidate
   end
 
   defp join_path("/", name), do: name
