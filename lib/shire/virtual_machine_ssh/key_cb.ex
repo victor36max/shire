@@ -7,6 +7,8 @@ defmodule Shire.VirtualMachineSSH.KeyCb do
   Accepts all host keys (no known_hosts verification).
   """
 
+  require Logger
+
   @behaviour :ssh_client_key_api
 
   @impl true
@@ -16,14 +18,25 @@ defmodule Shire.VirtualMachineSSH.KeyCb do
 
   @impl true
   def user_key(algorithm, opts) do
-    pem = opts[:key_pem] || raise "SSH key_pem not provided in KeyCb options"
+    case opts[:key_pem] do
+      nil ->
+        {:error, :no_key}
 
-    pem
-    |> :public_key.pem_decode()
-    |> find_key_for_algorithm(algorithm)
-    |> case do
-      {:ok, key} -> {:ok, key}
-      :error -> {:error, :no_matching_key}
+      pem ->
+        case :public_key.pem_decode(pem) do
+          [] ->
+            Logger.error(
+              "SSH key PEM decode returned no entries — key may be malformed or have incorrect newlines"
+            )
+
+            {:error, :no_matching_key}
+
+          entries ->
+            case find_key_for_algorithm(entries, algorithm) do
+              {:ok, key} -> {:ok, key}
+              :error -> {:error, :no_matching_key}
+            end
+        end
     end
   end
 

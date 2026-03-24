@@ -148,9 +148,13 @@ defmodule Shire.VirtualMachineSSH do
   def destroy_vm(project_id) do
     root = workspace_root(project_id)
 
-    case cmd(project_id, "rm", ["-rf", root]) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
+    try do
+      case cmd(project_id, "rm", ["-rf", root]) do
+        {:ok, _} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+    catch
+      :exit, _ -> :ok
     end
   end
 
@@ -205,14 +209,25 @@ defmodule Shire.VirtualMachineSSH do
 
   @impl GenServer
   def handle_call({:cmd, command, args, opts}, _from, state) do
+    state = ensure_connected(state)
     timeout = Keyword.get(opts, :timeout, @default_cmd_timeout)
-    result = ssh_exec(state.conn, command, args, opts, state.workspace_root, timeout)
-    {:reply, result, state}
+
+    case ssh_exec(state.conn, command, args, opts, state.workspace_root, timeout) do
+      {:error, {:channel_open, :closed}} ->
+        state = ensure_connected(%{state | conn: nil})
+        result = ssh_exec(state.conn, command, args, opts, state.workspace_root, timeout)
+        {:reply, result, state}
+
+      result ->
+        {:reply, result, state}
+    end
   end
 
   # --- handle_call: Filesystem ---
 
   def handle_call({:read, path}, _from, state) do
+    state = ensure_connected(state)
+
     result =
       case :ssh_sftp.read_file(state.sftp, to_charlist(path)) do
         {:ok, content} -> {:ok, content}
@@ -223,6 +238,7 @@ defmodule Shire.VirtualMachineSSH do
   end
 
   def handle_call({:write, path, content}, _from, state) do
+    state = ensure_connected(state)
     sftp_mkdir_p(state.sftp, Path.dirname(path))
 
     result =
@@ -235,11 +251,14 @@ defmodule Shire.VirtualMachineSSH do
   end
 
   def handle_call({:mkdir_p, path}, _from, state) do
+    state = ensure_connected(state)
     result = sftp_mkdir_p(state.sftp, path)
     {:reply, result, state}
   end
 
   def handle_call({:rm, path}, _from, state) do
+    state = ensure_connected(state)
+
     result =
       case :ssh_sftp.delete(state.sftp, to_charlist(path)) do
         :ok -> :ok
@@ -249,11 +268,9 @@ defmodule Shire.VirtualMachineSSH do
     {:reply, result, state}
   end
 
-  def handle_call({:rm_rf, _path}, _from, %{conn: nil} = state) do
-    {:reply, {:error, :no_connection}, state}
-  end
-
   def handle_call({:rm_rf, path}, _from, state) do
+    state = ensure_connected(state)
+
     result =
       ssh_exec(state.conn, "rm", ["-rf", path], [], state.workspace_root, @default_cmd_timeout)
 
@@ -267,6 +284,8 @@ defmodule Shire.VirtualMachineSSH do
   end
 
   def handle_call({:ls, path}, _from, state) do
+    state = ensure_connected(state)
+
     result =
       case :ssh_sftp.list_dir(state.sftp, to_charlist(path)) do
         {:ok, entries} ->
@@ -300,6 +319,8 @@ defmodule Shire.VirtualMachineSSH do
   end
 
   def handle_call({:stat, path}, _from, state) do
+    state = ensure_connected(state)
+
     result =
       case :ssh_sftp.read_file_info(state.sftp, to_charlist(path)) do
         {:ok, fi} ->
@@ -314,8 +335,12 @@ defmodule Shire.VirtualMachineSSH do
   end
 
   def handle_call(:get_conn, _from, state) do
+    state = ensure_connected(state)
     {:reply, state.conn, state}
   end
+
+  @impl GenServer
+  def handle_info({:ssh_cm, _, _}, state), do: {:noreply, state}
 
   @impl GenServer
   def terminate(reason, state) do
@@ -325,6 +350,46 @@ defmodule Shire.VirtualMachineSSH do
 
     if state[:sftp], do: :ssh_sftp.stop_channel(state.sftp)
     if state[:conn], do: :ssh.close(state.conn)
+  end
+
+  # --- Private: Connection Management ---
+
+  defp ensure_connected(state) do
+    if ssh_alive?(state.conn) do
+      state
+    else
+      Logger.info("SSH connection lost for project #{state.project_id}, reconnecting...")
+
+      try do
+        if state[:sftp], do: :ssh_sftp.stop_channel(state.sftp)
+        if state[:conn], do: :ssh.close(state.conn)
+      catch
+        _, _ -> :ok
+      end
+
+      config = Application.get_env(:shire, :ssh)
+
+      case connect(config) do
+        {:ok, conn, sftp} ->
+          Logger.info("SSH reconnected for project #{state.project_id}")
+          %{state | conn: conn, sftp: sftp}
+
+        {:error, reason} ->
+          Logger.error("SSH reconnect failed for project #{state.project_id}: #{inspect(reason)}")
+          state
+      end
+    end
+  end
+
+  defp ssh_alive?(nil), do: false
+
+  defp ssh_alive?(conn) do
+    Process.alive?(conn) and
+      match?({:status, _, _, _}, :sys.get_status(conn, 1000))
+  rescue
+    _ -> false
+  catch
+    _, _ -> false
   end
 
   # --- Private: SSH Connection ---
@@ -363,7 +428,10 @@ defmodule Shire.VirtualMachineSSH do
         [{:key_cb, {Shire.VirtualMachineSSH.KeyCb, key_pem: normalized_key}}]
 
       {_, password} when is_binary(password) and password != "" ->
-        [{:password, to_charlist(password)}]
+        [
+          {:password, to_charlist(password)},
+          {:key_cb, {Shire.VirtualMachineSSH.KeyCb, key_pem: nil}}
+        ]
 
       _ ->
         raise "SSH auth requires either SHIRE_SSH_KEY (raw PEM) or SHIRE_SSH_PASSWORD"
@@ -376,12 +444,14 @@ defmodule Shire.VirtualMachineSSH do
     env_prefix = build_env_prefix(Keyword.get(opts, :env))
     dir = Keyword.get(opts, :dir, workspace_root)
     cmd_str = build_command_string(command, args)
-    full_cmd = "#{env_prefix}cd #{shell_escape(dir)} && #{cmd_str}"
+    full_cmd = "#{source_profile()}#{env_prefix}cd #{shell_escape(dir)} && #{cmd_str}"
 
     case :ssh_connection.session_channel(conn, timeout) do
       {:ok, channel} ->
-        :ok = :ssh_connection.exec(conn, channel, to_charlist(full_cmd), timeout)
-        collect_exec_output(conn, channel, timeout)
+        case :ssh_connection.exec(conn, channel, to_charlist(full_cmd), timeout) do
+          :success -> collect_exec_output(conn, channel, timeout)
+          {:error, reason} -> {:error, {:exec_failed, reason}}
+        end
 
       {:error, reason} ->
         {:error, {:channel_open, reason}}
@@ -444,10 +514,16 @@ defmodule Shire.VirtualMachineSSH do
 
             env_prefix = build_env_prefix(env)
             cmd_str = build_command_string(command, args)
-            full_cmd = "#{env_prefix}cd #{shell_escape(dir)} && #{cmd_str}"
+            full_cmd = "#{source_profile()}#{env_prefix}cd #{shell_escape(dir)} && #{cmd_str}"
 
-            :ok = :ssh_connection.exec(conn, channel, to_charlist(full_cmd), @default_cmd_timeout)
-            forward_loop(conn, channel, caller, ref, _exit_code = nil)
+            case :ssh_connection.exec(conn, channel, to_charlist(full_cmd), @default_cmd_timeout) do
+              :success ->
+                forward_loop(conn, channel, caller, ref, _exit_code = nil)
+
+              {:error, reason} ->
+                send(caller, {:exit, %{ref: ref}, 1})
+                Logger.error("SSH exec failed: #{inspect(reason)}")
+            end
 
           {:error, reason} ->
             send(caller, {:exit, %{ref: ref}, 1})
@@ -527,6 +603,8 @@ defmodule Shire.VirtualMachineSSH do
     escaped_args = Enum.map_join(args, " ", &shell_escape/1)
     "#{shell_escape(command)} #{escaped_args}"
   end
+
+  defp source_profile, do: "{ [ -f ~/.shire_profile ] && . ~/.shire_profile; } ; "
 
   defp build_env_prefix(nil), do: ""
   defp build_env_prefix([]), do: ""
