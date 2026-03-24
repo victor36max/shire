@@ -171,7 +171,9 @@ mix precommit
 
 - `SHIRE_VM_TYPE` — selects VM backend: `sprites` (default, Firecracker), `ssh` (any VPS via SSH), or `local` (local filesystem for dev)
 - `SPRITES_TOKEN` — required when using the Sprite backend
-- `SHIRE_SSH_HOST` / `SHIRE_SSH_USER` / `SHIRE_SSH_KEY` — required when using the SSH backend
+- `SHIRE_SSH_HOST` / `SHIRE_SSH_USER` — required when using the SSH backend
+- `SHIRE_SSH_KEY` — raw PEM private key content (one of `SHIRE_SSH_KEY` or `SHIRE_SSH_PASSWORD` required for SSH)
+- `SHIRE_SSH_PASSWORD` — SSH password (alternative to `SHIRE_SSH_KEY`)
 - `SHIRE_SSH_PORT` — SSH port (default: `22`)
 - `SHIRE_SSH_WORKSPACE_ROOT` — workspace root on the remote host (default: `/home/{user}/shire/projects`)
 - `ANTHROPIC_API_KEY` — passed to agents using the Pi SDK harness

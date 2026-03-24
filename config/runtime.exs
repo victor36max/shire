@@ -52,6 +52,10 @@ if config_env() != :test do
   end
 
   if vm_type == "ssh" do
+    if is_nil(System.get_env("SHIRE_SSH_KEY")) and is_nil(System.get_env("SHIRE_SSH_PASSWORD")) do
+      raise "Either SHIRE_SSH_KEY or SHIRE_SSH_PASSWORD is required when SHIRE_VM_TYPE=ssh"
+    end
+
     config :shire, :ssh,
       host:
         System.get_env("SHIRE_SSH_HOST") ||
@@ -60,9 +64,8 @@ if config_env() != :test do
       user:
         System.get_env("SHIRE_SSH_USER") ||
           raise("SHIRE_SSH_USER is required when SHIRE_VM_TYPE=ssh"),
-      key_path:
-        System.get_env("SHIRE_SSH_KEY") ||
-          raise("SHIRE_SSH_KEY is required when SHIRE_VM_TYPE=ssh"),
+      key: System.get_env("SHIRE_SSH_KEY"),
+      password: System.get_env("SHIRE_SSH_PASSWORD"),
       workspace_root:
         System.get_env(
           "SHIRE_SSH_WORKSPACE_ROOT",
