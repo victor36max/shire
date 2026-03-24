@@ -50,6 +50,7 @@ export class PiHarness implements Harness {
       await session.prompt(content);
     } catch (err) {
       this.emitEvent({ type: "error", payload: { message: String(err) } });
+      this.emitEvent({ type: "turn_complete", payload: {} });
     } finally {
       this.processing = false;
     }
@@ -107,6 +108,7 @@ export class PiHarness implements Harness {
     });
     await loader.reload();
 
+    console.error(`[pi-harness] creating session with model ${config.model}, cwd ${config.cwd}`);
     const { session } = await createAgentSession({
       cwd: config.cwd,
       model,
@@ -122,7 +124,9 @@ export class PiHarness implements Harness {
   }
 
   private subscribeToSession(session: SessionLike): void {
+    console.error("[pi-harness] subscribed to session events");
     session.subscribe((event: AgentSessionEvent) => {
+      console.error(`[pi-harness] session event: ${event.type}`);
       switch (event.type) {
         case "message_update":
           if (event.assistantMessageEvent?.type === "text_delta") {
@@ -143,12 +147,24 @@ export class PiHarness implements Harness {
           break;
         }
         case "tool_execution_start":
-          this.emitEvent({ type: "tool_use", payload: { tool: event.toolName, status: "started" } });
+          this.emitEvent({
+            type: "tool_use",
+            payload: {
+              tool: event.toolName,
+              tool_use_id: event.toolCallId,
+              input: event.args ?? {},
+              status: "started",
+            },
+          });
           break;
         case "tool_execution_end":
           this.emitEvent({
-            type: "tool_use",
-            payload: { tool: event.toolName, status: "completed", result: event.result },
+            type: "tool_result",
+            payload: {
+              tool_use_id: event.toolCallId,
+              output: typeof event.result === "string" ? event.result : JSON.stringify(event.result),
+              is_error: event.isError ?? false,
+            },
           });
           break;
         case "agent_end":

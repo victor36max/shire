@@ -127,11 +127,17 @@ describe("PiHarness", () => {
     harness._setSessionFactory(async () => mockSession);
     await harness.start(baseConfig);
     await harness.sendMessage("run ls");
-    const toolEvents = events.filter((e) => e.type === "tool_use");
-    expect(toolEvents).toHaveLength(2);
-    expect(toolEvents[0].payload.status).toBe("started");
-    expect(toolEvents[0].payload.tool).toBe("bash");
-    expect(toolEvents[1].payload.status).toBe("completed");
+    const toolStart = events.filter((e) => e.type === "tool_use");
+    expect(toolStart).toHaveLength(1);
+    expect(toolStart[0].payload.status).toBe("started");
+    expect(toolStart[0].payload.tool).toBe("bash");
+    expect(toolStart[0].payload.tool_use_id).toBe("tc1");
+    expect(toolStart[0].payload.input).toEqual({});
+
+    const toolResult = events.filter((e) => e.type === "tool_result");
+    expect(toolResult).toHaveLength(1);
+    expect(toolResult[0].payload.tool_use_id).toBe("tc1");
+    expect(toolResult[0].payload.is_error).toBe(false);
   });
 
   test("sendMessage() prepends agent prefix for agent messages", async () => {
@@ -158,7 +164,7 @@ describe("PiHarness", () => {
     expect(harness.isProcessing()).toBe(false);
   });
 
-  test("sendMessage() emits error event on SDK failure", async () => {
+  test("sendMessage() emits error and turn_complete on SDK failure", async () => {
     const harness = new PiHarness();
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
@@ -172,6 +178,12 @@ describe("PiHarness", () => {
     const errorEvent = events.find((e) => e.type === "error");
     expect(errorEvent).toBeDefined();
     expect(String(errorEvent!.payload.message)).toContain("Rate limit exceeded");
+    const types = events.map((e) => e.type);
+    expect(types).toContain("turn_complete");
+    // turn_complete should come after error
+    const errorIdx = types.indexOf("error");
+    const turnIdx = types.indexOf("turn_complete");
+    expect(turnIdx).toBeGreaterThan(errorIdx);
   });
 
   test("stop() suppresses further event emission", async () => {
