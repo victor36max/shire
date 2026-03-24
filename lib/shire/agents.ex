@@ -226,33 +226,35 @@ defmodule Shire.Agents do
   Only counts messages with role "agent" (assistant text).
   """
   def unread_counts(project_id, last_read_ids) do
-    # Use the minimum last_read as a floor so the DB filters most rows,
-    # then count per agent with GROUP BY via Ecto subquery.
-    min_last_read =
-      last_read_ids
-      |> Map.values()
-      |> Enum.reject(&is_nil/1)
-      |> case do
-        [] -> 0
-        vals -> Enum.min(vals)
-      end
+    # Subquery: count unread agent-role messages per agent, using a dynamic
+    # WHERE clause that applies each agent's last_read threshold.
+    agent_ids =
+      from(a in Agent, where: a.project_id == ^project_id, select: a.id) |> Repo.all()
 
-    unread_sub =
+    # Build a single WHERE filter: (agent_id = X AND id > threshold_X) OR ...
+    # This lets Postgres count all agents in one grouped query.
+    unread_filter =
+      Enum.reduce(agent_ids, dynamic(false), fn aid, acc ->
+        thr = Map.get(last_read_ids, aid) || 0
+        dynamic([m], ^acc or (m.agent_id == ^aid and m.id > ^thr))
+      end)
+
+    count_sub =
       from(m in Message,
-        where: m.project_id == ^project_id and m.role == "agent" and m.id > ^min_last_read,
+        where: m.project_id == ^project_id and m.role == "agent",
+        where: ^unread_filter,
         group_by: m.agent_id,
         select: %{agent_id: m.agent_id, count: count(m.id)}
       )
 
     from(a in Agent,
       where: a.project_id == ^project_id,
-      left_join: u in subquery(unread_sub),
-      on: u.agent_id == a.id,
-      select: {a.id, u.count},
-      group_by: [a.id, u.count]
+      left_join: c in subquery(count_sub),
+      on: c.agent_id == a.id,
+      select: {a.id, coalesce(c.count, 0)}
     )
     |> Repo.all()
-    |> Map.new(fn {agent_id, count} -> {agent_id, count || 0} end)
+    |> Map.new()
   end
 
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
