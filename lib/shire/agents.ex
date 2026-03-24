@@ -226,41 +226,40 @@ defmodule Shire.Agents do
   Only counts messages with role "agent" (assistant text).
   """
   def unread_counts(project_id, last_read_ids) do
-    # Find the minimum last_read across all agents (or 0 if none).
-    # Use this as a floor to get all potentially-unread messages in one query,
-    # then filter per-agent in memory.
-    min_last_read =
-      last_read_ids
-      |> Map.values()
-      |> Enum.reject(&is_nil/1)
-      |> case do
-        [] -> 0
-        vals -> Enum.min(vals)
-      end
-
-    # Single query: get all relevant messages above the floor
-    rows =
-      from(m in Message,
-        where:
-          m.project_id == ^project_id and
-            m.role == "agent" and
-            m.id > ^min_last_read,
-        select: {m.agent_id, m.id}
-      )
-      |> Repo.all()
-
-    # Group by agent and count only messages above each agent's last_read
-    per_agent = Enum.group_by(rows, &elem(&1, 0), &elem(&1, 1))
-
     agent_ids =
       from(a in Agent, where: a.project_id == ^project_id, select: a.id) |> Repo.all()
 
-    Map.new(agent_ids, fn agent_id ->
-      last_read = Map.get(last_read_ids, agent_id) || 0
-      msg_ids = Map.get(per_agent, agent_id, [])
-      count = Enum.count(msg_ids, &(&1 > last_read))
-      {agent_id, count}
-    end)
+    thresholds = Enum.map(agent_ids, &{&1, Map.get(last_read_ids, &1) || 0})
+
+    if thresholds == [] do
+      %{}
+    else
+      # Build a VALUES virtual table with per-agent thresholds, then LEFT JOIN
+      # messages to count unread per agent in a single query.
+      # Agent IDs come from our DB and thresholds from GenServer state, so
+      # inlining them is safe.
+      values_sql =
+        thresholds
+        |> Enum.map(fn {aid, thr} ->
+          {:ok, uuid} = Ecto.UUID.cast(aid)
+          "('#{uuid}'::uuid, #{thr}::bigint)"
+        end)
+        |> Enum.join(", ")
+
+      sql = """
+      SELECT t.agent_id, COUNT(m.id)
+      FROM (VALUES #{values_sql}) AS t(agent_id, threshold)
+      LEFT JOIN messages m
+        ON m.agent_id = t.agent_id AND m.role = 'agent' AND m.id > t.threshold
+      GROUP BY t.agent_id
+      """
+
+      Repo.query!(sql, []).rows
+      |> Map.new(fn [agent_id_bin, count] ->
+        {:ok, agent_id} = Ecto.UUID.load(agent_id_bin)
+        {agent_id, count}
+      end)
+    end
   end
 
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
