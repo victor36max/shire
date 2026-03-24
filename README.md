@@ -209,4 +209,4 @@ When agents go idle, the VM auto-sleeps — preserving installed packages, works
 
 ## 📄 License
 
-[MIT](LICENSE)
+[Business Source License 1.1](LICENSE) — free for non-production use. Converts to Apache 2.0 on 2030-03-24.
