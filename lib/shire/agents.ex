@@ -218,38 +218,37 @@ defmodule Shire.Agents do
   end
 
   @doc """
-  Returns a map of `%{agent_id => unread_count}` for all agents in a project.
+  Returns a map of `%{agent_id => unread_count}` for agents in a project.
 
-  `last_read_ids` is a `%{agent_id => last_read_message_id | nil}` map from
-  the AgentManager GenServer state.
+  `agents` is the list of agent maps from `Coordinator.list_agents/1`.
+  Uses each agent's `last_read_message_id` to determine the threshold.
 
   Only counts messages with role "agent" (assistant text).
   """
-  def unread_counts(project_id, last_read_ids) do
-    # Subquery: count unread agent-role messages per agent, using a dynamic
-    # WHERE clause that applies each agent's last_read threshold.
-    agent_ids =
-      from(a in Agent, where: a.project_id == ^project_id, select: a.id) |> Repo.all()
+  def unread_counts(project_id, agents) do
+    if agents == [] do
+      %{}
+    else
+      # Build a single WHERE filter: (agent_id = X AND id > threshold_X) OR ...
+      # This lets Postgres count all agents in one grouped query.
+      unread_filter =
+        Enum.reduce(agents, dynamic(false), fn agent, acc ->
+          thr = agent.last_read_message_id || 0
+          dynamic([m], ^acc or (m.agent_id == ^agent.id and m.id > ^thr))
+        end)
 
-    # Build a single WHERE filter: (agent_id = X AND id > threshold_X) OR ...
-    # This lets Postgres count all agents in one grouped query.
-    unread_filter =
-      Enum.reduce(agent_ids, dynamic(false), fn aid, acc ->
-        thr = Map.get(last_read_ids, aid) || 0
-        dynamic([m], ^acc or (m.agent_id == ^aid and m.id > ^thr))
-      end)
+      counts =
+        from(m in Message,
+          where: m.project_id == ^project_id and m.role == "agent",
+          where: ^unread_filter,
+          group_by: m.agent_id,
+          select: {m.agent_id, count(m.id)}
+        )
+        |> Repo.all()
+        |> Map.new()
 
-    counts =
-      from(m in Message,
-        where: m.project_id == ^project_id and m.role == "agent",
-        where: ^unread_filter,
-        group_by: m.agent_id,
-        select: {m.agent_id, count(m.id)}
-      )
-      |> Repo.all()
-      |> Map.new()
-
-    Map.new(agent_ids, fn aid -> {aid, Map.get(counts, aid, 0)} end)
+      Map.new(agents, fn agent -> {agent.id, Map.get(counts, agent.id, 0)} end)
+    end
   end
 
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)

@@ -26,8 +26,7 @@ defmodule ShireWeb.AgentLive.Index do
 
         agents = Coordinator.list_agents(project_id)
         projects = ProjectManager.list_projects()
-        last_read_ids = Map.new(agents, &{&1.id, &1.last_read_message_id})
-        unread_counts = Agents.unread_counts(project_id, last_read_ids)
+        unread_counts = Agents.unread_counts(project_id, agents)
 
         {:ok,
          assign(socket,
@@ -340,8 +339,7 @@ defmodule ShireWeb.AgentLive.Index do
   def handle_info({:agent_created, _id}, socket) do
     project_id = socket.assigns.project.id
     agents = Coordinator.list_agents(project_id)
-    last_read_ids = Map.new(agents, &{&1.id, &1.last_read_message_id})
-    unread_counts = Agents.unread_counts(project_id, last_read_ids)
+    unread_counts = Agents.unread_counts(project_id, agents)
     {:noreply, assign(socket, agents: agents, unread_counts: unread_counts)}
   end
 
