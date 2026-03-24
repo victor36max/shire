@@ -340,7 +340,8 @@ defmodule Shire.Agent.Coordinator do
       Agents.list_agents(state.project_id)
       |> Enum.map(fn agent ->
         status = Map.get(state.statuses, agent.id, :created)
-        %{id: agent.id, name: agent.name, status: status}
+        last_read = get_last_read(state.project_id, agent.id)
+        %{id: agent.id, name: agent.name, status: status, last_read_message_id: last_read}
       end)
 
     {:reply, agents, state}
@@ -472,6 +473,12 @@ defmodule Shire.Agent.Coordinator do
     e ->
       Logger.error("Deploy and scan failed for #{state.project_id}: #{Exception.message(e)}")
       {:noreply, state}
+  end
+
+  defp get_last_read(project_id, agent_id) do
+    AgentManager.last_read_message_id(project_id, agent_id)
+  catch
+    :exit, _ -> nil
   end
 
   defp read_agent_recipe(project_id, agent_id) do

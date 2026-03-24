@@ -217,5 +217,39 @@ defmodule Shire.Agents do
     {messages, has_more}
   end
 
+  @doc """
+  Returns a map of `%{agent_id => unread_count}`.
+
+  `agents` is the list of agent maps from `Coordinator.list_agents/1`.
+  Uses each agent's `last_read_message_id` to determine the threshold.
+
+  Only counts messages with role "agent" (assistant text).
+  """
+  def unread_counts(agents) do
+    if agents == [] do
+      %{}
+    else
+      # Build a single WHERE filter: (agent_id = X AND id > threshold_X) OR ...
+      # This lets Postgres count all agents in one grouped query.
+      unread_filter =
+        Enum.reduce(agents, dynamic(false), fn agent, acc ->
+          thr = agent.last_read_message_id || 0
+          dynamic([m], ^acc or (m.agent_id == ^agent.id and m.id > ^thr))
+        end)
+
+      counts =
+        from(m in Message,
+          where: m.role == "agent",
+          where: ^unread_filter,
+          group_by: m.agent_id,
+          select: {m.agent_id, count(m.id)}
+        )
+        |> Repo.all()
+        |> Map.new()
+
+      Map.new(agents, fn agent -> {agent.id, Map.get(counts, agent.id, 0)} end)
+    end
+  end
+
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

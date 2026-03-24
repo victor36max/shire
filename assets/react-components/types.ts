@@ -26,6 +26,7 @@ export interface Agent {
   description?: string;
   status: AgentStatus;
   busy?: boolean;
+  unread_count?: number;
   model?: string;
   system_prompt?: string;
   harness?: HarnessType;
