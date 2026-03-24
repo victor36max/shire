@@ -258,7 +258,7 @@ defmodule Shire.AgentsTest do
       assert Map.get(counts, agent2.id) == 0
     end
 
-    test "unread_counts/2 counts only agent and inter_agent roles", %{
+    test "unread_counts/2 counts only agent role messages", %{
       project: project,
       agent: agent
     } do
@@ -280,6 +280,15 @@ defmodule Shire.AgentsTest do
           content: %{"tool" => "read", "tool_use_id" => "t1"}
         })
 
+      # Inter-agent message — should not count
+      {:ok, _} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "inter_agent",
+          content: %{"text" => "peer msg", "from_agent" => "other"}
+        })
+
       # Agent message — should count
       {:ok, _} =
         Agents.create_message(%{
@@ -289,17 +298,8 @@ defmodule Shire.AgentsTest do
           content: %{"text" => "response"}
         })
 
-      # Inter-agent message — should count
-      {:ok, _} =
-        Agents.create_message(%{
-          project_id: project.id,
-          agent_id: agent.id,
-          role: "inter_agent",
-          content: %{"text" => "peer msg", "from_agent" => "other"}
-        })
-
       counts = Agents.unread_counts(project.id, %{})
-      assert Map.get(counts, agent.id) == 2
+      assert Map.get(counts, agent.id) == 1
     end
 
     test "unread_counts/2 returns 0 when last_read is at latest message", %{

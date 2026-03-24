@@ -223,7 +223,7 @@ defmodule Shire.Agents do
   `last_read_ids` is a `%{agent_id => last_read_message_id | nil}` map from
   the AgentManager GenServer state.
 
-  Only counts messages with roles "agent" (assistant text) and "inter_agent".
+  Only counts messages with role "agent" (assistant text).
   """
   def unread_counts(project_id, last_read_ids) do
     # Find the minimum last_read across all agents (or 0 if none).
@@ -243,7 +243,7 @@ defmodule Shire.Agents do
       from(m in Message,
         where:
           m.project_id == ^project_id and
-            m.role in ["agent", "inter_agent"] and
+            m.role == "agent" and
             m.id > ^min_last_read,
         select: {m.agent_id, m.id}
       )
