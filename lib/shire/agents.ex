@@ -217,5 +217,51 @@ defmodule Shire.Agents do
     {messages, has_more}
   end
 
+  @doc """
+  Returns a map of `%{agent_id => unread_count}` for all agents in a project.
+
+  `last_read_ids` is a `%{agent_id => last_read_message_id | nil}` map from
+  the AgentManager GenServer state.
+
+  Only counts messages with roles "agent" (assistant text) and "inter_agent".
+  """
+  def unread_counts(project_id, last_read_ids) do
+    # Find the minimum last_read across all agents (or 0 if none).
+    # Use this as a floor to get all potentially-unread messages in one query,
+    # then filter per-agent in memory.
+    min_last_read =
+      last_read_ids
+      |> Map.values()
+      |> Enum.reject(&is_nil/1)
+      |> case do
+        [] -> 0
+        vals -> Enum.min(vals)
+      end
+
+    # Single query: get all relevant messages above the floor
+    rows =
+      from(m in Message,
+        where:
+          m.project_id == ^project_id and
+            m.role in ["agent", "inter_agent"] and
+            m.id > ^min_last_read,
+        select: {m.agent_id, m.id}
+      )
+      |> Repo.all()
+
+    # Group by agent and count only messages above each agent's last_read
+    per_agent = Enum.group_by(rows, &elem(&1, 0), &elem(&1, 1))
+
+    agent_ids =
+      from(a in Agent, where: a.project_id == ^project_id, select: a.id) |> Repo.all()
+
+    Map.new(agent_ids, fn agent_id ->
+      last_read = Map.get(last_read_ids, agent_id) || 0
+      msg_ids = Map.get(per_agent, agent_id, [])
+      count = Enum.count(msg_ids, &(&1 > last_read))
+      {agent_id, count}
+    end)
+  end
+
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end

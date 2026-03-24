@@ -84,7 +84,7 @@ describe("AgentSidebar", () => {
   it("shows status dots with correct colors", () => {
     const { container } = render(<AgentSidebar {...defaultProps} agents={agents} />);
 
-    const dots = container.querySelectorAll(".rounded-full");
+    const dots = container.querySelectorAll(".w-2.h-2.rounded-full");
     expect(dots[0]).toHaveClass("bg-status-active"); // active
     expect(dots[1]).toHaveClass("bg-status-idle"); // created
     expect(dots[2]).toHaveClass("bg-status-idle"); // idle
@@ -97,9 +97,36 @@ describe("AgentSidebar", () => {
     ];
     const { container } = render(<AgentSidebar {...defaultProps} agents={busyAgents} />);
 
-    const dots = container.querySelectorAll(".rounded-full");
+    const dots = container.querySelectorAll(".w-2.h-2.rounded-full");
     expect(dots[0]).toHaveClass("animate-pulse"); // active + busy
     expect(dots[1]).not.toHaveClass("animate-pulse"); // created + not busy
+  });
+
+  it("renders unread badge when unread_count > 0", () => {
+    const unreadAgents: Agent[] = [
+      { ...agents[0], unread_count: 5 },
+      { ...agents[1], unread_count: 0 },
+      { ...agents[2] },
+    ];
+    render(<AgentSidebar {...defaultProps} agents={unreadAgents} />);
+
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.queryAllByText("0")).toHaveLength(0);
+  });
+
+  it("renders 99+ when unread_count exceeds 99", () => {
+    const unreadAgents: Agent[] = [{ ...agents[0], unread_count: 150 }];
+    render(<AgentSidebar {...defaultProps} agents={unreadAgents} />);
+
+    expect(screen.getByText("99+")).toBeInTheDocument();
+  });
+
+  it("does not render unread badge when unread_count is 0 or undefined", () => {
+    const noUnreadAgents: Agent[] = [{ ...agents[0], unread_count: 0 }, { ...agents[1] }];
+    const { container } = render(<AgentSidebar {...defaultProps} agents={noUnreadAgents} />);
+
+    const badges = container.querySelectorAll(".bg-primary.rounded-full");
+    expect(badges).toHaveLength(0);
   });
 
   it("calls onBrowseCatalog when clicking Browse Catalog button", async () => {

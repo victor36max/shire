@@ -248,6 +248,89 @@ defmodule Shire.AgentsTest do
       refute Map.has_key?(msg.content, "attachments")
     end
 
+    test "unread_counts/2 returns 0 for agents with no messages", %{
+      project: project,
+      agent: agent,
+      agent2: agent2
+    } do
+      counts = Agents.unread_counts(project.id, %{})
+      assert Map.get(counts, agent.id) == 0
+      assert Map.get(counts, agent2.id) == 0
+    end
+
+    test "unread_counts/2 counts only agent and inter_agent roles", %{
+      project: project,
+      agent: agent
+    } do
+      # User message — should not count
+      {:ok, _} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "user",
+          content: %{"text" => "hello"}
+        })
+
+      # Tool use — should not count
+      {:ok, _} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "tool_use",
+          content: %{"tool" => "read", "tool_use_id" => "t1"}
+        })
+
+      # Agent message — should count
+      {:ok, _} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "agent",
+          content: %{"text" => "response"}
+        })
+
+      # Inter-agent message — should count
+      {:ok, _} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "inter_agent",
+          content: %{"text" => "peer msg", "from_agent" => "other"}
+        })
+
+      counts = Agents.unread_counts(project.id, %{})
+      assert Map.get(counts, agent.id) == 2
+    end
+
+    test "unread_counts/2 returns 0 when last_read is at latest message", %{
+      project: project,
+      agent: agent
+    } do
+      {:ok, m1} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "agent",
+          content: %{"text" => "first"}
+        })
+
+      {:ok, m2} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "agent",
+          content: %{"text" => "second"}
+        })
+
+      # All read
+      counts = Agents.unread_counts(project.id, %{agent.id => m2.id})
+      assert Map.get(counts, agent.id) == 0
+
+      # Only first read
+      counts = Agents.unread_counts(project.id, %{agent.id => m1.id})
+      assert Map.get(counts, agent.id) == 1
+    end
+
     test "delete_agent_with_vm/3 deletes agent and its messages", %{project: project} do
       {:ok, del_agent} =
         Agents.create_agent_with_vm(project.id, "delete-test", "version: 1\n", @vm)

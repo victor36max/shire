@@ -98,7 +98,8 @@ defmodule Shire.Agent.AgentManager do
     streaming_text: nil,
     tool_use_ids: %{},
     auto_restart_count: 0,
-    last_keepalive_touch: nil
+    last_keepalive_touch: nil,
+    last_read_message_id: nil
   ]
 
   # --- Public API ---
@@ -132,6 +133,14 @@ defmodule Shire.Agent.AgentManager do
   """
   def auto_restart(project_id, agent_id) do
     GenServer.call(via(project_id, agent_id), :auto_restart, 60_000)
+  end
+
+  def mark_read(project_id, agent_id, message_id) do
+    GenServer.cast(via(project_id, agent_id), {:mark_read, message_id})
+  end
+
+  def last_read_message_id(project_id, agent_id) do
+    GenServer.call(via(project_id, agent_id), :last_read_message_id)
   end
 
   defp via(project_id, agent_id) do
@@ -316,6 +325,11 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
+  def handle_call(:last_read_message_id, _from, state) do
+    {:reply, state.last_read_message_id, state}
+  end
+
+  @impl true
   def handle_call(:get_state, _from, state) do
     {:reply, Map.from_struct(state), state}
   end
@@ -400,6 +414,7 @@ defmodule Shire.Agent.AgentManager do
                 }
 
                 broadcast(acc, {:agent_event, acc.agent_id, event})
+                broadcast_new_message(acc, msg)
 
               {:error, _} ->
                 :ok
@@ -482,6 +497,7 @@ defmodule Shire.Agent.AgentManager do
                 }
 
                 broadcast(acc, {:agent_event, acc.agent_id, event})
+                broadcast_new_message(acc, msg)
 
               {:error, _} ->
                 :ok
@@ -538,6 +554,12 @@ defmodule Shire.Agent.AgentManager do
   def terminate(_reason, %{project_id: project_id, agent_id: agent_id} = _state) do
     kill_existing_runner(project_id, agent_id)
     :ok
+  end
+
+  @impl true
+  def handle_cast({:mark_read, message_id}, state) do
+    current = state.last_read_message_id || 0
+    {:noreply, %{state | last_read_message_id: max(current, message_id)}}
   end
 
   @impl true
@@ -716,6 +738,14 @@ defmodule Shire.Agent.AgentManager do
     Phoenix.PubSub.broadcast(Shire.PubSub, state.pubsub_topic, message)
   end
 
+  defp broadcast_new_message(state, %{id: msg_id, role: role}) do
+    Phoenix.PubSub.broadcast(
+      Shire.PubSub,
+      "project:#{state.project_id}:agents",
+      {:new_message_notification, state.agent_id, msg_id, role}
+    )
+  end
+
   defp maybe_touch_keepalive(state) do
     now = System.monotonic_time(:millisecond)
 
@@ -881,6 +911,7 @@ defmodule Shire.Agent.AgentManager do
         {:ok, msg} ->
           enriched = put_in(event, ["message"], serialize_message(msg))
           broadcast(state, {:agent_event, state.agent_id, enriched})
+          broadcast_new_message(state, msg)
 
         {:error, _} ->
           broadcast(state, {:agent_event, state.agent_id, event})
@@ -912,6 +943,7 @@ defmodule Shire.Agent.AgentManager do
       {:ok, msg} ->
         enriched = put_in(event, ["message"], serialize_message(msg))
         broadcast(state, {:agent_event, state.agent_id, enriched})
+        broadcast_new_message(state, msg)
 
       {:error, _} ->
         broadcast(state, {:agent_event, state.agent_id, event})
@@ -945,6 +977,7 @@ defmodule Shire.Agent.AgentManager do
         }
 
         broadcast(state, {:agent_event, state.agent_id, flush_event})
+        broadcast_new_message(state, msg)
 
       {:error, _} ->
         :ok

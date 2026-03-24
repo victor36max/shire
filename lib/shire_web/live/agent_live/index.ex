@@ -3,7 +3,7 @@ defmodule ShireWeb.AgentLive.Index do
 
   alias Shire.Agents
   alias Shire.Projects
-  alias Shire.Agent.Coordinator
+  alias Shire.Agent.{AgentManager, Coordinator}
   alias Shire.ProjectManager
   alias Shire.Workspace
   alias ShireWeb.AgentLive.{AgentStreaming, Helpers}
@@ -26,12 +26,15 @@ defmodule ShireWeb.AgentLive.Index do
 
         agents = Coordinator.list_agents(project_id)
         projects = ProjectManager.list_projects()
+        last_read_ids = Map.new(agents, &{&1.id, &1.last_read_message_id})
+        unread_counts = Agents.unread_counts(project_id, last_read_ids)
 
         {:ok,
          assign(socket,
            project: %{id: project.id, name: project.name},
            projects: projects,
            agents: agents,
+           unread_counts: unread_counts,
            selected_agent_id: nil,
            selected_agent: nil,
            messages: [],
@@ -167,13 +170,22 @@ defmodule ShireWeb.AgentLive.Index do
 
         {messages, has_more} = Agents.list_messages_for_agent(project_id, agent_id, limit: 50)
 
+        latest_id =
+          case List.last(messages) do
+            nil -> nil
+            msg -> msg.id
+          end
+
+        if latest_id, do: AgentManager.mark_read(project_id, agent_id, latest_id)
+
         {:noreply,
          assign(socket,
            selected_agent_id: agent_id,
            selected_agent: agent,
            messages: Enum.map(messages, &Helpers.serialize_message/1),
            has_more: has_more,
-           streaming_text: nil
+           streaming_text: nil,
+           unread_counts: Map.put(socket.assigns.unread_counts, agent_id, 0)
          )}
 
       {:error, _} ->
@@ -283,6 +295,25 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
+  def handle_info({:new_message_notification, agent_id, message_id, role}, socket) do
+    project_id = socket.assigns.project.id
+
+    if agent_id == socket.assigns.selected_agent_id do
+      AgentManager.mark_read(project_id, agent_id, message_id)
+      {:noreply, socket}
+    else
+      if role in ["agent", "inter_agent"] do
+        unread_counts =
+          Map.update(socket.assigns.unread_counts, agent_id, 1, &(&1 + 1))
+
+        {:noreply, assign(socket, :unread_counts, unread_counts)}
+      else
+        {:noreply, socket}
+      end
+    end
+  end
+
+  @impl true
   def handle_info({:agent_busy, agent_id, active}, socket) do
     busy_agents =
       if active do
@@ -307,8 +338,11 @@ defmodule ShireWeb.AgentLive.Index do
 
   @impl true
   def handle_info({:agent_created, _id}, socket) do
-    agents = Coordinator.list_agents(socket.assigns.project.id)
-    {:noreply, assign(socket, :agents, agents)}
+    project_id = socket.assigns.project.id
+    agents = Coordinator.list_agents(project_id)
+    last_read_ids = Map.new(agents, &{&1.id, &1.last_read_message_id})
+    unread_counts = Agents.unread_counts(project_id, last_read_ids)
+    {:noreply, assign(socket, agents: agents, unread_counts: unread_counts)}
   end
 
   @impl true
@@ -441,6 +475,7 @@ defmodule ShireWeb.AgentLive.Index do
         agent
         |> Map.put(:busy, MapSet.member?(assigns.busy_agents, agent.id))
         |> Map.put(:status, status)
+        |> Map.put(:unread_count, Map.get(assigns.unread_counts, agent.id, 0))
       end)
 
     assigns = assign(assigns, :agents_with_busy, agents_with_busy)
