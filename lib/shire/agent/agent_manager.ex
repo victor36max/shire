@@ -99,6 +99,8 @@ defmodule Shire.Agent.AgentManager do
     tool_use_ids: %{},
     auto_restart_count: 0,
     last_keepalive_touch: nil,
+    # Ephemeral: resets to nil if this GenServer process restarts.
+    # When multi-user support is added, move to a per-user DB table.
     last_read_message_id: nil
   ]
 
