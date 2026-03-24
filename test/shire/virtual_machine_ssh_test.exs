@@ -8,7 +8,7 @@ defmodule Shire.VirtualMachineSSHTest do
     SHIRE_SSH_HOST (default: localhost)
     SHIRE_SSH_PORT (default: 22)
     SHIRE_SSH_USER (default: current user)
-    SHIRE_SSH_KEY  (default: ~/.ssh/id_ed25519)
+    SHIRE_SSH_KEY  (raw PEM content; default: reads ~/.ssh/id_ed25519)
   """
   use ExUnit.Case, async: false
 
@@ -19,7 +19,14 @@ defmodule Shire.VirtualMachineSSHTest do
   setup_all do
     host = System.get_env("SHIRE_SSH_HOST", "localhost")
     user = System.get_env("SHIRE_SSH_USER", System.get_env("USER"))
-    key = System.get_env("SHIRE_SSH_KEY", Path.expand("~/.ssh/id_ed25519"))
+    key = System.get_env("SHIRE_SSH_KEY")
+    password = System.get_env("SHIRE_SSH_PASSWORD")
+
+    key =
+      if is_nil(key) and is_nil(password),
+        do: File.read!(Path.expand("~/.ssh/id_ed25519")),
+        else: key
+
     port = String.to_integer(System.get_env("SHIRE_SSH_PORT", "22"))
 
     workspace_root =
@@ -29,7 +36,8 @@ defmodule Shire.VirtualMachineSSHTest do
       host: host,
       port: port,
       user: user,
-      key_path: key,
+      key: key,
+      password: password,
       workspace_root: workspace_root
     )
 

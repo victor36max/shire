@@ -2,8 +2,8 @@ defmodule Shire.VirtualMachineSSH.KeyCb do
   @moduledoc """
   SSH client key callback for in-memory private key authentication.
 
-  Implements the `:ssh_client_key_api` behaviour. Reads the private key file
-  from the path provided in options, decodes it, and returns it for authentication.
+  Implements the `:ssh_client_key_api` behaviour. Decodes a raw PEM string
+  provided in options and returns the key for authentication.
   Accepts all host keys (no known_hosts verification).
   """
 
@@ -16,20 +16,14 @@ defmodule Shire.VirtualMachineSSH.KeyCb do
 
   @impl true
   def user_key(algorithm, opts) do
-    key_path = opts[:key_path] || raise "SSH key_path not provided in KeyCb options"
+    pem = opts[:key_pem] || raise "SSH key_pem not provided in KeyCb options"
 
-    case File.read(key_path) do
-      {:ok, pem} ->
-        pem
-        |> :public_key.pem_decode()
-        |> find_key_for_algorithm(algorithm)
-        |> case do
-          {:ok, key} -> {:ok, key}
-          :error -> {:error, :no_matching_key}
-        end
-
-      {:error, reason} ->
-        {:error, {:key_file_unreadable, key_path, reason}}
+    pem
+    |> :public_key.pem_decode()
+    |> find_key_for_algorithm(algorithm)
+    |> case do
+      {:ok, key} -> {:ok, key}
+      :error -> {:error, :no_matching_key}
     end
   end
 
