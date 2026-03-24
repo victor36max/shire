@@ -159,6 +159,18 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  button,
+  [role="button"],
+  a,
+  summary,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  input[type="checkbox"],
+  input[type="radio"],
+  label {
+    cursor: pointer;
+  }
 }
 
 /* Make LiveView wrapper divs transparent for layout */
