@@ -139,7 +139,8 @@ Create a `.env` file in the project root. It's automatically loaded in dev/test 
 | `SHIRE_VM_TYPE` | `sprites` | VM backend: `sprites` (Firecracker), `ssh` (any VPS), or `local` (local filesystem for dev) |
 | `SHIRE_SSH_HOST` | — | SSH hostname (required when `SHIRE_VM_TYPE=ssh`) |
 | `SHIRE_SSH_USER` | — | SSH username (required when `SHIRE_VM_TYPE=ssh`) |
-| `SHIRE_SSH_KEY` | — | Path to SSH private key (required when `SHIRE_VM_TYPE=ssh`) |
+| `SHIRE_SSH_KEY` | — | Raw SSH private key PEM content (one of `SHIRE_SSH_KEY` or `SHIRE_SSH_PASSWORD` required when `SHIRE_VM_TYPE=ssh`) |
+| `SHIRE_SSH_PASSWORD` | — | SSH password (alternative to `SHIRE_SSH_KEY`) |
 | `SHIRE_SSH_PORT` | `22` | SSH port |
 | `SHIRE_SSH_WORKSPACE_ROOT` | `/home/$SHIRE_SSH_USER/shire/projects` | Workspace root on the remote host |
 

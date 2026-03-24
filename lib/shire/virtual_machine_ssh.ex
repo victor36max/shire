@@ -333,15 +333,16 @@ defmodule Shire.VirtualMachineSSH do
     host = to_charlist(config[:host])
     port = config[:port]
     user = to_charlist(config[:user])
-    key_path = Path.expand(config[:key_path])
 
-    ssh_opts = [
-      {:user, user},
-      {:key_cb, {Shire.VirtualMachineSSH.KeyCb, key_path: key_path}},
-      {:silently_accept_hosts, true},
-      {:connect_timeout, @connect_timeout},
-      {:user_interaction, false}
-    ]
+    auth_opts = auth_opts(config)
+
+    ssh_opts =
+      [
+        {:user, user},
+        {:silently_accept_hosts, true},
+        {:connect_timeout, @connect_timeout},
+        {:user_interaction, false}
+      ] ++ auth_opts
 
     case :ssh.connect(host, port, ssh_opts) do
       {:ok, conn} ->
@@ -352,6 +353,20 @@ defmodule Shire.VirtualMachineSSH do
 
       {:error, reason} ->
         {:error, {:ssh_connect, reason}}
+    end
+  end
+
+  defp auth_opts(config) do
+    case {config[:key], config[:password]} do
+      {key, _} when is_binary(key) and key != "" ->
+        normalized_key = String.replace(key, "\\n", "\n")
+        [{:key_cb, {Shire.VirtualMachineSSH.KeyCb, key_pem: normalized_key}}]
+
+      {_, password} when is_binary(password) and password != "" ->
+        [{:password, to_charlist(password)}]
+
+      _ ->
+        raise "SSH auth requires either SHIRE_SSH_KEY (raw PEM) or SHIRE_SSH_PASSWORD"
     end
   end
 
