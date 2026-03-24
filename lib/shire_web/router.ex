@@ -37,6 +37,7 @@ defmodule ShireWeb.Router do
     pipe_through :browser
 
     get "/projects/:project_name/shared/download", SharedDriveController, :download
+    get "/projects/:project_name/shared/preview", SharedDriveController, :preview
 
     get "/projects/:project_name/agents/:agent_id/attachments/:attachment_id/:filename",
         AttachmentController,
