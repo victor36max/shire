@@ -24,7 +24,7 @@ function createMockSession() {
         } as AgentSessionEvent);
         subscriber({
           type: "message_end",
-          message: { content: [{ type: "text", text: "Hello world" }] },
+          message: { role: "assistant", content: [{ type: "text", text: "Hello world" }] },
         } as AgentSessionEvent);
         subscriber({ type: "agent_end" } as AgentSessionEvent);
       }
@@ -103,6 +103,30 @@ describe("PiHarness", () => {
     expect(types).toContain("turn_complete");
     const textEvent = events.find((e) => e.type === "text");
     expect(textEvent?.payload.text).toBe("Hello world");
+  });
+
+  test("sendMessage() does not emit text for user message_end events", async () => {
+    const harness = new PiHarness();
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    const mockSession = createMockSession();
+    mockSession.prompt = mock(async () => {
+      mockSession.fireEvent({
+        type: "message_end",
+        message: { role: "user", content: [{ type: "text", text: "Hi there" }] },
+      } as AgentSessionEvent);
+      mockSession.fireEvent({
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
+    });
+    harness._setSessionFactory(async () => mockSession);
+    await harness.start(baseConfig);
+    await harness.sendMessage("Hi there");
+    const textEvents = events.filter((e) => e.type === "text");
+    expect(textEvents).toHaveLength(1);
+    expect(textEvents[0].payload.text).toBe("Hello");
   });
 
   test("sendMessage() maps tool events", async () => {
