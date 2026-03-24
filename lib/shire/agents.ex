@@ -218,14 +218,14 @@ defmodule Shire.Agents do
   end
 
   @doc """
-  Returns a map of `%{agent_id => unread_count}` for agents in a project.
+  Returns a map of `%{agent_id => unread_count}`.
 
   `agents` is the list of agent maps from `Coordinator.list_agents/1`.
   Uses each agent's `last_read_message_id` to determine the threshold.
 
   Only counts messages with role "agent" (assistant text).
   """
-  def unread_counts(project_id, agents) do
+  def unread_counts(agents) do
     if agents == [] do
       %{}
     else
@@ -239,7 +239,7 @@ defmodule Shire.Agents do
 
       counts =
         from(m in Message,
-          where: m.project_id == ^project_id and m.role == "agent",
+          where: m.role == "agent",
           where: ^unread_filter,
           group_by: m.agent_id,
           select: {m.agent_id, count(m.id)}
