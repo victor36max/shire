@@ -249,7 +249,6 @@ defmodule Shire.AgentsTest do
     end
 
     test "unread_counts/2 returns 0 for agents with no messages", %{
-      project: project,
       agent: agent,
       agent2: agent2
     } do
@@ -258,7 +257,7 @@ defmodule Shire.AgentsTest do
         %{id: agent2.id, last_read_message_id: nil}
       ]
 
-      counts = Agents.unread_counts(project.id, agents)
+      counts = Agents.unread_counts(agents)
       assert Map.get(counts, agent.id) == 0
       assert Map.get(counts, agent2.id) == 0
     end
@@ -304,7 +303,7 @@ defmodule Shire.AgentsTest do
         })
 
       agents = [%{id: agent.id, last_read_message_id: nil}]
-      counts = Agents.unread_counts(project.id, agents)
+      counts = Agents.unread_counts(agents)
       assert Map.get(counts, agent.id) == 1
     end
 
@@ -330,12 +329,12 @@ defmodule Shire.AgentsTest do
 
       # All read
       agents = [%{id: agent.id, last_read_message_id: m2.id}]
-      counts = Agents.unread_counts(project.id, agents)
+      counts = Agents.unread_counts(agents)
       assert Map.get(counts, agent.id) == 0
 
       # Only first read
       agents = [%{id: agent.id, last_read_message_id: m1.id}]
-      counts = Agents.unread_counts(project.id, agents)
+      counts = Agents.unread_counts(agents)
       assert Map.get(counts, agent.id) == 1
     end
 
