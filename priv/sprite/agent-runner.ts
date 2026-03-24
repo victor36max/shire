@@ -153,13 +153,18 @@ export async function processInbox(harness: Harness, inboxDir = INBOX_DIR): Prom
   const files = await readdir(inboxDir);
   const sorted = files.filter((f) => f.endsWith(".yaml") || f.endsWith(".yml")).sort();
 
+  let processed = 0;
+
   for (const file of sorted) {
     const path = join(inboxDir, file);
     try {
+      const s = await stat(path);
+      if (s.size === 0) continue;
       const raw = await readFile(path, "utf-8");
       const envelope = yaml.load(raw) as MessageEnvelope;
       await processMessage(harness, envelope);
       await unlink(path);
+      processed++;
     } catch (err) {
       emit("error", { message: `Failed to process ${file}: ${err}` });
       try {
@@ -167,10 +172,11 @@ export async function processInbox(harness: Harness, inboxDir = INBOX_DIR): Prom
       } catch {
         // File may already be gone
       }
+      processed++;
     }
   }
 
-  return sorted.length;
+  return processed;
 }
 
 // ---------------------------------------------------------------------------

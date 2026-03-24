@@ -138,7 +138,10 @@ export default function ProjectDashboard({ projects, pushEvent }: ProjectDashboa
                           )}
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
-                            onClick={() => setDeleteProject(project)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteProject(project);
+                            }}
                           >
                             Delete
                           </DropdownMenuItem>
