@@ -337,10 +337,8 @@ defmodule ShireWeb.AgentLive.Index do
 
   @impl true
   def handle_info({:agent_created, _id}, socket) do
-    project_id = socket.assigns.project.id
-    agents = Coordinator.list_agents(project_id)
-    unread_counts = Agents.unread_counts(agents)
-    {:noreply, assign(socket, agents: agents, unread_counts: unread_counts)}
+    agents = Coordinator.list_agents(socket.assigns.project.id)
+    {:noreply, assign(socket, :agents, agents)}
   end
 
   @impl true
@@ -358,12 +356,7 @@ defmodule ShireWeb.AgentLive.Index do
         socket.assigns.selected_agent
       end
 
-    {:noreply,
-     assign(socket,
-       agents: agents,
-       unread_counts: Agents.unread_counts(agents),
-       selected_agent: selected_agent
-     )}
+    {:noreply, assign(socket, agents: agents, selected_agent: selected_agent)}
   end
 
   @impl true
@@ -381,30 +374,23 @@ defmodule ShireWeb.AgentLive.Index do
         socket.assigns.selected_agent
       end
 
-    {:noreply,
-     assign(socket,
-       agents: agents,
-       unread_counts: Agents.unread_counts(agents),
-       selected_agent: selected_agent
-     )}
+    {:noreply, assign(socket, agents: agents, selected_agent: selected_agent)}
   end
 
   @impl true
   def handle_info({:agent_deleted, agent_id}, socket) do
     agents = Coordinator.list_agents(socket.assigns.project.id)
-    unread_counts = Agents.unread_counts(agents)
 
     if socket.assigns.selected_agent_id == agent_id do
       {:noreply,
        assign(socket,
          agents: agents,
-         unread_counts: unread_counts,
          selected_agent_id: nil,
          selected_agent: nil,
          messages: []
        )}
     else
-      {:noreply, assign(socket, agents: agents, unread_counts: unread_counts)}
+      {:noreply, assign(socket, :agents, agents)}
     end
   end
 
