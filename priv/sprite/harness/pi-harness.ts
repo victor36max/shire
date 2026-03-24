@@ -86,13 +86,11 @@ export class PiHarness implements Harness {
       SettingsManager,
       DefaultResourceLoader,
     } = await import("@mariozechner/pi-coding-agent");
-    const { getModel } = await import("@mariozechner/pi-ai");
 
     const authStorage = AuthStorage.inMemory();
     const modelRegistry = new ModelRegistry(authStorage);
-    const [provider, modelName] = config.model.split("/");
-    const model = getModel(provider, modelName);
-    if (!model) throw new Error(`Model not found: ${config.model}`);
+    const model = modelRegistry.getAvailable().find((m) => m.id === config.model);
+    if (!model) throw new Error(`Model not found or no API key configured: ${config.model}`);
 
     const settingsManager = SettingsManager.inMemory({
       compaction: { enabled: true },
@@ -108,7 +106,7 @@ export class PiHarness implements Harness {
     });
     await loader.reload();
 
-    console.error(`[pi-harness] creating session with model ${config.model}, cwd ${config.cwd}`);
+    console.error(`[pi-harness] creating session with model ${model.provider}/${model.id}, cwd ${config.cwd}`);
     const { session } = await createAgentSession({
       cwd: config.cwd,
       model,
