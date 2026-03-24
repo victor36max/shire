@@ -132,7 +132,7 @@ export class PiHarness implements Harness {
           }
           break;
         case "message_end": {
-          if (event.message?.role !== "assistant") break;
+          if (event.message.role !== "assistant") break;
           const content = event.message.content;
           const text = Array.isArray(content)
             ? content
