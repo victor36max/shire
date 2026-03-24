@@ -105,7 +105,7 @@ describe("PiHarness", () => {
     expect(textEvent?.payload.text).toBe("Hello world");
   });
 
-  test("sendMessage() does not emit text for user message_end events", async () => {
+  test("sendMessage() only emits text for assistant message_end events", async () => {
     const harness = new PiHarness();
     const events: AgentEvent[] = [];
     harness.onEvent((e) => events.push(e));
@@ -114,6 +114,10 @@ describe("PiHarness", () => {
       mockSession.fireEvent({
         type: "message_end",
         message: { role: "user", content: [{ type: "text", text: "Hi there" }] },
+      } as AgentSessionEvent);
+      mockSession.fireEvent({
+        type: "message_end",
+        message: { role: "toolResult", content: [{ type: "text", text: "tool output" }] },
       } as AgentSessionEvent);
       mockSession.fireEvent({
         type: "message_end",
