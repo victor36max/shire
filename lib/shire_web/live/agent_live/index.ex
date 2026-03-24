@@ -302,7 +302,7 @@ defmodule ShireWeb.AgentLive.Index do
       AgentManager.mark_read(project_id, agent_id, message_id)
       {:noreply, socket}
     else
-      if role in ["agent", "inter_agent"] do
+      if role == "agent" do
         unread_counts =
           Map.update(socket.assigns.unread_counts, agent_id, 1, &(&1 + 1))
 
