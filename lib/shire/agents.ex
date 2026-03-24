@@ -239,22 +239,17 @@ defmodule Shire.Agents do
         dynamic([m], ^acc or (m.agent_id == ^aid and m.id > ^thr))
       end)
 
-    count_sub =
+    counts =
       from(m in Message,
         where: m.project_id == ^project_id and m.role == "agent",
         where: ^unread_filter,
         group_by: m.agent_id,
-        select: %{agent_id: m.agent_id, count: count(m.id)}
+        select: {m.agent_id, count(m.id)}
       )
+      |> Repo.all()
+      |> Map.new()
 
-    from(a in Agent,
-      where: a.project_id == ^project_id,
-      left_join: c in subquery(count_sub),
-      on: c.agent_id == a.id,
-      select: {a.id, coalesce(c.count, 0)}
-    )
-    |> Repo.all()
-    |> Map.new()
+    Map.new(agent_ids, fn aid -> {aid, Map.get(counts, aid, 0)} end)
   end
 
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
