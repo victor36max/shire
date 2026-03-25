@@ -14,7 +14,7 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
 - **Persistent workspaces** — Each agent gets its own directory with inbox/outbox, scripts, and documents — backed by a Firecracker VM, remote VPS, or local filesystem.
 - **Pluggable VM backends** — Run on [Fly.io Sprites](https://sprites.dev) (Firecracker), any VPS via SSH, or your local machine for development.
 - **Multi-harness runtime** — Bring your own agent runtime. Supports Pi SDK and Claude Code CLI through a unified adapter pattern.
-- **Recipe-based deployment** — Define agents as simple YAML recipes with setup scripts. No Dockerfiles, no complex configs.
+- **Recipe-based deployment** — Define agents as simple YAML recipes. No Dockerfiles, no complex configs.
 - **Agent catalog** — Browse and deploy from a built-in catalog of pre-built agent templates.
 - **Inter-agent communication** — Agents discover peers and exchange messages through a file-based mailbox system.
 - **Scheduled tasks** — Automate agent work with one-time or recurring messages on custom intervals.
@@ -219,23 +219,22 @@ Projects are the top-level unit. Each project gets its own VM with isolated stor
 
 ### 2. Define a Recipe
 
-Agents are defined as YAML recipes — a name, description, and setup scripts:
+Agents are defined as YAML recipes:
 
 ```yaml
 name: researcher
 description: An agent that searches the web and summarizes findings
-scripts:
-  - name: install-tools
-    run: |
-      apt-get update && apt-get install -y curl jq
-  - name: setup-workspace
-    run: |
-      mkdir -p /workspace/research
+harness: claude_code
+model: sonnet
+system_prompt: |
+  You are a research assistant. Search the web and summarize findings.
 ```
+
+Recipe fields: `name`, `description`, `harness` (`claude_code` or `pi_sdk`), `model`, `system_prompt`, and `skills`.
 
 ### 3. Deploy
 
-Hit "Create Agent", paste your recipe or pick one from the catalog. Shire bootstraps the workspace, runs setup scripts, and spawns the agent runner.
+Hit "Create Agent", paste your recipe or pick one from the catalog. Shire bootstraps the workspace and spawns the agent runner.
 
 ### 4. Collaborate
 
