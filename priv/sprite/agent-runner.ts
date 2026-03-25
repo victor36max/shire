@@ -153,6 +153,9 @@ export async function processMessage(harness: Harness, envelope: MessageEnvelope
       emit("system_message_received", { text });
     }
     await harness.sendMessage(prefix + text, from);
+  } else if (envelope.type === "clear_session") {
+    await harness.clearSession();
+    emit("session_cleared", {});
   } else if (envelope.type === "interrupt") {
     await harness.interrupt();
     emit("interrupted", {});

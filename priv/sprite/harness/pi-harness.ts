@@ -17,6 +17,7 @@ export class PiHarness implements Harness {
   private sessionPending: Promise<SessionLike> | null = null;
   private config: HarnessConfig | null = null;
   private sessionFactory: SessionFactory | null = null;
+  private skipContinue = false;
 
   _setSessionFactory(factory: SessionFactory): void {
     this.sessionFactory = factory;
@@ -34,7 +35,7 @@ export class PiHarness implements Harness {
     if (!this.sessionPending) {
       this.sessionPending = this.createSession(this.config).then((s) => {
         this.subscribeToSession(s);
-        this.session = s;
+        if (!this.session) this.session = s;
         this.sessionPending = null;
         return s;
       });
@@ -54,6 +55,14 @@ export class PiHarness implements Harness {
     } finally {
       this.processing = false;
     }
+  }
+
+  async clearSession(): Promise<void> {
+    const old = this.session ?? (await this.sessionPending?.catch(() => null));
+    this.session = null;
+    this.sessionPending = null;
+    this.skipContinue = true;
+    if (old) await old.abort().catch(() => {});
   }
 
   async interrupt(): Promise<void> {
@@ -115,9 +124,10 @@ export class PiHarness implements Harness {
       modelRegistry,
       tools: createCodingTools(config.cwd),
       resourceLoader: loader,
-      sessionManager: SessionManager.continueRecent(config.cwd),
+      sessionManager: this.skipContinue ? undefined : SessionManager.continueRecent(config.cwd),
       settingsManager,
     });
+    this.skipContinue = false;
     return session;
   }
 

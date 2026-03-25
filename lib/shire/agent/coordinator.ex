@@ -73,6 +73,10 @@ defmodule Shire.Agent.Coordinator do
     AgentManager.interrupt(project_id, agent_id)
   end
 
+  def clear_session(project_id, agent_id) do
+    AgentManager.clear_session(project_id, agent_id)
+  end
+
   @doc "Look up a running agent's pid by ID within a project."
   def lookup(project_id, agent_id) do
     case Registry.lookup(Shire.AgentRegistry, {project_id, agent_id}) do
