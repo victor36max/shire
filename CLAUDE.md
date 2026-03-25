@@ -11,7 +11,7 @@
 - **Agent deployment:** Recipe-based (YAML recipes on the VM filesystem, no DB schema)
 - **Agent catalog:** Static YAML agent templates in `priv/catalog/agents/`, read on demand by `Shire.Catalog`
 - **Scheduled tasks:** Oban-based job processing for recurring/one-time automated agent messaging
-- **Inter-agent comms:** File-based inbox/outbox directories + host-side outbox polling + peer discovery via `peers.yaml`
+- **Inter-agent comms:** File-based inbox/outbox directories + `fs.watch` in `agent-runner.ts` + peer discovery via `peers.yaml`
 - **Shared drive:** Shared filesystem synced to all agents at `{workspace_root}/shared/` (also mounted at `/drive` on Sprite VMs)
 
 ## Architecture: LiveView + React Split
@@ -55,11 +55,11 @@
 
 **Agent lifecycle:**
 - `Coordinator` handles per-project agent CRUD — writes `recipe.yaml` to VM, starts `AgentManager` under `DynamicSupervisor`
-- `AgentManager` bootstraps workspace dirs (inbox, outbox, scripts, documents), writes communication prompts, spawns `agent-runner.ts`
+- `AgentManager` bootstraps workspace dirs (inbox, outbox, scripts, documents, attachments/outbox, .claude/skills), writes `INTERNAL.md` system prompt, deploys skills, spawns `agent-runner.ts`
 
 **File attachments** — Agents can send and receive file attachments. Stored on the VM at `{workspace_root}/agents/{id}/attachments/{attachment_id}/{filename}`. Served to the browser via `AttachmentController`.
 
-**Inter-agent messaging** — Agents write JSON envelopes to outbox. `AgentManager` polls every 2s (pauses after 15 min idle), routes to target inbox. Messages persisted to DB as `role: "inter_agent"`.
+**Inter-agent messaging** — Agents write YAML envelopes to outbox. `agent-runner.ts` watches outbox dirs via `fs.watch` and routes to target inbox. Messages persisted to DB as `role: "inter_agent"`.
 
 **Scheduled tasks** — Oban-based (`scheduled_tasks` table). Supports one-time and recurring (cron-based) automated messages to agents. `ScheduleWorker` executes jobs; `Shire.Schedules.ensure_jobs_enqueued/0` re-enqueues on app boot.
 
@@ -73,7 +73,7 @@ lib/shire/
   agents.ex                       # Context: Agent + Message CRUD
   agents/                         # Ecto schemas (agent.ex, message.ex)
   agent/
-    agent_manager.ex              # Per-agent GenServer: lifecycle, runner, outbox polling
+    agent_manager.ex              # Per-agent GenServer: lifecycle, runner, messaging
     coordinator.ex                # Per-project: VM bootstrap, agent CRUD, message routing
     terminal_session.ex           # Interactive TTY on the VM
   catalog.ex                      # Reads agent templates from priv/catalog/
@@ -152,7 +152,7 @@ mix format --check-formatted       # Elixir formatting
 mix test                           # Elixir tests
 
 # Frontend (from assets/)
-cd assets && bun run tsc --noEmit  # TypeScript typecheck
+cd assets && bunx tsc --noEmit     # TypeScript typecheck
 cd assets && bun run lint          # ESLint
 cd assets && bun run format:check  # Prettier
 cd assets && bun run test          # Vitest component tests
@@ -162,7 +162,7 @@ cd priv/sprite && bun run lint          # ESLint
 cd priv/sprite && bun run format:check  # Prettier
 ```
 
-Full precommit (compile + format + test):
+Full precommit (compile + deps.unlock + format + lint + test):
 ```bash
 mix precommit
 ```
@@ -176,7 +176,6 @@ mix precommit
 - `SHIRE_SSH_PASSWORD` — SSH password (alternative to `SHIRE_SSH_KEY`)
 - `SHIRE_SSH_PORT` — SSH port (default: `22`)
 - `SHIRE_SSH_WORKSPACE_ROOT` — workspace root on the remote host (default: `/home/{user}/shire/projects`)
-- `ANTHROPIC_API_KEY` — passed to agents using the Pi SDK harness
 
 ## Guidelines
 
