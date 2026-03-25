@@ -448,4 +448,31 @@ describe("ClaudeCodeHarness", () => {
     expect(params.options?.allowedTools).toContain("Skill");
     expect(params.options?.settingSources).toEqual(["project"]);
   });
+
+  test("clearSession() causes next sendMessage to skip continue", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+
+    await harness.start(baseConfig);
+    await harness.clearSession();
+    await harness.sendMessage("Fresh start");
+
+    const params = mockQuery.mock.calls[0][0];
+    expect(params.options?.continue).toBe(false);
+  });
+
+  test("clearSession() only affects the immediately following sendMessage", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+
+    await harness.start(baseConfig);
+    await harness.clearSession();
+    await harness.sendMessage("First after clear");
+    await harness.sendMessage("Second after clear");
+
+    expect(mockQuery.mock.calls[0][0].options?.continue).toBe(false);
+    expect(mockQuery.mock.calls[1][0].options?.continue).toBe(true);
+  });
 });

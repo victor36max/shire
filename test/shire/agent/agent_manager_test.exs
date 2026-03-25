@@ -126,6 +126,38 @@ defmodule Shire.Agent.AgentManagerTest do
     end
   end
 
+  describe "clear_session/2" do
+    test "returns error when agent is not active", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      assert {:error, :not_active} = GenServer.call(pid, :clear_session)
+    end
+
+    test "writes clear_session envelope to inbox when active", ctx do
+      Mox.set_mox_global()
+      test_pid = self()
+
+      expect(Shire.VirtualMachineMock, :write, fn _project, path, content ->
+        send(test_pid, {:write_called, path, content})
+        :ok
+      end)
+
+      {:ok, pid} = start_manager(ctx)
+
+      ref = make_ref()
+
+      :sys.replace_state(pid, fn state ->
+        %{state | command: %{ref: ref}, command_ref: ref, status: :active}
+      end)
+
+      assert :ok = GenServer.call(pid, :clear_session)
+
+      assert_receive {:write_called, path, content}, 1_000
+      assert path =~ "/inbox/"
+      assert content =~ "clear_session"
+    end
+  end
+
   describe "responsiveness" do
     test "get_state responds immediately even during non-idle statuses", ctx do
       {:ok, pid} = start_manager(ctx)
@@ -347,6 +379,20 @@ defmodule Shire.Agent.AgentManagerTest do
       assert length(agent_msgs) == 2
       texts = Enum.map(agent_msgs, & &1.content["text"]) |> Enum.sort()
       assert texts == ["direct", "streamed"]
+    end
+
+    test "persists session_cleared event as system message in DB", %{pid: pid, ref: ref} do
+      line = Jason.encode!(%{"type" => "session_cleared", "payload" => %{}})
+      send(pid, {:stdout, %{ref: ref}, line <> "\n"})
+
+      assert_receive {:agent_event, _, %{"type" => "system_message", "message" => msg}}, 1_000
+      assert msg[:text] == "Session cleared"
+      assert msg[:role] == "system"
+      assert msg[:id]
+
+      db_msg = Agents.get_message!(msg[:id])
+      assert db_msg.role == "system"
+      assert db_msg.content["text"] == "Session cleared"
     end
 
     test "broadcasts include agent_id in 3-tuple", ctx do

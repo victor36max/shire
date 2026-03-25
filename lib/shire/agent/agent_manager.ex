@@ -125,6 +125,10 @@ defmodule Shire.Agent.AgentManager do
     GenServer.call(server, :get_state, 60_000)
   end
 
+  def clear_session(project_id, agent_id) do
+    GenServer.call(via(project_id, agent_id), :clear_session, 15_000)
+  end
+
   def restart(project_id, agent_id) do
     GenServer.call(via(project_id, agent_id), :restart, 60_000)
   end
@@ -327,6 +331,34 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
+  def handle_call(:clear_session, _from, %{status: :active} = state) do
+    envelope = %{
+      "ts" => System.system_time(:millisecond),
+      "type" => "clear_session",
+      "from" => "user",
+      "payload" => %{}
+    }
+
+    inbox_dir = Path.join(Workspace.agent_dir(state.project_id, state.agent_id), "inbox")
+    filename = "#{envelope["ts"]}-#{random_suffix()}.yaml"
+    inbox_path = Path.join(inbox_dir, filename)
+
+    case vm().write(state.project_id, inbox_path, Ymlr.document!(envelope)) do
+      :ok ->
+        {:reply, :ok, state}
+
+      {:error, reason} ->
+        Logger.warning("Failed to write clear_session: #{inspect(reason)}")
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
+  def handle_call(:clear_session, _from, state) do
+    {:reply, {:error, :not_active}, state}
+  end
+
+  @impl true
   def handle_call(:last_read_message_id, _from, state) do
     {:reply, state.last_read_message_id, state}
   end
@@ -439,6 +471,28 @@ defmodule Shire.Agent.AgentManager do
                 event = %{
                   "type" => "system_message",
                   "payload" => %{"text" => text},
+                  "message" => serialize_message(msg)
+                }
+
+                broadcast(acc, {:agent_event, acc.agent_id, event})
+
+              {:error, _} ->
+                :ok
+            end
+
+            acc
+
+          {:ok, %{"type" => "session_cleared"}} ->
+            case Agents.create_message(%{
+                   project_id: acc.project_id,
+                   agent_id: acc.agent_id,
+                   role: "system",
+                   content: %{"text" => "Session cleared"}
+                 }) do
+              {:ok, msg} ->
+                event = %{
+                  "type" => "system_message",
+                  "payload" => %{"text" => "Session cleared"},
                   "message" => serialize_message(msg)
                 }
 
