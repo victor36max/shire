@@ -17,6 +17,7 @@ defmodule Shire.Agent.CoordinatorTest do
     stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
     stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
     stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+    stub(Shire.VirtualMachineMock, :mkdir_p_many, fn _project, _paths -> :ok end)
     stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
 
     stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
@@ -395,6 +396,7 @@ defmodule Shire.Agent.CoordinatorTest do
       unique_name = "coord-create-test-#{System.unique_integer([:positive])}"
 
       stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :mkdir_p_many, fn _project, _paths -> :ok end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       result =
@@ -411,6 +413,7 @@ defmodule Shire.Agent.CoordinatorTest do
       unique_name = "coord-dup-test-#{System.unique_integer([:positive])}"
 
       stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :mkdir_p_many, fn _project, _paths -> :ok end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       recipe = "version: 1\nname: #{unique_name}\n"
@@ -491,6 +494,7 @@ defmodule Shire.Agent.CoordinatorTest do
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
       stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
       stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :mkdir_p_many, fn _project, _paths -> :ok end)
       stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
 
       stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
@@ -532,6 +536,7 @@ defmodule Shire.Agent.CoordinatorTest do
       stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
       stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
       stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :mkdir_p_many, fn _project, _paths -> :ok end)
       stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
 
       stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
@@ -587,6 +592,7 @@ defmodule Shire.Agent.CoordinatorTest do
       stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
       stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
       stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :mkdir_p_many, fn _project, _paths -> :ok end)
       stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
 
       stub(Shire.VirtualMachineMock, :spawn_command, fn _project, _cmd, _args, _opts ->
@@ -642,6 +648,7 @@ defmodule Shire.Agent.CoordinatorTest do
       stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
       stub(Shire.VirtualMachineMock, :read, fn _project, _path -> {:error, :enoent} end)
       stub(Shire.VirtualMachineMock, :mkdir_p, fn _project, _path -> :ok end)
+      stub(Shire.VirtualMachineMock, :mkdir_p_many, fn _project, _paths -> :ok end)
       stub(Shire.VirtualMachineMock, :rm_rf, fn _project, _path -> :ok end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 

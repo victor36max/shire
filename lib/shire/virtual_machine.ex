@@ -15,6 +15,7 @@ defmodule Shire.VirtualMachine do
   @callback read(String.t(), binary()) :: cmd_result()
   @callback write(String.t(), binary(), binary()) :: fs_result()
   @callback mkdir_p(String.t(), binary()) :: fs_result()
+  @callback mkdir_p_many(String.t(), [binary()]) :: fs_result()
   @callback rm(String.t(), binary()) :: fs_result()
   @callback rm_rf(String.t(), binary()) :: fs_result()
   @callback ls(String.t(), binary()) :: {:ok, [map()]} | {:error, term()}
