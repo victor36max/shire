@@ -10,7 +10,7 @@ defmodule Shire.Agent.AgentManager do
   alias Shire.Agents
   alias Shire.Workspace
 
-  defp comms_prompt(agent_name, agent_id, project_id) do
+  defp internal_system_prompt(agent_name, agent_id, project_id) do
     peers_path = Workspace.peers_path(project_id)
     outbox_path = Path.join(Workspace.agent_dir(project_id, agent_id), "outbox/<any-name>.yaml")
     shared_path = Workspace.shared_dir(project_id)
@@ -590,22 +590,15 @@ defmodule Shire.Agent.AgentManager do
 
     vm().cmd!(project_id, "mkdir", ["-p" | dirs], [])
 
-    # Read recipe to determine harness type
-    recipe = read_recipe(project_id, agent_id)
-    harness = recipe["harness"] || "claude_code"
-
-    # Write comms instructions to the file the harness reads
-    comms_file =
-      case harness do
-        "claude_code" -> "CLAUDE.md"
-        _ -> "AGENTS.md"
-      end
-
+    # Write internal system prompt for the runner to inject
     vm().write(
       project_id,
-      Path.join(agent_dir, comms_file),
-      comms_prompt(agent_name, agent_id, project_id)
+      Path.join(agent_dir, "INTERNAL.md"),
+      internal_system_prompt(agent_name, agent_id, project_id)
     )
+
+    # Read recipe for skill deployment
+    recipe = read_recipe(project_id, agent_id)
 
     # Deploy skills from recipe
     deploy_skills(project_id, recipe, agent_dir)

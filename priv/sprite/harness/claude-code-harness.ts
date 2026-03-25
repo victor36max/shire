@@ -32,7 +32,7 @@ export class ClaudeCodeHarness implements Harness {
         prompt: content,
         options: {
           model: this.config.model,
-          systemPrompt: this.config.systemPrompt,
+          systemPrompt: [this.config.internalSystemPrompt, this.config.systemPrompt].filter(Boolean).join("\n\n"),
           cwd: this.config.cwd,
           allowedTools: ["Bash", "Read", "Edit", "Write", "Skill"],
           settingSources: ["project"],
