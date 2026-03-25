@@ -6,6 +6,7 @@ import ChatHeader from "./ChatHeader";
 import ChatPanel, { type Message } from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
 import { type Agent, type CatalogAgent, type CatalogAgentSummary, type CatalogCategory, type Project } from "./types";
+import { navigate } from "./lib/navigate";
 
 interface AgentDashboardProps {
   project: { id: string; name: string };
@@ -91,7 +92,10 @@ export default function AgentDashboard({
 
   const handleSelectAgent = (id: string) => {
     setSidebarOpen(false);
-    pushEvent("select-agent", { id });
+    const agent = agents.find((a) => a.id === id);
+    if (agent) {
+      navigate(`/projects/${project.name}/agents/${agent.name}`);
+    }
   };
 
   const handleDeleteAgent = (agent: Agent) => {

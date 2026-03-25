@@ -142,7 +142,14 @@ defmodule ShireWeb.AgentLive.Show do
   @impl true
   def handle_info({:agent_renamed, _agent_id, _old_name, new_name}, socket) do
     agent = Map.put(socket.assigns.agent, :name, new_name)
-    {:noreply, assign(socket, :agent, agent)}
+
+    {:noreply,
+     socket
+     |> assign(:agent, agent)
+     |> push_patch(
+       to: ~p"/projects/#{socket.assigns.project.name}/agents/#{new_name}/settings",
+       replace: true
+     )}
   end
 
   @impl true

@@ -54,8 +54,45 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
+  def handle_params(%{"agent_name" => agent_name}, _url, socket) do
+    project = socket.assigns.project
+
+    case Agents.get_agent_by_name(project.id, agent_name) do
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Agent not found")
+         |> push_patch(to: ~p"/projects/#{project.name}")}
+
+      agent_record ->
+        if agent_record.id == socket.assigns.selected_agent_id do
+          {:noreply, assign(socket, :page_title, agent_name)}
+        else
+          {:noreply,
+           socket
+           |> select_agent(project.id, agent_record.id)
+           |> assign(:page_title, agent_name)}
+        end
+    end
+  end
+
   def handle_params(_params, _url, socket) do
-    {:noreply, assign(socket, :page_title, "Agents")}
+    if old = socket.assigns.selected_agent_id do
+      Phoenix.PubSub.unsubscribe(
+        Shire.PubSub,
+        "project:#{socket.assigns.project.id}:agent:#{old}"
+      )
+    end
+
+    {:noreply,
+     assign(socket,
+       page_title: "Agents",
+       selected_agent_id: nil,
+       selected_agent: nil,
+       messages: [],
+       has_more: false,
+       streaming_text: nil
+     )}
   end
 
   # Agent CRUD events
@@ -68,20 +105,14 @@ defmodule ShireWeb.AgentLive.Index do
       :ok ->
         agents = Coordinator.list_agents(project_id)
 
-        selected =
-          if socket.assigns.selected_agent_id == agent_id do
-            nil
-          else
-            socket.assigns.selected_agent_id
-          end
-
-        {:noreply,
-         assign(socket,
-           agents: agents,
-           selected_agent_id: selected,
-           selected_agent: if(selected, do: socket.assigns.selected_agent, else: nil),
-           messages: if(selected, do: socket.assigns.messages, else: [])
-         )}
+        if socket.assigns.selected_agent_id == agent_id do
+          {:noreply,
+           socket
+           |> assign(:agents, agents)
+           |> push_patch(to: ~p"/projects/#{socket.assigns.project.name}")}
+        else
+          {:noreply, assign(socket, :agents, agents)}
+        end
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to delete: #{inspect(reason)}")}
@@ -151,46 +182,7 @@ defmodule ShireWeb.AgentLive.Index do
     end
   end
 
-  # Agent selection and chat events
-
-  @impl true
-  def handle_event("select-agent", %{"id" => agent_id}, socket) do
-    project_id = socket.assigns.project.id
-
-    case Coordinator.get_agent(project_id, agent_id) do
-      {:ok, agent} ->
-        if connected?(socket) do
-          if old = socket.assigns.selected_agent_id do
-            Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:agent:#{old}")
-          end
-
-          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
-        end
-
-        {messages, has_more} = Agents.list_messages_for_agent(project_id, agent_id, limit: 50)
-
-        latest_id =
-          case List.last(messages) do
-            nil -> nil
-            msg -> msg.id
-          end
-
-        if latest_id, do: AgentManager.mark_read(project_id, agent_id, latest_id)
-
-        {:noreply,
-         assign(socket,
-           selected_agent_id: agent_id,
-           selected_agent: agent,
-           messages: Enum.map(messages, &Helpers.serialize_message/1),
-           has_more: has_more,
-           streaming_text: nil,
-           unread_counts: Map.put(socket.assigns.unread_counts, agent_id, 0)
-         )}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Agent not found")}
-    end
-  end
+  # Chat events
 
   @impl true
   def handle_event("send-message", %{"text" => text} = params, socket) do
@@ -360,21 +352,27 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   @impl true
-  def handle_info({:agent_renamed, agent_id, _old_name, _new_name}, socket) do
+  def handle_info({:agent_renamed, agent_id, _old_name, new_name}, socket) do
     project_id = socket.assigns.project.id
     agents = Coordinator.list_agents(project_id)
 
-    selected_agent =
-      if socket.assigns.selected_agent_id == agent_id do
+    if socket.assigns.selected_agent_id == agent_id do
+      selected_agent =
         case Coordinator.get_agent(project_id, agent_id) do
           {:ok, agent} -> agent
           _ -> socket.assigns.selected_agent
         end
-      else
-        socket.assigns.selected_agent
-      end
 
-    {:noreply, assign(socket, agents: agents, selected_agent: selected_agent)}
+      {:noreply,
+       socket
+       |> assign(agents: agents, selected_agent: selected_agent)
+       |> push_patch(
+         to: ~p"/projects/#{socket.assigns.project.name}/agents/#{new_name}",
+         replace: true
+       )}
+    else
+      {:noreply, assign(socket, :agents, agents)}
+    end
   end
 
   @impl true
@@ -383,12 +381,9 @@ defmodule ShireWeb.AgentLive.Index do
 
     if socket.assigns.selected_agent_id == agent_id do
       {:noreply,
-       assign(socket,
-         agents: agents,
-         selected_agent_id: nil,
-         selected_agent: nil,
-         messages: []
-       )}
+       socket
+       |> assign(:agents, agents)
+       |> push_patch(to: ~p"/projects/#{socket.assigns.project.name}")}
     else
       {:noreply, assign(socket, :agents, agents)}
     end
@@ -409,6 +404,41 @@ defmodule ShireWeb.AgentLive.Index do
   end
 
   # --- Private helpers ---
+
+  defp select_agent(socket, project_id, agent_id) do
+    case Coordinator.get_agent(project_id, agent_id) do
+      {:ok, agent} ->
+        if connected?(socket) do
+          if old = socket.assigns.selected_agent_id do
+            Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:agent:#{old}")
+          end
+
+          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
+        end
+
+        {messages, has_more} = Agents.list_messages_for_agent(project_id, agent_id, limit: 50)
+
+        latest_id =
+          case List.last(messages) do
+            nil -> nil
+            msg -> msg.id
+          end
+
+        if latest_id, do: AgentManager.mark_read(project_id, agent_id, latest_id)
+
+        assign(socket,
+          selected_agent_id: agent_id,
+          selected_agent: agent,
+          messages: Enum.map(messages, &Helpers.serialize_message/1),
+          has_more: has_more,
+          streaming_text: nil,
+          unread_counts: Map.put(socket.assigns.unread_counts, agent_id, 0)
+        )
+
+      {:error, _} ->
+        put_flash(socket, :error, "Agent not found")
+    end
+  end
 
   defp store_attachments(_project_id, _agent_id, []), do: {:ok, []}
 
