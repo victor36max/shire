@@ -2,6 +2,7 @@
 export interface HarnessConfig {
   model: string;
   systemPrompt: string;
+  internalSystemPrompt?: string;
   cwd: string;
   maxTokens?: number;
 }

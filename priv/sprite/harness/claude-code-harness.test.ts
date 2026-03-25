@@ -149,6 +149,33 @@ describe("ClaudeCodeHarness", () => {
     expect(params.options?.permissionMode).toBe("bypassPermissions");
   });
 
+  test("sendMessage() composes internalSystemPrompt with systemPrompt", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+
+    await harness.start({
+      ...baseConfig,
+      internalSystemPrompt: "# Internal\nYou are agent-1.",
+    });
+    await harness.sendMessage("Hello");
+
+    const params = mockQuery.mock.calls[0][0];
+    expect(params.options?.systemPrompt).toBe("# Internal\nYou are agent-1.\n\nYou are a helpful assistant.");
+  });
+
+  test("sendMessage() uses only systemPrompt when internalSystemPrompt is absent", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+
+    await harness.start(baseConfig);
+    await harness.sendMessage("Hello");
+
+    const params = mockQuery.mock.calls[0][0];
+    expect(params.options?.systemPrompt).toBe("You are a helpful assistant.");
+  });
+
   test("sendMessage() passes continue: true in query options", async () => {
     const mockQuery = createMockQuery([resultSuccess("Hi", "sess-123")]);
     const harness = new ClaudeCodeHarness(mockQuery);

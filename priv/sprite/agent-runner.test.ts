@@ -445,6 +445,7 @@ max_tokens: 8192
     expect(config.harness).toBe("pi");
     expect(config.model).toBe("anthropic/claude-sonnet-4-6");
     expect(config.system_prompt).toBe("You are helpful.");
+    expect(config.internal_system_prompt).toBe("");
     expect(config.max_tokens).toBe(8192);
   });
 
@@ -455,7 +456,23 @@ max_tokens: 8192
     expect(config.harness).toBe("claude_code");
     expect(config.model).toBe("claude-sonnet-4-6");
     expect(config.system_prompt).toBe("");
+    expect(config.internal_system_prompt).toBe("");
     expect(config.max_tokens).toBe(16384);
+  });
+
+  test("reads INTERNAL.md as internal_system_prompt", async () => {
+    writeFileSync(`${TEST_AGENT_DIR}/recipe.yaml`, "version: 1\nname: test\n");
+    writeFileSync(`${TEST_AGENT_DIR}/INTERNAL.md`, "# Inter-Agent Communication\nYou are **test-agent**.");
+
+    const config = await loadConfig(`${TEST_AGENT_DIR}/recipe.yaml`);
+    expect(config.internal_system_prompt).toBe("# Inter-Agent Communication\nYou are **test-agent**.");
+  });
+
+  test("defaults internal_system_prompt to empty string when INTERNAL.md missing", async () => {
+    writeFileSync(`${TEST_AGENT_DIR}/recipe.yaml`, "version: 1\nname: test\n");
+
+    const config = await loadConfig(`${TEST_AGENT_DIR}/recipe.yaml`);
+    expect(config.internal_system_prompt).toBe("");
   });
 });
 
