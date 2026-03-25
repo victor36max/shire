@@ -94,19 +94,13 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
 - PostgreSQL
 - [Bun](https://bun.sh)
 
-### 1. Configure the database
+### 1. Set up the database
 
-Create a `.env` file in the project root (automatically loaded in dev/test):
-
-```bash
-DATABASE_URL=postgresql://localhost/shire_dev
-```
-
-In development you can skip this if your local PostgreSQL uses default credentials — `mix setup` will create the database automatically.
+Shire requires PostgreSQL. In development, `mix setup` creates the database automatically using local defaults. In production, set `DATABASE_URL` via your secrets manager or environment.
 
 ### 2. Choose a VM backend
 
-Shire needs a VM backend for agent workspaces. Add the relevant config to your `.env` file:
+Shire needs a VM backend for agent workspaces. Configure via environment variables (`.env` in dev, secrets manager in production):
 
 #### 🔥 Option A: Sprites (Firecracker VMs)
 
