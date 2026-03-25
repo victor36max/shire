@@ -18,7 +18,7 @@ defmodule Shire.VirtualMachineSprite do
   @ready_backoff 2_000
   @max_backoff 30_000
   @ping_interval 20_000
-  @keepalive_duration :timer.minutes(30)
+  @keepalive_duration :timer.minutes(15)
 
   def start_link(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
