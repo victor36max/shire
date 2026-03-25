@@ -25,7 +25,7 @@ defmodule Shire.Agents do
             do: Path.join(agent_dir, subdir)
 
       try do
-        vm.cmd!(project_id, "mkdir", ["-p" | dirs], [])
+        Enum.each(dirs, &vm.mkdir_p(project_id, &1))
 
         case vm.write(project_id, Path.join(agent_dir, "recipe.yaml"), recipe_yaml) do
           :ok -> {:ok, agent.id}

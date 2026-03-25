@@ -72,6 +72,7 @@ defmodule Shire.Agent.AgentManagerTest do
 
     test "persists user message to DB when from is :user", ctx do
       Mox.set_mox_global()
+      stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
       stub(Shire.VirtualMachineMock, :write, fn _project, _path, _content -> :ok end)
 
       {:ok, pid} = start_manager(ctx)
