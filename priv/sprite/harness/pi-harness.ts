@@ -100,7 +100,7 @@ export class PiHarness implements Harness {
       cwd: config.cwd,
       settingsManager,
       systemPromptOverride: (base) => {
-        const parts = [base, config.systemPrompt].filter(Boolean);
+        const parts = [base, config.internalSystemPrompt, config.systemPrompt].filter(Boolean);
         return parts.length > 0 ? parts.join("\n\n") : undefined;
       },
     });
