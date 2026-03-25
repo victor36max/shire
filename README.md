@@ -94,32 +94,25 @@ Most agent platforms treat agents as stateless API calls. Shire gives every agen
 - PostgreSQL
 - [Bun](https://bun.sh)
 
-### Install
+### 1. Set up the database
 
-```bash
-mix setup        # Install deps, create DB, build assets
-mix phx.server   # Start the server
-```
+Shire requires PostgreSQL. In development, `mix setup` creates the database automatically using local defaults. In production, set `DATABASE_URL` via your secrets manager or environment.
 
-Visit [localhost:4000](http://localhost:4000) to open the dashboard.
+### 2. Choose a VM backend
 
-You'll need to configure a VM backend for agent workspaces. Pick the one that fits your use case:
+Shire needs a VM backend for agent workspaces. Configure via environment variables (`.env` in dev, secrets manager in production):
 
----
-
-### 🔥 Option 1: Sprites (Firecracker VMs)
+#### 🔥 Option A: Sprites (Firecracker VMs)
 
 Production-grade backend using [Fly.io Sprites](https://sprites.dev) — lightweight Firecracker VMs with sub-second boot, persistent storage, and auto-sleep.
 
 **What you need:** A Sprites account and token from [sprites.dev](https://sprites.dev).
 
-Create a `.env` file in the project root:
-
 ```bash
 SPRITES_TOKEN=your_token_here
 ```
 
-That's it. Sprites is the default backend — no other configuration needed.
+Sprites is the default backend — no other configuration needed.
 
 Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to manage VM lifecycles, execute commands, and stream terminal sessions.
 
@@ -131,15 +124,11 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 - Hardware-level isolation via Firecracker
 - Up to 8 CPUs / 16GB RAM per VM
 
----
-
-### 🖥️ Option 2: SSH (Any VPS)
+#### 🖥️ Option B: SSH (Any VPS)
 
 Connect to any Linux VPS over SSH. Run agents on your own infrastructure.
 
 **What you need:** A Linux VPS with SSH access. Bun and Claude Code are installed automatically during bootstrap.
-
-Create a `.env` file in the project root:
 
 ```bash
 SHIRE_VM_TYPE=ssh
@@ -151,32 +140,34 @@ SHIRE_SSH_KEY="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVAT
 
 # Or password-based auth:
 # SHIRE_SSH_PASSWORD=your_password
-```
 
-Optional:
-
-```bash
-SHIRE_SSH_PORT=22                                        # Default: 22
-SHIRE_SSH_WORKSPACE_ROOT=/home/deploy/shire/projects     # Default: /home/{user}/shire/projects
+# Optional:
+# SHIRE_SSH_PORT=22
+# SHIRE_SSH_WORKSPACE_ROOT=/home/deploy/shire/projects
 ```
 
 Shire creates workspace directories on the remote host automatically.
 
----
-
-### 💻 Option 3: Local (Development)
+#### 💻 Option C: Local (Development)
 
 Use the local filesystem. Ideal for development and testing.
 
 **What you need:** [Bun](https://bun.sh) and [Claude Code](https://claude.ai/download) installed on your machine (bootstrap does not run in local mode).
-
-Create a `.env` file in the project root:
 
 ```bash
 SHIRE_VM_TYPE=local
 ```
 
 Agent workspaces live at `~/.shire/projects/`. Processes run as local Erlang ports — no VMs, no SSH, no tokens.
+
+### 3. Install and run
+
+```bash
+mix setup        # Install deps, create DB, build assets
+mix phx.server   # Start the server
+```
+
+Visit [localhost:4000](http://localhost:4000) to open the dashboard.
 
 ---
 
