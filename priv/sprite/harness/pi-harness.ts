@@ -115,7 +115,7 @@ export class PiHarness implements Harness {
       modelRegistry,
       tools: createCodingTools(config.cwd),
       resourceLoader: loader,
-      sessionManager: SessionManager.inMemory(),
+      sessionManager: SessionManager.continueRecent(config.cwd),
       settingsManager,
     });
     return session;
