@@ -142,7 +142,7 @@ defmodule Shire.Agent.AgentManager do
   end
 
   def last_read_message_id(project_id, agent_id) do
-    GenServer.call(via(project_id, agent_id), :last_read_message_id)
+    GenServer.call(via(project_id, agent_id), :last_read_message_id, 5_000)
   end
 
   defp via(project_id, agent_id) do
