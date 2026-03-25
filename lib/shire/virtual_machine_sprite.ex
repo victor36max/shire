@@ -17,7 +17,7 @@ defmodule Shire.VirtualMachineSprite do
   @ready_retries 10
   @ready_backoff 2_000
   @max_backoff 30_000
-  @ping_interval 15_000
+  @ping_interval 20_000
   @keepalive_duration :timer.minutes(30)
 
   def start_link(opts) do
