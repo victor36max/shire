@@ -176,7 +176,6 @@ mix precommit
 - `SHIRE_SSH_PASSWORD` — SSH password (alternative to `SHIRE_SSH_KEY`)
 - `SHIRE_SSH_PORT` — SSH port (default: `22`)
 - `SHIRE_SSH_WORKSPACE_ROOT` — workspace root on the remote host (default: `/home/{user}/shire/projects`)
-- `ANTHROPIC_API_KEY` — passed to agents via project `.env` file on the VM
 
 ## Guidelines
 
