@@ -4,6 +4,8 @@
 
 Shire is an open platform for deploying, orchestrating, and collaborating with AI agents. Give each agent its own workspace, connect them through a built-in mailbox system, and watch them work together — all from a single dashboard.
 
+![Shire Dashboard](docs/screenshot.png)
+
 ---
 
 ## ✨ Why Shire?
