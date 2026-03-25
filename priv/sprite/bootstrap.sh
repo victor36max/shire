@@ -23,26 +23,24 @@ if ! command -v unzip &> /dev/null; then
   fi
 fi
 
+# --- Write .shire_profile (sourced by SSH commands, no interactive guard) ---
+cat > "$HOME/.shire_profile" << 'PROFILE'
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$HOME/.local/bin:$HOME/.claude/local:$BUN_INSTALL/bin:$PATH"
+PROFILE
+source "$HOME/.shire_profile"
+
 # --- Install Bun if not available ---
 if ! command -v bun &> /dev/null; then
   echo "Installing Bun..."
   curl -fsSL https://bun.sh/install | bash || echo "Warning: Bun installation failed"
-  export BUN_INSTALL="$HOME/.bun"
-  export PATH="$BUN_INSTALL/bin:$PATH"
 fi
 
 # --- Install Claude Code if not available ---
 if ! command -v claude &> /dev/null; then
   echo "Installing Claude Code..."
   curl -fsSL https://claude.ai/install.sh | bash || echo "Warning: Claude Code installation failed"
-  export PATH="$HOME/.local/bin:$HOME/.claude/local:$PATH"
 fi
-
-# --- Write .shire_profile (sourced by SSH commands, no interactive guard) ---
-cat > "$HOME/.shire_profile" << 'PROFILE'
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$HOME/.local/bin:$HOME/.claude/local:$BUN_INSTALL/bin:$PATH"
-PROFILE
 
 # Create default PROJECT.md if it doesn't exist
 if [ ! -f "$WORKSPACE_ROOT/PROJECT.md" ]; then
