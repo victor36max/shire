@@ -24,12 +24,12 @@ defmodule Shire.Agent.Coordinator do
 
   @doc "Returns the current status for an agent (defaults to :created if not tracked)."
   def agent_status(project_id, agent_id) do
-    GenServer.call(via(project_id), {:agent_status, agent_id})
+    GenServer.call(via(project_id), {:agent_status, agent_id}, 5_000)
   end
 
   @doc "Returns a map of `%{agent_id => status}` for the given agent IDs."
   def agent_statuses(project_id, agent_ids) do
-    GenServer.call(via(project_id), {:agent_statuses, agent_ids})
+    GenServer.call(via(project_id), {:agent_statuses, agent_ids}, 5_000)
   end
 
   @doc "Creates a new agent: inserts DB record, sets up VM workspace, and starts runner."

@@ -13,6 +13,7 @@ defmodule Shire.VirtualMachineSprite do
   @behaviour Shire.VirtualMachine
 
   @default_cmd_timeout 30_000
+  @fs_call_timeout @default_cmd_timeout + 5_000
   @ready_retries 10
   @ready_backoff 2_000
   @max_backoff 30_000
@@ -56,42 +57,42 @@ defmodule Shire.VirtualMachineSprite do
 
   @impl Shire.VirtualMachine
   def read(project_id, path) do
-    GenServer.call(via(project_id), {:read, path})
+    GenServer.call(via(project_id), {:read, path}, @fs_call_timeout)
   end
 
   @impl Shire.VirtualMachine
   def write(project_id, path, content) do
-    GenServer.call(via(project_id), {:write, path, content})
+    GenServer.call(via(project_id), {:write, path, content}, @fs_call_timeout)
   end
 
   @impl Shire.VirtualMachine
   def mkdir_p(project_id, path) do
-    GenServer.call(via(project_id), {:mkdir_p, path})
+    GenServer.call(via(project_id), {:mkdir_p, path}, @fs_call_timeout)
   end
 
   @impl Shire.VirtualMachine
   def mkdir_p_many(project_id, paths) do
-    GenServer.call(via(project_id), {:mkdir_p_many, paths}, 30_000)
+    GenServer.call(via(project_id), {:mkdir_p_many, paths}, @fs_call_timeout)
   end
 
   @impl Shire.VirtualMachine
   def rm(project_id, path) do
-    GenServer.call(via(project_id), {:rm, path})
+    GenServer.call(via(project_id), {:rm, path}, @fs_call_timeout)
   end
 
   @impl Shire.VirtualMachine
   def rm_rf(project_id, path) do
-    GenServer.call(via(project_id), {:rm_rf, path})
+    GenServer.call(via(project_id), {:rm_rf, path}, @fs_call_timeout)
   end
 
   @impl Shire.VirtualMachine
   def ls(project_id, path) do
-    GenServer.call(via(project_id), {:ls, path})
+    GenServer.call(via(project_id), {:ls, path}, @fs_call_timeout)
   end
 
   @impl Shire.VirtualMachine
   def stat(project_id, path) do
-    GenServer.call(via(project_id), {:stat, path})
+    GenServer.call(via(project_id), {:stat, path}, @fs_call_timeout)
   end
 
   # --- Public API: Keepalive ---
@@ -109,7 +110,7 @@ defmodule Shire.VirtualMachineSprite do
 
   @impl Shire.VirtualMachine
   def spawn_command(project_id, command, args \\ [], opts \\ []) do
-    sprite = GenServer.call(via(project_id), :get_sprite)
+    sprite = GenServer.call(via(project_id), :get_sprite, 5_000)
 
     case sprite do
       nil ->
