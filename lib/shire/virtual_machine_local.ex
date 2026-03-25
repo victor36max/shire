@@ -107,6 +107,22 @@ defmodule Shire.VirtualMachineLocal do
   end
 
   @impl Shire.VirtualMachine
+  def mkdir_p_many(_project_id, paths) do
+    results =
+      paths
+      |> Task.async_stream(fn path -> File.mkdir_p!(path) end)
+      |> Enum.to_list()
+
+    case Enum.find(results, fn
+           {:exit, _} -> true
+           _ -> false
+         end) do
+      nil -> :ok
+      {:exit, reason} -> {:error, {:task_exit, reason}}
+    end
+  end
+
+  @impl Shire.VirtualMachine
   def rm(_project_id, path) do
     case File.rm(path) do
       :ok -> :ok

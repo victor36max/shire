@@ -612,7 +612,7 @@ defmodule Shire.Agent.AgentManager do
           ],
           do: Path.join(agent_dir, subdir)
 
-    Enum.each(dirs, &vm().mkdir_p(project_id, &1))
+    vm().mkdir_p_many(project_id, dirs)
 
     # Write internal system prompt for the runner to inject
     vm().write(
