@@ -110,7 +110,7 @@ export default function AgentSidebar({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate(`/projects/${project.name}/agents/${agent.name}`)}>
+                <DropdownMenuItem onClick={() => navigate(`/projects/${project.name}/agents/${agent.name}/settings`)}>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem
