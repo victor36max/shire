@@ -2,6 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import AgentDashboard from "../react-components/AgentDashboard";
+import { navigate } from "../react-components/lib/navigate";
+
+vi.mock("../react-components/lib/navigate", () => ({
+  navigate: vi.fn(),
+}));
 import { type Agent, type CatalogAgentSummary, type CatalogCategory, type Project } from "../react-components/types";
 
 const agents: Agent[] = [
@@ -61,12 +66,11 @@ describe("AgentDashboard", () => {
     expect(screen.queryByText("Shire")).not.toBeInTheDocument();
   });
 
-  it("calls pushEvent with select-agent when clicking sidebar agent", async () => {
-    const pushEvent = vi.fn();
-    render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} pushEvent={pushEvent} />);
+  it("navigates to agent URL when clicking sidebar agent", async () => {
+    render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} />);
 
     await userEvent.click(screen.getByText("Agent One"));
-    expect(pushEvent).toHaveBeenCalledWith("select-agent", { id: "a1" });
+    expect(navigate).toHaveBeenCalledWith("/projects/test-project/agents/Agent One");
   });
 
   it("opens new agent dialog from sidebar", async () => {

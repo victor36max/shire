@@ -21,7 +21,8 @@ defmodule ShireWeb.Router do
       live "/", ProjectLive.Index, :index
 
       live "/projects/:project_name", AgentLive.Index, :index
-      live "/projects/:project_name/agents/:agent_name", AgentLive.Show, :show
+      live "/projects/:project_name/agents/:agent_name", AgentLive.Index, :chat
+      live "/projects/:project_name/agents/:agent_name/settings", AgentLive.Show, :show
 
       live "/projects/:project_name/settings", SettingsLive.Index, :index
 
