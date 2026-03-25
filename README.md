@@ -209,11 +209,7 @@ Full reference. Create a `.env` file in the project root — it's automatically 
 | `SHIRE_SSH_PORT` | `22` | SSH port |
 | `SHIRE_SSH_WORKSPACE_ROOT` | `/home/$SHIRE_SSH_USER/shire/projects` | Workspace root on remote host |
 
-### Agent Runtime
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | — | Anthropic API key, passed to agents using the Pi SDK harness |
+Agent-specific env vars (API keys, tokens, etc.) are configured per-project via the Settings page, not as server-level environment variables.
 
 ## How It Works
 
