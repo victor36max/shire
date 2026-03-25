@@ -72,6 +72,14 @@ defmodule Shire.VirtualMachineSpriteTest do
   end
 
   describe "VM keep-alive ping" do
+    test "ping interval is at least 10s to avoid filling /run with crun PID files" do
+      # Each Sprites.cmd ping spawns a container process that writes a PID file to
+      # /run/sprite-env/crun/. Too-frequent pings fill the tmpfs and make the VM
+      # unresponsive. 15s stays under the 30s Sprites idle timeout while limiting
+      # PID file accumulation to ~120 per 30-min keepalive window.
+      assert VM.ping_interval() >= 10_000
+    end
+
     test "handle_info(:ping_vm) stops when ping_until has expired" do
       state = %{
         sprite: nil,
