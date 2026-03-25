@@ -1,6 +1,7 @@
 defmodule Shire.VirtualMachine.Setup do
   @moduledoc """
-  Shared VM setup logic: deploys runner files and runs bootstrap.sh.
+  Shared VM setup logic: creates workspace directories, deploys runner
+  files, and runs bootstrap.sh to install dependencies.
 
   Called from VM init callbacks (before the GenServer is registered),
   so all operations go through closure-based `ops` rather than the
@@ -10,7 +11,9 @@ defmodule Shire.VirtualMachine.Setup do
 
       %{
         write: fn path, content -> :ok | {:error, reason} end,
+        read: fn path -> {:ok, content} | {:error, reason} end,
         mkdir_p: fn path -> :ok | {:error, reason} end,
+        mkdir_p_many: fn [path] -> :ok | {:error, reason} end,
         cmd: fn command, args, opts -> {:ok, output} | {:error, reason} end,
         runner_dir: String.t(),
         workspace_root: String.t()
@@ -21,10 +24,27 @@ defmodule Shire.VirtualMachine.Setup do
 
   @top_level_files ["agent-runner.ts", "package.json", "bun.lock"]
 
-  @doc "Deploys runner files and runs bootstrap.sh."
+  @workspace_dirs ~w(.runner .scripts shared agents)
+
+  @default_project_md """
+  # Project
+
+  Describe your project here. All agents will check this document for context before starting tasks and update it after completing work.
+  """
+
+  @doc "Creates workspace dirs, deploys runner files, and runs bootstrap.sh."
   def run(ops) do
-    with :ok <- deploy_runner_files(ops),
+    with :ok <- setup_workspace(ops),
+         :ok <- deploy_runner_files(ops),
          :ok <- run_bootstrap(ops) do
+      :ok
+    end
+  end
+
+  @doc "Creates workspace dirs, deploys runner files. Skips bootstrap.sh (for local backend)."
+  def run_without_bootstrap(ops) do
+    with :ok <- setup_workspace(ops),
+         :ok <- deploy_runner_files(ops) do
       :ok
     end
   end
@@ -41,7 +61,17 @@ defmodule Shire.VirtualMachine.Setup do
     end
   end
 
-  @doc "Reads bootstrap.sh from priv and executes it on the VM."
+  @doc "Creates workspace directories and default PROJECT.md."
+  def setup_workspace(ops) do
+    root = ops.workspace_root
+
+    with :ok <- create_workspace_dirs(ops, root),
+         :ok <- ensure_project_md(ops, root) do
+      :ok
+    end
+  end
+
+  @doc "Reads bootstrap.sh from priv and executes it on the VM to install dependencies."
   def run_bootstrap(ops) do
     case File.read(Application.app_dir(:shire, "priv/sprite/bootstrap.sh")) do
       {:ok, script} ->
@@ -52,6 +82,20 @@ defmodule Shire.VirtualMachine.Setup do
 
       {:error, reason} ->
         {:error, {:read_bootstrap, reason}}
+    end
+  end
+
+  defp create_workspace_dirs(ops, root) do
+    dirs = Enum.map(@workspace_dirs, &Path.join(root, &1))
+    ops.mkdir_p_many.(dirs)
+  end
+
+  defp ensure_project_md(ops, root) do
+    path = Path.join(root, "PROJECT.md")
+
+    case ops.read.(path) do
+      {:ok, _} -> :ok
+      {:error, _} -> ops.write.(path, @default_project_md)
     end
   end
 

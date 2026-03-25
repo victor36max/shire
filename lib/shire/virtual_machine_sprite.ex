@@ -625,12 +625,37 @@ defmodule Shire.VirtualMachineSprite do
           e -> {:error, e}
         end
       end,
+      read: fn path ->
+        try do
+          {:ok, Sprites.Filesystem.read!(fs, path)}
+        rescue
+          e -> {:error, e}
+        end
+      end,
       mkdir_p: fn path ->
         try do
           Sprites.Filesystem.mkdir_p!(fs, path)
           :ok
         rescue
           e -> {:error, e}
+        end
+      end,
+      mkdir_p_many: fn paths ->
+        results =
+          paths
+          |> Task.async_stream(
+            fn path -> Sprites.Filesystem.mkdir_p!(fs, path) end,
+            max_concurrency: 10,
+            timeout: 15_000
+          )
+          |> Enum.to_list()
+
+        case Enum.find(results, fn
+               {:exit, _} -> true
+               _ -> false
+             end) do
+          nil -> :ok
+          {:exit, reason} -> {:error, {:task_exit, reason}}
         end
       end,
       cmd: fn command, args, opts ->

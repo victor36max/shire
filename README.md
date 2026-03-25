@@ -137,7 +137,7 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 
 Connect to any Linux VPS over SSH. Run agents on your own infrastructure.
 
-**What you need:** A Linux VPS with SSH access and [Bun](https://bun.sh) installed.
+**What you need:** A Linux VPS with SSH access. Bun and Claude Code are installed automatically during bootstrap.
 
 Create a `.env` file in the project root:
 
@@ -166,9 +166,9 @@ Shire creates workspace directories on the remote host automatically.
 
 ### 💻 Option 3: Local (Development)
 
-Use the local filesystem with no external dependencies. Ideal for development and testing.
+Use the local filesystem. Ideal for development and testing.
 
-**What you need:** Nothing beyond the prerequisites.
+**What you need:** [Bun](https://bun.sh) and [Claude Code](https://claude.ai/download) installed on your machine (bootstrap does not run in local mode).
 
 Create a `.env` file in the project root:
 
