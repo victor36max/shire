@@ -70,6 +70,11 @@ defmodule Shire.VirtualMachineSprite do
   end
 
   @impl Shire.VirtualMachine
+  def mkdir_p_many(project_id, paths) do
+    GenServer.call(via(project_id), {:mkdir_p_many, paths}, 30_000)
+  end
+
+  @impl Shire.VirtualMachine
   def rm(project_id, path) do
     GenServer.call(via(project_id), {:rm, path})
   end
@@ -324,6 +329,32 @@ defmodule Shire.VirtualMachineSprite do
         e ->
           Logger.error("VM mkdir_p failed: #{path} — #{Exception.message(e)}")
           {:error, e}
+      end
+
+    {:reply, result, extend_keepalive(state)}
+  end
+
+  def handle_call({:mkdir_p_many, _paths}, _from, %{fs: nil} = state) do
+    {:reply, {:error, :no_vm}, state}
+  end
+
+  def handle_call({:mkdir_p_many, paths}, _from, state) do
+    results =
+      paths
+      |> Task.async_stream(
+        fn path -> Sprites.Filesystem.mkdir_p!(state.fs, path) end,
+        max_concurrency: 10,
+        timeout: 15_000
+      )
+      |> Enum.to_list()
+
+    result =
+      case Enum.find(results, fn
+             {:exit, _} -> true
+             _ -> false
+           end) do
+        nil -> :ok
+        {:exit, reason} -> {:error, {:task_exit, reason}}
       end
 
     {:reply, result, extend_keepalive(state)}
