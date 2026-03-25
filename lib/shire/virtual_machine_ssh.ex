@@ -676,8 +676,34 @@ defmodule Shire.VirtualMachineSSH do
           {:error, reason} -> {:error, reason}
         end
       end,
+      read: fn path ->
+        case :ssh_sftp.read_file(sftp, to_charlist(path)) do
+          {:ok, content} -> {:ok, content}
+          {:error, reason} -> {:error, reason}
+        end
+      end,
       mkdir_p: fn path ->
         sftp_mkdir_p(sftp, path)
+      end,
+      mkdir_p_many: fn paths ->
+        results =
+          paths
+          |> Task.async_stream(
+            fn path -> sftp_mkdir_p(sftp, path) end,
+            max_concurrency: 10,
+            timeout: 15_000
+          )
+          |> Enum.to_list()
+
+        case Enum.find(results, fn
+               {:ok, {:error, _}} -> true
+               {:exit, _} -> true
+               _ -> false
+             end) do
+          nil -> :ok
+          {:ok, {:error, reason}} -> {:error, reason}
+          {:exit, reason} -> {:error, {:task_exit, reason}}
+        end
       end,
       cmd: fn command, args, opts ->
         timeout = Keyword.get(opts, :timeout, @default_cmd_timeout)
