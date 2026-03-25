@@ -79,6 +79,11 @@ defmodule Shire.VirtualMachineSSH do
   end
 
   @impl Shire.VirtualMachine
+  def mkdir_p_many(project_id, paths) do
+    GenServer.call(via(project_id), {:mkdir_p_many, paths}, 30_000)
+  end
+
+  @impl Shire.VirtualMachine
   def rm(project_id, path) do
     GenServer.call(via(project_id), {:rm, path})
   end
@@ -253,6 +258,32 @@ defmodule Shire.VirtualMachineSSH do
   def handle_call({:mkdir_p, path}, _from, state) do
     state = ensure_connected(state)
     result = sftp_mkdir_p(state.sftp, path)
+    {:reply, result, state}
+  end
+
+  def handle_call({:mkdir_p_many, paths}, _from, state) do
+    state = ensure_connected(state)
+
+    results =
+      paths
+      |> Task.async_stream(
+        fn path -> sftp_mkdir_p(state.sftp, path) end,
+        max_concurrency: 10,
+        timeout: 15_000
+      )
+      |> Enum.to_list()
+
+    result =
+      case Enum.find(results, fn
+             {:ok, {:error, _}} -> true
+             {:exit, _} -> true
+             _ -> false
+           end) do
+        nil -> :ok
+        {:ok, {:error, reason}} -> {:error, reason}
+        {:exit, reason} -> {:error, {:task_exit, reason}}
+      end
+
     {:reply, result, state}
   end
 

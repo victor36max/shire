@@ -21,6 +21,9 @@ defmodule Shire.VirtualMachineStub do
   def mkdir_p(_project_id, _path), do: :ok
 
   @impl true
+  def mkdir_p_many(_project_id, _paths), do: :ok
+
+  @impl true
   def rm(_project_id, _path), do: :ok
 
   @impl true
