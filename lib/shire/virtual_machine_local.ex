@@ -267,7 +267,10 @@ defmodule Shire.VirtualMachineLocal do
 
     File.mkdir_p!(root)
 
-    case Shire.VirtualMachine.Setup.run(build_setup_ops(root)) do
+    # Local backend skips bootstrap.sh (which installs Bun/Claude Code via curl
+    # and uses apt-get/sudo) since the host may be macOS/Windows and already has
+    # these tools installed.
+    case Shire.VirtualMachine.Setup.run_without_bootstrap(build_setup_ops(root)) do
       :ok -> :ok
       {:error, reason} -> Logger.error("Local VM setup failed: #{inspect(reason)}")
     end
@@ -367,10 +370,27 @@ defmodule Shire.VirtualMachineLocal do
           {:error, reason} -> {:error, reason}
         end
       end,
+      read: fn path ->
+        File.read(path)
+      end,
       mkdir_p: fn path ->
         case File.mkdir_p(path) do
           :ok -> :ok
           {:error, reason} -> {:error, reason}
+        end
+      end,
+      mkdir_p_many: fn paths ->
+        results =
+          paths
+          |> Task.async_stream(fn path -> File.mkdir_p!(path) end)
+          |> Enum.to_list()
+
+        case Enum.find(results, fn
+               {:exit, _} -> true
+               _ -> false
+             end) do
+          nil -> :ok
+          {:exit, reason} -> {:error, {:task_exit, reason}}
         end
       end,
       cmd: fn command, args, opts ->
