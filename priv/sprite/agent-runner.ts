@@ -2,7 +2,7 @@
 // Each agent runs in its own workspace directory under /workspace/agents/{id}/.
 import { watch } from "fs";
 import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/promises";
-import { basename, join } from "path";
+import { basename, dirname, join } from "path";
 import { parseArgs } from "util";
 import yaml from "js-yaml";
 import { createHarness, type Harness, type HarnessType } from "./harness";
@@ -29,6 +29,7 @@ export interface AgentConfig {
   harness: HarnessType;
   model: string;
   system_prompt: string;
+  internal_system_prompt: string;
   max_tokens?: number;
 }
 
@@ -92,10 +93,19 @@ export async function loadPeers(peersPath = PEERS_PATH): Promise<void> {
 export async function loadConfig(path = RECIPE_PATH): Promise<AgentConfig> {
   const raw = await readFile(path, "utf-8");
   const recipe = yaml.load(raw) as Record<string, unknown>;
+
+  let internalSystemPrompt = "";
+  try {
+    internalSystemPrompt = await readFile(join(dirname(path), "INTERNAL.md"), "utf-8");
+  } catch {
+    // INTERNAL.md may not exist yet
+  }
+
   return {
     harness: (recipe.harness as HarnessType) || "claude_code",
     model: (recipe.model as string) || "claude-sonnet-4-6",
     system_prompt: (recipe.system_prompt as string) || "",
+    internal_system_prompt: internalSystemPrompt,
     max_tokens: (recipe.max_tokens as number) || 16384,
   };
 }
@@ -365,6 +375,7 @@ async function main() {
   await harness.start({
     model: config.model,
     systemPrompt: config.system_prompt,
+    internalSystemPrompt: config.internal_system_prompt,
     cwd: AGENT_DIR,
     maxTokens: config.max_tokens,
   });
