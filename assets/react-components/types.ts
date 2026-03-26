@@ -20,13 +20,16 @@ export interface Skill {
   references?: SkillReference[];
 }
 
-export interface Agent {
+export interface AgentOverview {
   id: string;
   name: string;
-  description?: string;
   status: AgentStatus;
   busy?: boolean;
   unread_count?: number;
+}
+
+export interface Agent extends AgentOverview {
+  description?: string;
   model?: string;
   system_prompt?: string;
   harness?: HarnessType;
