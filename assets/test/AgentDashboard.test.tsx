@@ -96,6 +96,45 @@ describe("AgentDashboard", () => {
     expect(screen.getByText("Create a new agent to get started.")).toBeInTheDocument();
   });
 
+  it("fires load-catalog event when opening catalog with no agents loaded", async () => {
+    const pushEvent = vi.fn();
+    render(<AgentDashboard {...defaultProps} agents={agents} selectedAgent={null} pushEvent={pushEvent} />);
+
+    await userEvent.click(screen.getByText("Browse Catalog"));
+    expect(pushEvent).toHaveBeenCalledWith("load-catalog", {});
+  });
+
+  it("does not fire load-catalog when catalog agents already loaded", async () => {
+    const pushEvent = vi.fn();
+    const catalogAgents: CatalogAgentSummary[] = [
+      {
+        name: "test-agent",
+        display_name: "Test Agent",
+        description: "A test",
+        category: "engineering",
+        emoji: "🤖",
+        tags: [],
+        harness: "claude_code",
+        model: "claude-sonnet-4-6",
+      },
+    ];
+    const catalogCategories: CatalogCategory[] = [{ id: "engineering", name: "Engineering", description: "" }];
+
+    render(
+      <AgentDashboard
+        {...defaultProps}
+        agents={agents}
+        selectedAgent={null}
+        pushEvent={pushEvent}
+        catalogAgents={catalogAgents}
+        catalogCategories={catalogCategories}
+      />,
+    );
+
+    await userEvent.click(screen.getByText("Browse Catalog"));
+    expect(pushEvent).not.toHaveBeenCalledWith("load-catalog", {});
+  });
+
   it("opens catalog browser and calls pushEvent on add", async () => {
     const pushEvent = vi.fn();
     const catalogAgents: CatalogAgentSummary[] = [
