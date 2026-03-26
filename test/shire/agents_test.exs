@@ -338,6 +338,43 @@ defmodule Shire.AgentsTest do
       assert Map.get(counts, agent.id) == 1
     end
 
+    test "latest_message_id/1 returns nil when no messages exist", %{agent: agent} do
+      assert Agents.latest_message_id(agent.id) == nil
+    end
+
+    test "latest_message_id/1 returns the latest agent-role message id", %{
+      project: project,
+      agent: agent
+    } do
+      {:ok, _} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "user",
+          content: %{"text" => "hello"}
+        })
+
+      {:ok, m1} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "agent",
+          content: %{"text" => "first"}
+        })
+
+      assert Agents.latest_message_id(agent.id) == m1.id
+
+      {:ok, m2} =
+        Agents.create_message(%{
+          project_id: project.id,
+          agent_id: agent.id,
+          role: "agent",
+          content: %{"text" => "second"}
+        })
+
+      assert Agents.latest_message_id(agent.id) == m2.id
+    end
+
     test "delete_agent_with_vm/3 deletes agent and its messages", %{project: project} do
       {:ok, del_agent} =
         Agents.create_agent_with_vm(project.id, "delete-test", "version: 1\n", @vm)
