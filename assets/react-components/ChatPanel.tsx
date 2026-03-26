@@ -5,7 +5,6 @@ import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
 import Markdown from "./components/Markdown";
-import { Skeleton } from "./components/ui/skeleton";
 import { type AgentOverview } from "./types";
 
 export interface Attachment {
@@ -221,6 +220,16 @@ export default function ChatPanel({
     prevScrollHeightRef.current = 0;
   }, [agent.id]);
 
+  // Show loading spinner only after a delay to avoid flash on fast loads
+  const [showLoadingSpinner, setShowLoadingSpinner] = React.useState(false);
+  React.useEffect(() => {
+    if (messagesLoading) {
+      const timer = setTimeout(() => setShowLoadingSpinner(true), 500);
+      return () => clearTimeout(timer);
+    }
+    setShowLoadingSpinner(false);
+  }, [messagesLoading]);
+
   // Listen for streaming text deltas and flush events from LiveView
   React.useEffect(() => {
     const deltaRef = handleEvent("text_delta", (payload: Record<string, unknown>) => {
@@ -352,20 +361,11 @@ export default function ChatPanel({
             <span className="text-xs text-muted-foreground animate-pulse">Loading older messages...</span>
           </div>
         )}
-        {messagesLoading && !hasMessages && (
-          <div className="space-y-3">
-            {/* Skeleton message bubbles */}
-            <div className="flex justify-end">
-              <Skeleton className="h-10 w-48 rounded-lg" />
-            </div>
-            <div className="flex justify-start">
-              <Skeleton className="h-16 w-64 rounded-lg" />
-            </div>
-            <div className="flex justify-end">
-              <Skeleton className="h-10 w-36 rounded-lg" />
-            </div>
-            <div className="flex justify-start">
-              <Skeleton className="h-24 w-72 rounded-lg" />
+        {messagesLoading && !hasMessages && showLoadingSpinner && (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground animate-pulse" />
+              Loading messages...
             </div>
           </div>
         )}
