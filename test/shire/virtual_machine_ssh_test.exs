@@ -16,6 +16,10 @@ defmodule Shire.VirtualMachineSSHTest do
 
   alias Shire.VirtualMachineSSH, as: SSH
 
+  defp via(project_id) do
+    {:via, Registry, {Shire.ProjectRegistry, {:vm, project_id}}}
+  end
+
   setup_all do
     host = System.get_env("SHIRE_SSH_HOST", "localhost")
     user = System.get_env("SHIRE_SSH_USER", System.get_env("USER"))
@@ -245,6 +249,75 @@ defmodule Shire.VirtualMachineSSHTest do
       assert_receive {:stdout, _, data}, 5_000
       assert String.contains?(data, "spawned")
       assert_receive {:exit, _, 0}, 5_000
+    end
+  end
+
+  describe "reconnection" do
+    test "broadcasts vm_woke_up on SSH reconnect", %{project_id: pid} do
+      # Subscribe to the project VM topic
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{pid}:vm")
+
+      # Get the raw connection and kill it to simulate a drop
+      conn = GenServer.call(via(pid), :get_conn, 5_000)
+      :ssh.close(conn)
+
+      # Next command forces reconnect, which should broadcast vm_woke_up
+      assert {:ok, output} = SSH.cmd(pid, "echo", ["reconnected"])
+      assert String.trim(output) == "reconnected"
+
+      assert_receive {:vm_woke_up, ^pid}, 5_000
+    end
+
+    test "tracks reconnection in state", %{project_id: pid} do
+      # Verify initial state
+      state = :sys.get_state(via(pid))
+      assert state.last_reconnect_at == nil
+      assert state.reconnect_count == 0
+
+      # Kill the connection and reconnect via a command
+      conn = GenServer.call(via(pid), :get_conn, 5_000)
+      :ssh.close(conn)
+      assert {:ok, _} = SSH.cmd(pid, "echo", ["first"])
+
+      # After reconnect + successful cmd, reconnect_count is reset to 0
+      # but last_reconnect_at should be set (proving reconnection happened)
+      state = :sys.get_state(via(pid))
+      assert state.last_reconnect_at != nil
+      assert state.reconnect_count == 0
+    end
+
+    test "resets reconnect count after successful command", %{project_id: pid} do
+      # Kill and reconnect — use get_conn which reconnects but doesn't reset count
+      conn = GenServer.call(via(pid), :get_conn, 5_000)
+      :ssh.close(conn)
+      _new_conn = GenServer.call(via(pid), :get_conn, 5_000)
+
+      # reconnect_count should be > 0 after reconnect (get_conn doesn't reset)
+      state = :sys.get_state(via(pid))
+      assert state.reconnect_count >= 1
+
+      # A successful cmd should reset the count
+      assert {:ok, _} = SSH.cmd(pid, "echo", ["stable"])
+      state = :sys.get_state(via(pid))
+      assert state.reconnect_count == 0
+    end
+
+    test "debounces vm_woke_up broadcasts", %{project_id: pid} do
+      Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{pid}:vm")
+
+      # Kill and reconnect
+      conn = GenServer.call(via(pid), :get_conn, 5_000)
+      :ssh.close(conn)
+      assert {:ok, _} = SSH.cmd(pid, "echo", ["first_reconnect"])
+      assert_receive {:vm_woke_up, ^pid}, 5_000
+
+      # Kill and reconnect again immediately
+      conn2 = GenServer.call(via(pid), :get_conn, 5_000)
+      :ssh.close(conn2)
+      assert {:ok, _} = SSH.cmd(pid, "echo", ["second_reconnect"])
+
+      # Should NOT get a second vm_woke_up within the debounce window
+      refute_receive {:vm_woke_up, _}, 500
     end
   end
 
