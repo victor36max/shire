@@ -23,7 +23,6 @@ interface AgentDashboardProps {
   messages?: Message[];
   hasMore?: boolean;
   loadingMore?: boolean;
-  messagesLoading?: boolean;
   editAgent: Agent | null;
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
   catalogAgents?: CatalogAgentSummary[];
@@ -39,7 +38,6 @@ export default function AgentDashboard({
   messages = [],
   hasMore = false,
   loadingMore = false,
-  messagesLoading = false,
   editAgent,
   pushEvent,
   catalogAgents = [],
@@ -162,7 +160,6 @@ export default function AgentDashboard({
                 messages={messages}
                 hasMore={hasMore}
                 loadingMore={loadingMore}
-                messagesLoading={messagesLoading}
                 pushEvent={pushEvent}
               />
             </div>
