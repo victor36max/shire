@@ -44,6 +44,9 @@ npm-debug.log
 # Local environment variables
 .env
 
+# Fly.io deployment config
+fly*.toml
+
 /docs/superpowers/
 
 /.superpowers
