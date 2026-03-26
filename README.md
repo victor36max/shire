@@ -8,7 +8,7 @@ Shire is an open platform for deploying, orchestrating, and collaborating with A
 
 ## See it in action
 
-<video src="https://github.com/victor36max/shire/releases/download/assets/demo-web.mp4" controls width="100%"></video>
+https://github.com/user-attachments/assets/54913be9-22c5-4027-88df-a4d40054ffeb
 
 ---
 
