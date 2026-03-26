@@ -22,6 +22,9 @@ defmodule Shire.VirtualMachineSSH do
   @fs_call_timeout @default_cmd_timeout + 5_000
   @connect_timeout 10_000
   @forward_loop_idle_timeout :timer.minutes(10)
+  @min_reconnect_interval_ms 2_000
+  @max_reconnect_backoff_ms 30_000
+  @woke_up_debounce_ms 5_000
 
   # --- start_link / child_spec ---
 
@@ -202,7 +205,10 @@ defmodule Shire.VirtualMachineSSH do
            project_id: project_id,
            conn: conn,
            sftp: sftp,
-           workspace_root: root
+           workspace_root: root,
+           last_reconnect_at: nil,
+           reconnect_count: 0,
+           last_woke_up_broadcast_at: nil
          }}
 
       {:error, reason} ->
@@ -216,16 +222,28 @@ defmodule Shire.VirtualMachineSSH do
   @impl GenServer
   def handle_call({:cmd, command, args, opts}, _from, state) do
     state = ensure_connected(state)
-    timeout = Keyword.get(opts, :timeout, @default_cmd_timeout)
 
-    case ssh_exec(state.conn, command, args, opts, state.workspace_root, timeout) do
-      {:error, {:channel_open, :closed}} ->
-        state = ensure_connected(%{state | conn: nil})
-        result = ssh_exec(state.conn, command, args, opts, state.workspace_root, timeout)
-        {:reply, result, state}
+    if is_nil(state.conn) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      timeout = Keyword.get(opts, :timeout, @default_cmd_timeout)
 
-      result ->
-        {:reply, result, state}
+      case ssh_exec(state.conn, command, args, opts, state.workspace_root, timeout) do
+        {:error, {:channel_open, :closed}} ->
+          state = ensure_connected(%{state | conn: nil})
+
+          if is_nil(state.conn) do
+            {:reply, {:error, :not_connected}, state}
+          else
+            result = ssh_exec(state.conn, command, args, opts, state.workspace_root, timeout)
+            state = maybe_reset_reconnect_count(state, result)
+            {:reply, result, state}
+          end
+
+        result ->
+          state = maybe_reset_reconnect_count(state, result)
+          {:reply, result, state}
+      end
     end
   end
 
@@ -234,136 +252,170 @@ defmodule Shire.VirtualMachineSSH do
   def handle_call({:read, path}, _from, state) do
     state = ensure_connected(state)
 
-    result =
-      case :ssh_sftp.read_file(state.sftp, to_charlist(path)) do
-        {:ok, content} -> {:ok, content}
-        {:error, reason} -> {:error, reason}
-      end
+    if is_nil(state.sftp) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      result =
+        case :ssh_sftp.read_file(state.sftp, to_charlist(path)) do
+          {:ok, content} -> {:ok, content}
+          {:error, reason} -> {:error, reason}
+        end
 
-    {:reply, result, state}
+      {:reply, result, state}
+    end
   end
 
   def handle_call({:write, path, content}, _from, state) do
     state = ensure_connected(state)
-    sftp_mkdir_p(state.sftp, Path.dirname(path))
 
-    result =
-      case :ssh_sftp.write_file(state.sftp, to_charlist(path), content) do
-        :ok -> :ok
-        {:error, reason} -> {:error, reason}
-      end
+    if is_nil(state.sftp) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      sftp_mkdir_p(state.sftp, Path.dirname(path))
 
-    {:reply, result, state}
+      result =
+        case :ssh_sftp.write_file(state.sftp, to_charlist(path), content) do
+          :ok -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:reply, result, state}
+    end
   end
 
   def handle_call({:mkdir_p, path}, _from, state) do
     state = ensure_connected(state)
-    result = sftp_mkdir_p(state.sftp, path)
-    {:reply, result, state}
+
+    if is_nil(state.sftp) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      result = sftp_mkdir_p(state.sftp, path)
+      {:reply, result, state}
+    end
   end
 
   def handle_call({:mkdir_p_many, paths}, _from, state) do
     state = ensure_connected(state)
 
-    results =
-      paths
-      |> Task.async_stream(
-        fn path -> sftp_mkdir_p(state.sftp, path) end,
-        max_concurrency: 10,
-        timeout: 15_000
-      )
-      |> Enum.to_list()
+    if is_nil(state.sftp) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      results =
+        paths
+        |> Task.async_stream(
+          fn path -> sftp_mkdir_p(state.sftp, path) end,
+          max_concurrency: 10,
+          timeout: 15_000
+        )
+        |> Enum.to_list()
 
-    result =
-      case Enum.find(results, fn
-             {:ok, {:error, _}} -> true
-             {:exit, _} -> true
-             _ -> false
-           end) do
-        nil -> :ok
-        {:ok, {:error, reason}} -> {:error, reason}
-        {:exit, reason} -> {:error, {:task_exit, reason}}
-      end
+      result =
+        case Enum.find(results, fn
+               {:ok, {:error, _}} -> true
+               {:exit, _} -> true
+               _ -> false
+             end) do
+          nil -> :ok
+          {:ok, {:error, reason}} -> {:error, reason}
+          {:exit, reason} -> {:error, {:task_exit, reason}}
+        end
 
-    {:reply, result, state}
+      {:reply, result, state}
+    end
   end
 
   def handle_call({:rm, path}, _from, state) do
     state = ensure_connected(state)
 
-    result =
-      case :ssh_sftp.delete(state.sftp, to_charlist(path)) do
-        :ok -> :ok
-        {:error, reason} -> {:error, reason}
-      end
+    if is_nil(state.sftp) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      result =
+        case :ssh_sftp.delete(state.sftp, to_charlist(path)) do
+          :ok -> :ok
+          {:error, reason} -> {:error, reason}
+        end
 
-    {:reply, result, state}
+      {:reply, result, state}
+    end
   end
 
   def handle_call({:rm_rf, path}, _from, state) do
     state = ensure_connected(state)
 
-    result =
-      ssh_exec(state.conn, "rm", ["-rf", path], [], state.workspace_root, @default_cmd_timeout)
+    if is_nil(state.conn) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      result =
+        ssh_exec(state.conn, "rm", ["-rf", path], [], state.workspace_root, @default_cmd_timeout)
 
-    result =
-      case result do
-        {:ok, _} -> :ok
-        error -> error
-      end
+      result =
+        case result do
+          {:ok, _} -> :ok
+          error -> error
+        end
 
-    {:reply, result, state}
+      {:reply, result, state}
+    end
   end
 
   def handle_call({:ls, path}, _from, state) do
     state = ensure_connected(state)
 
-    result =
-      case :ssh_sftp.list_dir(state.sftp, to_charlist(path)) do
-        {:ok, entries} ->
-          items =
-            entries
-            |> Enum.reject(fn name -> name in [~c".", ~c".."] end)
-            |> Enum.map(fn name ->
-              name_str = to_string(name)
-              full_path = Path.join(path, name_str)
+    if is_nil(state.sftp) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      result =
+        case :ssh_sftp.list_dir(state.sftp, to_charlist(path)) do
+          {:ok, entries} ->
+            items =
+              entries
+              |> Enum.reject(fn name -> name in [~c".", ~c".."] end)
+              |> Enum.map(fn name ->
+                name_str = to_string(name)
+                full_path = Path.join(path, name_str)
 
-              case :ssh_sftp.read_file_info(state.sftp, to_charlist(full_path)) do
-                {:ok, fi} ->
-                  %{
-                    "name" => name_str,
-                    "isDir" => file_info(fi, :type) == :directory,
-                    "size" => file_info(fi, :size) || 0
-                  }
+                case :ssh_sftp.read_file_info(state.sftp, to_charlist(full_path)) do
+                  {:ok, fi} ->
+                    %{
+                      "name" => name_str,
+                      "isDir" => file_info(fi, :type) == :directory,
+                      "size" => file_info(fi, :size) || 0
+                    }
 
-                {:error, _} ->
-                  %{"name" => name_str, "isDir" => false, "size" => 0}
-              end
-            end)
+                  {:error, _} ->
+                    %{"name" => name_str, "isDir" => false, "size" => 0}
+                end
+              end)
 
-          {:ok, items}
+            {:ok, items}
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+          {:error, reason} ->
+            {:error, reason}
+        end
 
-    {:reply, result, state}
+      {:reply, result, state}
+    end
   end
 
   def handle_call({:stat, path}, _from, state) do
     state = ensure_connected(state)
 
-    result =
-      case :ssh_sftp.read_file_info(state.sftp, to_charlist(path)) do
-        {:ok, fi} ->
-          type_str = if file_info(fi, :type) == :directory, do: "directory", else: "file"
-          {:ok, %{"type" => type_str, "size" => file_info(fi, :size) || 0}}
+    if is_nil(state.sftp) do
+      {:reply, {:error, :not_connected}, state}
+    else
+      result =
+        case :ssh_sftp.read_file_info(state.sftp, to_charlist(path)) do
+          {:ok, fi} ->
+            type_str = if file_info(fi, :type) == :directory, do: "directory", else: "file"
+            {:ok, %{"type" => type_str, "size" => file_info(fi, :size) || 0}}
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+          {:error, reason} ->
+            {:error, reason}
+        end
 
-    {:reply, result, state}
+      {:reply, result, state}
+    end
   end
 
   def handle_call(:get_conn, _from, state) do
@@ -390,26 +442,90 @@ defmodule Shire.VirtualMachineSSH do
     if ssh_alive?(state.conn) do
       state
     else
-      Logger.info("SSH connection lost for project #{state.project_id}, reconnecting...")
+      now = System.monotonic_time(:millisecond)
 
-      try do
-        if state[:sftp], do: :ssh_sftp.stop_channel(state.sftp)
-        if state[:conn], do: :ssh.close(state.conn)
-      catch
-        _, _ -> :ok
+      if reconnect_backoff_active?(state, now) do
+        backoff = reconnect_backoff_ms(state.reconnect_count)
+
+        Logger.warning(
+          "SSH reconnect backoff active for project #{state.project_id} (#{backoff}ms), skipping"
+        )
+
+        %{state | conn: nil, sftp: nil}
+      else
+        do_reconnect(state, now)
       end
+    end
+  end
 
-      config = Application.get_env(:shire, :ssh)
+  defp reconnect_backoff_active?(state, now) do
+    state.last_reconnect_at != nil and
+      now - state.last_reconnect_at < reconnect_backoff_ms(state.reconnect_count)
+  end
 
-      case connect(config) do
-        {:ok, conn, sftp} ->
-          Logger.info("SSH reconnected for project #{state.project_id}")
-          %{state | conn: conn, sftp: sftp}
+  defp reconnect_backoff_ms(count) do
+    min(@min_reconnect_interval_ms * Integer.pow(2, count), @max_reconnect_backoff_ms)
+  end
 
-        {:error, reason} ->
-          Logger.error("SSH reconnect failed for project #{state.project_id}: #{inspect(reason)}")
+  defp do_reconnect(state, now) do
+    Logger.info("SSH connection lost for project #{state.project_id}, reconnecting...")
+
+    try do
+      if state[:sftp], do: :ssh_sftp.stop_channel(state.sftp)
+      if state[:conn], do: :ssh.close(state.conn)
+    catch
+      _, _ -> :ok
+    end
+
+    config = Application.get_env(:shire, :ssh)
+
+    case connect(config) do
+      {:ok, conn, sftp} ->
+        Logger.info("SSH reconnected for project #{state.project_id}")
+
+        state = %{
           state
-      end
+          | conn: conn,
+            sftp: sftp,
+            last_reconnect_at: now,
+            reconnect_count: state.reconnect_count + 1
+        }
+
+        maybe_broadcast_woke_up(state, now)
+
+      {:error, reason} ->
+        Logger.error("SSH reconnect failed for project #{state.project_id}: #{inspect(reason)}")
+
+        %{
+          state
+          | conn: nil,
+            sftp: nil,
+            last_reconnect_at: now,
+            reconnect_count: state.reconnect_count + 1
+        }
+    end
+  end
+
+  defp maybe_reset_reconnect_count(state, {:ok, _}),
+    do: %{state | reconnect_count: 0}
+
+  defp maybe_reset_reconnect_count(state, _), do: state
+
+  defp maybe_broadcast_woke_up(state, now) do
+    should_broadcast =
+      state.last_woke_up_broadcast_at == nil or
+        now - state.last_woke_up_broadcast_at >= @woke_up_debounce_ms
+
+    if should_broadcast do
+      Phoenix.PubSub.broadcast(
+        Shire.PubSub,
+        "project:#{state.project_id}:vm",
+        {:vm_woke_up, state.project_id}
+      )
+
+      %{state | last_woke_up_broadcast_at: now}
+    else
+      state
     end
   end
 
@@ -581,6 +697,12 @@ defmodule Shire.VirtualMachineSSH do
         forward_loop(conn, channel, caller, ref, code)
 
       {:ssh_cm, ^conn, {:closed, ^channel}} ->
+        try do
+          :ssh_connection.close(conn, channel)
+        catch
+          _, _ -> :ok
+        end
+
         send(caller, {:exit, %{ref: ref}, exit_code || 0})
 
       {:write, data} ->
