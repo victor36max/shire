@@ -104,6 +104,22 @@ describe("AgentDashboard", () => {
     expect(pushEvent).toHaveBeenCalledWith("load-catalog", {});
   });
 
+  it("fires load-catalog event even when catalogLoading is already true", async () => {
+    const pushEvent = vi.fn();
+    render(
+      <AgentDashboard
+        {...defaultProps}
+        agents={agents}
+        selectedAgent={null}
+        pushEvent={pushEvent}
+        catalogLoading={true}
+      />,
+    );
+
+    await userEvent.click(screen.getByText("Browse Catalog"));
+    expect(pushEvent).toHaveBeenCalledWith("load-catalog", {});
+  });
+
   it("does not fire load-catalog when catalog agents already loaded", async () => {
     const pushEvent = vi.fn();
     const catalogAgents: CatalogAgentSummary[] = [
