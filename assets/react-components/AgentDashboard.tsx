@@ -5,14 +5,21 @@ import CatalogBrowser from "./CatalogBrowser";
 import ChatHeader from "./ChatHeader";
 import ChatPanel, { type Message } from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
-import { type Agent, type CatalogAgent, type CatalogAgentSummary, type CatalogCategory, type Project } from "./types";
+import {
+  type Agent,
+  type AgentOverview,
+  type CatalogAgent,
+  type CatalogAgentSummary,
+  type CatalogCategory,
+  type Project,
+} from "./types";
 import { navigate } from "./lib/navigate";
 
 interface AgentDashboardProps {
   project: { id: string; name: string };
   projects: Project[];
-  agents: Agent[];
-  selectedAgent: Agent | null;
+  agents: AgentOverview[];
+  selectedAgent: AgentOverview | null;
   messages?: Message[];
   hasMore?: boolean;
   loadingMore?: boolean;
@@ -100,7 +107,7 @@ export default function AgentDashboard({
     }
   };
 
-  const handleDeleteAgent = (agent: Agent) => {
+  const handleDeleteAgent = (agent: AgentOverview) => {
     pushEvent("delete-agent", { id: agent.id });
   };
 

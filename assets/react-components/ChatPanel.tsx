@@ -6,7 +6,7 @@ import { Button } from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
 import Markdown from "./components/Markdown";
 import { Skeleton } from "./components/ui/skeleton";
-import { type Agent } from "./types";
+import { type AgentOverview } from "./types";
 
 export interface Attachment {
   id: string;
@@ -183,7 +183,7 @@ function SystemMessage({ msg }: { msg: Message }) {
 }
 
 interface ChatPanelProps {
-  agent: Agent;
+  agent: AgentOverview;
   projectName: string;
   messages?: Message[];
   hasMore?: boolean;
@@ -371,9 +371,7 @@ export default function ChatPanel({
         )}
         {!hasMessages && !messagesLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-4 max-w-sm mx-auto text-center">
-            <p className="text-sm text-muted-foreground">
-              {agent.description || "Send a message to start working with this agent."}
-            </p>
+            <p className="text-sm text-muted-foreground">Send a message to start working with this agent.</p>
             {agent.status === "active" && (
               <div className="flex flex-wrap justify-center gap-2">
                 {["What can you help me with?", "What tools do you have?"].map((suggestion) => (
