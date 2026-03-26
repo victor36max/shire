@@ -19,7 +19,7 @@ import {
 import { FileText, Settings, FolderOpen, Clock } from "lucide-react";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { navigate } from "./lib/navigate";
-import { type Agent, type AgentStatus, type Project } from "./types";
+import { type AgentOverview, type AgentStatus, type Project } from "./types";
 
 function statusDotColor(status: AgentStatus): string {
   switch (status) {
@@ -38,11 +38,11 @@ function statusDotColor(status: AgentStatus): string {
 interface AgentSidebarProps {
   project: { id: string; name: string };
   projects: Project[];
-  agents: Agent[];
+  agents: AgentOverview[];
   selectedAgentId: string | null;
   onSelectAgent: (id: string) => void;
   onNewAgent: () => void;
-  onDeleteAgent: (agent: Agent) => void;
+  onDeleteAgent: (agent: AgentOverview) => void;
   onBrowseCatalog: () => void;
 }
 
@@ -56,7 +56,7 @@ export default function AgentSidebar({
   onDeleteAgent,
   onBrowseCatalog,
 }: AgentSidebarProps) {
-  const [deleteAgent, setDeleteAgent] = React.useState<Agent | null>(null);
+  const [deleteAgent, setDeleteAgent] = React.useState<AgentOverview | null>(null);
 
   const handleDeleteConfirm = () => {
     if (deleteAgent) {
