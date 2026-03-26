@@ -87,7 +87,7 @@ export default function AgentDashboard({
   }, [catalogSelectedAgent]);
 
   const handleBrowseCatalog = () => {
-    if (catalogAgents.length === 0 && !catalogLoading) {
+    if (catalogAgents.length === 0) {
       pushEvent("load-catalog", {});
     }
     setCatalogOpen(true);
