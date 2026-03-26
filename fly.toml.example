@@ -1,4 +1,4 @@
-app = 'shire-app'
+app = 'your-app-name'
 primary_region = 'nrt'
 
 [build]
@@ -7,7 +7,7 @@ primary_region = 'nrt'
   release_command = '/app/bin/migrate'
 
 [env]
-  PHX_HOST = 'shire-app.fly.dev'
+  PHX_HOST = 'your-app-name.fly.dev'
   PORT = '8080'
 
 [http_service]
