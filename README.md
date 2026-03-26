@@ -6,6 +6,10 @@ Shire is an open platform for deploying, orchestrating, and collaborating with A
 
 ![Shire Dashboard](docs/screenshot.png)
 
+## See it in action
+
+<video src="https://github.com/victor36max/shire/releases/download/assets/demo-web.mp4" controls width="100%"></video>
+
 ---
 
 ## Why Shire?
