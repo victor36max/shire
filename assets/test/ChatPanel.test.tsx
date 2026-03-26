@@ -38,12 +38,6 @@ describe("ChatPanel", () => {
     expect(pushEvent).toHaveBeenCalledWith("send-message", { text: "What can you help me with?" });
   });
 
-  it("shows agent description in empty state when available", () => {
-    const agentWithDesc = { ...activeAgent, description: "I help write tests." };
-    render(<ChatPanel agent={agentWithDesc} projectName="test-project" messages={[]} pushEvent={vi.fn()} />);
-    expect(screen.getByText("I help write tests.")).toBeInTheDocument();
-  });
-
   it("renders messages", () => {
     render(<ChatPanel agent={activeAgent} projectName="test-project" messages={messages} pushEvent={vi.fn()} />);
     expect(screen.getByText("Hello agent")).toBeInTheDocument();

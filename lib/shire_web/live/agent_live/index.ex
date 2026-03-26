@@ -39,6 +39,7 @@ defmodule ShireWeb.AgentLive.Index do
            messages: [],
            has_more: false,
            loading_more: false,
+           messages_loading: false,
            streaming_text: nil,
            busy_agents: MapSet.new(),
            agent_statuses: %{},
@@ -57,22 +58,32 @@ defmodule ShireWeb.AgentLive.Index do
   def handle_params(%{"agent_name" => agent_name}, _url, socket) do
     project = socket.assigns.project
 
-    case Agents.get_agent_by_name(project.id, agent_name) do
-      nil ->
+    # Fast path: look up from already-loaded assigns; fall back to DB for newly created agents
+    agent =
+      Enum.find(socket.assigns.agents, &(&1.name == agent_name)) ||
+        case Agents.get_agent_by_name(project.id, agent_name) do
+          nil ->
+            nil
+
+          record ->
+            %{id: record.id, name: record.name, status: :created, last_read_message_id: nil}
+        end
+
+    cond do
+      is_nil(agent) ->
         {:noreply,
          socket
          |> put_flash(:error, "Agent not found")
          |> push_patch(to: ~p"/projects/#{project.name}")}
 
-      agent_record ->
-        if agent_record.id == socket.assigns.selected_agent_id do
-          {:noreply, assign(socket, :page_title, agent_name)}
-        else
-          {:noreply,
-           socket
-           |> select_agent(project.id, agent_record.id)
-           |> assign(:page_title, agent_name)}
-        end
+      agent.id == socket.assigns.selected_agent_id ->
+        {:noreply, assign(socket, :page_title, agent_name)}
+
+      true ->
+        {:noreply,
+         socket
+         |> select_agent(project.id, agent.id)
+         |> assign(:page_title, agent_name)}
     end
   end
 
@@ -91,6 +102,7 @@ defmodule ShireWeb.AgentLive.Index do
        selected_agent: nil,
        messages: [],
        has_more: false,
+       messages_loading: false,
        streaming_text: nil
      )}
   end
@@ -220,18 +232,8 @@ defmodule ShireWeb.AgentLive.Index do
     agent_id = socket.assigns.selected_agent_id
 
     if agent_id do
-      {new_messages, has_more} =
-        Agents.list_messages_for_agent(project_id, agent_id, before: before, limit: 50)
-
-      all_messages =
-        Enum.map(new_messages, &Helpers.serialize_message/1) ++ socket.assigns.messages
-
-      {:noreply,
-       assign(socket,
-         messages: all_messages,
-         has_more: has_more,
-         loading_more: false
-       )}
+      send(self(), {:do_load_more, project_id, agent_id, before})
+      {:noreply, assign(socket, :loading_more, true)}
     else
       {:noreply, socket}
     end
@@ -424,40 +426,79 @@ defmodule ShireWeb.AgentLive.Index do
     {:noreply, assign(socket, agent_statuses: statuses, selected_agent: selected_agent)}
   end
 
+  # Async message loading — fired from select_agent/3
+  @impl true
+  def handle_info({:load_messages, project_id, agent_id}, socket) do
+    if socket.assigns.selected_agent_id == agent_id do
+      {messages, has_more} = Agents.list_messages_for_agent(project_id, agent_id, limit: 50)
+
+      latest_id =
+        case List.last(messages) do
+          nil -> nil
+          msg -> msg.id
+        end
+
+      if latest_id, do: AgentManager.mark_read(project_id, agent_id, latest_id)
+
+      {:noreply,
+       assign(socket,
+         messages: Enum.map(messages, &Helpers.serialize_message/1),
+         has_more: has_more,
+         messages_loading: false
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Async pagination — fired from handle_event("load-more", ...)
+  @impl true
+  def handle_info({:do_load_more, project_id, agent_id, before}, socket) do
+    if socket.assigns.selected_agent_id == agent_id do
+      {new_messages, has_more} =
+        Agents.list_messages_for_agent(project_id, agent_id, before: before, limit: 50)
+
+      all_messages =
+        Enum.map(new_messages, &Helpers.serialize_message/1) ++ socket.assigns.messages
+
+      {:noreply,
+       assign(socket,
+         messages: all_messages,
+         has_more: has_more,
+         loading_more: false
+       )}
+    else
+      {:noreply, assign(socket, :loading_more, false)}
+    end
+  end
+
   # --- Private helpers ---
 
   defp select_agent(socket, project_id, agent_id) do
-    case Coordinator.get_agent(project_id, agent_id) do
-      {:ok, agent} ->
-        if connected?(socket) do
-          if old = socket.assigns.selected_agent_id do
-            Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:agent:#{old}")
-          end
+    agent = Enum.find(socket.assigns.agents, &(&1.id == agent_id))
 
-          Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
+    if agent do
+      if connected?(socket) do
+        if old = socket.assigns.selected_agent_id do
+          Phoenix.PubSub.unsubscribe(Shire.PubSub, "project:#{project_id}:agent:#{old}")
         end
 
-        {messages, has_more} = Agents.list_messages_for_agent(project_id, agent_id, limit: 50)
+        Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agent:#{agent_id}")
+      end
 
-        latest_id =
-          case List.last(messages) do
-            nil -> nil
-            msg -> msg.id
-          end
+      send(self(), {:load_messages, project_id, agent_id})
 
-        if latest_id, do: AgentManager.mark_read(project_id, agent_id, latest_id)
-
-        assign(socket,
-          selected_agent_id: agent_id,
-          selected_agent: agent,
-          messages: Enum.map(messages, &Helpers.serialize_message/1),
-          has_more: has_more,
-          streaming_text: nil,
-          unread_counts: Map.put(socket.assigns.unread_counts, agent_id, 0)
-        )
-
-      {:error, _} ->
-        put_flash(socket, :error, "Agent not found")
+      assign(socket,
+        selected_agent_id: agent_id,
+        selected_agent: agent,
+        messages: [],
+        has_more: false,
+        messages_loading: true,
+        streaming_text: nil,
+        unread_counts: Map.put(socket.assigns.unread_counts, agent_id, 0)
+      )
+    else
+      put_flash(socket, :error, "Agent not found")
     end
   end
 
@@ -538,6 +579,7 @@ defmodule ShireWeb.AgentLive.Index do
       messages={@messages}
       hasMore={@has_more}
       loadingMore={@loading_more}
+      messagesLoading={@messages_loading}
       socket={@socket}
       catalogAgents={@catalog_agents}
       catalogCategories={@catalog_categories}

@@ -5,17 +5,25 @@ import CatalogBrowser from "./CatalogBrowser";
 import ChatHeader from "./ChatHeader";
 import ChatPanel, { type Message } from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
-import { type Agent, type CatalogAgent, type CatalogAgentSummary, type CatalogCategory, type Project } from "./types";
+import {
+  type Agent,
+  type AgentOverview,
+  type CatalogAgent,
+  type CatalogAgentSummary,
+  type CatalogCategory,
+  type Project,
+} from "./types";
 import { navigate } from "./lib/navigate";
 
 interface AgentDashboardProps {
   project: { id: string; name: string };
   projects: Project[];
-  agents: Agent[];
-  selectedAgent: Agent | null;
+  agents: AgentOverview[];
+  selectedAgent: AgentOverview | null;
   messages?: Message[];
   hasMore?: boolean;
   loadingMore?: boolean;
+  messagesLoading?: boolean;
   editAgent: Agent | null;
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
   catalogAgents?: CatalogAgentSummary[];
@@ -31,6 +39,7 @@ export default function AgentDashboard({
   messages = [],
   hasMore = false,
   loadingMore = false,
+  messagesLoading = false,
   editAgent,
   pushEvent,
   catalogAgents = [],
@@ -98,7 +107,7 @@ export default function AgentDashboard({
     }
   };
 
-  const handleDeleteAgent = (agent: Agent) => {
+  const handleDeleteAgent = (agent: AgentOverview) => {
     pushEvent("delete-agent", { id: agent.id });
   };
 
@@ -153,6 +162,7 @@ export default function AgentDashboard({
                 messages={messages}
                 hasMore={hasMore}
                 loadingMore={loadingMore}
+                messagesLoading={messagesLoading}
                 pushEvent={pushEvent}
               />
             </div>

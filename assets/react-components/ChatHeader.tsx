@@ -7,10 +7,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu";
-import { type Agent, statusVariant } from "./types";
+import { type AgentOverview, statusVariant } from "./types";
 
 interface ChatHeaderProps {
-  agent: Agent;
+  agent: AgentOverview;
   onMenuToggle?: () => void;
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }
