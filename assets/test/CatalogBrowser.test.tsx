@@ -120,9 +120,21 @@ describe("CatalogBrowser", () => {
     expect(screen.getByText("No agents match your search.")).toBeInTheDocument();
   });
 
-  it("shows empty catalog state when no agents provided", () => {
-    render(<CatalogBrowser {...defaultProps} agents={[]} />);
+  it("shows empty catalog state when no agents provided and not loading", () => {
+    render(<CatalogBrowser {...defaultProps} agents={[]} loading={false} />);
     expect(screen.getByText(/no agents in catalog/i)).toBeInTheDocument();
+  });
+
+  it("shows loading spinner when loading is true", () => {
+    render(<CatalogBrowser {...defaultProps} agents={[]} loading />);
+    expect(screen.getByText("Loading catalog...")).toBeInTheDocument();
+    expect(screen.queryByText(/no agents in catalog/i)).not.toBeInTheDocument();
+  });
+
+  it("does not show loading spinner when agents are loaded", () => {
+    render(<CatalogBrowser {...defaultProps} loading={false} />);
+    expect(screen.queryByText("Loading catalog...")).not.toBeInTheDocument();
+    expect(screen.getByText("Frontend Developer")).toBeInTheDocument();
   });
 
   it("displays agent descriptions", () => {
