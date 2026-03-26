@@ -11,7 +11,9 @@ defmodule ShireWeb.AgentLive.Index do
   @max_attachment_size 50 * 1024 * 1024
 
   @impl true
-  def mount(%{"project_name" => project_name}, _session, socket) do
+  def mount(params, _session, socket) do
+    project_name = params["project_name"]
+    agent_name = params["agent_name"]
     project = Projects.get_project_by_name!(project_name)
     project_id = project.id
 
@@ -24,31 +26,102 @@ defmodule ShireWeb.AgentLive.Index do
           Phoenix.PubSub.subscribe(Shire.PubSub, "project:#{project_id}:agents")
         end
 
-        agents = Coordinator.list_agents(project_id)
-        projects = ProjectManager.list_projects()
-        unread_counts = Agents.unread_counts(agents)
+        agents_task =
+          Task.async(fn ->
+            agents = Coordinator.list_agents(project_id)
+            {agents, Agents.unread_counts(agents)}
+          end)
+
+        projects_task = Task.async(fn -> ProjectManager.list_projects() end)
+
+        catalog_task =
+          Task.async(fn ->
+            catalog_agents =
+              Shire.Catalog.list_agents()
+              |> Enum.map(&Map.from_struct/1)
+              |> Enum.map(&Map.drop(&1, [:system_prompt]))
+
+            {catalog_agents, Shire.Catalog.list_categories()}
+          end)
+
+        messages_task =
+          if agent_name do
+            Task.async(fn ->
+              case Agents.get_agent_by_name(project_id, agent_name) do
+                nil ->
+                  {nil, [], false}
+
+                record ->
+                  {messages, has_more} =
+                    Agents.list_messages_for_agent(project_id, record.id, limit: 50)
+
+                  {record, messages, has_more}
+              end
+            end)
+          end
+
+        {agents, unread_counts} = Task.await(agents_task)
+        projects = Task.await(projects_task)
+        {catalog_agents, catalog_categories} = Task.await(catalog_task)
+
+        {selected_agent, messages, has_more} =
+          if messages_task do
+            case Task.await(messages_task) do
+              {nil, _, _} ->
+                {nil, [], false}
+
+              {record, messages, has_more} ->
+                agent =
+                  Enum.find(agents, &(&1.id == record.id)) ||
+                    %{
+                      id: record.id,
+                      name: record.name,
+                      status: :created,
+                      last_read_message_id: nil
+                    }
+
+                latest_id =
+                  case List.last(messages) do
+                    nil -> nil
+                    msg -> msg.id
+                  end
+
+                if latest_id, do: AgentManager.mark_read(project_id, record.id, latest_id)
+
+                {agent, Enum.map(messages, &Helpers.serialize_message/1), has_more}
+            end
+          else
+            {nil, [], false}
+          end
+
+        if connected?(socket) && selected_agent do
+          Phoenix.PubSub.subscribe(
+            Shire.PubSub,
+            "project:#{project_id}:agent:#{selected_agent.id}"
+          )
+        end
 
         {:ok,
          assign(socket,
            project: %{id: project.id, name: project.name},
            projects: projects,
            agents: agents,
-           unread_counts: unread_counts,
-           selected_agent_id: nil,
-           selected_agent: nil,
-           messages: [],
-           has_more: false,
+           unread_counts:
+             if(selected_agent,
+               do: Map.put(unread_counts, selected_agent.id, 0),
+               else: unread_counts
+             ),
+           selected_agent_id: if(selected_agent, do: selected_agent.id),
+           selected_agent: selected_agent,
+           messages: messages,
+           has_more: has_more,
            loading_more: false,
-           messages_loading: false,
            streaming_text: nil,
            busy_agents: MapSet.new(),
            agent_statuses: %{},
            editing_agent: nil,
-           catalog_agents:
-             Shire.Catalog.list_agents()
-             |> Enum.map(&Map.from_struct/1)
-             |> Enum.map(&Map.drop(&1, [:system_prompt])),
-           catalog_categories: Shire.Catalog.list_categories(),
+           catalog_agents: catalog_agents,
+           catalog_categories: catalog_categories,
            catalog_selected_agent: nil
          )}
     end
@@ -102,7 +175,6 @@ defmodule ShireWeb.AgentLive.Index do
        selected_agent: nil,
        messages: [],
        has_more: false,
-       messages_loading: false,
        streaming_text: nil
      )}
   end
@@ -443,8 +515,7 @@ defmodule ShireWeb.AgentLive.Index do
       {:noreply,
        assign(socket,
          messages: Enum.map(messages, &Helpers.serialize_message/1),
-         has_more: has_more,
-         messages_loading: false
+         has_more: has_more
        )}
     else
       {:noreply, socket}
@@ -493,7 +564,6 @@ defmodule ShireWeb.AgentLive.Index do
         selected_agent: agent,
         messages: [],
         has_more: false,
-        messages_loading: true,
         streaming_text: nil,
         unread_counts: Map.put(socket.assigns.unread_counts, agent_id, 0)
       )
@@ -579,7 +649,6 @@ defmodule ShireWeb.AgentLive.Index do
       messages={@messages}
       hasMore={@has_more}
       loadingMore={@loading_more}
-      messagesLoading={@messages_loading}
       socket={@socket}
       catalogAgents={@catalog_agents}
       catalogCategories={@catalog_categories}
