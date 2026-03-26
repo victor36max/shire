@@ -171,14 +171,20 @@ defmodule Shire.Agent.AgentManager do
     }
 
     if skip_sprite do
-      {:ok, state}
+      {:ok, state, {:continue, :init_last_read}}
     else
       {:ok, state, {:continue, :bootstrap}}
     end
   end
 
   @impl true
+  def handle_continue(:init_last_read, state) do
+    {:noreply, init_last_read(state)}
+  end
+
+  @impl true
   def handle_continue(:bootstrap, state) do
+    state = init_last_read(state)
     state = transition_status(state, :bootstrapping)
 
     Task.start_link(fn ->
@@ -630,6 +636,16 @@ defmodule Shire.Agent.AgentManager do
   end
 
   # --- Private ---
+
+  defp init_last_read(state) do
+    case Shire.Agents.latest_message_id(state.agent_id) do
+      nil -> state
+      id -> %{state | last_read_message_id: id}
+    end
+  rescue
+    DBConnection.OwnershipError -> state
+    DBConnection.ConnectionError -> state
+  end
 
   defp transition_status(state, status) do
     state = %{state | status: status}

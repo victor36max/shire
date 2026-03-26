@@ -251,5 +251,17 @@ defmodule Shire.Agents do
     end
   end
 
+  @doc """
+  Returns the ID of the latest "agent" role message for the given agent,
+  or nil if no such message exists.
+  """
+  def latest_message_id(agent_id) do
+    from(m in Message,
+      where: m.agent_id == ^agent_id and m.role == "agent",
+      select: max(m.id)
+    )
+    |> Repo.one()
+  end
+
   defp vm, do: Application.get_env(:shire, :vm, Shire.VirtualMachineSprite)
 end
