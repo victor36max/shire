@@ -56,6 +56,7 @@ function makeEnvelope(overrides: Partial<MessageEnvelope> = {}): MessageEnvelope
 function createMockHarness(): Harness & {
   sendMessage: ReturnType<typeof mock>;
   interrupt: ReturnType<typeof mock>;
+  clearSession: ReturnType<typeof mock>;
   stop: ReturnType<typeof mock>;
   start: ReturnType<typeof mock>;
 } {
@@ -63,6 +64,7 @@ function createMockHarness(): Harness & {
     start: mock(async () => {}),
     sendMessage: mock(async () => {}),
     interrupt: mock(async () => {}),
+    clearSession: mock(async () => {}),
     stop: mock(async () => {}),
     onEvent: mock(() => {}),
     isProcessing: mock(() => false),
@@ -315,6 +317,35 @@ describe("processMessage() — interrupt", () => {
   test("does not call harness.sendMessage for interrupt", async () => {
     const harness = createMockHarness();
     const envelope = makeEnvelope({ type: "interrupt", payload: {} });
+
+    await captureEmits(async () => {
+      await processMessage(harness, envelope);
+    });
+
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// processMessage() — clear_session
+// ---------------------------------------------------------------------------
+
+describe("processMessage() — clear_session", () => {
+  test("calls harness.clearSession() and emits session_cleared event", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({ type: "clear_session", payload: {} });
+
+    const events = await captureEmits(async () => {
+      await processMessage(harness, envelope);
+    });
+
+    expect(harness.clearSession).toHaveBeenCalledTimes(1);
+    expect(events.map((e) => e.type)).toContain("session_cleared");
+  });
+
+  test("does not call harness.sendMessage for clear_session", async () => {
+    const harness = createMockHarness();
+    const envelope = makeEnvelope({ type: "clear_session", payload: {} });
 
     await captureEmits(async () => {
       await processMessage(harness, envelope);

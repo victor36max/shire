@@ -10,6 +10,7 @@ export class ClaudeCodeHarness implements Harness {
   private config: HarnessConfig | null = null;
   private activeQuery: Query | null = null;
   private queryFn: QueryFn;
+  private shouldContinue = true;
 
   constructor(queryFn?: QueryFn) {
     this.queryFn = queryFn ?? query;
@@ -26,6 +27,8 @@ export class ClaudeCodeHarness implements Harness {
 
     const content = from ? `[Message from agent "${from}"]\n${text}` : text;
 
+    const shouldContinue = this.shouldContinue;
+    this.shouldContinue = true;
     this.processing = true;
     try {
       const q = this.queryFn({
@@ -38,7 +41,7 @@ export class ClaudeCodeHarness implements Harness {
           settingSources: ["project"],
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
-          continue: true,
+          continue: shouldContinue,
           includePartialMessages: true,
         },
       });
@@ -54,6 +57,10 @@ export class ClaudeCodeHarness implements Harness {
       this.processing = false;
       this.activeQuery = null;
     }
+  }
+
+  async clearSession(): Promise<void> {
+    this.shouldContinue = false;
   }
 
   async interrupt(): Promise<void> {

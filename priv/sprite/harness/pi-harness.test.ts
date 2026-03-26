@@ -268,4 +268,29 @@ describe("PiHarness", () => {
     await expect(harness.sendMessage("too late")).rejects.toThrow("Harness is stopped");
     expect(factory).not.toHaveBeenCalled();
   });
+
+  test("clearSession() causes a new session to be created on next sendMessage()", async () => {
+    const factory = mock(async () => createMockSession());
+    const harness = new PiHarness();
+    harness.onEvent(() => {});
+    harness._setSessionFactory(factory);
+    await harness.start(baseConfig);
+    await harness.sendMessage("First");
+    expect(factory).toHaveBeenCalledTimes(1);
+
+    await harness.clearSession();
+    await harness.sendMessage("Fresh start");
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
+
+  test("clearSession() before any message causes fresh session", async () => {
+    const factory = mock(async () => createMockSession());
+    const harness = new PiHarness();
+    harness.onEvent(() => {});
+    harness._setSessionFactory(factory);
+    await harness.start(baseConfig);
+    await harness.clearSession();
+    await harness.sendMessage("Hello");
+    expect(factory).toHaveBeenCalledTimes(1);
+  });
 });
