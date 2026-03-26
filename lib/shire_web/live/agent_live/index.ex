@@ -111,7 +111,7 @@ defmodule ShireWeb.AgentLive.Index do
            editing_agent: nil,
            catalog_agents: [],
            catalog_categories: [],
-           catalog_loading: false,
+           catalog_loading: true,
            catalog_task_ref: nil,
            catalog_selected_agent: nil
          )}
