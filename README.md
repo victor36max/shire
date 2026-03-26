@@ -21,7 +21,7 @@ Most AI agent tools follow the same pattern — you give an instruction, an agen
 - **Secure cloud sandboxes** — Each agent runs in an isolated cloud VM — [Fly.io Sprites](https://sprites.dev) (Firecracker), any Linux VPS via SSH, or local for development. Agents pick up exactly where they left off.
 - **Works with any model** — Not locked to one AI provider. Supports Claude Code, Pi Agent, and more coming soon. Shire is the infrastructure layer — bring whatever model fits your workflow.
 - **Autonomous agent communication** — Agents discover peers and collaborate on their own — no orchestrator required. Direct messaging, shared context, real teamwork between agents.
-- **Agent catalog** — Browse and deploy from a community-maintained library of pre-built agents. Powered by [agency-agents](https://github.com/agency-agents). Get a capable team running in seconds.
+- **Agent catalog** — Browse and deploy from a community-maintained library of pre-built agents. Powered by [agency-agents](https://github.com/msitarzewski/agency-agents). Get a capable team running in seconds.
 - **Shared drive** — A communal filesystem synced across all agents for collaborative work on shared artifacts.
 - **Scheduled tasks** — Automate agent work with one-time or recurring scheduled messages. Set custom intervals and let agents run on autopilot.
 - **Multi-project architecture** — Organize agents into projects, each with its own dedicated VM, shared drive, and settings.
