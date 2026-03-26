@@ -1,8 +1,10 @@
 # Shire
 
-**Where agents live, and flourish.**
+**Agents that work with you, not for you.**
 
-Shire is an open platform for deploying, orchestrating, and collaborating with AI agents. Give each agent its own persistent workspace, connect them through a built-in mailbox system, and manage everything from a single dashboard.
+[agents-shire.sh](https://www.agents-shire.sh/)
+
+Most AI tools let you assign a task and walk away. Shire gives you a team of AI agents you actually work alongside — they persist, they communicate, they pick up where they left off. Open source.
 
 ![Shire Dashboard](docs/screenshot.png)
 
@@ -14,17 +16,16 @@ https://github.com/user-attachments/assets/04056f61-d2e7-4eb8-b0e4-48a342b298d3
 
 ## Why Shire?
 
-Most agent platforms treat agents as stateless API calls. Shire gives every agent a **home** — a persistent workspace with its own filesystem, tools, and mailbox.
+Most AI agent tools follow the same pattern — you give an instruction, an agent executes it, you get the output. The agent disappears. Next time, you start from scratch. Shire is different. Your agents persist between sessions. They communicate with each other autonomously. They build on yesterday's work. You give feedback, iterate, adjust direction — like working with a real team.
 
+- **Secure cloud sandboxes** — Each agent runs in an isolated cloud VM — [Fly.io Sprites](https://sprites.dev) (Firecracker), any Linux VPS via SSH, or local for development. Agents pick up exactly where they left off.
+- **Works with any model** — Not locked to one AI provider. Supports Claude Code, Pi Agent, and more coming soon. Shire is the infrastructure layer — bring whatever model fits your workflow.
+- **Autonomous agent communication** — Agents discover peers and collaborate on their own — no orchestrator required. Direct messaging, shared context, real teamwork between agents.
+- **Agent catalog** — Browse and deploy from a community-maintained library of pre-built agents. Powered by [agency-agents](https://github.com/agency-agents). Get a capable team running in seconds.
+- **Shared drive** — A communal filesystem synced across all agents for collaborative work on shared artifacts.
+- **Scheduled tasks** — Automate agent work with one-time or recurring scheduled messages. Set custom intervals and let agents run on autopilot.
 - **Multi-project architecture** — Organize agents into projects, each with its own dedicated VM, shared drive, and settings.
-- **Persistent workspaces** — Each agent gets its own directory with inbox/outbox, scripts, and documents — backed by a Firecracker VM, remote VPS, or local filesystem.
-- **Pluggable VM backends** — Run on [Fly.io Sprites](https://sprites.dev) (Firecracker), any VPS via SSH, or your local machine for development.
-- **Multi-harness runtime** — Bring your own agent runtime. Supports Pi SDK and Claude Code CLI through a unified adapter pattern.
 - **Recipe-based deployment** — Define agents as simple YAML recipes. No Dockerfiles, no complex configs.
-- **Agent catalog** — Browse and deploy from a built-in catalog of pre-built agent templates.
-- **Inter-agent communication** — Agents discover peers and exchange messages through a file-based mailbox system.
-- **Scheduled tasks** — Automate agent work with one-time or recurring messages on custom intervals.
-- **Shared drive** — A communal filesystem synced across all agents within a project.
 - **Real-time dashboard** — Monitor, chat with, and manage agents from a live web UI with streaming updates.
 - **Interactive terminal** — Drop into the VM with a full terminal, right from your browser.
 
@@ -210,13 +211,13 @@ Agent-specific env vars (API keys, tokens, etc.) are configured per-project via 
 
 ## How It Works
 
-### 1. Create a Project
+### 1. Deploy
 
-Projects are the top-level unit. Each project gets its own VM with isolated storage. Create one from the dashboard.
+Set up your team's home — [Fly.io Sprites](https://sprites.dev) (Firecracker), any Linux VPS via SSH, or local for development. Projects are the top-level unit; each gets its own VM with isolated storage.
 
-### 2. Define a Recipe
+### 2. Build Your Team
 
-Agents are defined as YAML recipes:
+Pick agents from the community catalog or create your own with simple YAML recipes:
 
 ```yaml
 name: researcher
@@ -229,21 +230,13 @@ system_prompt: |
 
 Recipe fields: `name`, `description`, `harness` (`claude_code` or `pi_sdk`), `model`, `system_prompt`, and `skills`.
 
-### 3. Deploy
+### 3. Collaborate
 
-Hit "Create Agent", paste your recipe or pick one from the catalog. Shire bootstraps the workspace and spawns the agent runner.
+Work alongside your agents — give feedback, adjust direction. Agents discover each other through `peers.yaml` and exchange messages autonomously via the mailbox system. Use the shared drive for files all agents need. Schedule recurring messages on custom intervals. Chat with any agent from the dashboard.
 
-### 4. Collaborate
+### 4. Sleep & Resume
 
-Agents discover each other through `peers.yaml` and exchange messages via the mailbox system. Use the shared drive for files all agents need. Chat with any agent from the dashboard.
-
-### 5. Automate
-
-Schedule recurring messages to agents — hourly, daily, weekly, or custom cron intervals.
-
-### 6. Sleep & Resume
-
-Idle VMs auto-sleep, preserving all state. Everything resumes instantly when needed. *(Sprites backend only — SSH and Local backends are always-on.)*
+When you're done for the day, agents sleep preserving all state. Come back tomorrow — they wake in ~300ms, right where you left off. No context lost. *(Sprites backend only — SSH and Local backends are always-on.)*
 
 ## Development
 
