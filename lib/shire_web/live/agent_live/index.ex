@@ -62,8 +62,11 @@ defmodule ShireWeb.AgentLive.Index do
     agent =
       Enum.find(socket.assigns.agents, &(&1.name == agent_name)) ||
         case Agents.get_agent_by_name(project.id, agent_name) do
-          nil -> nil
-          record -> %{id: record.id, name: record.name, status: :created, last_read_message_id: nil}
+          nil ->
+            nil
+
+          record ->
+            %{id: record.id, name: record.name, status: :created, last_read_message_id: nil}
         end
 
     cond do
