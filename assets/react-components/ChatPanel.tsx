@@ -187,7 +187,6 @@ interface ChatPanelProps {
   messages?: Message[];
   hasMore?: boolean;
   loadingMore?: boolean;
-  messagesLoading?: boolean;
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
 }
 
@@ -197,7 +196,6 @@ export default function ChatPanel({
   messages = [],
   hasMore = false,
   loadingMore = false,
-  messagesLoading = false,
   pushEvent,
 }: ChatPanelProps) {
   const { handleEvent, removeHandleEvent } = useLiveReact();
@@ -219,16 +217,6 @@ export default function ChatPanel({
     prevMessagesLengthRef.current = 0;
     prevScrollHeightRef.current = 0;
   }, [agent.id]);
-
-  // Show loading spinner only after a delay to avoid flash on fast loads
-  const [showLoadingSpinner, setShowLoadingSpinner] = React.useState(false);
-  React.useEffect(() => {
-    if (messagesLoading) {
-      const timer = setTimeout(() => setShowLoadingSpinner(true), 500);
-      return () => clearTimeout(timer);
-    }
-    setShowLoadingSpinner(false);
-  }, [messagesLoading]);
 
   // Listen for streaming text deltas and flush events from LiveView
   React.useEffect(() => {
@@ -361,15 +349,7 @@ export default function ChatPanel({
             <span className="text-xs text-muted-foreground animate-pulse">Loading older messages...</span>
           </div>
         )}
-        {messagesLoading && !hasMessages && showLoadingSpinner && (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground animate-pulse" />
-              Loading messages...
-            </div>
-          </div>
-        )}
-        {!hasMessages && !messagesLoading && (
+        {!hasMessages && (
           <div className="flex flex-col items-center justify-center h-full gap-4 max-w-sm mx-auto text-center">
             <p className="text-sm text-muted-foreground">Send a message to start working with this agent.</p>
             {agent.status === "active" && (
