@@ -18,6 +18,7 @@ export interface Harness {
   start(config: HarnessConfig): Promise<void>;
   sendMessage(text: string, from?: string): Promise<void>;
   interrupt(): Promise<void>;
+  clearSession(): Promise<void>;
   stop(): Promise<void>;
   onEvent(callback: EventCallback): void;
   isProcessing(): boolean;
