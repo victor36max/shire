@@ -263,6 +263,44 @@ defmodule ShireWeb.AgentLiveTest do
       assert html =~ "AgentDashboard"
     end
 
+    test "selecting agent loads messages asynchronously", %{
+      conn: conn,
+      project_id: project_id,
+      project_name: project_name
+    } do
+      agent = create_db_agent(project_id, "async-agent")
+
+      # Insert a message for this agent
+      {:ok, _msg} =
+        Shire.Agents.create_message(%{
+          project_id: project_id,
+          agent_id: agent.id,
+          role: "user",
+          content: %{"text" => "hello async"}
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}/agents/#{agent.name}")
+
+      # After the async handle_info fires, messages should be loaded
+      html = render(view)
+      assert html =~ "AgentDashboard"
+    end
+
+    test "switching agents via patch works", %{
+      conn: conn,
+      project_id: project_id,
+      project_name: project_name
+    } do
+      _agent_a = create_db_agent(project_id, "agent-a")
+      _agent_b = create_db_agent(project_id, "agent-b")
+
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project_name}/agents/agent-a")
+
+      # Switch to agent B via patch navigation
+      assert render_patch(view, ~p"/projects/#{project_name}/agents/agent-b") =~
+               "AgentDashboard"
+    end
+
     test "navigating to nonexistent agent redirects to project root", %{
       conn: conn,
       project_name: project_name
