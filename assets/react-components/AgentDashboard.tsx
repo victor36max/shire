@@ -27,6 +27,7 @@ interface AgentDashboardProps {
   pushEvent: (event: string, payload: Record<string, unknown>) => void;
   catalogAgents?: CatalogAgentSummary[];
   catalogCategories?: CatalogCategory[];
+  catalogLoading?: boolean;
   catalogSelectedAgent?: CatalogAgent | null;
 }
 
@@ -42,6 +43,7 @@ export default function AgentDashboard({
   pushEvent,
   catalogAgents = [],
   catalogCategories = [],
+  catalogLoading = false,
   catalogSelectedAgent = null,
 }: AgentDashboardProps) {
   const [formOpen, setFormOpen] = React.useState(false);
@@ -84,7 +86,12 @@ export default function AgentDashboard({
     }
   }, [catalogSelectedAgent]);
 
-  const handleBrowseCatalog = () => setCatalogOpen(true);
+  const handleBrowseCatalog = () => {
+    if (catalogAgents.length === 0 && !catalogLoading) {
+      pushEvent("load-catalog", {});
+    }
+    setCatalogOpen(true);
+  };
 
   const handleCatalogAdd = (agentName: string) => {
     pushEvent("get-catalog-agent", { name: agentName });
@@ -187,6 +194,7 @@ export default function AgentDashboard({
         onClose={() => setCatalogOpen(false)}
         agents={catalogAgents}
         categories={catalogCategories}
+        loading={catalogLoading}
         onAdd={handleCatalogAdd}
       />
     </div>
