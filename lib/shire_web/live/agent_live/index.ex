@@ -34,16 +34,6 @@ defmodule ShireWeb.AgentLive.Index do
 
         projects_task = Task.async(fn -> ProjectManager.list_projects() end)
 
-        catalog_task =
-          Task.async(fn ->
-            catalog_agents =
-              Shire.Catalog.list_agents()
-              |> Enum.map(&Map.from_struct/1)
-              |> Enum.map(&Map.drop(&1, [:system_prompt]))
-
-            {catalog_agents, Shire.Catalog.list_categories()}
-          end)
-
         messages_task =
           if agent_name do
             Task.async(fn ->
@@ -62,7 +52,6 @@ defmodule ShireWeb.AgentLive.Index do
 
         {agents, unread_counts} = Task.await(agents_task)
         projects = Task.await(projects_task)
-        {catalog_agents, catalog_categories} = Task.await(catalog_task)
 
         {selected_agent, messages, has_more} =
           if messages_task do
@@ -120,8 +109,10 @@ defmodule ShireWeb.AgentLive.Index do
            busy_agents: MapSet.new(),
            agent_statuses: %{},
            editing_agent: nil,
-           catalog_agents: catalog_agents,
-           catalog_categories: catalog_categories,
+           catalog_agents: [],
+           catalog_categories: [],
+           catalog_loading: false,
+           catalog_task_ref: nil,
            catalog_selected_agent: nil
          )}
     end
@@ -236,6 +227,20 @@ defmodule ShireWeb.AgentLive.Index do
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Failed to create agent: #{inspect(reason)}")}
     end
+  end
+
+  def handle_event("load-catalog", _params, socket) do
+    task =
+      Task.async(fn ->
+        catalog_agents =
+          Shire.Catalog.list_agents()
+          |> Enum.map(&Map.from_struct/1)
+          |> Enum.map(&Map.drop(&1, [:system_prompt]))
+
+        {catalog_agents, Shire.Catalog.list_categories()}
+      end)
+
+    {:noreply, assign(socket, catalog_loading: true, catalog_task_ref: task.ref)}
   end
 
   def handle_event("get-catalog-agent", %{"name" => name}, socket) do
@@ -498,6 +503,25 @@ defmodule ShireWeb.AgentLive.Index do
     {:noreply, assign(socket, agent_statuses: statuses, selected_agent: selected_agent)}
   end
 
+  # Async catalog load result — from Task.async in handle_event("load-catalog")
+  @impl true
+  def handle_info({ref, {catalog_agents, catalog_categories}}, socket)
+      when is_reference(ref) do
+    if ref == socket.assigns.catalog_task_ref do
+      Process.demonitor(ref, [:flush])
+
+      {:noreply,
+       assign(socket,
+         catalog_agents: catalog_agents,
+         catalog_categories: catalog_categories,
+         catalog_loading: false,
+         catalog_task_ref: nil
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
   # Async message loading — fired from select_agent/3
   @impl true
   def handle_info({:load_messages, project_id, agent_id}, socket) do
@@ -652,6 +676,7 @@ defmodule ShireWeb.AgentLive.Index do
       socket={@socket}
       catalogAgents={@catalog_agents}
       catalogCategories={@catalog_categories}
+      catalogLoading={@catalog_loading}
       catalogSelectedAgent={@catalog_selected_agent}
     />
     """

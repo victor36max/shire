@@ -4,6 +4,7 @@ import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./components/ui/card";
+import { Loader2 } from "lucide-react";
 import type { CatalogAgentSummary, CatalogCategory } from "./types";
 
 interface CatalogBrowserProps {
@@ -11,10 +12,11 @@ interface CatalogBrowserProps {
   onClose: () => void;
   agents: CatalogAgentSummary[];
   categories: CatalogCategory[];
+  loading?: boolean;
   onAdd: (agentName: string) => void;
 }
 
-export default function CatalogBrowser({ open, onClose, agents, categories, onAdd }: CatalogBrowserProps) {
+export default function CatalogBrowser({ open, onClose, agents, categories, loading, onAdd }: CatalogBrowserProps) {
   const [search, setSearch] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
 
@@ -50,7 +52,7 @@ export default function CatalogBrowser({ open, onClose, agents, categories, onAd
     return categories.filter((c) => agentCategories.has(c.id));
   }, [agents, categories]);
 
-  if (agents.length === 0) {
+  if (loading || agents.length === 0) {
     return (
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
         <DialogContent className="max-w-lg">
@@ -58,9 +60,16 @@ export default function CatalogBrowser({ open, onClose, agents, categories, onAd
             <DialogTitle>Agent Catalog</DialogTitle>
             <DialogDescription>Browse and add pre-defined agents to your project.</DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground py-8 text-center">
-            No agents in catalog. Run <code>mix catalog.sync</code> to import agents.
-          </p>
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-8">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Loading catalog...</span>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              No agents in catalog. Run <code>mix catalog.sync</code> to import agents.
+            </p>
+          )}
         </DialogContent>
       </Dialog>
     );
