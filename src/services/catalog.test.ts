@@ -80,7 +80,7 @@ afterAll(() => {
 // we test the underlying logic directly by importing and overriding.
 // For now, test the functions that don't depend on the path.
 
-import { searchAgents, type CatalogAgent } from "./catalog";
+import { type CatalogAgent } from "./catalog";
 
 // Build mock agents for search tests
 const mockAgents: CatalogAgent[] = [

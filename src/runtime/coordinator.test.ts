@@ -5,7 +5,7 @@ import * as agentsService from "../services/agents";
 import * as projects from "../services/projects";
 import * as workspace from "../services/workspace";
 import { bus } from "../events";
-import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "fs";
+import { rmSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 

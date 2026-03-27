@@ -103,7 +103,7 @@ export class Scheduler {
     });
 
     // Mark run
-    const updated = schedulesService.markRun(task.id);
+    schedulesService.markRun(task.id);
 
     // Disable one-time tasks
     if (task.scheduleType === "once") {

@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync, rmSync, readFileSync } from "fs";
+import { writeFileSync, rmSync, readFileSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
 import { bus } from "../events";

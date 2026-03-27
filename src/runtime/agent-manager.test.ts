@@ -5,30 +5,12 @@ import * as agentsService from "../services/agents";
 import * as projects from "../services/projects";
 import * as workspace from "../services/workspace";
 import { bus, type BusEvent } from "../events";
-import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { existsSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import type { EventCallback } from "./harness/types";
-
 let testDir: string;
 let projectId: string;
 let agentId: string;
-
-// Capture the harness event callback so we can simulate harness events
-let harnessCallback: EventCallback | null = null;
-
-// Mock the harness module
-const mockHarness = {
-  start: async () => {},
-  sendMessage: async () => {},
-  interrupt: async () => {},
-  clearSession: async () => {},
-  stop: async () => {},
-  onEvent: (cb: EventCallback) => {
-    harnessCallback = cb;
-  },
-  isProcessing: () => false,
-};
 
 // We need to mock createHarness. Since AgentManager imports it,
 // we'll test event handling by collecting bus events.
@@ -37,8 +19,6 @@ beforeEach(() => {
   createTestDb();
   testDir = join(tmpdir(), `am_test_${Date.now()}_${Math.random().toString(36).slice(2)}`);
   process.env.SHIRE_PROJECTS_DIR = testDir;
-  harnessCallback = null;
-
   const project = projects.createProject(`test-project-${Date.now()}`);
   projectId = project.id;
   const agent = agentsService.createAgent(projectId, "test-agent");
@@ -269,8 +249,8 @@ describe("AgentManager", () => {
 
   describe("status transitions", () => {
     it("emits agent_status events on status change", () => {
-      const { events, unsub } = collectEvents(`project:${projectId}:agents`);
-      const mgr = createManager();
+      const { unsub } = collectEvents(`project:${projectId}:agents`);
+      createManager();
 
       // Creating the manager doesn't change status (starts idle, no event)
       // But if we could call setStatus we'd see events
@@ -283,14 +263,13 @@ describe("AgentManager", () => {
   describe("workspace setup", () => {
     it("creates agent directories on start", async () => {
       workspace.ensureProjectDirs(projectId);
-      const mgr = createManager();
+      createManager();
 
       // setupWorkspace is called during start(), which also tries to start the harness
       // For a unit test, we verify ensureAgentDirs creates the right structure
       workspace.ensureAgentDirs(projectId, agentId);
 
       const agentDir = workspace.agentDir(projectId, agentId);
-      const { existsSync } = require("fs");
       expect(existsSync(join(agentDir, "inbox"))).toBe(true);
       expect(existsSync(join(agentDir, "outbox"))).toBe(true);
       expect(existsSync(join(agentDir, "scripts"))).toBe(true);
