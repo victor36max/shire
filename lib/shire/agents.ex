@@ -1,5 +1,6 @@
 defmodule Shire.Agents do
   import Ecto.Query
+  import Shire.Query
   require Logger
   alias Ecto.Multi
   alias Shire.Repo
@@ -200,7 +201,7 @@ defmodule Shire.Agents do
           m.project_id == ^project_id and
             (m.role == "inter_agent" or
                (m.role == "system" and
-                  fragment("?->>'trigger' = 'scheduled_task'", m.content))),
+                  json_text(m.content, "trigger") == "scheduled_task")),
         order_by: [desc: m.id],
         limit: ^limit
 

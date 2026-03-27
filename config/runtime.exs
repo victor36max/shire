@@ -26,17 +26,22 @@ end
 
 config :shire, ShireWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
-# VM backend selection: "sprites" (default), "local", "ssh"
-vm_type = System.get_env("SHIRE_VM_TYPE", "sprites")
+# VM backend auto-detection from credentials.
+# Override with SHIRE_VM_TYPE if needed.
 sprites_token = System.get_env("SPRITES_TOKEN")
 sprite_vm_prefix = System.get_env("SPRITE_VM_PREFIX")
-
-if config_env() == :prod && vm_type == "sprites" && is_nil(sprites_token) do
-  raise "environment variable SPRITES_TOKEN is missing (required when SHIRE_VM_TYPE=sprites)."
-end
+ssh_host = System.get_env("SHIRE_SSH_HOST")
 
 # Don't connect to real VMs in test — ProjectManager will skip discovery
 if config_env() != :test do
+  vm_type =
+    System.get_env("SHIRE_VM_TYPE") ||
+      cond do
+        sprites_token -> "sprites"
+        ssh_host -> "ssh"
+        true -> "local"
+      end
+
   vm_module =
     case vm_type do
       "local" -> Shire.VirtualMachineLocal
@@ -53,17 +58,15 @@ if config_env() != :test do
 
   if vm_type == "ssh" do
     if is_nil(System.get_env("SHIRE_SSH_KEY")) and is_nil(System.get_env("SHIRE_SSH_PASSWORD")) do
-      raise "Either SHIRE_SSH_KEY or SHIRE_SSH_PASSWORD is required when SHIRE_VM_TYPE=ssh"
+      raise "Either SHIRE_SSH_KEY or SHIRE_SSH_PASSWORD is required when using SSH VM backend"
     end
 
     config :shire, :ssh,
-      host:
-        System.get_env("SHIRE_SSH_HOST") ||
-          raise("SHIRE_SSH_HOST is required when SHIRE_VM_TYPE=ssh"),
+      host: ssh_host || raise("SHIRE_SSH_HOST is required when using SSH VM backend"),
       port: String.to_integer(System.get_env("SHIRE_SSH_PORT", "22")),
       user:
         System.get_env("SHIRE_SSH_USER") ||
-          raise("SHIRE_SSH_USER is required when SHIRE_VM_TYPE=ssh"),
+          raise("SHIRE_SSH_USER is required when using SSH VM backend"),
       key: System.get_env("SHIRE_SSH_KEY"),
       password: System.get_env("SHIRE_SSH_PASSWORD"),
       workspace_root:
@@ -75,22 +78,28 @@ if config_env() != :test do
 end
 
 if config_env() == :prod do
-  database_url =
-    System.get_env("DATABASE_URL") ||
+  database_url = System.get_env("DATABASE_URL")
+
+  if System.get_env("SHIRE_DB", "sqlite") == "postgres" do
+    unless database_url do
       raise """
       environment variable DATABASE_URL is missing.
       For example: ecto://USER:PASS@HOST/DATABASE
       """
+    end
 
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+    maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :shire, Shire.Repo,
-    # ssl: true,
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    # For machines with several cores, consider starting multiple pools of `pool_size`
-    # pool_count: 4,
-    socket_options: maybe_ipv6
+    config :shire, Shire.Repo,
+      url: database_url,
+      pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+      socket_options: maybe_ipv6
+  else
+    config :shire, Shire.Repo,
+      database: System.get_env("DATABASE_PATH", "shire_prod.db"),
+      journal_mode: :wal,
+      pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+  end
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

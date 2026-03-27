@@ -7,7 +7,11 @@
 # General application configuration
 import Config
 
+# Database backend: "sqlite" (default) or "postgres" (set SHIRE_DB=postgres)
+db_type = System.get_env("SHIRE_DB", "sqlite")
+
 config :shire,
+  db_type: db_type,
   ecto_repos: [Shire.Repo],
   generators: [timestamp_type: :utc_datetime]
 
@@ -50,11 +54,19 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-# Oban job processing
-config :shire, Oban,
+# Oban job processing (use Lite engine for SQLite)
+oban_config = [
   repo: Shire.Repo,
   queues: [scheduled_tasks: 5],
   plugins: [Oban.Plugins.Pruner]
+]
+
+oban_config =
+  if db_type == "sqlite",
+    do: Keyword.put(oban_config, :engine, Oban.Engines.Lite),
+    else: oban_config
+
+config :shire, Oban, oban_config
 
 # Sprites client — token configured per-environment
 config :shire, :sprites_token, nil

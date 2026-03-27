@@ -1,14 +1,24 @@
 import Config
 
 # Configure your database
-config :shire, Shire.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "shire_dev",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+if System.get_env("SHIRE_DB", "sqlite") == "sqlite" do
+  config :shire, Shire.Repo,
+    database: Path.expand("../priv/repo/shire_dev.db", __DIR__),
+    journal_mode: :wal,
+    busy_timeout: 5_000,
+    pool_size: 5,
+    stacktrace: true,
+    show_sensitive_data_on_connection_error: true
+else
+  config :shire, Shire.Repo,
+    username: "postgres",
+    password: "postgres",
+    hostname: "localhost",
+    database: "shire_dev",
+    stacktrace: true,
+    show_sensitive_data_on_connection_error: true,
+    pool_size: 10
+end
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
