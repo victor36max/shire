@@ -8,6 +8,8 @@ const agent: Agent = {
   id: "a1",
   name: "Test Agent",
   status: "active",
+  busy: false,
+  unreadCount: 0,
   model: "claude-sonnet-4-6",
   system_prompt: "You are a helpful assistant.",
   harness: "claude_code",

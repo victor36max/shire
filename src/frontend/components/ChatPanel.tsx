@@ -5,8 +5,10 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import Markdown from "./Markdown";
 import { type AgentOverview } from "./types";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useProjectId,
+  useAgents,
   useMessages,
   useSendMessage,
   useInterruptAgent,
@@ -213,17 +215,17 @@ function transformMessages(raw: Array<Record<string, unknown>>): Message[] {
 interface ChatPanelProps {
   agent: AgentOverview;
   streamingText?: string;
-  isBusy?: boolean;
-  onSetBusy?: (busy: boolean) => void;
 }
 
-export default function ChatPanel({
-  agent,
-  streamingText: externalStreamingText,
-  isBusy,
-  onSetBusy,
-}: ChatPanelProps) {
+export default function ChatPanel({ agent, streamingText: externalStreamingText }: ChatPanelProps) {
   const { projectId, projectName } = useProjectId();
+  const queryClient = useQueryClient();
+
+  type AgentList = NonNullable<ReturnType<typeof useAgents>["data"]>;
+  const markBusy = () =>
+    queryClient.setQueryData<AgentList>(["agents", projectId], (prev) =>
+      prev?.map((a) => (a.id === agent.id ? { ...a, busy: true } : a)),
+    );
 
   const { data: messagesData } = useMessages(projectId, agent.id);
   const sendMessage = useSendMessage(projectId ?? "");
@@ -297,10 +299,10 @@ export default function ChatPanel({
 
   // Scroll to bottom when busy state changes (thinking indicator appears/disappears)
   React.useEffect(() => {
-    if (isBusy && initialScrollDone.current) {
+    if (agent.busy && initialScrollDone.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [isBusy]);
+  }, [agent.busy]);
 
   // Save scroll height before render for scroll position preservation
   React.useEffect(() => {
@@ -367,7 +369,7 @@ export default function ChatPanel({
           }))
         : undefined;
 
-    onSetBusy?.(true);
+    markBusy();
     sendMessage.mutate({ agentId: agent.id, text: text || "", attachments });
     setInput("");
     setPendingFiles([]);
@@ -406,7 +408,7 @@ export default function ChatPanel({
                     size="sm"
                     className="rounded-full"
                     onClick={() => {
-                      onSetBusy?.(true);
+                      markBusy();
                       sendMessage.mutate({ agentId: agent.id, text: suggestion });
                     }}
                   >
@@ -453,7 +455,7 @@ export default function ChatPanel({
             </div>
           </div>
         )}
-        {isBusy && !streamingText && (
+        {agent.busy && !streamingText && (
           <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-status-active animate-pulse" />
             Thinking...
@@ -519,7 +521,7 @@ export default function ChatPanel({
                 }
               }}
             />
-            {isBusy ? (
+            {agent.busy ? (
               <Button
                 variant="destructive"
                 size="icon"

@@ -7,6 +7,19 @@ import { useSubscription } from "../lib/ws";
 import type { WsEvent } from "../lib/ws";
 import AgentDashboardComponent from "../components/AgentDashboard";
 
+type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
+
+function updateAgent(
+  queryClient: ReturnType<typeof useQueryClient>,
+  projectId: string,
+  agentId: string,
+  patch: Partial<AgentData[number]>,
+) {
+  queryClient.setQueryData<AgentData>(["agents", projectId], (prev) =>
+    prev?.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
+  );
+}
+
 export default function AgentDashboardPage() {
   const { projectName, agentName } = useParams();
   const queryClient = useQueryClient();
@@ -18,22 +31,33 @@ export default function AgentDashboardPage() {
 
   // --- Streaming state ---
   const [streamingText, setStreamingText] = useState("");
-  const [isBusy, setIsBusy] = useState(false);
 
   // Subscribe to agent list updates
   useSubscription(projectId ? `project:${projectId}:agents` : null, (event) => {
-    queryClient.invalidateQueries({ queryKey: ["agents", projectId] });
-    if (event.type === "agent_busy") {
-      const p = event.payload as { agentId: string; active: boolean };
-      if (p.agentId === selectedAgentId) {
-        setIsBusy(p.active);
-      }
-    }
-    if (event.type === "new_message_notification") {
-      const p = event.payload as { agentId: string };
-      if (p.agentId === selectedAgentId) {
-        queryClient.invalidateQueries({ queryKey: ["messages", projectId, selectedAgentId] });
-      }
+    const p = event.payload as Record<string, unknown>;
+    const agentId = p.agentId as string;
+
+    switch (event.type) {
+      case "agent_busy":
+        updateAgent(queryClient, projectId!, agentId, { busy: p.active as boolean });
+        break;
+      case "agent_status":
+        updateAgent(queryClient, projectId!, agentId, {
+          status: p.status as AgentData[number]["status"],
+        });
+        break;
+      case "new_message_notification":
+        if (agentId === selectedAgentId) {
+          queryClient.invalidateQueries({ queryKey: ["messages", projectId, selectedAgentId] });
+        }
+        updateAgent(queryClient, projectId!, agentId, {
+          unreadCount: (agentList.find((a) => a.id === agentId)?.unreadCount ?? 0) + 1,
+        });
+        break;
+      case "agent_created":
+      case "agent_deleted":
+        queryClient.invalidateQueries({ queryKey: ["agents", projectId] });
+        break;
     }
   });
 
@@ -73,11 +97,14 @@ export default function AgentDashboardPage() {
         }
         case "processing": {
           const active = (event.payload as Record<string, unknown>)?.active as boolean;
-          setIsBusy(active);
+          if (selectedAgentId) {
+            updateAgent(queryClient, projectId!, selectedAgentId, { busy: active });
+          }
           break;
         }
         case "agent_status": {
-          queryClient.invalidateQueries({ queryKey: ["agents", projectId] });
+          const s = event.payload as { agentId: string; status: AgentData[number]["status"] };
+          updateAgent(queryClient, projectId!, s.agentId, { status: s.status });
           break;
         }
       }
@@ -95,12 +122,9 @@ export default function AgentDashboardPage() {
   if (prevAgentIdRef.current !== selectedAgentId) {
     prevAgentIdRef.current = selectedAgentId;
     if (streamingText !== "") setStreamingText("");
-    if (isBusy) setIsBusy(false);
   }
 
   if (!projectId) return <div className="p-8">Loading...</div>;
 
-  return (
-    <AgentDashboardComponent streamingText={streamingText} isBusy={isBusy} onSetBusy={setIsBusy} />
-  );
+  return <AgentDashboardComponent streamingText={streamingText} />;
 }

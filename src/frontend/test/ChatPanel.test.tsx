@@ -9,6 +9,8 @@ const activeAgent: AgentOverview = {
   id: "a1",
   name: "Test Agent",
   status: "active",
+  busy: false,
+  unreadCount: 0,
 };
 
 const createdAgent: AgentOverview = {
@@ -309,16 +311,18 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("Your outbox message was invalid")).not.toBeInTheDocument();
   });
 
-  it("shows stop button when isBusy is true", () => {
+  it("shows stop button when agent is busy", () => {
+    const busyAgent = { ...activeAgent, busy: true };
     mockMessages = messages.map(apiMessage);
-    renderWithProviders(<ChatPanel agent={activeAgent} isBusy={true} />);
+    renderWithProviders(<ChatPanel agent={busyAgent} />);
     expect(screen.getByLabelText("Stop")).toBeInTheDocument();
     expect(screen.queryByText("Send")).not.toBeInTheDocument();
   });
 
   it("sends interrupt event when stop button is clicked", async () => {
+    const busyAgent = { ...activeAgent, busy: true };
     mockMessages = messages.map(apiMessage);
-    renderWithProviders(<ChatPanel agent={activeAgent} isBusy={true} />);
+    renderWithProviders(<ChatPanel agent={busyAgent} />);
     await userEvent.click(screen.getByLabelText("Stop"));
     expect(interruptMutate).toHaveBeenCalledWith("a1");
   });
@@ -331,16 +335,16 @@ describe("ChatPanel", () => {
   });
 
   it("shows thinking indicator when agent is busy and not streaming", () => {
+    const busyAgent = { ...activeAgent, busy: true };
     mockMessages = messages.map(apiMessage);
-    renderWithProviders(<ChatPanel agent={activeAgent} isBusy={true} />);
+    renderWithProviders(<ChatPanel agent={busyAgent} />);
     expect(screen.getByText("Thinking...")).toBeInTheDocument();
   });
 
   it("hides thinking indicator when agent is busy but streaming", () => {
+    const busyAgent = { ...activeAgent, busy: true };
     mockMessages = messages.map(apiMessage);
-    renderWithProviders(
-      <ChatPanel agent={activeAgent} isBusy={true} streamingText="streaming..." />,
-    );
+    renderWithProviders(<ChatPanel agent={busyAgent} streamingText="streaming..." />);
 
     expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
     expect(screen.getByText("streaming...")).toBeInTheDocument();

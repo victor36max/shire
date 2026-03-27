@@ -82,6 +82,8 @@ describe("AgentForm", () => {
       id: "a-test",
       name: "test",
       status: "created",
+      busy: false,
+      unreadCount: 0,
       harness: "claude_code",
       skills: [
         { name: "existing-skill", description: "An existing skill", content: "Some instructions" },
@@ -227,6 +229,8 @@ describe("AgentForm", () => {
       name: "frontend-developer",
       description: "React specialist",
       status: "idle",
+      busy: false,
+      unreadCount: 0,
       harness: "claude_code",
       model: "claude-sonnet-4-6",
       system_prompt: "You are a frontend developer.",
@@ -261,6 +265,8 @@ describe("AgentForm", () => {
       id: "a-existing",
       name: "existing-agent",
       status: "active",
+      busy: false,
+      unreadCount: 0,
       harness: "claude_code",
       model: "claude-sonnet-4-6",
     };

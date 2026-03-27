@@ -91,8 +91,15 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
               }`}
               onClick={() => handleSelectAgent(agent.id)}
             >
-              <span className={`w-2 h-2 rounded-full shrink-0 ${statusDotColor(agent.status)}`} />
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
+              />
               <span className="truncate">{agent.name}</span>
+              {agent.unreadCount ? (
+                <span className="ml-auto shrink-0 min-w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center px-1">
+                  {agent.unreadCount > 99 ? "99+" : agent.unreadCount}
+                </span>
+              ) : null}
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

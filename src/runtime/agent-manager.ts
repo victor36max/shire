@@ -98,7 +98,7 @@ export class AgentManager {
   private toolUseIds = new Map<string, number>();
   private autoRestartCount = 0;
   private lastReadMessageId: number | null = null;
-  private processing = false;
+  busy = false;
 
   // Peers
   private peersNameToId = new Map<string, string>();
@@ -221,7 +221,7 @@ export class AgentManager {
 
     // Send directly to harness (no inbox file needed for direct messages)
     const prefix = from === "system" ? "[System] " : "";
-    this.processing = true;
+    this.busy = true;
     this.broadcastAgent({ type: "processing", payload: { active: true } });
     this.broadcastAgents({ type: "agent_busy", payload: { agentId: this.agentId, active: true } });
 
@@ -233,7 +233,7 @@ export class AgentManager {
         console.error(`Error sending message to ${this.agentName}:`, err);
       })
       .finally(() => {
-        this.processing = false;
+        this.busy = false;
         this.broadcastAgent({ type: "processing", payload: { active: false } });
         this.broadcastAgents({
           type: "agent_busy",
@@ -454,11 +454,11 @@ export class AgentManager {
 
     this.inboxWatcher = watch(inboxDir, async (_event, filename) => {
       if (!filename?.endsWith(".yaml") && !filename?.endsWith(".yml")) return;
-      if (this.processing) {
+      if (this.busy) {
         await this.tryHandleInterrupt(filename);
         return;
       }
-      this.processing = true;
+      this.busy = true;
       this.broadcastAgent({ type: "processing", payload: { active: true } });
       this.broadcastAgents({
         type: "agent_busy",
@@ -470,7 +470,7 @@ export class AgentManager {
           count = await this.processInbox();
         } while (count > 0);
       } finally {
-        this.processing = false;
+        this.busy = false;
         this.broadcastAgent({ type: "processing", payload: { active: false } });
         this.broadcastAgents({
           type: "agent_busy",

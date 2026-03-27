@@ -20,6 +20,8 @@ const agent: AgentOverview = {
   id: "a1",
   name: "test-agent",
   status: "active",
+  busy: false,
+  unreadCount: 0,
 };
 
 describe("ChatHeader", () => {

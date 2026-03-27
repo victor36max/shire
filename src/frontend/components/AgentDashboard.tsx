@@ -17,11 +17,9 @@ import {
 
 interface AgentDashboardProps {
   streamingText?: string;
-  isBusy?: boolean;
-  onSetBusy?: (busy: boolean) => void;
 }
 
-export default function AgentDashboard({ streamingText, isBusy, onSetBusy }: AgentDashboardProps) {
+export default function AgentDashboard({ streamingText }: AgentDashboardProps) {
   const { agentName } = useParams<{ agentName: string }>();
   const { projectId } = useProjectId();
   const { data: agentList = [] } = useAgents(projectId);
@@ -60,6 +58,8 @@ export default function AgentDashboard({ streamingText, isBusy, onSetBusy }: Age
         system_prompt: agent.system_prompt,
         skills: [],
         status: "idle",
+        busy: false,
+        unreadCount: 0,
       });
       setEditingAgent(null);
       setFormTitle("New Agent from Catalog");
@@ -88,8 +88,6 @@ export default function AgentDashboard({ streamingText, isBusy, onSetBusy }: Age
     }
   };
 
-  const agentWithBusy = selectedAgent ? { ...selectedAgent, busy: isBusy ?? false } : null;
-
   return (
     <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       {sidebarOpen && (
@@ -111,16 +109,11 @@ export default function AgentDashboard({ streamingText, isBusy, onSetBusy }: Age
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        {agentWithBusy ? (
+        {selectedAgent ? (
           <>
-            <ChatHeader agent={agentWithBusy} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+            <ChatHeader agent={selectedAgent} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
             <div className="flex-1 min-h-0">
-              <ChatPanel
-                agent={agentWithBusy}
-                streamingText={streamingText}
-                isBusy={isBusy}
-                onSetBusy={onSetBusy}
-              />
+              <ChatPanel agent={selectedAgent} streamingText={streamingText} />
             </div>
           </>
         ) : (

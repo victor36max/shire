@@ -167,12 +167,23 @@ export class Coordinator {
     id: string;
     name: string;
     status: AgentStatus;
+    busy: boolean;
+    unreadCount: number;
     lastReadMessageId: number | null;
   }> {
+    const agentIds = [...this.agents.keys()];
+    const lastReadIds = new Map<string, number | null>();
+    for (const [id, proc] of this.agents) {
+      lastReadIds.set(id, proc.getLastReadMessageId());
+    }
+    const unreads = agentsService.unreadCounts(agentIds, lastReadIds);
+
     const result: Array<{
       id: string;
       name: string;
       status: AgentStatus;
+      busy: boolean;
+      unreadCount: number;
       lastReadMessageId: number | null;
     }> = [];
     for (const [id, proc] of this.agents) {
@@ -180,6 +191,8 @@ export class Coordinator {
         id,
         name: proc.agentName,
         status: proc.status,
+        busy: proc.busy,
+        unreadCount: unreads.get(id) ?? 0,
         lastReadMessageId: proc.getLastReadMessageId(),
       });
     }
