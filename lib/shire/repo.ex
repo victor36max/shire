@@ -6,4 +6,13 @@ defmodule Shire.Repo do
         do: Ecto.Adapters.SQLite3,
         else: Ecto.Adapters.Postgres
       )
+
+  @impl true
+  def init(_type, config) do
+    if db_path = config[:database] do
+      File.mkdir_p!(Path.dirname(db_path))
+    end
+
+    {:ok, config}
+  end
 end
