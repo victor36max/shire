@@ -62,6 +62,18 @@ export function useInterruptAgent(projectId: string) {
   });
 }
 
+export function useMarkRead(projectId: string) {
+  return useMutation({
+    mutationFn: async ({ agentId, messageId }: { agentId: string; messageId: number }) =>
+      unwrap(
+        await api.projects[":id"].agents[":aid"]["mark-read"].$post({
+          param: { id: projectId, aid: agentId },
+          json: { messageId },
+        }),
+      ),
+  });
+}
+
 export function useClearSession(projectId: string) {
   return useMutation({
     mutationFn: async (agentId: string) =>
