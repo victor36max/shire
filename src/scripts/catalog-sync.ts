@@ -9,7 +9,7 @@ import { mkdirSync, rmSync, readdirSync, statSync, readFileSync, writeFileSync }
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { tmpdir } from "os";
-import yaml from "js-yaml";
+import { safeYamlLoad } from "../utils/yaml";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO = "https://github.com/msitarzewski/agency-agents";
@@ -46,7 +46,7 @@ function parseFrontmatter(content: string): { frontmatter: Record<string, unknow
   const parts = trimmed.split("---");
   if (parts.length >= 3 && parts[0] === "") {
     try {
-      const frontmatter = yaml.load(parts[1]) as Record<string, unknown>;
+      const frontmatter = safeYamlLoad(parts[1]) as Record<string, unknown>;
       const body = parts.slice(2).join("---").trim();
       return { frontmatter: frontmatter ?? {}, body };
     } catch {

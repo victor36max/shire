@@ -3,6 +3,7 @@ import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/pr
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
+import { safeYamlLoad } from "../utils/yaml";
 import { bus } from "../events";
 import * as agentsService from "../services/agents";
 import * as workspace from "../services/workspace";
@@ -513,7 +514,7 @@ export class AgentManager {
     try {
       const path = join(inboxDir, filename);
       const raw = await readFile(path, "utf-8");
-      const envelope = yaml.load(raw) as MessageEnvelope;
+      const envelope = safeYamlLoad(raw) as MessageEnvelope;
       if (envelope.type === "interrupt") {
         await this.harness?.interrupt();
         await unlink(path);
@@ -543,7 +544,7 @@ export class AgentManager {
         const s = await stat(path);
         if (s.size === 0) continue;
         const raw = await readFile(path, "utf-8");
-        const envelope = yaml.load(raw) as MessageEnvelope;
+        const envelope = safeYamlLoad(raw) as MessageEnvelope;
         await this.processEnvelope(envelope);
         await unlink(path);
         processed++;
@@ -637,7 +638,7 @@ export class AgentManager {
       let msg: OutboxMessage;
       try {
         const raw = await readFile(path, "utf-8");
-        msg = yaml.load(raw) as OutboxMessage;
+        msg = safeYamlLoad(raw) as OutboxMessage;
       } catch (err) {
         await this.writeSystemInbox(`Your outbox message "${file}" could not be parsed: ${err}`);
         await unlink(path);
@@ -750,7 +751,7 @@ export class AgentManager {
     const peersPath = workspace.peersPath(this.projectId);
     try {
       const raw = await readFile(peersPath, "utf-8");
-      const entries = yaml.load(raw) as PeerEntry[] | null;
+      const entries = safeYamlLoad(raw) as PeerEntry[] | null;
       this.peersNameToId.clear();
       this.peersIdToName.clear();
       if (Array.isArray(entries)) {
@@ -784,7 +785,7 @@ export class AgentManager {
   private readRecipe(): Record<string, unknown> | null {
     try {
       const content = readFileSync(workspace.recipePath(this.projectId, this.agentId), "utf-8");
-      return yaml.load(content) as Record<string, unknown>;
+      return safeYamlLoad(content) as Record<string, unknown>;
     } catch {
       return null;
     }

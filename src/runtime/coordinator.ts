@@ -1,6 +1,7 @@
 import { writeFileSync, rmSync, readFileSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
+import { safeYamlLoad } from "../utils/yaml";
 import { bus } from "../events";
 import { AgentManager, type AgentStatus } from "./agent-manager";
 import * as agentsService from "../services/agents";
@@ -101,7 +102,7 @@ export class Coordinator {
     if (!agent) return { ok: false, error: "Agent not found" };
 
     // Parse new recipe to check for name change
-    const recipe = yaml.load(params.recipeYaml) as Record<string, unknown>;
+    const recipe = safeYamlLoad(params.recipeYaml) as Record<string, unknown>;
     const newName = recipe?.name as string | undefined;
     if (newName && newName !== agent.name) {
       agentsService.renameAgent(agentId, newName);
@@ -310,7 +311,7 @@ export class Coordinator {
   private readRecipe(agentId: string): Record<string, unknown> | null {
     try {
       const content = readFileSync(workspace.recipePath(this.projectId, agentId), "utf-8");
-      return yaml.load(content) as Record<string, unknown>;
+      return safeYamlLoad(content) as Record<string, unknown>;
     } catch {
       return null;
     }

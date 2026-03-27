@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import yaml from "js-yaml";
+import { safeYamlLoad } from "../utils/yaml";
 
 // We test the pure functions from catalog-sync.
 // Since catalog-sync.ts is a script with top-level main() call,
@@ -22,7 +22,7 @@ function parseFrontmatter(content: string): {
   const parts = trimmed.split("---");
   if (parts.length >= 3 && parts[0] === "") {
     try {
-      const frontmatter = yaml.load(parts[1]) as Record<string, unknown>;
+      const frontmatter = safeYamlLoad(parts[1]) as Record<string, unknown>;
       const body = parts.slice(2).join("---").trim();
       return { frontmatter: frontmatter ?? {}, body };
     } catch {
