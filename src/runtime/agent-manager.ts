@@ -132,9 +132,8 @@ export class AgentManager {
       this.startWatchers();
       this.setStatus("active");
 
-      // Process any existing inbox messages
-      const count = await this.processInbox();
-      if (count > 0) this.broadcastAgent({ type: "processing", payload: { active: false } });
+      // Process any existing inbox messages (no subscriber at cold boot, skip broadcast)
+      await this.processInbox();
     } catch (err) {
       console.error(`Bootstrap failed for ${this.agentName}:`, err);
       this.setStatus("idle");
@@ -223,7 +222,7 @@ export class AgentManager {
     // Send directly to harness (no inbox file needed for direct messages)
     const prefix = from === "system" ? "[System] " : "";
     this.busy = true;
-    this.broadcastAgent({ type: "processing", payload: { active: true } });
+    this.broadcastAgent({ type: "agent_busy", payload: { agentId: this.agentId, active: true } });
     this.broadcastAgents({ type: "agent_busy", payload: { agentId: this.agentId, active: true } });
 
     // Fire-and-forget: start harness processing in the background
@@ -235,7 +234,10 @@ export class AgentManager {
       })
       .finally(() => {
         this.busy = false;
-        this.broadcastAgent({ type: "processing", payload: { active: false } });
+        this.broadcastAgent({
+          type: "agent_busy",
+          payload: { agentId: this.agentId, active: false },
+        });
         this.broadcastAgents({
           type: "agent_busy",
           payload: { agentId: this.agentId, active: false },
@@ -460,7 +462,7 @@ export class AgentManager {
         return;
       }
       this.busy = true;
-      this.broadcastAgent({ type: "processing", payload: { active: true } });
+      this.broadcastAgent({ type: "agent_busy", payload: { agentId: this.agentId, active: true } });
       this.broadcastAgents({
         type: "agent_busy",
         payload: { agentId: this.agentId, active: true },
@@ -472,7 +474,10 @@ export class AgentManager {
         } while (count > 0);
       } finally {
         this.busy = false;
-        this.broadcastAgent({ type: "processing", payload: { active: false } });
+        this.broadcastAgent({
+          type: "agent_busy",
+          payload: { agentId: this.agentId, active: false },
+        });
         this.broadcastAgents({
           type: "agent_busy",
           payload: { agentId: this.agentId, active: false },

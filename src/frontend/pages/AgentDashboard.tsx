@@ -95,10 +95,13 @@ export default function AgentDashboardPage() {
           }
           break;
         }
-        case "processing": {
-          const active = (event.payload as Record<string, unknown>)?.active as boolean;
-          if (selectedAgentId) {
-            updateAgent(queryClient, projectId!, selectedAgentId, { busy: active });
+        case "agent_busy": {
+          const p = event.payload as Record<string, unknown>;
+          const agentId = p.agentId as string;
+          if (agentId) {
+            updateAgent(queryClient, projectId!, agentId, { busy: p.active as boolean });
+          } else {
+            console.warn("[AgentDashboard] agent_busy event missing agentId", event);
           }
           break;
         }
