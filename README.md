@@ -4,7 +4,7 @@
 
 [agents-shire.sh](https://www.agents-shire.sh/)
 
-Most AI tools let you assign a task and walk away. Shire gives you a team of AI agents you actually work alongside — they persist, they communicate, they pick up where they left off. Open source.
+Shire gives you a team of AI agents you actually work alongside — they persist, communicate, and pick up where they left off. Open source.
 
 ![Shire Dashboard](docs/screenshot.png)
 
@@ -31,55 +31,37 @@ Most AI agent tools follow the same pattern — you give an instruction, an agen
 
 ## Architecture
 
+```mermaid
+graph TD
+    Dashboard["Shire Dashboard<br/><small>Phoenix LiveView + React</small>"]
+    PM["ProjectManager"]
+    P["ProjectInstanceSupervisor<br/><small>(per project)</small>"]
+    VM["VM<br/><small>Sprite / SSH / Local</small>"]
+    Coord["Coordinator"]
+    Agents["AgentManagers"]
+    Term["Terminal Session"]
+
+    Dashboard --> PM
+    PM -->|"1 per project"| P
+    P --> VM
+    P --> Coord
+    P --> Agents
+    P --> Term
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       Shire Dashboard                       │
-│                (Phoenix LiveView + React UI)                │
-├─────────────────────────────────────────────────────────────┤
-│  ProjectDashboard (/)                                       │
-│  ├── AgentDashboard (/projects/:name)                       │
-│  │   ├── Agent Sidebar  │  Chat/Stream Panel                │
-│  ├── Project Details (/projects/:name/details)              │
-│  ├── Settings (/projects/:name/settings)                    │
-│  ├── Schedules (/projects/:name/schedules)                  │
-│  └── Shared Drive (/projects/:name/shared)                  │
-└────────────────────────────┬────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  ProjectManager (GenServer)                 │
-│             Boots all project VMs on startup                │
-└──────────────┬──────────────────────────┬───────────────────┘
-               │                          │
-               ▼                          ▼
-┌──────────────────────────────┐  ┌──────────────────────────────┐
-│  Project A                   │  │  Project B                   │
-│  (ProjectInstanceSupervisor) │  │  (ProjectInstanceSupervisor) │
-│  ┌────────────────────────┐  │  │  ┌────────────────────────┐  │
-│  │ VM (Sprite/SSH/Local)  │  │  │  │ VM (Sprite/SSH/Local)  │  │
-│  │ Coordinator            │  │  │  │ Coordinator            │  │
-│  │ AgentMgr A, B, ...     │  │  │  │ AgentMgr C, D, ...     │  │
-│  │ Terminal Session       │  │  │  │ Terminal Session       │  │
-│  └────────────────────────┘  │  │  └────────────────────────┘  │
-└──────────────┬───────────────┘  └──────────────┬───────────────┘
-               │                                 │
-               ▼                                 ▼
-┌──────────────────────────────┐  ┌──────────────────────────────┐
-│  VM (A)                      │  │  VM (B)                      │
-│  Sprite, SSH, or Local       │  │  Sprite, SSH, or Local       │
-│                              │  │                              │
-│  {workspace_root}/           │  │  {workspace_root}/           │
-│  ├── agents/                 │  │  ├── agents/                 │
-│  │   ├── researcher/         │  │  │   └── ...                 │
-│  │   │   ├── recipe.yaml     │  │  ├── shared/                 │
-│  │   │   ├── inbox/          │  │  └── .runner/                │
-│  │   │   ├── outbox/         │  └──────────────────────────────┘
-│  │   │   ├── scripts/        │
-│  │   │   └── documents/      │
-│  │   └── coder/              │
-│  ├── shared/                 │
-│  └── .runner/                │
-└──────────────────────────────┘
+
+Each VM hosts an isolated workspace:
+
+```
+{workspace_root}/
+├── agents/
+│   └── researcher/
+│       ├── recipe.yaml
+│       ├── inbox/
+│       ├── outbox/
+│       ├── scripts/
+│       └── documents/
+├── shared/
+└── .runner/
 ```
 
 ## Tech Stack
@@ -99,11 +81,9 @@ Most AI agent tools follow the same pattern — you give an instruction, an agen
 
 - Elixir 1.18+ / Erlang OTP 27+ (or run `asdf install` from `.tool-versions`)
 - [Bun](https://bun.sh)
-- [Claude Code](https://claude.ai/download) (for running agents locally)
+- [Claude Code](https://claude.ai/download) (only if using the `claude_code` harness)
 
 ### Quick Start
-
-No `.env` file needed. No database to install. Just three commands:
 
 ```bash
 git clone https://github.com/victor36max/shire.git && cd shire
@@ -124,34 +104,25 @@ Shire auto-detects the VM backend from your environment. Override with `SHIRE_VM
 Active out of the box when no cloud credentials are set. Agents run as local processes using Erlang ports.
 
 - Workspaces: `~/.shire/projects/{project_id}/`
-- Requires [Bun](https://bun.sh) and [Claude Code](https://claude.ai/download) installed on your machine
+- Requires [Bun](https://bun.sh)
 - No bootstrap, no VMs, no SSH
 
 #### Sprites (Firecracker VMs)
 
 Production-grade backend using [Fly.io Sprites](https://sprites.dev) — lightweight Firecracker VMs with sub-second boot, persistent storage, and auto-sleep.
 
-**What you need:** A Sprites account and token from [sprites.dev](https://sprites.dev).
-
 ```bash
 SPRITES_TOKEN=your_token_here
 ```
 
-Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to manage VM lifecycles, execute commands, and stream terminal sessions.
-
-**Highlights:**
-- Sub-second VM boot times
+- Sub-second boot, instant checkpointing and restore (~300ms)
 - Persistent 100GB NVMe storage per VM
-- Instant checkpointing and restore (~300ms)
 - Auto-sleep on idle, instant resume
 - Hardware-level isolation via Firecracker
-- Up to 8 CPUs / 16GB RAM per VM
 
 #### SSH (Any VPS)
 
-Connect to any Linux VPS over SSH. Run agents on your own infrastructure.
-
-**What you need:** A Linux VPS with SSH access. Bun and Claude Code are installed automatically during bootstrap.
+Connect to any Linux VPS over SSH. Bun and Claude Code are installed automatically during bootstrap.
 
 ```bash
 SHIRE_VM_TYPE=ssh
@@ -168,8 +139,6 @@ SHIRE_SSH_KEY="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVAT
 # SHIRE_SSH_PORT=22
 # SHIRE_SSH_WORKSPACE_ROOT=/home/deploy/shire/projects
 ```
-
-Shire creates workspace directories on the remote host automatically.
 
 ### Optional: Use PostgreSQL
 
@@ -188,7 +157,8 @@ DATABASE_URL=ecto://USER:PASS@HOST/DATABASE
 
 ---
 
-## Environment Variables
+<details>
+<summary><strong>Environment Variables</strong></summary>
 
 Full reference. Create a `.env` file in the project root — it's automatically loaded in dev/test via `DotenvParser`.
 
@@ -221,34 +191,7 @@ Full reference. Create a `.env` file in the project root — it's automatically 
 
 Agent-specific env vars (API keys, tokens, etc.) are configured per-project via the Settings page, not as server-level environment variables.
 
-## How It Works
-
-### 1. Deploy
-
-Run locally with zero config, or set up [Fly.io Sprites](https://sprites.dev) (Firecracker) or any Linux VPS via SSH for production. Projects are the top-level unit; each gets its own VM with isolated storage.
-
-### 2. Build Your Team
-
-Pick agents from the community catalog or create your own with simple YAML recipes:
-
-```yaml
-name: researcher
-description: An agent that searches the web and summarizes findings
-harness: claude_code
-model: sonnet
-system_prompt: |
-  You are a research assistant. Search the web and summarize findings.
-```
-
-Recipe fields: `name`, `description`, `harness` (`claude_code` or `pi_sdk`), `model`, `system_prompt`, and `skills`.
-
-### 3. Collaborate
-
-Work alongside your agents — give feedback, adjust direction. Agents discover each other through `peers.yaml` and exchange messages autonomously via the mailbox system. Use the shared drive for files all agents need. Schedule recurring messages on custom intervals. Chat with any agent from the dashboard.
-
-### 4. Sleep & Resume
-
-When you're done for the day, agents sleep preserving all state. Come back tomorrow — they wake in ~300ms, right where you left off. No context lost. *(Sprites backend only — SSH and Local backends are always-on.)*
+</details>
 
 ## Development
 
