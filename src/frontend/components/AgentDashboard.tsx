@@ -1,0 +1,151 @@
+import * as React from "react";
+import { useParams } from "react-router-dom";
+import AgentSidebar from "./AgentSidebar";
+import AgentForm from "./AgentForm";
+import CatalogBrowser from "./CatalogBrowser";
+import ChatHeader from "./ChatHeader";
+import ChatPanel from "./ChatPanel";
+import WelcomePanel from "./WelcomePanel";
+import { type Agent, type CatalogAgent } from "./types";
+import {
+  useProjectId,
+  useAgents,
+  useCreateAgent,
+  useUpdateAgent,
+  useCatalogAgent,
+} from "../lib/hooks";
+
+interface AgentDashboardProps {
+  streamingText?: string;
+  isBusy?: boolean;
+  onSetBusy?: (busy: boolean) => void;
+}
+
+export default function AgentDashboard({ streamingText, isBusy, onSetBusy }: AgentDashboardProps) {
+  const { agentName } = useParams<{ agentName: string }>();
+  const { projectId } = useProjectId();
+  const { data: agentList = [] } = useAgents(projectId);
+
+  const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
+
+  const createAgent = useCreateAgent(projectId ?? "");
+  const updateAgent = useUpdateAgent(projectId ?? "");
+
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [formTitle, setFormTitle] = React.useState("New Agent");
+  const [editingAgent, setEditingAgent] = React.useState<Agent | null>(null);
+  const [currentAgent, setCurrentAgent] = React.useState<Agent | null>(null);
+  const [catalogOpen, setCatalogOpen] = React.useState(false);
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [selectedCatalogName, setSelectedCatalogName] = React.useState<string | undefined>(
+    undefined,
+  );
+
+  const { data: catalogSelectedAgent } = useCatalogAgent(selectedCatalogName);
+
+  React.useEffect(() => {
+    setSidebarOpen(false);
+  }, [selectedAgent?.id]);
+
+  React.useEffect(() => {
+    if (catalogSelectedAgent) {
+      const agent = catalogSelectedAgent as unknown as CatalogAgent;
+      setCatalogOpen(false);
+      setCurrentAgent({
+        id: "",
+        name: agent.name,
+        description: agent.description,
+        harness: agent.harness,
+        model: agent.model,
+        system_prompt: agent.system_prompt,
+        skills: [],
+        status: "idle",
+      });
+      setEditingAgent(null);
+      setFormTitle("New Agent from Catalog");
+      setFormOpen(true);
+      setSelectedCatalogName(undefined);
+    }
+  }, [catalogSelectedAgent]);
+
+  const handleBrowseCatalog = () => {
+    setCatalogOpen(true);
+  };
+
+  const handleNew = () => {
+    setCurrentAgent(null);
+    setEditingAgent(null);
+    setFormTitle("New Agent");
+    setFormOpen(true);
+  };
+
+  const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
+    setFormOpen(false);
+    if (editingAgent) {
+      updateAgent.mutate({ id: editingAgent.id, recipe_yaml: payload.recipe_yaml as string });
+    } else {
+      createAgent.mutate(payload as never);
+    }
+  };
+
+  const agentWithBusy = selectedAgent ? { ...selectedAgent, busy: isBusy ?? false } : null;
+
+  return (
+    <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          aria-hidden="true"
+          onClick={() => setSidebarOpen(false)}
+        >
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+        </div>
+      )}
+
+      <div
+        className={`fixed top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-50 w-64 transition-transform duration-200 md:static md:inset-auto md:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <AgentSidebar onNewAgent={handleNew} onBrowseCatalog={handleBrowseCatalog} />
+      </div>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {agentWithBusy ? (
+          <>
+            <ChatHeader agent={agentWithBusy} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+            <div className="flex-1 min-h-0">
+              <ChatPanel
+                agent={agentWithBusy}
+                streamingText={streamingText}
+                isBusy={isBusy}
+                onSetBusy={onSetBusy}
+              />
+            </div>
+          </>
+        ) : (
+          <WelcomePanel
+            onNewAgent={handleNew}
+            onBrowseCatalog={handleBrowseCatalog}
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            hasAgents={agentList.length > 0}
+          />
+        )}
+      </div>
+
+      <AgentForm
+        open={formOpen}
+        title={formTitle}
+        agent={currentAgent}
+        onSave={handleFormSave}
+        onClose={() => setFormOpen(false)}
+      />
+
+      <CatalogBrowser
+        open={catalogOpen}
+        onClose={() => setCatalogOpen(false)}
+        onAdd={(name) => setSelectedCatalogName(name)}
+      />
+    </div>
+  );
+}
