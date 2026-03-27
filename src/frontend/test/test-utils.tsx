@@ -5,14 +5,13 @@ import { MemoryRouter } from "react-router-dom";
 
 interface WrapperOptions {
   route?: string;
-  routePath?: string;
 }
 
 export function renderWithProviders(
   ui: React.ReactElement,
   options?: WrapperOptions & Omit<RenderOptions, "wrapper">,
 ) {
-  const { route = "/", routePath, ...renderOptions } = options ?? {};
+  const { route = "/", ...renderOptions } = options ?? {};
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });

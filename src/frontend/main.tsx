@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { setNavigate } from "./lib/navigate";
 import { Toaster } from "sonner";
+import { ThemeProvider } from "./components/ThemeProvider";
 import "@fontsource-variable/dm-sans";
 import "./css/app.css";
 
@@ -40,23 +41,25 @@ function NavigateBridge() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Toaster position="bottom-right" richColors />
-      <BrowserRouter>
-        <NavigateBridge />
-        <Routes>
-          <Route path="/" element={<ProjectDashboard />} />
-          <Route path="/projects/:projectName" element={<AgentDashboard />} />
-          <Route path="/projects/:projectName/agents/:agentName" element={<AgentDashboard />} />
-          <Route
-            path="/projects/:projectName/agents/:agentName/settings"
-            element={<AgentSettings />}
-          />
-          <Route path="/projects/:projectName/details" element={<ProjectDetails />} />
-          <Route path="/projects/:projectName/settings" element={<Settings />} />
-          <Route path="/projects/:projectName/shared" element={<SharedDrivePage />} />
-          <Route path="/projects/:projectName/schedules" element={<Schedules />} />
-        </Routes>
-      </BrowserRouter>
+      <ThemeProvider>
+        <Toaster position="bottom-right" richColors />
+        <BrowserRouter>
+          <NavigateBridge />
+          <Routes>
+            <Route path="/" element={<ProjectDashboard />} />
+            <Route path="/projects/:projectName" element={<AgentDashboard />} />
+            <Route path="/projects/:projectName/agents/:agentName" element={<AgentDashboard />} />
+            <Route
+              path="/projects/:projectName/agents/:agentName/settings"
+              element={<AgentSettings />}
+            />
+            <Route path="/projects/:projectName/details" element={<ProjectDetails />} />
+            <Route path="/projects/:projectName/settings" element={<Settings />} />
+            <Route path="/projects/:projectName/shared" element={<SharedDrivePage />} />
+            <Route path="/projects/:projectName/schedules" element={<Schedules />} />
+          </Routes>
+        </BrowserRouter>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
