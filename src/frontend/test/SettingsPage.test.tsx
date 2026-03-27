@@ -37,7 +37,7 @@ vi.mock("../lib/ws", () => ({
 }));
 
 const activityMessages = [
-  { id: 1, from_agent: "Alice", to_agent: "Bob", text: "Hello!", ts: "2026-03-17T10:00:00Z" },
+  { id: 1, fromAgent: "Alice", toAgent: "Bob", text: "Hello!", ts: "2026-03-17T10:00:00Z" },
 ] as never[];
 
 beforeEach(() => {

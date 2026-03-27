@@ -5,11 +5,11 @@ import ActivityLog from "../components/ActivityLog";
 import type { InterAgentMessage } from "../components/types";
 
 const messages: InterAgentMessage[] = [
-  { id: 3, from_agent: "Alice", to_agent: "Bob", text: "Hello Bob!", ts: "2026-03-17T10:00:00Z" },
+  { id: 3, fromAgent: "Alice", toAgent: "Bob", text: "Hello Bob!", ts: "2026-03-17T10:00:00Z" },
   {
     id: 2,
-    from_agent: "Bob",
-    to_agent: "Alice",
+    fromAgent: "Bob",
+    toAgent: "Alice",
     text: "Hi Alice, how are you?",
     ts: "2026-03-17T09:59:00Z",
   },
@@ -49,7 +49,7 @@ describe("ActivityLog", () => {
   it("truncates long messages and shows expand toggle", async () => {
     const longText = "A".repeat(250);
     const longMessages: InterAgentMessage[] = [
-      { id: 1, from_agent: "Alice", to_agent: "Bob", text: longText, ts: "2026-03-17T10:00:00Z" },
+      { id: 1, fromAgent: "Alice", toAgent: "Bob", text: longText, ts: "2026-03-17T10:00:00Z" },
     ];
     render(<ActivityLog messages={longMessages} hasMore={false} onLoadMore={vi.fn()} />);
     expect(screen.getByText("Show more")).toBeInTheDocument();

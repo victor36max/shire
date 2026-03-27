@@ -27,7 +27,7 @@ export function useAgentDetail(projectId: string | undefined, agentId: string | 
 export function useCreateAgent(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { name: string; recipe_yaml: string }) =>
+    mutationFn: async (data: { name: string; recipeYaml: string }) =>
       unwrap(await api.projects[":id"].agents.$post({ param: { id: projectId }, json: data })),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agents", projectId] }),
   });
@@ -36,11 +36,11 @@ export function useCreateAgent(projectId: string) {
 export function useUpdateAgent(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, recipe_yaml }: { id: string; recipe_yaml: string }) =>
+    mutationFn: async ({ id, recipeYaml }: { id: string; recipeYaml: string }) =>
       unwrap(
         await api.projects[":id"].agents[":aid"].$patch({
           param: { id: projectId, aid: id },
-          json: { recipe_yaml },
+          json: { recipeYaml },
         }),
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agents", projectId] }),

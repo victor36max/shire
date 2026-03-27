@@ -60,7 +60,7 @@ export default function AgentShow() {
   const agent = agentDetail as unknown as Agent;
 
   const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
-    updateAgent.mutate({ id: agent.id, recipe_yaml: payload.recipe_yaml as string });
+    updateAgent.mutate({ id: agent.id, recipeYaml: payload.recipeYaml as string });
     setEditOpen(false);
   };
 
@@ -150,7 +150,7 @@ export default function AgentShow() {
             <CardContent className="pt-6">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">System Prompt</h3>
               <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                {agent.system_prompt || "Not set"}
+                {agent.systemPrompt || "Not set"}
               </pre>
             </CardContent>
           </Card>

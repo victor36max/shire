@@ -210,7 +210,7 @@ export class Coordinator {
       description: recipe?.description ?? "",
       harness: recipe?.harness ?? "claude_code",
       model: recipe?.model ?? null,
-      system_prompt: recipe?.system_prompt ?? null,
+      systemPrompt: recipe?.system_prompt ?? null,
       skills: recipe?.skills ?? [],
       status: proc.status,
     };
@@ -301,8 +301,8 @@ export class Coordinator {
       role: "inter_agent",
       content: {
         text,
-        from_agent: fromAgentName,
-        to_agent: toAgentName,
+        fromAgent: fromAgentName,
+        toAgent: toAgentName,
       },
     });
   }

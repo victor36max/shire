@@ -55,7 +55,7 @@ export default function AgentDashboard({ streamingText }: AgentDashboardProps) {
         description: agent.description,
         harness: agent.harness,
         model: agent.model,
-        system_prompt: agent.system_prompt,
+        systemPrompt: agent.systemPrompt,
         skills: [],
         status: "idle",
         busy: false,
@@ -82,7 +82,7 @@ export default function AgentDashboard({ streamingText }: AgentDashboardProps) {
   const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
     setFormOpen(false);
     if (editingAgent) {
-      updateAgent.mutate({ id: editingAgent.id, recipe_yaml: payload.recipe_yaml as string });
+      updateAgent.mutate({ id: editingAgent.id, recipeYaml: payload.recipeYaml as string });
     } else {
       createAgent.mutate(payload as never);
     }

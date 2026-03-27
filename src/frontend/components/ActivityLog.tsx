@@ -53,13 +53,13 @@ export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityL
                 {msg.trigger === "scheduled_task" ? (
                   <>
                     <Clock className="inline h-3 w-3 mr-1" />
-                    <span className="font-medium text-foreground">{msg.task_label}</span>
+                    <span className="font-medium text-foreground">{msg.taskLabel}</span>
                   </>
                 ) : (
                   <>
-                    <span className="font-medium text-foreground">{msg.from_agent}</span>
+                    <span className="font-medium text-foreground">{msg.fromAgent}</span>
                     {" \u2192 "}
-                    <span className="font-medium text-foreground">{msg.to_agent}</span>
+                    <span className="font-medium text-foreground">{msg.toAgent}</span>
                   </>
                 )}
               </span>

@@ -31,14 +31,14 @@ export interface AgentOverview {
 export interface Agent extends AgentOverview {
   description?: string;
   model?: string;
-  system_prompt?: string;
+  systemPrompt?: string;
   harness?: HarnessType;
   skills?: Skill[];
 }
 
 export interface CatalogAgentSummary {
   name: string;
-  display_name: string;
+  displayName: string;
   description: string;
   category: string;
   emoji: string;
@@ -48,7 +48,7 @@ export interface CatalogAgentSummary {
 }
 
 export interface CatalogAgent extends CatalogAgentSummary {
-  system_prompt: string;
+  systemPrompt: string;
 }
 
 export interface CatalogCategory {
@@ -82,25 +82,25 @@ export interface Secret {
 
 export interface InterAgentMessage {
   id: number;
-  from_agent: string;
-  to_agent: string;
+  fromAgent: string;
+  toAgent: string;
   text: string;
   ts: string;
   trigger?: string;
-  task_label?: string;
+  taskLabel?: string;
 }
 
 export interface ScheduledTask {
   id: string;
   label: string;
-  agent_id: string;
-  agent_name: string;
+  agentId: string;
+  agentName: string;
   message: string;
-  schedule_type: "once" | "recurring";
-  cron_expression: string | null;
-  scheduled_at: string | null;
+  scheduleType: "once" | "recurring";
+  cronExpression: string | null;
+  scheduledAt: string | null;
   enabled: boolean;
-  last_run_at: string | null;
+  lastRunAt: string | null;
 }
 
 export const harnessLabel = (harness: HarnessType): string => {

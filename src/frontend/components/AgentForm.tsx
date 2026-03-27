@@ -74,7 +74,7 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
     setName(agent?.name || "");
     setDescription(agent?.description || "");
     setModel(agent?.model || "");
-    setSystemPrompt(agent?.system_prompt || "");
+    setSystemPrompt(agent?.systemPrompt || "");
     setHarness(agent?.harness || "claude_code");
     setSkills(agent?.skills || []);
     setRawMode(false);
@@ -101,7 +101,7 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
     const isUpdate = Boolean(agent?.id);
     const event = isUpdate ? "update-agent" : "create-agent";
     const payload: Record<string, unknown> = {
-      recipe_yaml: recipeYaml,
+      recipeYaml,
     };
     if (isUpdate) {
       payload.id = agent!.id;

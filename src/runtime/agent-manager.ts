@@ -58,10 +58,10 @@ function serializeMessage(msg: {
         tool_use_id: content.tool_use_id,
         input: content.input,
         output: content.output,
-        is_error: content.is_error ?? false,
+        isError: content.is_error ?? false,
       };
     case "inter_agent":
-      return { ...base, text: content.text, from_agent: content.from_agent };
+      return { ...base, text: content.text, fromAgent: content.fromAgent };
     default:
       return { ...base, text: content.text, attachments: content.attachments ?? [] };
   }
@@ -587,11 +587,11 @@ export class AgentManager {
           projectId: this.projectId,
           agentId: this.agentId,
           role: "inter_agent",
-          content: { text, from_agent: envelope.from, to_agent: this.agentName },
+          content: { text, fromAgent: envelope.from, toAgent: this.agentName },
         });
         this.broadcastAgent({
           type: "inter_agent_message",
-          payload: { from_agent: envelope.from, text },
+          payload: { fromAgent: envelope.from, text },
           message: serializeMessage(msg),
         });
         this.broadcastNewMessage(msg);

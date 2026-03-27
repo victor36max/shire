@@ -11,7 +11,7 @@ const agent: Agent = {
   busy: false,
   unreadCount: 0,
   model: "claude-sonnet-4-6",
-  system_prompt: "You are a helpful assistant.",
+  systemPrompt: "You are a helpful assistant.",
   harness: "claude_code",
 };
 
@@ -81,7 +81,7 @@ describe("AgentShow", () => {
   });
 
   it("shows fallback for missing model and system prompt", () => {
-    mockAgentDetail = { ...agent, model: undefined, system_prompt: undefined };
+    mockAgentDetail = { ...agent, model: undefined, systemPrompt: undefined };
     renderWithProviders(<AgentShow />);
     expect(screen.getAllByText("Not set")).toHaveLength(2);
   });

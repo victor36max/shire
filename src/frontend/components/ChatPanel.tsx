@@ -32,8 +32,8 @@ export interface Message {
   tool_use_id?: string;
   input?: Record<string, unknown>;
   output?: string | null;
-  is_error?: boolean;
-  from_agent?: string;
+  isError?: boolean;
+  fromAgent?: string;
   attachments?: Attachment[];
 }
 
@@ -117,8 +117,8 @@ function ToolCallMessage({ msg }: { msg: Message }) {
           {msg.tool}
         </Badge>
         {hasOutput ? (
-          <Badge variant={msg.is_error ? "destructive" : "secondary"} className="text-xs">
-            {msg.is_error ? "error" : "done"}
+          <Badge variant={msg.isError ? "destructive" : "secondary"} className="text-xs">
+            {msg.isError ? "error" : "done"}
           </Badge>
         ) : (
           <span className="text-xs text-muted-foreground animate-pulse">running...</span>
@@ -159,7 +159,7 @@ function InterAgentMessage({ msg }: { msg: Message }) {
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 rounded-lg italic"
       >
         <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
-        <span className="text-muted-foreground">Message from {msg.from_agent}</span>
+        <span className="text-muted-foreground">Message from {msg.fromAgent}</span>
       </button>
       {open && (
         <div className="border-t border-border px-3 py-2">
@@ -205,8 +205,8 @@ function transformMessages(raw: Array<Record<string, unknown>>): Message[] {
       tool_use_id: content?.tool_use_id as string | undefined,
       input: content?.input as Record<string, unknown> | undefined,
       output: content?.output as string | null | undefined,
-      is_error: content?.is_error as boolean | undefined,
-      from_agent: content?.from_agent as string | undefined,
+      isError: content?.isError as boolean | undefined,
+      fromAgent: content?.fromAgent as string | undefined,
       attachments: content?.attachments as Attachment[] | undefined,
     };
   });

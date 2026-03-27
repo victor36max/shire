@@ -58,8 +58,8 @@ function apiMessage(msg: Message): Record<string, unknown> {
       tool_use_id: msg.tool_use_id,
       input: msg.input,
       output: msg.output,
-      is_error: msg.is_error,
-      from_agent: msg.from_agent,
+      isError: msg.isError,
+      fromAgent: msg.fromAgent,
       attachments: msg.attachments,
     },
   };
@@ -177,7 +177,7 @@ describe("ChatPanel", () => {
       tool_use_id: "tu_1",
       input: { path: "/test.txt" },
       output: "file contents",
-      is_error: false,
+      isError: false,
       ts: "2026-03-17T00:00:02Z",
     };
     mockMessages = [apiMessage(toolMsg)];
@@ -229,7 +229,7 @@ describe("ChatPanel", () => {
       id: 10,
       role: "inter_agent",
       text: "Here is the analysis result",
-      from_agent: "researcher",
+      fromAgent: "researcher",
       ts: "2026-03-17T00:00:03Z",
     };
     mockMessages = [apiMessage(interAgentMsg)];
@@ -243,7 +243,7 @@ describe("ChatPanel", () => {
       id: 10,
       role: "inter_agent",
       text: "Here is the analysis result",
-      from_agent: "researcher",
+      fromAgent: "researcher",
       ts: "2026-03-17T00:00:03Z",
     };
     mockMessages = [apiMessage(interAgentMsg)];
@@ -257,7 +257,7 @@ describe("ChatPanel", () => {
       id: 10,
       role: "inter_agent",
       text: "Here is the analysis result",
-      from_agent: "researcher",
+      fromAgent: "researcher",
       ts: "2026-03-17T00:00:03Z",
     };
     mockMessages = [apiMessage(interAgentMsg)];
