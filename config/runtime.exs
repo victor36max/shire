@@ -96,7 +96,7 @@ if config_env() == :prod do
       socket_options: maybe_ipv6
   else
     config :shire, Shire.Repo,
-      database: System.get_env("DATABASE_PATH", "shire_prod.db"),
+      database: System.get_env("DATABASE_PATH", Path.expand("~/.shire/shire_prod.db")),
       journal_mode: :wal,
       pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
   end

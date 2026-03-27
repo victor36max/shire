@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/04056f61-d2e7-4eb8-b0e4-48a342b298d3
 
 Most AI agent tools follow the same pattern — you give an instruction, an agent executes it, you get the output. The agent disappears. Next time, you start from scratch. Shire is different. Your agents persist between sessions. They communicate with each other autonomously. They build on yesterday's work. You give feedback, iterate, adjust direction — like working with a real team.
 
-- **Secure cloud sandboxes** — Each agent runs in an isolated cloud VM — [Fly.io Sprites](https://sprites.dev) (Firecracker), any Linux VPS via SSH, or local for development. Agents pick up exactly where they left off.
+- **Run locally or in the cloud** — Get started on your own machine in seconds with zero configuration. Scale to isolated cloud VMs ([Fly.io Sprites](https://sprites.dev)) or any Linux VPS via SSH when you're ready.
 - **Works with any model** — Not locked to one AI provider. Supports Claude Code, Pi Agent, and more coming soon. Shire is the infrastructure layer — bring whatever model fits your workflow.
 - **Autonomous agent communication** — Agents discover peers and collaborate on their own — no orchestrator required. Direct messaging, shared context, real teamwork between agents.
 - **Agent catalog** — Browse and deploy from a community-maintained library of pre-built agents. Powered by [agency-agents](https://github.com/msitarzewski/agency-agents). Get a capable team running in seconds.
@@ -86,30 +86,48 @@ Most AI agent tools follow the same pattern — you give an instruction, an agen
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Elixir, Phoenix 1.8, Ecto, PostgreSQL |
+| Backend | Elixir, Phoenix 1.8, Ecto, SQLite (default) / PostgreSQL |
 | Frontend | LiveReact (React inside Phoenix LiveView), shadcn/ui, Tailwind v4 |
 | Build | Vite, Bun |
 | Agent Runtime | Bun + TypeScript, multi-harness adapter pattern |
-| VM | Pluggable: [Fly.io Sprites](https://sprites.dev) (Firecracker), SSH (any VPS), or Local (dev) |
+| VM | Pluggable: Local (default), [Fly.io Sprites](https://sprites.dev) (Firecracker), or SSH (any VPS) |
 | Job Processing | [Oban](https://getoban.pro/) (scheduled tasks, recurring jobs) |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Elixir 1.15+
-- PostgreSQL
+- Elixir 1.18+ / Erlang OTP 27+ (or run `asdf install` from `.tool-versions`)
 - [Bun](https://bun.sh)
+- [Claude Code](https://claude.ai/download) (for running agents locally)
 
-### 1. Set up the database
+### Quick Start
 
-Shire requires PostgreSQL. In development, `mix setup` creates the database automatically using local defaults. In production, set `DATABASE_URL` via your secrets manager or environment.
+No `.env` file needed. No database to install. Just three commands:
 
-### 2. Choose a VM backend
+```bash
+git clone https://github.com/victor36max/shire.git && cd shire
+mix setup        # Install deps, create SQLite DB, build assets
+mix phx.server   # Start the server
+```
 
-Shire needs a VM backend for agent workspaces. Configure via environment variables (`.env` in dev, secrets manager in production):
+Visit [localhost:4000](http://localhost:4000) to open the dashboard.
 
-#### 🔥 Option A: Sprites (Firecracker VMs)
+By default, Shire uses **SQLite** for storage and **local mode** for agent execution. Agents run as local processes on your machine — no VMs, no SSH, no tokens. All data is stored at `~/.shire/`.
+
+### VM Backend Options
+
+Shire auto-detects the VM backend from your environment. Override with `SHIRE_VM_TYPE` or set credentials in a `.env` file.
+
+#### Local (default)
+
+Active out of the box when no cloud credentials are set. Agents run as local processes using Erlang ports.
+
+- Workspaces: `~/.shire/projects/{project_id}/`
+- Requires [Bun](https://bun.sh) and [Claude Code](https://claude.ai/download) installed on your machine
+- No bootstrap, no VMs, no SSH
+
+#### Sprites (Firecracker VMs)
 
 Production-grade backend using [Fly.io Sprites](https://sprites.dev) — lightweight Firecracker VMs with sub-second boot, persistent storage, and auto-sleep.
 
@@ -118,8 +136,6 @@ Production-grade backend using [Fly.io Sprites](https://sprites.dev) — lightwe
 ```bash
 SPRITES_TOKEN=your_token_here
 ```
-
-Sprites is the default backend — no other configuration needed.
 
 Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to manage VM lifecycles, execute commands, and stream terminal sessions.
 
@@ -131,7 +147,7 @@ Shire uses the [Sprites Elixir SDK](https://github.com/superfly/sprites-ex) to m
 - Hardware-level isolation via Firecracker
 - Up to 8 CPUs / 16GB RAM per VM
 
-#### 🖥️ Option B: SSH (Any VPS)
+#### SSH (Any VPS)
 
 Connect to any Linux VPS over SSH. Run agents on your own infrastructure.
 
@@ -155,26 +171,20 @@ SHIRE_SSH_KEY="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVAT
 
 Shire creates workspace directories on the remote host automatically.
 
-#### 💻 Option C: Local (Development)
+### Optional: Use PostgreSQL
 
-Use the local filesystem. Ideal for development and testing.
-
-**What you need:** [Bun](https://bun.sh) and [Claude Code](https://claude.ai/download) installed on your machine (bootstrap does not run in local mode).
+By default Shire uses SQLite — no database server needed. To use PostgreSQL instead, set `SHIRE_DB=postgres` at compile time:
 
 ```bash
-SHIRE_VM_TYPE=local
+SHIRE_DB=postgres mix setup
+SHIRE_DB=postgres mix phx.server
 ```
 
-Agent workspaces live at `~/.shire/projects/`. Processes run as local Erlang ports — no VMs, no SSH, no tokens.
-
-### 3. Install and run
+In production with PostgreSQL, set `DATABASE_URL`:
 
 ```bash
-mix setup        # Install deps, create DB, build assets
-mix phx.server   # Start the server
+DATABASE_URL=ecto://USER:PASS@HOST/DATABASE
 ```
-
-Visit [localhost:4000](http://localhost:4000) to open the dashboard.
 
 ---
 
@@ -189,16 +199,18 @@ Full reference. Create a `.env` file in the project root — it's automatically 
 | `PORT` | `4000` | HTTP server port |
 | `PHX_HOST` | `example.com` | Hostname for URL generation (production) |
 | `SECRET_KEY_BASE` | — | Phoenix session secret. Generate with `mix phx.gen.secret` |
-| `DATABASE_URL` | — | PostgreSQL connection string (production only — dev uses local defaults) |
-| `POOL_SIZE` | `10` | Database connection pool size |
-| `ECTO_IPV6` | — | Set to `true` for IPv6 database connections |
+| `SHIRE_DB` | `sqlite` | Database engine: `sqlite` or `postgres` (compile-time) |
+| `DATABASE_PATH` | `~/.shire/shire_prod.db` | SQLite database path (production, SQLite only) |
+| `DATABASE_URL` | — | PostgreSQL connection string (production, PostgreSQL only) |
+| `POOL_SIZE` | `5` (SQLite) / `10` (PostgreSQL) | Database connection pool size |
+| `ECTO_IPV6` | — | Set to `true` for IPv6 database connections (PostgreSQL only) |
 | `DNS_CLUSTER_QUERY` | — | DNS query for distributed Erlang node discovery |
 
 ### VM Backend
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SHIRE_VM_TYPE` | `sprites` | VM backend: `sprites`, `ssh`, or `local` |
+| `SHIRE_VM_TYPE` | auto-detected | VM backend: `local`, `sprites`, or `ssh`. Auto-detects from credentials if not set. |
 | `SPRITES_TOKEN` | — | Sprites SDK token (required for Sprites backend) |
 | `SHIRE_SSH_HOST` | — | SSH hostname (required for SSH backend) |
 | `SHIRE_SSH_USER` | — | SSH username (required for SSH backend) |
@@ -213,7 +225,7 @@ Agent-specific env vars (API keys, tokens, etc.) are configured per-project via 
 
 ### 1. Deploy
 
-Set up your team's home — [Fly.io Sprites](https://sprites.dev) (Firecracker), any Linux VPS via SSH, or local for development. Projects are the top-level unit; each gets its own VM with isolated storage.
+Run locally with zero config, or set up [Fly.io Sprites](https://sprites.dev) (Firecracker) or any Linux VPS via SSH for production. Projects are the top-level unit; each gets its own VM with isolated storage.
 
 ### 2. Build Your Team
 

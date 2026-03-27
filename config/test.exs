@@ -7,15 +7,11 @@ import Config
 # Run `mix help test` for more information.
 if System.get_env("SHIRE_DB", "sqlite") == "sqlite" do
   config :shire, Shire.Repo,
-    database:
-      Path.expand(
-        "../priv/repo/shire_test#{System.get_env("MIX_TEST_PARTITION")}.db",
-        __DIR__
-      ),
+    database: Path.expand("~/.shire/shire_test#{System.get_env("MIX_TEST_PARTITION")}.db"),
     journal_mode: :wal,
-    busy_timeout: 10_000,
+    busy_timeout: 30_000,
     pool: Ecto.Adapters.SQL.Sandbox,
-    pool_size: 5
+    pool_size: 1
 else
   config :shire, Shire.Repo,
     username: "postgres",

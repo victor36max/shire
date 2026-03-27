@@ -3,14 +3,14 @@ defmodule Shire.VirtualMachineLocal do
   Local filesystem + local process implementation of the VirtualMachine behaviour.
   Runs agents as local processes using Erlang ports instead of Sprite VMs.
 
-  Workspace root: `priv/projects/{project_id}/`
+  Workspace root: `~/.shire/projects/{project_id}/`
   """
   use GenServer
   require Logger
 
   @behaviour Shire.VirtualMachine
 
-  @default_base_dir Path.expand("priv/projects")
+  @default_base_dir Path.expand("~/.shire/projects")
 
   # --- start_link / child_spec ---
 

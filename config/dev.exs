@@ -3,7 +3,7 @@ import Config
 # Configure your database
 if System.get_env("SHIRE_DB", "sqlite") == "sqlite" do
   config :shire, Shire.Repo,
-    database: Path.expand("../priv/repo/shire_dev.db", __DIR__),
+    database: Path.expand("~/.shire/shire_dev.db"),
     journal_mode: :wal,
     busy_timeout: 5_000,
     pool_size: 5,
