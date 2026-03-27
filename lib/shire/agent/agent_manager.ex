@@ -157,6 +157,8 @@ defmodule Shire.Agent.AgentManager do
 
   @impl true
   def init(opts) do
+    Process.flag(:trap_exit, true)
+
     project_id = Keyword.fetch!(opts, :project_id)
     agent_id = Keyword.fetch!(opts, :agent_id)
     agent_name = Keyword.fetch!(opts, :agent_name)
@@ -606,6 +608,20 @@ defmodule Shire.Agent.AgentManager do
     {:noreply, state}
   end
 
+  # Handle EXIT from linked processes (forward_loop, Task.start_link).
+  # Since we trap_exit, these arrive as messages instead of killing us.
+  @impl true
+  def handle_info({:EXIT, _pid, :normal}, state), do: {:noreply, state}
+
+  @impl true
+  def handle_info({:EXIT, pid, reason}, state) do
+    Logger.warning(
+      "AgentManager #{state.agent_name} linked process #{inspect(pid)} exited: #{inspect(reason)}"
+    )
+
+    {:noreply, state}
+  end
+
   @impl true
   def handle_info(msg, state) do
     Logger.debug("AgentManager #{state.agent_name} unexpected message: #{inspect(msg)}")
@@ -613,9 +629,13 @@ defmodule Shire.Agent.AgentManager do
   end
 
   @impl true
-  def terminate(_reason, %{project_id: project_id, agent_id: agent_id} = _state) do
+  def terminate(_reason, %{project_id: project_id, agent_id: agent_id} = state) do
     kill_existing_runner(project_id, agent_id)
     :ok
+  rescue
+    e ->
+      Logger.warning("AgentManager #{state.agent_name} cleanup failed: #{Exception.message(e)}")
+      :ok
   end
 
   @impl true
@@ -768,13 +788,22 @@ defmodule Shire.Agent.AgentManager do
 
   defp kill_existing_runner(project_id, agent_id) do
     agent_dir = Workspace.agent_dir(project_id, agent_id)
+    pattern = "agent-runner.ts --agent-dir #{agent_dir}"
 
-    vm().cmd(
-      project_id,
-      "pkill",
-      ["-f", "agent-runner.ts --agent-dir #{agent_dir}"],
-      []
-    )
+    # SIGTERM first (graceful), then wait briefly for cleanup
+    vm().cmd(project_id, "pkill", ["-f", pattern], [])
+    Process.sleep(100)
+
+    # Check if any matching processes survived, then SIGKILL
+    case vm().cmd(project_id, "pgrep", ["-f", pattern], []) do
+      {:ok, output} ->
+        if String.trim(output) != "" do
+          vm().cmd(project_id, "pkill", ["-9", "-f", pattern], [])
+        end
+
+      _ ->
+        :ok
+    end
 
     :ok
   end

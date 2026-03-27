@@ -275,6 +275,8 @@ defmodule Shire.VirtualMachineLocal do
       {:error, reason} -> Logger.error("Local VM setup failed: #{inspect(reason)}")
     end
 
+    cleanup_orphaned_runners(project_id)
+
     Logger.info("Local VM ready for project #{project_id} at #{root}")
     update_registry_status(project_id, :running)
 
@@ -285,6 +287,32 @@ defmodule Shire.VirtualMachineLocal do
     )
 
     {:ok, %{project_id: project_id, root: root}}
+  end
+
+  @doc """
+  Kills any orphaned agent-runner.ts processes whose --agent-dir falls under
+  this project's workspace root. Called on startup to clean up after ungraceful
+  shutdowns (e.g., SIGKILL, double Ctrl+C).
+  """
+  def cleanup_orphaned_runners(project_id) do
+    root = workspace_root(project_id)
+    pattern = "agent-runner.ts --agent-dir #{root}"
+
+    case System.cmd("pkill", ["-f", pattern], stderr_to_stdout: true) do
+      {_, 0} ->
+        Logger.info("Cleaned up orphaned agent-runner processes for project #{project_id}")
+
+      {_, 1} ->
+        # Exit code 1 = no matching processes found
+        :ok
+
+      {output, code} ->
+        Logger.warning(
+          "pkill orphan cleanup exited with code #{code} for project #{project_id}: #{output}"
+        )
+    end
+
+    :ok
   end
 
   # --- Private ---

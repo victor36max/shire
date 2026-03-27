@@ -15,6 +15,7 @@ defmodule Shire.Agent.AgentManagerTest do
     stub(Shire.VirtualMachineMock, :workspace_root, fn _project_id -> "/workspace" end)
     stub(Shire.VirtualMachineMock, :touch_keepalive, fn _project_id -> :ok end)
     stub(Shire.VirtualMachineMock, :vm_status, fn _project_id -> :running end)
+    stub(Shire.VirtualMachineMock, :cmd, fn _project, _cmd, _args, _opts -> {:ok, ""} end)
 
     {:ok, project} = Projects.create_project("test-project-#{System.unique_integer([:positive])}")
     {:ok, agent} = Agents.create_agent_with_vm(project.id, "test-agent", "version: 1\n", @vm)
@@ -742,6 +743,43 @@ defmodule Shire.Agent.AgentManagerTest do
       Process.sleep(50)
       state_after_second = AgentManager.get_state(pid)
       assert state_after_second.last_keepalive_touch == first_touch
+    end
+  end
+
+  describe "terminate/2 cleanup" do
+    test "terminate calls kill_existing_runner via pkill", ctx do
+      Mox.set_mox_global()
+      test_pid = self()
+
+      stub(Shire.VirtualMachineMock, :cmd, fn _project, cmd, args, _opts ->
+        send(test_pid, {:cmd_called, cmd, args})
+        {:ok, ""}
+      end)
+
+      {:ok, _pid} = start_manager(ctx)
+
+      # Stop the supervised process — triggers terminate/2
+      stop_supervised!(AgentManager)
+
+      assert_receive {:cmd_called, "pkill", args}, 1_000
+      assert Enum.any?(args, &String.contains?(&1, "agent-runner.ts"))
+    end
+
+    test "traps exits so terminate is called during shutdown", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      # Verify the process traps exits
+      assert {:trap_exit, true} = Process.info(pid, :trap_exit)
+    end
+
+    test "handles EXIT from linked processes without crashing", ctx do
+      {:ok, pid} = start_manager(ctx)
+
+      # Simulate an EXIT from a linked process (e.g., the forward_loop process)
+      send(pid, {:EXIT, self(), :normal})
+
+      # Should still be alive
+      assert Process.alive?(pid)
     end
   end
 
