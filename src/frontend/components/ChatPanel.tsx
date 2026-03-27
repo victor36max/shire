@@ -227,7 +227,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
       prev?.map((a) => (a.id === agent.id ? { ...a, busy: true } : a)),
     );
 
-  const { data: messagesData } = useMessages(projectId, agent.id);
+  const { data: messagesData, isLoading: messagesLoading } = useMessages(projectId, agent.id);
   const sendMessage = useSendMessage(projectId ?? "");
   const interruptAgent = useInterruptAgent(projectId ?? "");
   const restartAgent = useRestartAgent(projectId ?? "");
@@ -394,7 +394,12 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
             </span>
           </div>
         )}
-        {!hasMessages && (
+        {messagesLoading && (
+          <div className="flex items-center justify-center h-full">
+            <span className="text-sm text-muted-foreground animate-pulse">Loading messages...</span>
+          </div>
+        )}
+        {!messagesLoading && !hasMessages && (
           <div className="flex flex-col items-center justify-center h-full gap-4 max-w-sm mx-auto text-center">
             <p className="text-sm text-muted-foreground">
               Send a message to start working with this agent.
@@ -531,7 +536,9 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
                 <Square className="h-4 w-4 fill-current" />
               </Button>
             ) : (
-              <Button onClick={handleSend}>Send</Button>
+              <Button onClick={handleSend} disabled={sendMessage.isPending}>
+                Send
+              </Button>
             )}
           </div>
         </div>
@@ -541,8 +548,13 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
             <p className="text-sm text-muted-foreground">
               Agent is idle. It will restart automatically when the VM wakes up.
             </p>
-            <Button variant="outline" size="sm" onClick={() => restartAgent.mutate(agent.id)}>
-              Restart
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => restartAgent.mutate(agent.id)}
+              disabled={restartAgent.isPending}
+            >
+              {restartAgent.isPending ? "Restarting..." : "Restart"}
             </Button>
           </div>
         </div>

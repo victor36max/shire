@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { FileText, Settings, FolderOpen, Clock } from "lucide-react";
+import { FileText, Settings, FolderOpen, Clock, Loader2 } from "lucide-react";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { navigate } from "./lib/navigate";
 import { type AgentOverview, type AgentStatus } from "./types";
@@ -46,7 +46,7 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
   const { agentName } = useParams<{ agentName: string }>();
   const { projectId, projectName } = useProjectId();
   const { data: projects = [] } = useProjects();
-  const { data: agents = [] } = useAgents(projectId);
+  const { data: agents = [], isLoading: agentsLoading } = useAgents(projectId);
   const deleteAgentMut = useDeleteAgent(projectId ?? "");
 
   const selectedAgentId = agentName ? (agents.find((a) => a.name === agentName)?.id ?? null) : null;
@@ -80,6 +80,11 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
       </div>
 
       <div className="flex-1 overflow-y-auto py-1">
+        {agentsLoading && (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
         {agents.map((agent) => (
           <div key={agent.id} className="group flex items-center mx-1">
             <button
@@ -131,7 +136,7 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
             </DropdownMenu>
           </div>
         ))}
-        {agents.length === 0 && (
+        {!agentsLoading && agents.length === 0 && (
           <div className="px-3 py-6 text-center">
             <p className="text-sm text-muted-foreground mb-1">No agents yet</p>
             <p className="text-xs text-muted-foreground">
@@ -209,8 +214,9 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
             <AlertDialogAction
               className={buttonVariants({ variant: "destructive" })}
               onClick={handleDeleteConfirm}
+              disabled={deleteAgentMut.isPending}
             >
-              Delete
+              {deleteAgentMut.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

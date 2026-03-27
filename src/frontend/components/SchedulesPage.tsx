@@ -25,7 +25,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { ChevronLeft, Plus, Play, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, Plus, Play, Pencil, Trash2, Loader2 } from "lucide-react";
 import { navigate } from "./lib/navigate";
 import { type ScheduledTask } from "./types";
 import {
@@ -231,7 +231,7 @@ export default function SchedulesPage() {
   const queryClient = useQueryClient();
   const { projectId, projectName } = useProjectId();
 
-  const { data: tasks = [] } = useSchedules(projectId);
+  const { data: tasks = [], isLoading: schedulesLoading } = useSchedules(projectId);
   const { data: agentList = [] } = useAgents(projectId);
   const createScheduleMut = useCreateSchedule(projectId ?? "");
   const updateScheduleMut = useUpdateSchedule(projectId ?? "");
@@ -343,7 +343,11 @@ export default function SchedulesPage() {
           </Button>
         </div>
 
-        {typedTasks.length === 0 ? (
+        {schedulesLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : typedTasks.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p>No scheduled tasks yet.</p>
             <p className="text-sm mt-1">
@@ -644,8 +648,21 @@ export default function SchedulesPage() {
             <Button variant="outline" onClick={() => setFormOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={!form.label || !form.agentId || !form.message}>
-              {editingId ? "Save Changes" : "Create Schedule"}
+            <Button
+              onClick={handleSubmit}
+              disabled={
+                !form.label ||
+                !form.agentId ||
+                !form.message ||
+                createScheduleMut.isPending ||
+                updateScheduleMut.isPending
+              }
+            >
+              {createScheduleMut.isPending || updateScheduleMut.isPending
+                ? "Saving..."
+                : editingId
+                  ? "Save Changes"
+                  : "Create Schedule"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -670,8 +687,9 @@ export default function SchedulesPage() {
             <AlertDialogAction
               className={buttonVariants({ variant: "destructive" })}
               onClick={handleDelete}
+              disabled={deleteScheduleMut.isPending}
             >
-              Delete
+              {deleteScheduleMut.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

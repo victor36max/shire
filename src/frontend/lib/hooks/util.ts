@@ -1,20 +1,5 @@
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 import type { ClientResponse } from "hono/client";
 import type { SuccessStatusCode } from "hono/utils/http-status";
-
-/** Wraps a mutation with automatic error toasts */
-export function withErrorToast<TData, TVariables>(
-  opts: Parameters<typeof useMutation<TData, Error, TVariables>>[0],
-): Parameters<typeof useMutation<TData, Error, TVariables>>[0] {
-  return {
-    ...opts,
-    onError: (error, variables, onMutateResult, context) => {
-      toast.error(error.message || "Something went wrong");
-      opts.onError?.(error, variables, onMutateResult, context);
-    },
-  };
-}
 
 /**
  * Extracts the success response data type from a Hono ClientResponse union.
