@@ -15,7 +15,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "./ui/alert-dialog";
-import { ChevronLeft, Play, Trash2, Plus, X } from "lucide-react";
+import { ChevronLeft, Play, Trash2, Plus, X, Loader2 } from "lucide-react";
 import AppLayout from "./AppLayout";
 import ThemeSelector from "./ThemeSelector";
 import { navigate } from "./lib/navigate";
@@ -73,8 +73,8 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { projectId, projectName } = useProjectId();
 
-  const { data: envData } = useEnv(projectId);
-  const { data: scripts = [] } = useScripts(projectId);
+  const { data: envData, isLoading: envLoading } = useEnv(projectId);
+  const { data: scripts = [], isLoading: scriptsLoading } = useScripts(projectId);
   const { data: activityData } = useActivity(projectId);
   const saveEnv = useSaveEnv(projectId ?? "");
   const saveScript = useSaveScript(projectId ?? "");
@@ -185,137 +185,151 @@ export default function SettingsPage() {
           </TabsList>
 
           <TabsContent value="environment" className="space-y-4 pt-4">
-            <div className="space-y-3">
-              <Label>Global Environment Variables</Label>
-              {envRows.length === 0 && (
-                <p className="text-sm text-muted-foreground py-2">
-                  No environment variables. Add variables to configure your agents.
-                </p>
-              )}
-              {envRows.map((row, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Input
-                    value={row.key}
-                    onChange={(e) => updateEnvRow(index, "key", e.target.value)}
-                    placeholder="KEY"
-                    className="font-mono text-sm w-1/3"
-                    aria-label={`Variable ${index + 1} key`}
-                  />
-                  <span className="text-muted-foreground">=</span>
-                  <Input
-                    value={row.value}
-                    onChange={(e) => updateEnvRow(index, "value", e.target.value)}
-                    placeholder="value"
-                    className="font-mono text-sm flex-1 min-w-0"
-                    aria-label={`Variable ${index + 1} value`}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeEnvRow(index)}
-                    aria-label={`Remove variable ${index + 1}`}
-                  >
-                    <X className="h-4 w-4" />
+            {envLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <Label>Global Environment Variables</Label>
+                {envRows.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-2">
+                    No environment variables. Add variables to configure your agents.
+                  </p>
+                )}
+                {envRows.map((row, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={row.key}
+                      onChange={(e) => updateEnvRow(index, "key", e.target.value)}
+                      placeholder="KEY"
+                      className="font-mono text-sm w-1/3"
+                      aria-label={`Variable ${index + 1} key`}
+                    />
+                    <span className="text-muted-foreground">=</span>
+                    <Input
+                      value={row.value}
+                      onChange={(e) => updateEnvRow(index, "value", e.target.value)}
+                      placeholder="value"
+                      className="font-mono text-sm flex-1 min-w-0"
+                      aria-label={`Variable ${index + 1} value`}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeEnvRow(index)}
+                      aria-label={`Remove variable ${index + 1}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between">
+                  <Button variant="outline" size="sm" onClick={addEnvRow}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Variable
+                  </Button>
+                  <Button onClick={handleSaveEnv} disabled={!envDirty || saveEnv.isPending}>
+                    {saveEnv.isPending ? "Saving..." : "Save Environment"}
                   </Button>
                 </div>
-              ))}
-              <div className="flex items-center justify-between">
-                <Button variant="outline" size="sm" onClick={addEnvRow}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Variable
-                </Button>
-                <Button onClick={handleSaveEnv} disabled={!envDirty}>
-                  Save Environment
-                </Button>
               </div>
-            </div>
+            )}
           </TabsContent>
 
           <TabsContent value="scripts" className="space-y-4 pt-4">
-            <div className="flex items-center gap-2">
-              <Input
-                value={newScriptName}
-                onChange={(e) => setNewScriptName(e.target.value)}
-                placeholder="script-name.sh"
-                className="max-w-xs"
-                onKeyDown={(e) => e.key === "Enter" && handleCreateScript()}
-              />
-              <Button variant="outline" size="sm" onClick={handleCreateScript}>
-                <Plus className="h-4 w-4 mr-1" />
-                New Script
-              </Button>
-            </div>
-
-            {scriptDrafts.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4">
-                No global scripts. Create scripts to run setup commands on the VM.
-              </p>
-            )}
-
-            <div className="space-y-4">
-              {scriptDrafts.map((draft, index) => (
-                <div key={draft.originalName} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Label className="shrink-0">Name</Label>
-                    <Input
-                      value={draft.name}
-                      onChange={(e) => updateScriptDraft(index, "name", e.target.value)}
-                      className="font-mono text-sm"
-                      aria-label={`Script ${index + 1} name`}
-                    />
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        size="sm"
-                        onClick={() => handleSaveScriptAt(index)}
-                        disabled={!draft.dirty}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => runScript.mutate(draft.originalName)}
-                        aria-label="Run script"
-                      >
-                        <Play className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" aria-label="Delete script">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Script</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete &quot;{draft.originalName}&quot;? This
-                              cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              className={buttonVariants({ variant: "destructive" })}
-                              onClick={() => deleteScript.mutate(draft.originalName)}
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                  <Textarea
-                    value={draft.content}
-                    onChange={(e) => updateScriptDraft(index, "content", e.target.value)}
-                    rows={8}
-                    className="font-mono text-sm"
-                    aria-label={`Script ${index + 1} content`}
+            {scriptsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newScriptName}
+                    onChange={(e) => setNewScriptName(e.target.value)}
+                    placeholder="script-name.sh"
+                    className="max-w-xs"
+                    onKeyDown={(e) => e.key === "Enter" && handleCreateScript()}
                   />
+                  <Button variant="outline" size="sm" onClick={handleCreateScript}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    New Script
+                  </Button>
                 </div>
-              ))}
-            </div>
+
+                {scriptDrafts.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-4">
+                    No global scripts. Create scripts to run setup commands on the VM.
+                  </p>
+                )}
+
+                <div className="space-y-4">
+                  {scriptDrafts.map((draft, index) => (
+                    <div key={draft.originalName} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Label className="shrink-0">Name</Label>
+                        <Input
+                          value={draft.name}
+                          onChange={(e) => updateScriptDraft(index, "name", e.target.value)}
+                          className="font-mono text-sm"
+                          aria-label={`Script ${index + 1} name`}
+                        />
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveScriptAt(index)}
+                            disabled={!draft.dirty || saveScript.isPending}
+                          >
+                            {saveScript.isPending ? "Saving..." : "Save"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => runScript.mutate(draft.originalName)}
+                            aria-label="Run script"
+                          >
+                            <Play className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm" aria-label="Delete script">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Script</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete &quot;{draft.originalName}&quot;?
+                                  This cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className={buttonVariants({ variant: "destructive" })}
+                                  onClick={() => deleteScript.mutate(draft.originalName)}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                      <Textarea
+                        value={draft.content}
+                        onChange={(e) => updateScriptDraft(index, "content", e.target.value)}
+                        rows={8}
+                        className="font-mono text-sm"
+                        aria-label={`Script ${index + 1} content`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="activity" className="pt-4">

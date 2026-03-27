@@ -213,8 +213,9 @@ export default function ProjectDashboard() {
             <AlertDialogAction
               className={buttonVariants({ variant: "destructive" })}
               onClick={handleDelete}
+              disabled={deleteProject.isPending}
             >
-              Delete
+              {deleteProject.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

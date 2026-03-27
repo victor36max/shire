@@ -23,7 +23,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import AppLayout from "./AppLayout";
 import Markdown from "./Markdown";
-import { ChevronLeft, Folder, File, X, Download } from "lucide-react";
+import { ChevronLeft, Folder, File, X, Download, Loader2 } from "lucide-react";
 import { navigate as navigateTo } from "./lib/navigate";
 import {
   useProjectId,
@@ -206,7 +206,7 @@ export default function SharedDrive() {
   const { projectId, projectName } = useProjectId();
   const [currentPath, setCurrentPath] = React.useState("/");
 
-  const { data } = useSharedDrive(projectId, currentPath);
+  const { data, isLoading: filesLoading } = useSharedDrive(projectId, currentPath);
   const files = (data?.files ?? []) as SharedDriveFile[];
 
   const createDirectory = useCreateDirectory(projectId ?? "");
@@ -359,7 +359,13 @@ export default function SharedDrive() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedFiles.length === 0 ? (
+                {filesLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={previewFile ? 2 : 3} className="text-center py-8">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : sortedFiles.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={previewFile ? 2 : 3}

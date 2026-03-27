@@ -3,14 +3,14 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import AppLayout from "./AppLayout";
 import { navigate } from "./lib/navigate";
 import { useProjectId, useProjectDoc, useRenameProject, useSaveProjectDoc } from "../lib/hooks";
 
 export default function ProjectDetailsPage() {
   const { projectId, projectName } = useProjectId();
-  const { data: projectDoc } = useProjectDoc(projectId);
+  const { data: projectDoc, isLoading: docLoading } = useProjectDoc(projectId);
   const renameProject = useRenameProject(projectId ?? "");
   const saveDoc = useSaveProjectDoc(projectId ?? "");
 
@@ -86,25 +86,31 @@ export default function ProjectDetailsPage() {
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="project-doc">PROJECT.md</Label>
-          <p className="text-xs text-muted-foreground">
-            Shared project context visible to all agents. Agents check this before starting and
-            after completing tasks.
-          </p>
-          <Textarea
-            id="project-doc"
-            value={docValue}
-            onChange={(e) => setDocValue(e.target.value)}
-            className="min-h-[400px] font-mono text-sm"
-            placeholder="# Project&#10;&#10;Describe your project here..."
-          />
-          <div className="flex justify-end">
-            <Button onClick={handleSaveDoc} disabled={!docDirty || isSavingDoc}>
-              {isSavingDoc ? "Saving..." : "Save Document"}
-            </Button>
+        {docLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="project-doc">PROJECT.md</Label>
+            <p className="text-xs text-muted-foreground">
+              Shared project context visible to all agents. Agents check this before starting and
+              after completing tasks.
+            </p>
+            <Textarea
+              id="project-doc"
+              value={docValue}
+              onChange={(e) => setDocValue(e.target.value)}
+              className="min-h-[400px] font-mono text-sm"
+              placeholder="# Project&#10;&#10;Describe your project here..."
+            />
+            <div className="flex justify-end">
+              <Button onClick={handleSaveDoc} disabled={!docDirty || isSavingDoc}>
+                {isSavingDoc ? "Saving..." : "Save Document"}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );

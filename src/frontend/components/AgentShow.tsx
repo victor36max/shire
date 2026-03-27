@@ -22,7 +22,7 @@ import {
 import AppLayout from "./AppLayout";
 import { navigate } from "./lib/navigate";
 import AgentForm from "./AgentForm";
-import { ChevronLeft, MoreHorizontal, Pencil } from "lucide-react";
+import { ChevronLeft, MoreHorizontal, Pencil, Loader2 } from "lucide-react";
 import { type Agent, statusVariant, harnessLabel } from "./types";
 import {
   useProjectId,
@@ -90,7 +90,13 @@ export default function AgentShow() {
                 Restart Agent
               </Button>
             ) : (
-              <Button onClick={() => restartAgent.mutate(agentId!)}>Start Agent</Button>
+              <Button
+                onClick={() => restartAgent.mutate(agentId!)}
+                disabled={restartAgent.isPending}
+              >
+                {restartAgent.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                Start Agent
+              </Button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -175,8 +181,11 @@ export default function AgentShow() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => restartAgent.mutate(agentId!)}>
-              Restart
+            <AlertDialogAction
+              onClick={() => restartAgent.mutate(agentId!)}
+              disabled={restartAgent.isPending}
+            >
+              {restartAgent.isPending ? "Restarting..." : "Restart"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -196,8 +205,9 @@ export default function AgentShow() {
             <AlertDialogAction
               className={buttonVariants({ variant: "destructive" })}
               onClick={() => deleteAgent.mutate(agentId!)}
+              disabled={deleteAgent.isPending}
             >
-              Delete
+              {deleteAgent.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
