@@ -294,18 +294,6 @@ export class Coordinator {
     const filename = `${Date.now()}-${fromAgentName}.yaml`;
     const inboxPath = join(workspace.inboxDir(this.projectId, targetAgent.id), filename);
     writeFileSync(inboxPath, yaml.dump(envelope), "utf-8");
-
-    // Persist inter-agent message for sender too (activity log)
-    agentsService.createMessage({
-      projectId: this.projectId,
-      agentId: fromAgentId,
-      role: "inter_agent",
-      content: {
-        text,
-        fromAgent: fromAgentName,
-        toAgent: toAgentName,
-      },
-    });
   }
 
   private readRecipe(agentId: string): Record<string, unknown> | null {
