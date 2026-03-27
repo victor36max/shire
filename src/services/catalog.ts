@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, existsSync } from "fs";
 import { join, basename, dirname } from "path";
 import { fileURLToPath } from "url";
-import yaml from "js-yaml";
+import { safeYamlLoad } from "../utils/yaml";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -31,7 +31,7 @@ export function listCategories(): CatalogCategory[] {
   const path = join(catalogDir(), "categories.yaml");
   if (!existsSync(path)) return [];
   const content = readFileSync(path, "utf-8");
-  const data = yaml.load(content) as CatalogCategory[];
+  const data = safeYamlLoad(content) as CatalogCategory[];
   return data ?? [];
 }
 
@@ -49,7 +49,7 @@ export function listAgents(category?: string): CatalogAgent[] {
 
     for (const file of files) {
       const content = readFileSync(join(catDir, file), "utf-8");
-      const data = yaml.load(content) as Record<string, unknown>;
+      const data = safeYamlLoad(content) as Record<string, unknown>;
       if (!data) continue;
 
       result.push({
