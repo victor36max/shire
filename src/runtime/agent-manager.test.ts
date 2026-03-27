@@ -12,9 +12,6 @@ let testDir: string;
 let projectId: string;
 let agentId: string;
 
-// We need to mock createHarness. Since AgentManager imports it,
-// we'll test event handling by collecting bus events.
-
 beforeEach(() => {
   createTestDb();
   testDir = join(tmpdir(), `am_test_${Date.now()}_${Math.random().toString(36).slice(2)}`);
@@ -253,7 +250,6 @@ describe("AgentManager", () => {
       createManager();
 
       // Creating the manager doesn't change status (starts idle, no event)
-      // But if we could call setStatus we'd see events
       // The status events are tested through the coordinator tests
 
       unsub();
