@@ -287,7 +287,7 @@ export class Coordinator {
     // Write to target's inbox
     const envelope = {
       ts: Date.now(),
-      type: "inter_agent_message",
+      type: "agent_message",
       from: fromAgentName,
       payload: { text },
     };

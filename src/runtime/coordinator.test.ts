@@ -5,8 +5,9 @@ import * as agentsService from "../services/agents";
 import * as projects from "../services/projects";
 import * as workspace from "../services/workspace";
 import { bus } from "../events";
-import { rmSync, readFileSync, existsSync } from "fs";
+import { rmSync, readFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
+import yaml from "js-yaml";
 import { tmpdir } from "os";
 
 let testDir: string;
@@ -192,6 +193,78 @@ describe("updateAgent", () => {
     unsub();
     expect(result.ok).toBe(true);
     expect(events.some((e) => e.type === "agent_updated")).toBe(true);
+  });
+});
+
+describe("routeMessage (inter-agent)", () => {
+  it("delivers message to target agent inbox with type agent_message", async () => {
+    const senderResult = await coordinator.createAgent({
+      name: "sender",
+      recipeYaml: "name: sender\n",
+    });
+    const receiverResult = await coordinator.createAgent({
+      name: "receiver",
+      recipeYaml: "name: receiver\n",
+    });
+    expect(senderResult.ok).toBe(true);
+    expect(receiverResult.ok).toBe(true);
+    if (!senderResult.ok || !receiverResult.ok) return;
+
+    // Trigger the outbox event that the coordinator listens on
+    bus.emit(`project:${projectId}:outbox`, {
+      type: "outbox_message",
+      payload: {
+        fromAgentId: senderResult.agentId,
+        fromAgentName: "sender",
+        toAgentName: "receiver",
+        text: "hello from sender",
+      },
+    });
+
+    // Check that a YAML file was written to receiver's inbox
+    const inboxDir = workspace.inboxDir(projectId, receiverResult.agentId);
+    const deliveryFile = readdirSync(inboxDir).find((f) => f.endsWith("-sender.yaml"));
+    expect(deliveryFile).toBeDefined();
+
+    const envelope = yaml.load(readFileSync(join(inboxDir, deliveryFile!), "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    expect(envelope.type).toBe("agent_message");
+    expect(envelope.from).toBe("sender");
+    expect((envelope.payload as Record<string, unknown>).text).toBe("hello from sender");
+  });
+
+  it("sends error to sender when target agent does not exist", async () => {
+    const senderResult = await coordinator.createAgent({
+      name: "lonely",
+      recipeYaml: "name: lonely\n",
+    });
+    expect(senderResult.ok).toBe(true);
+    if (!senderResult.ok) return;
+
+    bus.emit(`project:${projectId}:outbox`, {
+      type: "outbox_message",
+      payload: {
+        fromAgentId: senderResult.agentId,
+        fromAgentName: "lonely",
+        toAgentName: "nonexistent",
+        text: "hello?",
+      },
+    });
+
+    const inboxDir = workspace.inboxDir(projectId, senderResult.agentId);
+    const errorFile = readdirSync(inboxDir).find((f) => f.endsWith("-error.yaml"));
+    expect(errorFile).toBeDefined();
+
+    const envelope = yaml.load(readFileSync(join(inboxDir, errorFile!), "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    expect(envelope.type).toBe("system_message");
+    expect(((envelope.payload as Record<string, unknown>).text as string).toLowerCase()).toContain(
+      "not found",
+    );
   });
 });
 
