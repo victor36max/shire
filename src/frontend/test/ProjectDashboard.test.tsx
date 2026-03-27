@@ -1,0 +1,187 @@
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import ProjectDashboard from "../components/ProjectDashboard";
+import type { Project } from "../components/types";
+import { renderWithProviders } from "./test-utils";
+
+const createMutate = vi.fn();
+const deleteMutate = vi.fn();
+const restartMutate = vi.fn();
+
+let mockProjects: Project[] = [];
+
+vi.mock("../lib/hooks", async () => {
+  const actual = await vi.importActual("../lib/hooks");
+  return {
+    ...actual,
+    useProjects: () => ({ data: mockProjects, isLoading: false }),
+    useCreateProject: () => ({ mutate: createMutate, isPending: false }),
+    useDeleteProject: () => ({ mutate: deleteMutate, isPending: false }),
+    useRestartProject: () => ({ mutate: restartMutate, isPending: false }),
+  };
+});
+
+vi.mock("../lib/ws", () => ({
+  useSubscription: vi.fn(),
+}));
+
+const defaultProjects: Project[] = [
+  { id: "p1", name: "test-project", status: "running" },
+  { id: "p2", name: "other-project", status: "running" },
+];
+
+beforeEach(() => {
+  mockProjects = defaultProjects;
+  createMutate.mockClear();
+  deleteMutate.mockClear();
+  restartMutate.mockClear();
+});
+
+describe("ProjectDashboard", () => {
+  it("renders Projects heading", () => {
+    renderWithProviders(<ProjectDashboard />);
+    expect(screen.getByRole("heading", { name: "Projects" })).toBeInTheDocument();
+  });
+
+  it("renders project cards", () => {
+    renderWithProviders(<ProjectDashboard />);
+    expect(screen.getByText("test-project")).toBeInTheDocument();
+    expect(screen.getByText("other-project")).toBeInTheDocument();
+  });
+
+  it("shows empty state when no projects", () => {
+    mockProjects = [];
+    renderWithProviders(<ProjectDashboard />);
+    expect(screen.getByText("No projects yet")).toBeInTheDocument();
+    expect(screen.getByText("Create Your First Project")).toBeInTheDocument();
+  });
+
+  it("shows status badges on project cards", () => {
+    mockProjects = [
+      { id: "p3", name: "running-project", status: "running" },
+      { id: "p4", name: "error-project", status: "error" },
+    ];
+    renderWithProviders(<ProjectDashboard />);
+    expect(screen.getByText("running")).toBeInTheDocument();
+    expect(screen.getByText("error")).toBeInTheDocument();
+  });
+
+  it("shows idle and unreachable status badges", () => {
+    mockProjects = [
+      { id: "p9", name: "idle-project", status: "idle" },
+      { id: "p10", name: "unreachable-project", status: "unreachable" },
+    ];
+    renderWithProviders(<ProjectDashboard />);
+    expect(screen.getByText("idle")).toBeInTheDocument();
+    expect(screen.getByText("unreachable")).toBeInTheDocument();
+  });
+
+  it("shows Restart option in menu for unreachable projects", async () => {
+    mockProjects = [{ id: "p11", name: "unreachable-proj", status: "unreachable" }];
+    renderWithProviders(<ProjectDashboard />);
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
+    expect(screen.getByText("Restart")).toBeInTheDocument();
+  });
+
+  it("does not show Restart option for idle projects", async () => {
+    mockProjects = [{ id: "p12", name: "idle-proj", status: "idle" }];
+    renderWithProviders(<ProjectDashboard />);
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
+    expect(screen.queryByText("Restart")).not.toBeInTheDocument();
+  });
+
+  it("opens create dialog when clicking + New Project", async () => {
+    renderWithProviders(<ProjectDashboard />);
+    await userEvent.click(screen.getByText("+ New Project"));
+    expect(screen.getByText("Create a new project with its own isolated VM.")).toBeInTheDocument();
+  });
+
+  it("creates a project via dialog", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectDashboard />);
+
+    await user.click(screen.getByText("+ New Project"));
+    await user.paste("my-new-project");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(createMutate).toHaveBeenCalledWith("my-new-project");
+  });
+
+  it("shows validation error for invalid project name", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectDashboard />);
+
+    await user.click(screen.getByText("+ New Project"));
+    await user.paste("INVALID NAME!");
+
+    expect(
+      screen.getByText(
+        "Use lowercase letters, numbers, and hyphens only. Must start and end with a letter or number.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows delete confirmation when clicking Delete in card menu", async () => {
+    renderWithProviders(<ProjectDashboard />);
+    const menuButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(menuButtons[0]);
+    await userEvent.click(screen.getByText("Delete"));
+    expect(screen.getByText(/destroy the VM and all its data/)).toBeInTheDocument();
+  });
+
+  it("calls deleteProject.mutate after confirming", async () => {
+    renderWithProviders(<ProjectDashboard />);
+
+    const menuButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(menuButtons[0]);
+    await userEvent.click(screen.getByText("Delete"));
+
+    const confirmDelete = screen
+      .getAllByText("Delete")
+      .find((el) => el.closest("[role='alertdialog']"));
+    await userEvent.click(confirmDelete!);
+
+    expect(deleteMutate).toHaveBeenCalledWith("p1");
+  });
+
+  it("shows Restart option in menu for stopped projects", async () => {
+    mockProjects = [{ id: "p5", name: "stopped-proj", status: "stopped" }];
+    renderWithProviders(<ProjectDashboard />);
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
+    expect(screen.getByText("Restart")).toBeInTheDocument();
+  });
+
+  it("shows Restart option in menu for error projects", async () => {
+    mockProjects = [{ id: "p6", name: "error-proj", status: "error" }];
+    renderWithProviders(<ProjectDashboard />);
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
+    expect(screen.getByText("Restart")).toBeInTheDocument();
+  });
+
+  it("does not show Restart option for running projects", async () => {
+    renderWithProviders(<ProjectDashboard />);
+    const menuButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(menuButtons[0]);
+    expect(screen.queryByText("Restart")).not.toBeInTheDocument();
+  });
+
+  it("calls restartProject.mutate when clicking Restart in menu", async () => {
+    mockProjects = [{ id: "p7", name: "restart-me", status: "stopped" }];
+    renderWithProviders(<ProjectDashboard />);
+
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
+    await userEvent.click(screen.getByText("Restart"));
+    expect(restartMutate).toHaveBeenCalledWith("p7");
+  });
+
+  it("shows Restarting... text while restart is in progress", async () => {
+    mockProjects = [{ id: "p8", name: "restarting-proj", status: "stopped" }];
+    renderWithProviders(<ProjectDashboard />);
+
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
+    await userEvent.click(screen.getByText("Restart"));
+    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
+    expect(screen.getByText("Restarting...")).toBeInTheDocument();
+  });
+});
