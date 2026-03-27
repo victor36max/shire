@@ -12,14 +12,14 @@ export const agentRoutes = new Hono<AppEnv>()
   })
   .post(
     "/projects/:id/agents",
-    zValidator("json", z.object({ name: z.string(), recipe_yaml: z.string() })),
+    zValidator("json", z.object({ name: z.string(), recipeYaml: z.string() })),
     async (c) => {
       const pm = c.get("projectManager");
       const coordinator = pm.getCoordinator(c.req.param("id"));
       if (!coordinator) return c.json({ error: "Project not found" }, 404);
 
-      const { name, recipe_yaml } = c.req.valid("json");
-      const result = await coordinator.createAgent({ name, recipeYaml: recipe_yaml });
+      const { name, recipeYaml } = c.req.valid("json");
+      const result = await coordinator.createAgent({ name, recipeYaml });
       if (!result.ok) return c.json({ error: result.error }, 422);
       return c.json({ id: result.agentId }, 201);
     },
@@ -35,14 +35,14 @@ export const agentRoutes = new Hono<AppEnv>()
   })
   .patch(
     "/projects/:id/agents/:aid",
-    zValidator("json", z.object({ recipe_yaml: z.string() })),
+    zValidator("json", z.object({ recipeYaml: z.string() })),
     async (c) => {
       const pm = c.get("projectManager");
       const coordinator = pm.getCoordinator(c.req.param("id"));
       if (!coordinator) return c.json({ error: "Project not found" }, 404);
 
-      const { recipe_yaml } = c.req.valid("json");
-      const result = await coordinator.updateAgent(c.req.param("aid"), { recipeYaml: recipe_yaml });
+      const { recipeYaml } = c.req.valid("json");
+      const result = await coordinator.updateAgent(c.req.param("aid"), { recipeYaml });
       if (!result.ok) return c.json({ error: result.error }, 422);
       return c.json({ ok: true });
     },

@@ -134,9 +134,7 @@ export default function ProjectDashboard() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {(project.status === "stopped" ||
-                            project.status === "error" ||
-                            project.status === "unreachable") && (
+                          {project.status !== "running" && (
                             <DropdownMenuItem
                               disabled={restartingId === project.id}
                               onClick={() => {

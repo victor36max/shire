@@ -224,22 +224,22 @@ describe("AgentManager", () => {
       expect(agentMsgs.length).toBe(1);
     });
 
-    it("inter_agent message persists with from_agent and to_agent", () => {
+    it("inter_agent message persists with fromAgent and toAgent", () => {
       const msg = agentsService.createMessage({
         projectId,
         agentId,
         role: "inter_agent",
         content: {
           text: "hello from other",
-          from_agent: "other-agent",
-          to_agent: "test-agent",
+          fromAgent: "other-agent",
+          toAgent: "test-agent",
         },
       });
 
       expect(msg.role).toBe("inter_agent");
       const content = msg.content as Record<string, unknown>;
-      expect(content.from_agent).toBe("other-agent");
-      expect(content.to_agent).toBe("test-agent");
+      expect(content.fromAgent).toBe("other-agent");
+      expect(content.toAgent).toBe("test-agent");
     });
 
     it("session_cleared creates system message", () => {

@@ -10,16 +10,22 @@ const defaultAgents: AgentOverview[] = [
     id: "a1",
     name: "Active Agent",
     status: "active",
+    busy: false,
+    unreadCount: 0,
   },
   {
     id: "a2",
     name: "Created Agent",
     status: "created",
+    busy: false,
+    unreadCount: 0,
   },
   {
     id: "a3",
     name: "Idle Agent",
     status: "idle",
+    busy: false,
+    unreadCount: 0,
   },
 ];
 
@@ -116,10 +122,10 @@ describe("AgentSidebar", () => {
     expect(dots[1]).not.toHaveClass("animate-pulse"); // created + not busy
   });
 
-  it("renders unread badge when unread_count > 0", () => {
+  it("renders unread badge when unreadCount > 0", () => {
     mockAgents = [
-      { ...defaultAgents[0], unread_count: 5 },
-      { ...defaultAgents[1], unread_count: 0 },
+      { ...defaultAgents[0], unreadCount: 5 },
+      { ...defaultAgents[1], unreadCount: 0 },
       { ...defaultAgents[2] },
     ];
     renderWithProviders(<AgentSidebar {...defaultProps} />);
@@ -128,15 +134,15 @@ describe("AgentSidebar", () => {
     expect(screen.queryAllByText("0")).toHaveLength(0);
   });
 
-  it("renders 99+ when unread_count exceeds 99", () => {
-    mockAgents = [{ ...defaultAgents[0], unread_count: 150 }];
+  it("renders 99+ when unreadCount exceeds 99", () => {
+    mockAgents = [{ ...defaultAgents[0], unreadCount: 150 }];
     renderWithProviders(<AgentSidebar {...defaultProps} />);
 
     expect(screen.getByText("99+")).toBeInTheDocument();
   });
 
-  it("does not render unread badge when unread_count is 0 or undefined", () => {
-    mockAgents = [{ ...defaultAgents[0], unread_count: 0 }, { ...defaultAgents[1] }];
+  it("does not render unread badge when unreadCount is 0", () => {
+    mockAgents = [{ ...defaultAgents[0], unreadCount: 0 }, { ...defaultAgents[1] }];
     const { container } = renderWithProviders(<AgentSidebar {...defaultProps} />);
 
     const badges = container.querySelectorAll(".bg-primary.rounded-full");

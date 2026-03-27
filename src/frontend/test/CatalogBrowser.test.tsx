@@ -8,7 +8,7 @@ import { renderWithProviders } from "./test-utils";
 const agents: CatalogAgentSummary[] = [
   {
     name: "frontend-developer",
-    display_name: "Frontend Developer",
+    displayName: "Frontend Developer",
     description: "Expert React/TypeScript developer",
     category: "engineering",
     emoji: "\u269B\uFE0F",
@@ -18,7 +18,7 @@ const agents: CatalogAgentSummary[] = [
   },
   {
     name: "backend-architect",
-    display_name: "Backend Architect",
+    displayName: "Backend Architect",
     description: "Systems designer for scalable backends",
     category: "engineering",
     emoji: "\uD83C\uDFD7\uFE0F",
@@ -28,7 +28,7 @@ const agents: CatalogAgentSummary[] = [
   },
   {
     name: "ui-designer",
-    display_name: "UI Designer",
+    displayName: "UI Designer",
     description: "Visual design specialist",
     category: "design",
     emoji: "\uD83C\uDFA8",
@@ -38,7 +38,7 @@ const agents: CatalogAgentSummary[] = [
   },
   {
     name: "senior-infrastructure-platform-engineer",
-    display_name: "Senior Full-Stack Infrastructure & Platform Engineer",
+    displayName: "Senior Full-Stack Infrastructure & Platform Engineer",
     description: "Expert in cloud infrastructure and platform engineering",
     category: "engineering",
     emoji: "\uD83D\uDD27",
@@ -91,7 +91,7 @@ describe("CatalogBrowser", () => {
     expect(screen.queryByText("Frontend Developer")).not.toBeInTheDocument();
   });
 
-  it("filters agents by search query on display_name", async () => {
+  it("filters agents by search query on displayName", async () => {
     renderWithProviders(<CatalogBrowser {...defaultProps} />);
     const search = screen.getByPlaceholderText("Search agents...");
     await userEvent.type(search, "frontend");

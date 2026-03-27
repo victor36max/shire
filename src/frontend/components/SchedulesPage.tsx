@@ -44,30 +44,30 @@ type Frequency = "every_n_minutes" | "hourly" | "daily" | "weekly" | "monthly";
 
 interface ScheduleFormState {
   label: string;
-  agent_id: string;
+  agentId: string;
   message: string;
-  schedule_type: "once" | "recurring";
+  scheduleType: "once" | "recurring";
   frequency: Frequency;
   minute: string;
   hour: string;
-  days_of_week: number[];
-  day_of_month: string;
-  interval_minutes: string;
+  daysOfWeek: number[];
+  dayOfMonth: string;
+  intervalMinutes: string;
   date: string;
   time: string;
 }
 
 const DEFAULT_FORM: ScheduleFormState = {
   label: "",
-  agent_id: "",
+  agentId: "",
   message: "",
-  schedule_type: "recurring",
+  scheduleType: "recurring",
   frequency: "daily",
   minute: "0",
   hour: "9",
-  days_of_week: [],
-  day_of_month: "1",
-  interval_minutes: "30",
+  daysOfWeek: [],
+  dayOfMonth: "1",
+  intervalMinutes: "30",
   date: "",
   time: "09:00",
 };
@@ -117,21 +117,21 @@ function buildCronExpression(form: ScheduleFormState): string {
 
   switch (form.frequency) {
     case "every_n_minutes":
-      return `*/${form.interval_minutes || "30"} * * * *`;
+      return `*/${form.intervalMinutes || "30"} * * * *`;
     case "hourly":
       return `${min} * * * *`;
     case "daily":
       return `${min} ${hr} * * *`;
     case "weekly": {
-      if (form.days_of_week.length === 0) return `${min} ${hr} * * *`;
-      const dayNames = form.days_of_week
+      if (form.daysOfWeek.length === 0) return `${min} ${hr} * * *`;
+      const dayNames = form.daysOfWeek
         .sort((a, b) => a - b)
         .map((d) => DAY_LABELS[d - 1]?.toUpperCase().slice(0, 3))
         .join(",");
       return `${min} ${hr} * * ${dayNames}`;
     }
     case "monthly":
-      return `${min} ${hr} ${form.day_of_month || "1"} * *`;
+      return `${min} ${hr} ${form.dayOfMonth || "1"} * *`;
     default:
       return `${min} ${hr} * * *`;
   }
@@ -192,7 +192,7 @@ function parseCronToForm(cron: string): Partial<ScheduleFormState> {
   if (min?.startsWith("*/")) {
     return {
       frequency: "every_n_minutes",
-      interval_minutes: min.slice(2),
+      intervalMinutes: min.slice(2),
     };
   }
   if (hr === "*") {
@@ -213,7 +213,7 @@ function parseCronToForm(cron: string): Partial<ScheduleFormState> {
       frequency: "weekly",
       hour: localHour,
       minute: min || "0",
-      days_of_week: days,
+      daysOfWeek: days,
     };
   }
   if (dom && dom !== "*") {
@@ -221,7 +221,7 @@ function parseCronToForm(cron: string): Partial<ScheduleFormState> {
       frequency: "monthly",
       hour: localHour,
       minute: min || "0",
-      day_of_month: dom,
+      dayOfMonth: dom,
     };
   }
   return { frequency: "daily", hour: localHour, minute: min || "0" };
@@ -258,33 +258,32 @@ export default function SchedulesPage() {
 
   const openEdit = (task: ScheduledTask) => {
     setEditingId(task.id);
-    const cronParts = task.cron_expression ? parseCronToForm(task.cron_expression) : {};
+    const cronParts = task.cronExpression ? parseCronToForm(task.cronExpression) : {};
     setForm({
       ...DEFAULT_FORM,
       label: task.label,
-      agent_id: task.agent_id,
+      agentId: task.agentId,
       message: task.message,
-      schedule_type: task.schedule_type,
+      scheduleType: task.scheduleType,
       ...cronParts,
-      date: task.scheduled_at ? utcIsoToLocal(task.scheduled_at).date : "",
-      time: task.scheduled_at ? utcIsoToLocal(task.scheduled_at).time : "09:00",
+      date: task.scheduledAt ? utcIsoToLocal(task.scheduledAt).date : "",
+      time: task.scheduledAt ? utcIsoToLocal(task.scheduledAt).time : "09:00",
     });
     setFormOpen(true);
   };
 
   const handleSubmit = () => {
-    const payload: Record<string, unknown> = {
+    const base = {
       label: form.label,
-      agent_id: form.agent_id,
+      agentId: form.agentId,
       message: form.message,
-      schedule_type: form.schedule_type,
+      scheduleType: form.scheduleType as "once" | "recurring",
     };
 
-    if (form.schedule_type === "recurring") {
-      payload.cron_expression = buildCronExpression(form);
-    } else {
-      payload.scheduled_at = localToUtcIso(form.date, form.time);
-    }
+    const payload =
+      form.scheduleType === "recurring"
+        ? { ...base, cronExpression: buildCronExpression(form) }
+        : { ...base, scheduledAt: localToUtcIso(form.date, form.time) };
 
     if (editingId) {
       updateScheduleMut.mutate({ id: editingId, ...payload });
@@ -319,9 +318,9 @@ export default function SchedulesPage() {
   const toggleDay = (day: number) => {
     setForm((prev) => ({
       ...prev,
-      days_of_week: prev.days_of_week.includes(day)
-        ? prev.days_of_week.filter((d) => d !== day)
-        : [...prev.days_of_week, day],
+      daysOfWeek: prev.daysOfWeek.includes(day)
+        ? prev.daysOfWeek.filter((d) => d !== day)
+        : [...prev.daysOfWeek, day],
     }));
   };
 
@@ -368,16 +367,16 @@ export default function SchedulesPage() {
                 {typedTasks.map((task) => (
                   <TableRow key={task.id} className={!task.enabled ? "opacity-50" : ""}>
                     <TableCell className="font-medium">{task.label}</TableCell>
-                    <TableCell>{task.agent_name}</TableCell>
+                    <TableCell>{task.agentName}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {task.schedule_type === "recurring" && task.cron_expression
-                        ? describeCron(task.cron_expression)
-                        : task.scheduled_at
-                          ? new Date(task.scheduled_at).toLocaleString()
+                      {task.scheduleType === "recurring" && task.cronExpression
+                        ? describeCron(task.cronExpression)
+                        : task.scheduledAt
+                          ? new Date(task.scheduledAt).toLocaleString()
                           : "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {task.last_run_at ? timeAgo(task.last_run_at) : "Never"}
+                      {task.lastRunAt ? timeAgo(task.lastRunAt) : "Never"}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -451,7 +450,7 @@ export default function SchedulesPage() {
 
             <div className="space-y-2">
               <Label htmlFor="agent">Agent</Label>
-              <Select value={form.agent_id} onValueChange={(v) => updateForm("agent_id", v)}>
+              <Select value={form.agentId} onValueChange={(v) => updateForm("agentId", v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an agent" />
                 </SelectTrigger>
@@ -481,24 +480,24 @@ export default function SchedulesPage() {
               <div className="flex gap-1">
                 <Button
                   type="button"
-                  variant={form.schedule_type === "recurring" ? "default" : "outline"}
+                  variant={form.scheduleType === "recurring" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => updateForm("schedule_type", "recurring")}
+                  onClick={() => updateForm("scheduleType", "recurring")}
                 >
                   Recurring
                 </Button>
                 <Button
                   type="button"
-                  variant={form.schedule_type === "once" ? "default" : "outline"}
+                  variant={form.scheduleType === "once" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => updateForm("schedule_type", "once")}
+                  onClick={() => updateForm("scheduleType", "once")}
                 >
                   Once
                 </Button>
               </div>
             </div>
 
-            {form.schedule_type === "recurring" && (
+            {form.scheduleType === "recurring" && (
               <div className="space-y-4 rounded-md border p-4">
                 <div className="space-y-2">
                   <Label>Frequency</Label>
@@ -527,8 +526,8 @@ export default function SchedulesPage() {
                         type="number"
                         min="1"
                         max="59"
-                        value={form.interval_minutes}
-                        onChange={(e) => updateForm("interval_minutes", e.target.value)}
+                        value={form.intervalMinutes}
+                        onChange={(e) => updateForm("intervalMinutes", e.target.value)}
                         className="w-20"
                       />
                       <span className="text-sm text-muted-foreground">minutes</span>
@@ -587,7 +586,7 @@ export default function SchedulesPage() {
                         <Button
                           key={label}
                           type="button"
-                          variant={form.days_of_week.includes(i + 1) ? "default" : "outline"}
+                          variant={form.daysOfWeek.includes(i + 1) ? "default" : "outline"}
                           size="sm"
                           className="h-10 w-11 text-xs"
                           onClick={() => toggleDay(i + 1)}
@@ -606,8 +605,8 @@ export default function SchedulesPage() {
                       type="number"
                       min="1"
                       max="28"
-                      value={form.day_of_month}
-                      onChange={(e) => updateForm("day_of_month", e.target.value)}
+                      value={form.dayOfMonth}
+                      onChange={(e) => updateForm("dayOfMonth", e.target.value)}
                       className="w-20"
                     />
                   </div>
@@ -619,7 +618,7 @@ export default function SchedulesPage() {
               </div>
             )}
 
-            {form.schedule_type === "once" && (
+            {form.scheduleType === "once" && (
               <div className="space-y-4 rounded-md border p-4">
                 <div className="space-y-2">
                   <Label>Date</Label>
@@ -645,10 +644,7 @@ export default function SchedulesPage() {
             <Button variant="outline" onClick={() => setFormOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={!form.label || !form.agent_id || !form.message}
-            >
+            <Button onClick={handleSubmit} disabled={!form.label || !form.agentId || !form.message}>
               {editingId ? "Save Changes" : "Create Schedule"}
             </Button>
           </DialogFooter>

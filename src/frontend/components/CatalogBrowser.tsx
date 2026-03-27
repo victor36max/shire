@@ -43,7 +43,7 @@ export default function CatalogBrowser({ open, onClose, onAdd }: CatalogBrowserP
       const q = search.toLowerCase();
       result = result.filter(
         (a) =>
-          a.display_name.toLowerCase().includes(q) ||
+          a.displayName.toLowerCase().includes(q) ||
           a.description.toLowerCase().includes(q) ||
           a.tags.some((t) => t.toLowerCase().includes(q)),
       );
@@ -132,7 +132,7 @@ export default function CatalogBrowser({ open, onClose, onAdd }: CatalogBrowserP
                     <CardHeader className="pb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-lg shrink-0">{agent.emoji}</span>
-                        <CardTitle className="text-sm line-clamp-2">{agent.display_name}</CardTitle>
+                        <CardTitle className="text-sm line-clamp-2">{agent.displayName}</CardTitle>
                       </div>
                       <Badge variant="secondary" className="text-xs w-fit">
                         {agent.category}

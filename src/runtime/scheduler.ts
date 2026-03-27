@@ -97,8 +97,8 @@ export class Scheduler {
       content: {
         text: messageText,
         trigger: "scheduled_task",
-        task_label: task.label,
-        task_id: task.id,
+        taskLabel: task.label,
+        taskId: task.id,
       },
     });
 

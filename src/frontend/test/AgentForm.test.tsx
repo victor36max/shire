@@ -39,7 +39,7 @@ describe("AgentForm", () => {
     expect(screen.queryByPlaceholderText("e.g. web-scraping")).not.toBeInTheDocument();
   });
 
-  it("includes skills in recipe_yaml payload", async () => {
+  it("includes skills in recipeYaml payload", async () => {
     const user = userEvent.setup();
     renderForm();
 
@@ -71,10 +71,10 @@ describe("AgentForm", () => {
     );
 
     const payload = onSave.mock.calls[onSave.mock.calls.length - 1][1];
-    expect(payload.recipe_yaml).toBeDefined();
-    expect(payload.recipe_yaml).toContain("my-skill");
-    expect(payload.recipe_yaml).toContain("Use for testing");
-    expect(payload.recipe_yaml).toContain("# Test Skill");
+    expect(payload.recipeYaml).toBeDefined();
+    expect(payload.recipeYaml).toContain("my-skill");
+    expect(payload.recipeYaml).toContain("Use for testing");
+    expect(payload.recipeYaml).toContain("# Test Skill");
   });
 
   it("loads skills from existing agent", () => {
@@ -82,6 +82,8 @@ describe("AgentForm", () => {
       id: "a-test",
       name: "test",
       status: "created",
+      busy: false,
+      unreadCount: 0,
       harness: "claude_code",
       skills: [
         { name: "existing-skill", description: "An existing skill", content: "Some instructions" },
@@ -227,9 +229,11 @@ describe("AgentForm", () => {
       name: "frontend-developer",
       description: "React specialist",
       status: "idle",
+      busy: false,
+      unreadCount: 0,
       harness: "claude_code",
       model: "claude-sonnet-4-6",
-      system_prompt: "You are a frontend developer.",
+      systemPrompt: "You are a frontend developer.",
     };
 
     render(
@@ -248,7 +252,7 @@ describe("AgentForm", () => {
       "create-agent",
       expect.objectContaining({
         name: "frontend-developer",
-        recipe_yaml: expect.any(String),
+        recipeYaml: expect.any(String),
       }),
     );
     // Should NOT have id in payload
@@ -256,11 +260,13 @@ describe("AgentForm", () => {
     expect(payload).not.toHaveProperty("id");
   });
 
-  it("submits update-agent event with recipe_yaml for existing agent", async () => {
+  it("submits update-agent event with recipeYaml for existing agent", async () => {
     const agent: Agent = {
       id: "a-existing",
       name: "existing-agent",
       status: "active",
+      busy: false,
+      unreadCount: 0,
       harness: "claude_code",
       model: "claude-sonnet-4-6",
     };
@@ -275,7 +281,7 @@ describe("AgentForm", () => {
       "update-agent",
       expect.objectContaining({
         id: "a-existing",
-        recipe_yaml: expect.any(String),
+        recipeYaml: expect.any(String),
       }),
     );
   });
