@@ -13,9 +13,9 @@ if System.get_env("SHIRE_DB", "sqlite") == "sqlite" do
         __DIR__
       ),
     journal_mode: :wal,
-    busy_timeout: 5_000,
+    busy_timeout: 10_000,
     pool: Ecto.Adapters.SQL.Sandbox,
-    pool_size: System.schedulers_online() * 2
+    pool_size: 5
 else
   config :shire, Shire.Repo,
     username: "postgres",
