@@ -38,6 +38,7 @@ RUN mix local.hex --force \
 
 # set build ENV
 ENV MIX_ENV="prod"
+ENV SHIRE_DB="postgres"
 
 # install mix dependencies
 COPY mix.exs mix.lock ./

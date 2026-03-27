@@ -124,10 +124,11 @@ defmodule Shire.Workers.ScheduleWorker do
 
   def pending_jobs_query(task_id) do
     import Ecto.Query
+    import Shire.Query
 
     Oban.Job
     |> where([j], j.worker == "Shire.Workers.ScheduleWorker")
     |> where([j], j.state in ["available", "scheduled"])
-    |> where([j], fragment("?->>'scheduled_task_id' = ?", j.args, ^to_string(task_id)))
+    |> where([j], json_text(j.args, "scheduled_task_id") == ^to_string(task_id))
   end
 end
