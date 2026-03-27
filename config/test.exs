@@ -9,7 +9,7 @@ if System.get_env("SHIRE_DB", "sqlite") == "sqlite" do
   config :shire, Shire.Repo,
     database: Path.expand("~/.shire/shire_test#{System.get_env("MIX_TEST_PARTITION")}.db"),
     journal_mode: :wal,
-    busy_timeout: 10_000,
+    busy_timeout: 30_000,
     pool: Ecto.Adapters.SQL.Sandbox,
     pool_size: 5
 else
