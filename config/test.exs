@@ -11,7 +11,7 @@ if System.get_env("SHIRE_DB", "sqlite") == "sqlite" do
     journal_mode: :wal,
     busy_timeout: 30_000,
     pool: Ecto.Adapters.SQL.Sandbox,
-    pool_size: 5
+    pool_size: 1
 else
   config :shire, Shire.Repo,
     username: "postgres",
