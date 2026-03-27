@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useResolveProjectId, useAgents } from "../lib/hooks";
+import { useResolveProjectId, useAgents, useMessages, useMarkRead } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
 import type { WsEvent } from "../lib/ws";
 import AgentDashboardComponent from "../components/AgentDashboard";
@@ -29,6 +29,9 @@ export default function AgentDashboardPage() {
   const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
   const selectedAgentId = selectedAgent?.id;
 
+  const { data: messagesData } = useMessages(projectId, selectedAgentId);
+  const markRead = useMarkRead(projectId ?? "");
+
   // --- Streaming state ---
   const [streamingText, setStreamingText] = useState("");
 
@@ -49,10 +52,11 @@ export default function AgentDashboardPage() {
       case "new_message_notification":
         if (agentId === selectedAgentId) {
           queryClient.invalidateQueries({ queryKey: ["messages", projectId, selectedAgentId] });
+        } else {
+          const cached = queryClient.getQueryData<AgentData>(["agents", projectId]);
+          const current = cached?.find((a) => a.id === agentId)?.unreadCount ?? 0;
+          updateAgent(queryClient, projectId!, agentId, { unreadCount: current + 1 });
         }
-        updateAgent(queryClient, projectId!, agentId, {
-          unreadCount: (agentList.find((a) => a.id === agentId)?.unreadCount ?? 0) + 1,
-        });
         break;
       case "agent_created":
       case "agent_deleted":
@@ -126,6 +130,18 @@ export default function AgentDashboardPage() {
     prevAgentIdRef.current = selectedAgentId;
     if (streamingText !== "") setStreamingText("");
   }
+
+  // Mark messages as read when viewing an agent
+  const lastMessageId = messagesData?.messages?.at(-1)?.id;
+  const markReadRef = React.useRef(markRead);
+  React.useEffect(() => {
+    markReadRef.current = markRead;
+  });
+  React.useEffect(() => {
+    if (!projectId || !selectedAgentId || !lastMessageId) return;
+    markReadRef.current.mutate({ agentId: selectedAgentId, messageId: lastMessageId });
+    updateAgent(queryClient, projectId, selectedAgentId, { unreadCount: 0 });
+  }, [projectId, selectedAgentId, lastMessageId, queryClient]);
 
   if (!projectId) return <div className="p-8">Loading...</div>;
 
