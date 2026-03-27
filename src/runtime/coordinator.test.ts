@@ -235,6 +235,38 @@ describe("routeMessage (inter-agent)", () => {
     expect((envelope.payload as Record<string, unknown>).text).toBe("hello from sender");
   });
 
+  it("does not persist inter-agent message in sender's message history", async () => {
+    const senderResult = await coordinator.createAgent({
+      name: "sender2",
+      recipeYaml: "name: sender2\n",
+    });
+    const receiverResult = await coordinator.createAgent({
+      name: "receiver2",
+      recipeYaml: "name: receiver2\n",
+    });
+    expect(senderResult.ok).toBe(true);
+    expect(receiverResult.ok).toBe(true);
+    if (!senderResult.ok || !receiverResult.ok) return;
+
+    bus.emit(`project:${projectId}:outbox`, {
+      type: "outbox_message",
+      payload: {
+        fromAgentId: senderResult.agentId,
+        fromAgentName: "sender2",
+        toAgentName: "receiver2",
+        text: "hi there",
+      },
+    });
+
+    // Sender should have no inter-agent messages in their history
+    const { messages: senderMessages } = agentsService.listMessages(
+      projectId,
+      senderResult.agentId,
+    );
+    const senderInterAgent = senderMessages.filter((m) => m.role === "inter_agent");
+    expect(senderInterAgent).toHaveLength(0);
+  });
+
   it("sends error to sender when target agent does not exist", async () => {
     const senderResult = await coordinator.createAgent({
       name: "lonely",
