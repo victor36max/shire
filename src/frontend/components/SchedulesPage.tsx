@@ -273,18 +273,17 @@ export default function SchedulesPage() {
   };
 
   const handleSubmit = () => {
-    const payload: Record<string, unknown> = {
+    const base = {
       label: form.label,
-      agent_id: form.agent_id,
+      agentId: form.agent_id,
       message: form.message,
-      schedule_type: form.schedule_type,
+      scheduleType: form.schedule_type as "once" | "recurring",
     };
 
-    if (form.schedule_type === "recurring") {
-      payload.cron_expression = buildCronExpression(form);
-    } else {
-      payload.scheduled_at = localToUtcIso(form.date, form.time);
-    }
+    const payload =
+      form.schedule_type === "recurring"
+        ? { ...base, cronExpression: buildCronExpression(form) }
+        : { ...base, scheduledAt: localToUtcIso(form.date, form.time) };
 
     if (editingId) {
       updateScheduleMut.mutate({ id: editingId, ...payload });

@@ -104,45 +104,6 @@ describe("AgentSidebar", () => {
     expect(dots[2]).toHaveClass("bg-status-idle"); // idle
   });
 
-  it("pulses the status dot when agent is active and busy", () => {
-    mockAgents = [
-      { ...defaultAgents[0], busy: true },
-      { ...defaultAgents[1], busy: false },
-    ];
-    const { container } = renderWithProviders(<AgentSidebar {...defaultProps} />);
-
-    const dots = container.querySelectorAll(".w-2.h-2.rounded-full");
-    expect(dots[0]).toHaveClass("animate-pulse"); // active + busy
-    expect(dots[1]).not.toHaveClass("animate-pulse"); // created + not busy
-  });
-
-  it("renders unread badge when unread_count > 0", () => {
-    mockAgents = [
-      { ...defaultAgents[0], unread_count: 5 },
-      { ...defaultAgents[1], unread_count: 0 },
-      { ...defaultAgents[2] },
-    ];
-    renderWithProviders(<AgentSidebar {...defaultProps} />);
-
-    expect(screen.getByText("5")).toBeInTheDocument();
-    expect(screen.queryAllByText("0")).toHaveLength(0);
-  });
-
-  it("renders 99+ when unread_count exceeds 99", () => {
-    mockAgents = [{ ...defaultAgents[0], unread_count: 150 }];
-    renderWithProviders(<AgentSidebar {...defaultProps} />);
-
-    expect(screen.getByText("99+")).toBeInTheDocument();
-  });
-
-  it("does not render unread badge when unread_count is 0 or undefined", () => {
-    mockAgents = [{ ...defaultAgents[0], unread_count: 0 }, { ...defaultAgents[1] }];
-    const { container } = renderWithProviders(<AgentSidebar {...defaultProps} />);
-
-    const badges = container.querySelectorAll(".bg-primary.rounded-full");
-    expect(badges).toHaveLength(0);
-  });
-
   it("calls onBrowseCatalog when clicking Browse Catalog button", async () => {
     const onBrowseCatalog = vi.fn();
     renderWithProviders(<AgentSidebar {...defaultProps} onBrowseCatalog={onBrowseCatalog} />);

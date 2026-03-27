@@ -30,13 +30,16 @@ function safePath(sharedRoot: string, userPath: string): string | null {
   return resolved;
 }
 
+const pathQuery = z.object({ path: z.string().optional() });
+const requiredPathQuery = z.object({ path: z.string() });
+
 export const sharedDriveRoutes = new Hono<AppEnv>()
-  .get("/projects/:id/shared-drive", (c) => {
+  .get("/projects/:id/shared-drive", zValidator("query", pathQuery), (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
 
     const sharedRoot = workspace.sharedDir(projectId);
-    const path = c.req.query("path") ?? "/";
+    const path = c.req.valid("query").path ?? "/";
     const fullPath = safePath(sharedRoot, path);
     if (!fullPath) return c.json({ error: "Invalid path" }, 400);
 
@@ -66,13 +69,12 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       });
     }
   })
-  .get("/projects/:id/shared-drive/preview", (c) => {
+  .get("/projects/:id/shared-drive/preview", zValidator("query", requiredPathQuery), (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
 
     const sharedRoot = workspace.sharedDir(projectId);
-    const path = c.req.query("path");
-    if (!path) return c.json({ error: "Path required" }, 400);
+    const { path } = c.req.valid("query");
 
     const fullPath = safePath(sharedRoot, path);
     if (!fullPath) return c.json({ error: "Invalid path" }, 400);
@@ -88,13 +90,12 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       return c.json({ error: "File not found" }, 404);
     }
   })
-  .get("/projects/:id/shared-drive/download", (c) => {
+  .get("/projects/:id/shared-drive/download", zValidator("query", requiredPathQuery), (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
 
     const sharedRoot = workspace.sharedDir(projectId);
-    const path = c.req.query("path");
-    if (!path) return c.json({ error: "Path required" }, 400);
+    const { path } = c.req.valid("query");
 
     const fullPath = safePath(sharedRoot, path);
     if (!fullPath) return c.json({ error: "Invalid path" }, 400);
@@ -148,13 +149,12 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       return c.json({ ok: true }, 201);
     },
   )
-  .delete("/projects/:id/shared-drive", (c) => {
+  .delete("/projects/:id/shared-drive", zValidator("query", requiredPathQuery), (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
 
     const sharedRoot = workspace.sharedDir(projectId);
-    const path = c.req.query("path");
-    if (!path) return c.json({ error: "Path required" }, 400);
+    const { path } = c.req.valid("query");
 
     const fullPath = safePath(sharedRoot, path);
     if (!fullPath) return c.json({ error: "Invalid path" }, 400);

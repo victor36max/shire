@@ -24,8 +24,6 @@ export interface AgentOverview {
   id: string;
   name: string;
   status: AgentStatus;
-  busy?: boolean;
-  unread_count?: number;
 }
 
 export interface Agent extends AgentOverview {

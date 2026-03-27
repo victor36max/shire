@@ -163,9 +163,9 @@ describe("SchedulesPage", () => {
       expect.objectContaining({
         id: "t1",
         label: "Updated standup",
-        agent_id: "a1",
+        agentId: "a1",
         message: "Give me a standup summary",
-        schedule_type: "recurring",
+        scheduleType: "recurring",
       }),
     );
   });

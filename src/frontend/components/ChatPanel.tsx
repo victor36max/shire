@@ -297,10 +297,10 @@ export default function ChatPanel({
 
   // Scroll to bottom when busy state changes (thinking indicator appears/disappears)
   React.useEffect(() => {
-    if (agent.busy && initialScrollDone.current) {
+    if (isBusy && initialScrollDone.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [agent.busy]);
+  }, [isBusy]);
 
   // Save scroll height before render for scroll position preservation
   React.useEffect(() => {
@@ -453,7 +453,7 @@ export default function ChatPanel({
             </div>
           </div>
         )}
-        {agent.busy && !streamingText && (
+        {isBusy && !streamingText && (
           <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-status-active animate-pulse" />
             Thinking...

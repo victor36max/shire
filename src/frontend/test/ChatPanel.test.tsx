@@ -331,16 +331,16 @@ describe("ChatPanel", () => {
   });
 
   it("shows thinking indicator when agent is busy and not streaming", () => {
-    const busyAgent = { ...activeAgent, busy: true };
     mockMessages = messages.map(apiMessage);
-    renderWithProviders(<ChatPanel agent={busyAgent} isBusy={true} />);
+    renderWithProviders(<ChatPanel agent={activeAgent} isBusy={true} />);
     expect(screen.getByText("Thinking...")).toBeInTheDocument();
   });
 
   it("hides thinking indicator when agent is busy but streaming", () => {
-    const busyAgent = { ...activeAgent, busy: true };
     mockMessages = messages.map(apiMessage);
-    renderWithProviders(<ChatPanel agent={busyAgent} isBusy={true} streamingText="streaming..." />);
+    renderWithProviders(
+      <ChatPanel agent={activeAgent} isBusy={true} streamingText="streaming..." />,
+    );
 
     expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
     expect(screen.getByText("streaming...")).toBeInTheDocument();

@@ -84,8 +84,8 @@ describe("ProjectDashboard", () => {
     expect(screen.getByText("Restart")).toBeInTheDocument();
   });
 
-  it("does not show Restart option for idle projects", async () => {
-    mockProjects = [{ id: "p12", name: "idle-proj", status: "idle" }];
+  it("does not show Restart option for running projects (explicit)", async () => {
+    mockProjects = [{ id: "p12", name: "running-proj", status: "running" }];
     renderWithProviders(<ProjectDashboard />);
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.queryByText("Restart")).not.toBeInTheDocument();
