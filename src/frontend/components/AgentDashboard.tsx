@@ -6,6 +6,7 @@ import CatalogBrowser from "./CatalogBrowser";
 import ChatHeader from "./ChatHeader";
 import ChatPanel from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
+import { Loader2 } from "lucide-react";
 import { type Agent, type CatalogAgent } from "./types";
 import {
   useProjectId,
@@ -22,7 +23,7 @@ interface AgentDashboardProps {
 export default function AgentDashboard({ streamingText }: AgentDashboardProps) {
   const { agentName } = useParams<{ agentName: string }>();
   const { projectId } = useProjectId();
-  const { data: agentList = [] } = useAgents(projectId);
+  const { data: agentList = [], isLoading: agentsLoading } = useAgents(projectId);
 
   const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
 
@@ -116,6 +117,10 @@ export default function AgentDashboard({ streamingText }: AgentDashboardProps) {
               <ChatPanel agent={selectedAgent} streamingText={streamingText} />
             </div>
           </>
+        ) : agentsLoading ? (
+          <div className="flex items-center justify-center flex-1">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
         ) : (
           <WelcomePanel
             onNewAgent={handleNew}
