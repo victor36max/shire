@@ -1,5 +1,6 @@
-import { createContext, useContext } from "react";
+import { createContext, Suspense, useContext } from "react";
 import { Outlet } from "react-router-dom";
+import { Spinner } from "../components/ui/spinner";
 
 export interface ProjectLayoutContextValue {
   projectId: string | undefined;
@@ -26,7 +27,15 @@ interface ProjectLayoutProviderProps {
 export function ProjectLayoutProvider({ value }: ProjectLayoutProviderProps) {
   return (
     <ProjectLayoutContext.Provider value={value}>
-      <Outlet />
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center flex-1">
+            <Spinner size="lg" className="text-muted-foreground" />
+          </div>
+        }
+      >
+        <Outlet />
+      </Suspense>
     </ProjectLayoutContext.Provider>
   );
 }
