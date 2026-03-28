@@ -1,6 +1,6 @@
 import { join } from "path";
 import { homedir } from "os";
-import { mkdirSync } from "fs";
+import { mkdir } from "fs/promises";
 
 export function projectsDir(): string {
   return process.env.SHIRE_PROJECTS_DIR || join(homedir(), ".shire", "projects");
@@ -71,20 +71,22 @@ export function recipePath(projectId: string, agentId: string): string {
   return join(agentDir(projectId, agentId), "recipe.yaml");
 }
 
-export function ensureProjectDirs(projectId: string): void {
-  mkdirSync(root(projectId), { recursive: true });
-  mkdirSync(sharedDir(projectId), { recursive: true });
-  mkdirSync(runnerDir(projectId), { recursive: true });
+export async function ensureProjectDirs(projectId: string): Promise<void> {
+  await Promise.all([
+    mkdir(root(projectId), { recursive: true }),
+    mkdir(sharedDir(projectId), { recursive: true }),
+    mkdir(runnerDir(projectId), { recursive: true }),
+  ]);
 }
 
-export function ensureAgentDirs(projectId: string, agentId: string): void {
-  mkdirSync(agentDir(projectId, agentId), { recursive: true });
-  mkdirSync(inboxDir(projectId, agentId), { recursive: true });
-  mkdirSync(outboxDir(projectId, agentId), { recursive: true });
-  mkdirSync(scriptsDir(projectId, agentId), { recursive: true });
-  mkdirSync(documentsDir(projectId, agentId), { recursive: true });
-  mkdirSync(attachmentsDir(projectId, agentId), { recursive: true });
-  mkdirSync(join(attachmentsDir(projectId, agentId), "outbox"), {
-    recursive: true,
-  });
+export async function ensureAgentDirs(projectId: string, agentId: string): Promise<void> {
+  await Promise.all([
+    mkdir(agentDir(projectId, agentId), { recursive: true }),
+    mkdir(inboxDir(projectId, agentId), { recursive: true }),
+    mkdir(outboxDir(projectId, agentId), { recursive: true }),
+    mkdir(scriptsDir(projectId, agentId), { recursive: true }),
+    mkdir(documentsDir(projectId, agentId), { recursive: true }),
+    mkdir(attachmentsDir(projectId, agentId), { recursive: true }),
+    mkdir(join(attachmentsDir(projectId, agentId), "outbox"), { recursive: true }),
+  ]);
 }

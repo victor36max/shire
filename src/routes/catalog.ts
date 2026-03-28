@@ -8,16 +8,16 @@ export const catalogRoutes = new Hono<AppEnv>()
   .get(
     "/catalog/agents",
     zValidator("query", z.object({ category: z.string().optional() })),
-    (c) => {
+    async (c) => {
       const { category } = c.req.valid("query");
-      return c.json(catalog.listAgents(category ?? undefined));
+      return c.json(await catalog.listAgents(category ?? undefined));
     },
   )
-  .get("/catalog/agents/:name", (c) => {
-    const agent = catalog.getAgent(c.req.param("name"));
+  .get("/catalog/agents/:name", async (c) => {
+    const agent = await catalog.getAgent(c.req.param("name"));
     if (!agent) return c.json({ error: "Agent not found" }, 404);
     return c.json(agent);
   })
-  .get("/catalog/categories", (c) => {
-    return c.json(catalog.listCategories());
+  .get("/catalog/categories", async (c) => {
+    return c.json(await catalog.listCategories());
   });
