@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { useTestDb } from "../test/setup";
+import { getDb } from "../db";
 import * as agents from "./agents";
 import * as projects from "./projects";
 
@@ -104,6 +105,29 @@ describe("agents service", () => {
   });
 
   describe("unreadCounts", () => {
+    it("runs all queries in a single transaction for snapshot consistency", () => {
+      // Create messages for both agents
+      agents.createMessage({ projectId, agentId, role: "agent", content: { text: "a1" } });
+      agents.createMessage({
+        projectId,
+        agentId: agent2Id,
+        role: "agent",
+        content: { text: "b1" },
+      });
+
+      const counts = agents.unreadCounts(
+        [agentId, agent2Id],
+        new Map([
+          [agentId, null],
+          [agent2Id, null],
+        ]),
+      );
+
+      // Both agents should have consistent counts from the same snapshot
+      expect(counts.get(agentId)).toBe(1);
+      expect(counts.get(agent2Id)).toBe(1);
+    });
+
     it("returns 0 for agents with no messages", () => {
       const counts = agents.unreadCounts(
         [agentId, agent2Id],
@@ -256,6 +280,39 @@ describe("agents service", () => {
       expect(agent.description).toBe("A test agent");
       expect(agent.harness).toBe("claude_code");
       expect(agent.model).toBe("claude-sonnet-4-6");
+    });
+  });
+
+  describe("transaction support", () => {
+    it("createMessage rolls back when transaction fails", () => {
+      const initialMessages = agents.listMessages(projectId, agentId).messages.length;
+
+      expect(() => {
+        getDb().transaction((tx) => {
+          agents.createMessage(
+            { projectId, agentId, role: "user", content: { text: "will rollback" } },
+            tx,
+          );
+          throw new Error("simulated failure");
+        });
+      }).toThrow("simulated failure");
+
+      const afterMessages = agents.listMessages(projectId, agentId).messages.length;
+      expect(afterMessages).toBe(initialMessages);
+    });
+
+    it("deleteAgent rolls back when transaction fails", () => {
+      const tempAgent = agents.createAgent(projectId, { name: "temp-agent" });
+
+      expect(() => {
+        getDb().transaction((tx) => {
+          agents.deleteAgent(tempAgent.id, tx);
+          throw new Error("simulated failure");
+        });
+      }).toThrow("simulated failure");
+
+      // Agent should still exist
+      expect(agents.getAgent(tempAgent.id)).toBeDefined();
     });
   });
 

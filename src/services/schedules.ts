@@ -1,5 +1,5 @@
 import { eq, desc } from "drizzle-orm";
-import { getDb, schema } from "../db";
+import { getDb, schema, type Db } from "../db";
 import type { NewScheduledTask } from "../db/schema";
 
 const { scheduledTasks, agents } = schema;
@@ -40,8 +40,8 @@ export function deleteScheduledTask(id: string) {
   return getDb().delete(scheduledTasks).where(eq(scheduledTasks.id, id)).returning().get();
 }
 
-export function toggleScheduledTask(id: string, enabled: boolean) {
-  return getDb()
+export function toggleScheduledTask(id: string, enabled: boolean, db?: Db) {
+  return (db ?? getDb())
     .update(scheduledTasks)
     .set({ enabled, updatedAt: new Date().toISOString() })
     .where(eq(scheduledTasks.id, id))
@@ -49,9 +49,9 @@ export function toggleScheduledTask(id: string, enabled: boolean) {
     .get();
 }
 
-export function markRun(id: string) {
+export function markRun(id: string, db?: Db) {
   const now = new Date().toISOString();
-  return getDb()
+  return (db ?? getDb())
     .update(scheduledTasks)
     .set({ lastRunAt: now, updatedAt: now })
     .where(eq(scheduledTasks.id, id))

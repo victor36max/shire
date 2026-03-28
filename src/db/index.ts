@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import * as schema from "./schema";
 import { join } from "path";
 import { homedir } from "os";
@@ -32,5 +33,7 @@ export function setDb(db: ReturnType<typeof drizzle<typeof schema>>) {
 export function getDataDir(): string {
   return DATA_DIR;
 }
+
+export type Db = BaseSQLiteDatabase<"sync", void, typeof schema>;
 
 export { schema };

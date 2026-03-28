@@ -1,5 +1,6 @@
 import schedule from "node-schedule";
 import { bus } from "../events";
+import { getDb } from "../db";
 import * as schedulesService from "../services/schedules";
 import * as agentsService from "../services/agents";
 import type { ProjectManager } from "./project-manager";
@@ -86,28 +87,39 @@ export class Scheduler {
 
     const messageText = `[Scheduled: ${task.label}] ${task.message}`;
 
-    // Send as system message
+    // Send as system message (side effect, stays outside transaction)
     agent.sendMessage(messageText, "system");
 
-    // Persist a log entry
-    agentsService.createMessage({
-      projectId: task.projectId,
-      agentId: task.agentId,
-      role: "system",
-      content: {
-        text: messageText,
-        trigger: "scheduled_task",
-        taskLabel: task.label,
-        taskId: task.id,
-      },
-    });
+    // Persist log entry + mark run + disable one-time tasks atomically
+    try {
+      getDb().transaction((tx) => {
+        agentsService.createMessage(
+          {
+            projectId: task.projectId,
+            agentId: task.agentId,
+            role: "system",
+            content: {
+              text: messageText,
+              trigger: "scheduled_task",
+              taskLabel: task.label,
+              taskId: task.id,
+            },
+          },
+          tx,
+        );
 
-    // Mark run
-    schedulesService.markRun(task.id);
+        schedulesService.markRun(task.id, tx);
 
-    // Disable one-time tasks
+        if (task.scheduleType === "once") {
+          schedulesService.toggleScheduledTask(task.id, false, tx);
+        }
+      });
+    } catch (err) {
+      console.error(`Scheduler: failed to persist fireTask for task ${task.id}:`, err);
+    }
+
+    // Cancel in-memory job for one-time tasks (stays outside transaction)
     if (task.scheduleType === "once") {
-      schedulesService.toggleScheduledTask(task.id, false);
       this.cancelTask(task.id);
     }
 

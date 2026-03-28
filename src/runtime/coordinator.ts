@@ -147,12 +147,11 @@ export class Coordinator {
       this.statuses.delete(agentId);
     }
 
-    // Delete workspace
+    // Delete DB record (cascades messages), then clean up workspace
+    agentsService.deleteAgent(agentId);
+
     const agentDir = workspace.agentDir(this.projectId, agentId);
     await rm(agentDir, { recursive: true, force: true }).catch(() => {});
-
-    // Delete DB record (cascades messages)
-    agentsService.deleteAgent(agentId);
     await this.writePeersYaml();
 
     bus.emit(`project:${this.projectId}:agents`, {

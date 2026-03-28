@@ -47,10 +47,10 @@ export class ProjectManager {
     }
     this.statuses.delete(id);
 
-    // Remove workspace
-    await rm(workspace.root(id), { recursive: true, force: true }).catch(() => {});
-
+    // Delete DB record first (cascades agents, messages, tasks), then clean up workspace
     projectsService.deleteProject(id);
+
+    await rm(workspace.root(id), { recursive: true, force: true }).catch(() => {});
 
     bus.emit("projects:lobby", {
       type: "project_destroyed",
