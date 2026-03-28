@@ -19,7 +19,7 @@ export default function SettingsPage() {
     queryClient.invalidateQueries({ queryKey: ["activity", projectId] });
   });
 
-  const messages = (activityData?.messages ?? []) as never[];
+  const messages = activityData?.messages ?? [];
   const has_more_messages = activityData?.hasMore ?? false;
 
   const handleLoadMoreMessages = (_before: number) => {

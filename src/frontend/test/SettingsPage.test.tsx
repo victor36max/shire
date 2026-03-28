@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import SettingsPage from "../components/SettingsPage";
 import { renderWithProviders } from "./test-utils";
+import type { InterAgentMessage } from "../components/types";
 
-let mockMessages: never[] = [];
+let mockMessages: InterAgentMessage[] = [];
 let mockHasMore = false;
 
 vi.mock("../lib/hooks", async () => {
@@ -23,9 +24,9 @@ vi.mock("../lib/ws", () => ({
   useSubscription: vi.fn(),
 }));
 
-const activityMessages = [
+const activityMessages: InterAgentMessage[] = [
   { id: 1, fromAgent: "Alice", toAgent: "Bob", text: "Hello!", ts: "2026-03-17T10:00:00Z" },
-] as never[];
+];
 
 beforeEach(() => {
   mockMessages = [];
