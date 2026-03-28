@@ -56,6 +56,7 @@ Each project has an isolated workspace on disk:
     │   ├── outbox/                 # Outgoing inter-agent messages
     │   └── attachments/            # File attachments
     ├── shared/                     # Cross-agent shared drive
+    ├── .runner/                    # Internal runtime state
     ├── peers.yaml                  # Agent discovery registry
     └── PROJECT.md                  # Project documentation
 ```
@@ -66,7 +67,7 @@ Each project has an isolated workspace on disk:
 |-------|-----------|
 | Runtime | [Bun](https://bun.sh) |
 | Backend | Hono, Drizzle ORM, SQLite |
-| Frontend | React 19, React Router 7, shadcn/ui (Radix), Tailwind CSS 4, TanStack Query, Zustand |
+| Frontend | React 19, React Router 7, shadcn/ui (Radix), Tailwind CSS 4, TanStack Query |
 | Agent Harnesses | Claude Code SDK, Pi Agent SDK |
 | Scheduling | node-schedule (cron-based) |
 | Testing | Bun test (backend), Vitest + Testing Library (frontend) |

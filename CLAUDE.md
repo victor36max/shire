@@ -10,7 +10,7 @@ Shire is an AI agent orchestration platform. Users create projects, add agents (
 
 - **Runtime**: Bun (never use npm/node)
 - **Backend**: Hono (HTTP framework) + Drizzle ORM + SQLite
-- **Frontend**: React 19 + React Router 7 + Radix UI/shadcn + Tailwind CSS 4 + TanStack Query + Zustand
+- **Frontend**: React 19 + React Router 7 + Radix UI/shadcn + Tailwind CSS 4 + TanStack Query
 - **Agent harnesses**: Claude Code SDK (`@anthropic-ai/claude-agent-sdk`), Pi Agent SDK
 - **Testing**: Bun test (backend), Vitest + Testing Library (frontend)
 - **Validation**: Zod (API input), TypeScript strict mode throughout
@@ -83,6 +83,7 @@ React SPA with file-based page structure. Uses shadcn/ui components in `src/fron
     │   ├── outbox/          # Outgoing inter-agent messages
     │   └── attachments/     # File attachments
     ├── shared/              # Cross-agent shared drive
+    ├── .runner/             # Internal runtime state
     ├── peers.yaml           # Agent discovery registry
     └── PROJECT.md           # Project documentation
 ```
