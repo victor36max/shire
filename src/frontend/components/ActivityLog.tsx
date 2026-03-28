@@ -1,16 +1,23 @@
 import * as React from "react";
 import { Button } from "./ui/button";
-import { Clock } from "lucide-react";
+import { Clock, Loader2 } from "lucide-react";
 import type { InterAgentMessage } from "./types";
 
 interface ActivityLogProps {
   messages: InterAgentMessage[];
   hasMore: boolean;
+  loadingMore: boolean;
   onLoadMore: () => void;
 }
 
-export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityLogProps) {
+export default function ActivityLog({
+  messages,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+}: ActivityLogProps) {
   const [expandedIds, setExpandedIds] = React.useState<Set<number>>(new Set());
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   const toggleExpand = (id: number) => {
     setExpandedIds((prev) => {
@@ -24,6 +31,24 @@ export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityL
     });
   };
 
+  const handleScroll = React.useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !hasMore || loadingMore) return;
+    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    if (nearBottom && messages.length > 0) {
+      onLoadMore();
+    }
+  }, [hasMore, loadingMore, messages.length, onLoadMore]);
+
+  // Auto-load next page when content doesn't overflow the scroll container
+  React.useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !hasMore || loadingMore || messages.length === 0) return;
+    if (container.scrollHeight <= container.clientHeight) {
+      onLoadMore();
+    }
+  }, [hasMore, loadingMore, messages.length, onLoadMore]);
+
   if (messages.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-12">
@@ -33,7 +58,11 @@ export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityL
   }
 
   return (
-    <div className="space-y-2">
+    <div
+      ref={scrollContainerRef}
+      onScroll={handleScroll}
+      className="space-y-2 overflow-y-auto max-h-[calc(100vh-16rem)]"
+    >
       {messages.map((msg) => {
         const isExpanded = expandedIds.has(msg.id);
         const isLong = msg.text.length > 200;
@@ -51,7 +80,7 @@ export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityL
                 ) : (
                   <>
                     <span className="font-medium text-foreground">{msg.fromAgent}</span>
-                    {" \u2192 "}
+                    {" → "}
                     <span className="font-medium text-foreground">{msg.toAgent}</span>
                   </>
                 )}
@@ -73,11 +102,9 @@ export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityL
           </div>
         );
       })}
-      {hasMore && (
-        <div className="text-center pt-2">
-          <Button variant="outline" size="sm" onClick={onLoadMore}>
-            Load more
-          </Button>
+      {loadingMore && (
+        <div className="flex justify-center py-2">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       )}
     </div>
