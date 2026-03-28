@@ -314,6 +314,16 @@ describe("ClaudeCodeHarness", () => {
     expect(String(errorEvent!.payload.message)).toContain("something went wrong");
   });
 
+  test("sendMessage() passes pathToClaudeCodeExecutable", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+    await harness.start(baseConfig);
+    await harness.sendMessage("Hello");
+
+    expect(calls(mockQuery)[0][0].options?.pathToClaudeCodeExecutable).toBe("claude");
+  });
+
   test("sendMessage() prefixes from agent name", async () => {
     const mockQuery = createMockQuery([resultSuccess("Ok", "s1")]);
     const harness = new ClaudeCodeHarness(mockQuery);
