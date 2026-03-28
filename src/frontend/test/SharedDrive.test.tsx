@@ -209,7 +209,10 @@ describe("SharedDrive", () => {
 
       const img = screen.getByRole("img", { name: "photo.png" });
       expect(img).toBeInTheDocument();
-      expect(img).toHaveAttribute("src", "/projects/test-project/shared/preview?path=photo.png");
+      expect(img).toHaveAttribute(
+        "src",
+        "/api/projects/test-project/shared-drive/preview?path=photo.png",
+      );
     });
 
     it("shows unsupported message for unknown file types", async () => {
@@ -249,7 +252,10 @@ describe("SharedDrive", () => {
 
       const iframe = screen.getByTitle("doc.pdf");
       expect(iframe).toBeInTheDocument();
-      expect(iframe).toHaveAttribute("src", "/projects/test-project/shared/preview?path=doc.pdf");
+      expect(iframe).toHaveAttribute(
+        "src",
+        "/api/projects/test-project/shared-drive/preview?path=doc.pdf",
+      );
     });
 
     it("hides actions column when preview is open", async () => {
