@@ -1,13 +1,9 @@
 /* See the Tailwind configuration guide for advanced usage
    https://tailwindcss.com/docs/configuration */
 
-@import "tailwindcss" source(none);
+@import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
-@source "../css";
-@source "../components";
-@source "../pages";
-@source "../lib";
 
 @custom-variant dark (&:is(.dark *));
 
