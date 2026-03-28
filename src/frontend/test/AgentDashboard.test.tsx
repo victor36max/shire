@@ -1,5 +1,5 @@
 import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
@@ -117,7 +117,9 @@ describe("ProjectLayout + AgentChatView", () => {
   it("opens new agent dialog from sidebar", async () => {
     renderWithLayout();
     await userEvent.click(screen.getByText("+ New Agent"));
-    expect(screen.getByText("Create a new agent to get started.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Create a new agent to get started.")).toBeInTheDocument();
+    });
   });
 
   it("shows onboarding content in welcome panel when no agents", () => {
