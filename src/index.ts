@@ -74,7 +74,6 @@ export async function startServer(opts: StartOptions = {}) {
         HEAD: (req: Request) => app.fetch(req),
       },
       "/": homepage,
-      "/*": homepage,
     },
     async fetch(req, server) {
       if (req.headers.get("upgrade") === "websocket") {
@@ -83,7 +82,17 @@ export async function startServer(opts: StartOptions = {}) {
         return new Response("WebSocket upgrade failed", { status: 400 });
       }
 
-      return new Response("Not Found", { status: 404 });
+      const { pathname } = new URL(req.url);
+
+      // Requests with file extensions are static assets — if they reach here,
+      // they weren't matched by the manifest's asset routes, so they're stale/missing
+      if (/\.[a-z0-9]+$/i.test(pathname)) {
+        return new Response("Not Found", { status: 404 });
+      }
+
+      // SPA fallback — serve the pre-built index HTML for client-side routing
+      const manifest = homepage as unknown as { index: string };
+      return new Response(Bun.file(manifest.index));
     },
     websocket: {
       message(ws, message) {
