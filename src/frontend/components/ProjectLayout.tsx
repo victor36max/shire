@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useParams, Outlet } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm from "./AgentForm";
@@ -13,7 +13,10 @@ import {
   useCatalogAgent,
 } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
-import type { ProjectLayoutContext } from "../lib/projectLayoutContext";
+import {
+  ProjectLayoutProvider,
+  type ProjectLayoutContextValue,
+} from "../providers/ProjectLayoutProvider";
 
 type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
 
@@ -131,7 +134,7 @@ export default function ProjectLayout() {
     }
   };
 
-  const outletContext: ProjectLayoutContext = {
+  const contextValue: ProjectLayoutContextValue = {
     projectId,
     sidebarOpen,
     setSidebarOpen,
@@ -162,7 +165,7 @@ export default function ProjectLayout() {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <Outlet context={outletContext} />
+        <ProjectLayoutProvider value={contextValue} />
       </div>
 
       <AgentForm

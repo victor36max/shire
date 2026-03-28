@@ -9,7 +9,7 @@ import WelcomePanel from "./WelcomePanel";
 import { useAgents, useMessages, useMarkRead } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
 import type { WsEvent } from "../lib/ws";
-import { useProjectLayout } from "../lib/projectLayoutContext";
+import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 
 type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
 
