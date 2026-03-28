@@ -1,5 +1,5 @@
-import { rm } from "fs/promises";
 import { bus } from "../events";
+import { getDb } from "../db";
 import { Coordinator } from "./coordinator";
 import * as projectsService from "../services/projects";
 import * as workspace from "../services/workspace";
@@ -25,7 +25,12 @@ export class ProjectManager {
     | { ok: false; error: string }
   > {
     try {
-      const project = projectsService.createProject(name);
+      // Create DB record + workspace dirs atomically
+      const project = getDb().transaction((tx) => {
+        const p = projectsService.createProject(name, tx);
+        workspace.ensureProjectDirsSync(p.id);
+        return p;
+      });
       await this.bootProject(project.id);
 
       bus.emit("projects:lobby", {
@@ -47,10 +52,11 @@ export class ProjectManager {
     }
     this.statuses.delete(id);
 
-    // Remove workspace
-    await rm(workspace.root(id), { recursive: true, force: true }).catch(() => {});
-
-    projectsService.deleteProject(id);
+    // Delete DB record + workspace atomically
+    getDb().transaction((tx) => {
+      projectsService.deleteProject(id, tx);
+      workspace.removeProjectDirSync(id);
+    });
 
     bus.emit("projects:lobby", {
       type: "project_destroyed",

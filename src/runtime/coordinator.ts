@@ -1,7 +1,8 @@
-import { writeFile, rm } from "fs/promises";
+import { writeFile } from "fs/promises";
 import { join } from "path";
 import yaml from "js-yaml";
 import { bus } from "../events";
+import { getDb } from "../db";
 import { AgentManager, type AgentStatus } from "./agent-manager";
 import * as agentsService from "../services/agents";
 import * as workspace from "../services/workspace";
@@ -85,17 +86,22 @@ export class Coordinator {
       return { ok: false, error: `Agent "${params.name}" already exists` };
     }
 
-    // Create DB record with recipe fields
-    const agent = agentsService.createAgent(this.projectId, {
-      name: params.name,
-      description: params.description,
-      harness: params.harness,
-      model: params.model,
-      systemPrompt: params.systemPrompt,
+    // Create DB record + workspace dirs atomically
+    const agent = getDb().transaction((tx) => {
+      const a = agentsService.createAgent(
+        this.projectId,
+        {
+          name: params.name,
+          description: params.description,
+          harness: params.harness,
+          model: params.model,
+          systemPrompt: params.systemPrompt,
+        },
+        tx,
+      );
+      workspace.ensureAgentDirsSync(this.projectId, a.id);
+      return a;
     });
-
-    // Ensure workspace dirs exist
-    await workspace.ensureAgentDirs(this.projectId, agent.id);
 
     // Start process
     await this.startAgentManager(agent.id, agent.name);
@@ -147,12 +153,11 @@ export class Coordinator {
       this.statuses.delete(agentId);
     }
 
-    // Delete workspace
-    const agentDir = workspace.agentDir(this.projectId, agentId);
-    await rm(agentDir, { recursive: true, force: true }).catch(() => {});
-
-    // Delete DB record (cascades messages)
-    agentsService.deleteAgent(agentId);
+    // Delete DB record + workspace atomically
+    getDb().transaction((tx) => {
+      agentsService.deleteAgent(agentId, tx);
+      workspace.removeAgentDirSync(this.projectId, agentId);
+    });
     await this.writePeersYaml();
 
     bus.emit(`project:${this.projectId}:agents`, {

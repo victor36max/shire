@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb, schema } from "../db";
+import { getDb, schema, type Db } from "../db";
 
 const { projects } = schema;
 
@@ -15,8 +15,8 @@ export function getProjectByName(name: string) {
   return getDb().select().from(projects).where(eq(projects.name, name)).get();
 }
 
-export function createProject(name: string) {
-  return getDb().insert(projects).values({ name }).returning().get();
+export function createProject(name: string, db?: Db) {
+  return (db ?? getDb()).insert(projects).values({ name }).returning().get();
 }
 
 export function renameProject(id: string, name: string) {
@@ -28,6 +28,6 @@ export function renameProject(id: string, name: string) {
     .get();
 }
 
-export function deleteProject(id: string) {
-  return getDb().delete(projects).where(eq(projects.id, id)).returning().get();
+export function deleteProject(id: string, db?: Db) {
+  return (db ?? getDb()).delete(projects).where(eq(projects.id, id)).returning().get();
 }

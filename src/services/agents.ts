@@ -1,5 +1,5 @@
 import { and, eq, lt, desc, sql, inArray } from "drizzle-orm";
-import { getDb, schema } from "../db";
+import { getDb, schema, type Db } from "../db";
 import type { NewMessage } from "../db/schema";
 
 const { agents, messages } = schema;
@@ -34,8 +34,9 @@ export function createAgent(
     model?: string;
     systemPrompt?: string;
   },
+  db?: Db,
 ) {
-  return getDb()
+  return (db ?? getDb())
     .insert(agents)
     .values({
       projectId,
@@ -58,8 +59,9 @@ export function updateAgent(
     model?: string;
     systemPrompt?: string;
   },
+  db?: Db,
 ) {
-  return getDb()
+  return (db ?? getDb())
     .update(agents)
     .set({ ...fields, updatedAt: new Date().toISOString() })
     .where(eq(agents.id, id))
@@ -76,12 +78,12 @@ export function setSessionId(id: string, sessionId: string | null) {
     .get();
 }
 
-export function deleteAgent(id: string) {
-  return getDb().delete(agents).where(eq(agents.id, id)).returning().get();
+export function deleteAgent(id: string, db?: Db) {
+  return (db ?? getDb()).delete(agents).where(eq(agents.id, id)).returning().get();
 }
 
-export function createMessage(attrs: NewMessage) {
-  return getDb().insert(messages).values(attrs).returning().get();
+export function createMessage(attrs: NewMessage, db?: Db) {
+  return (db ?? getDb()).insert(messages).values(attrs).returning().get();
 }
 
 export function listMessages(
@@ -154,21 +156,23 @@ export function unreadCounts(
   agentIds: string[],
   lastReadIds: Map<string, number | null>,
 ): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const agentId of agentIds) {
-    const lastRead = lastReadIds.get(agentId) ?? 0;
-    const row = getDb()
-      .select({ count: sql<number>`count(*)` })
-      .from(messages)
-      .where(
-        and(
-          eq(messages.agentId, agentId),
-          eq(messages.role, "agent"),
-          sql`${messages.id} > ${lastRead}`,
-        ),
-      )
-      .get();
-    counts.set(agentId, row?.count ?? 0);
-  }
-  return counts;
+  return getDb().transaction((tx) => {
+    const counts = new Map<string, number>();
+    for (const agentId of agentIds) {
+      const lastRead = lastReadIds.get(agentId) ?? 0;
+      const row = tx
+        .select({ count: sql<number>`count(*)` })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.agentId, agentId),
+            eq(messages.role, "agent"),
+            sql`${messages.id} > ${lastRead}`,
+          ),
+        )
+        .get();
+      counts.set(agentId, row?.count ?? 0);
+    }
+    return counts;
+  });
 }

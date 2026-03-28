@@ -1,6 +1,7 @@
 import { join } from "path";
 import { homedir } from "os";
 import { mkdir } from "fs/promises";
+import { mkdirSync, rmSync } from "fs";
 
 export function projectsDir(): string {
   return process.env.SHIRE_PROJECTS_DIR || join(homedir(), ".shire", "projects");
@@ -85,4 +86,30 @@ export async function ensureAgentDirs(projectId: string, agentId: string): Promi
     mkdir(attachmentsDir(projectId, agentId), { recursive: true }),
     mkdir(join(attachmentsDir(projectId, agentId), "outbox"), { recursive: true }),
   ]);
+}
+
+/** Sync versions for use inside DB transactions */
+
+export function ensureProjectDirsSync(projectId: string): void {
+  mkdirSync(root(projectId), { recursive: true });
+  mkdirSync(sharedDir(projectId), { recursive: true });
+  mkdirSync(runnerDir(projectId), { recursive: true });
+}
+
+export function ensureAgentDirsSync(projectId: string, agentId: string): void {
+  mkdirSync(agentDir(projectId, agentId), { recursive: true });
+  mkdirSync(inboxDir(projectId, agentId), { recursive: true });
+  mkdirSync(outboxDir(projectId, agentId), { recursive: true });
+  mkdirSync(scriptsDir(projectId, agentId), { recursive: true });
+  mkdirSync(documentsDir(projectId, agentId), { recursive: true });
+  mkdirSync(attachmentsDir(projectId, agentId), { recursive: true });
+  mkdirSync(join(attachmentsDir(projectId, agentId), "outbox"), { recursive: true });
+}
+
+export function removeAgentDirSync(projectId: string, agentId: string): void {
+  rmSync(agentDir(projectId, agentId), { recursive: true, force: true });
+}
+
+export function removeProjectDirSync(projectId: string): void {
+  rmSync(root(projectId), { recursive: true, force: true });
 }

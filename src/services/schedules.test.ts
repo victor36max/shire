@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { useTestDb } from "../test/setup";
+import { getDb } from "../db";
 import * as schedules from "./schedules";
 import * as projects from "./projects";
 import * as agents from "./agents";
@@ -171,6 +172,82 @@ describe("schedules service", () => {
       expect(task.lastRunAt).toBeNull();
       const updated = schedules.markRun(task.id);
       expect(updated?.lastRunAt).toBeTruthy();
+    });
+  });
+
+  describe("transaction support", () => {
+    it("markRun + toggleScheduledTask are atomic in a transaction", () => {
+      const task = schedules.createScheduledTask({
+        label: "Atomic test",
+        message: "test",
+        scheduleType: "once",
+        projectId,
+        agentId,
+        enabled: true,
+      });
+
+      // Simulate fireTask: createMessage + markRun + toggle in one transaction
+      getDb().transaction((tx) => {
+        agents.createMessage(
+          {
+            projectId,
+            agentId,
+            role: "system",
+            content: { text: "scheduled run" },
+          },
+          tx,
+        );
+        schedules.markRun(task.id, tx);
+        schedules.toggleScheduledTask(task.id, false, tx);
+      });
+
+      const updated = schedules.getScheduledTask(task.id);
+      expect(updated?.scheduled_tasks.lastRunAt).toBeTruthy();
+      expect(updated?.scheduled_tasks.enabled).toBe(false);
+
+      // Message was persisted
+      const { messages } = agents.listMessages(projectId, agentId);
+      expect(
+        messages.some((m) => (m.content as Record<string, unknown>).text === "scheduled run"),
+      ).toBe(true);
+    });
+
+    it("rolls back all changes when transaction fails", () => {
+      const task = schedules.createScheduledTask({
+        label: "Rollback test",
+        message: "test",
+        scheduleType: "once",
+        projectId,
+        agentId,
+        enabled: true,
+      });
+
+      expect(() => {
+        getDb().transaction((tx) => {
+          agents.createMessage(
+            {
+              projectId,
+              agentId,
+              role: "system",
+              content: { text: "should not persist" },
+            },
+            tx,
+          );
+          schedules.markRun(task.id, tx);
+          throw new Error("simulated failure before toggle");
+        });
+      }).toThrow("simulated failure");
+
+      // Task should be unchanged
+      const unchanged = schedules.getScheduledTask(task.id);
+      expect(unchanged?.scheduled_tasks.lastRunAt).toBeNull();
+      expect(unchanged?.scheduled_tasks.enabled).toBe(true);
+
+      // Message should not exist
+      const { messages } = agents.listMessages(projectId, agentId);
+      expect(
+        messages.some((m) => (m.content as Record<string, unknown>).text === "should not persist"),
+      ).toBe(false);
     });
   });
 });
