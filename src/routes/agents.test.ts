@@ -141,3 +141,58 @@ describe("POST /api/projects/:id/agents/:aid/mark-read", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST /api/projects/:id/agents/:aid/message attachment validation", () => {
+  it("rejects attachments missing required fields", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
+      text: "hello",
+      attachments: [{ foo: "bar" }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects attachments with missing name", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
+      text: "hello",
+      attachments: [{ content: "abc", content_type: "text/plain" }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects attachments with missing content", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
+      text: "hello",
+      attachments: [{ name: "test.txt", content_type: "text/plain" }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects filenames with path separators", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
+      text: "hello",
+      attachments: [
+        {
+          name: "../../etc/passwd",
+          content: Buffer.from("data").toString("base64"),
+          content_type: "text/plain",
+        },
+      ],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts well-formed attachments", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
+      text: "hello",
+      attachments: [
+        {
+          name: "test.txt",
+          content: Buffer.from("data").toString("base64"),
+          content_type: "text/plain",
+        },
+      ],
+    });
+    // Should not be 400 (validation pass) — will be 200 if agent is active or 422 if not
+    expect(res.status).not.toBe(400);
+  });
+});

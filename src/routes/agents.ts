@@ -92,12 +92,9 @@ export const agentRoutes = new Hono<AppEnv>()
         attachments: z
           .array(
             z.object({
-              id: z.string().optional(),
-              name: z.string().optional(),
-              filename: z.string().optional(),
-              content: z.string().optional(),
+              name: z.string().regex(/^[^/\\]+$/, "Filename must not contain path separators"),
+              content: z.string(),
               content_type: z.string(),
-              size: z.number().optional(),
             }),
           )
           .optional(),
