@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { unwrap } from "./util";
-import type { Skill } from "../../components/types";
 
 export function useAgents(projectId: string | undefined) {
   return useQuery({
@@ -32,7 +31,6 @@ interface AgentMutationData {
   model?: string;
   systemPrompt?: string;
   maxTokens?: number;
-  skills?: Skill[];
 }
 
 export function useCreateAgent(projectId: string) {

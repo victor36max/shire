@@ -57,7 +57,6 @@ export default function AgentDashboard({ streamingText }: AgentDashboardProps) {
         harness: agent.harness,
         model: agent.model,
         systemPrompt: agent.systemPrompt,
-        skills: [],
         status: "idle",
         busy: false,
         unreadCount: 0,

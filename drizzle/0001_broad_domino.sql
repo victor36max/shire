@@ -3,5 +3,4 @@ ALTER TABLE `agents` ADD `description` text;--> statement-breakpoint
 ALTER TABLE `agents` ADD `harness` text;--> statement-breakpoint
 ALTER TABLE `agents` ADD `model` text;--> statement-breakpoint
 ALTER TABLE `agents` ADD `system_prompt` text;--> statement-breakpoint
-ALTER TABLE `agents` ADD `max_tokens` integer;--> statement-breakpoint
-ALTER TABLE `agents` ADD `skills` text;
+ALTER TABLE `agents` ADD `max_tokens` integer;

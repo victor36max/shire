@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ae753be0-9541-4f84-b587-3d2c81d6a5ca",
+  "id": "baa6a9e8-c111-4fa0-ba2d-83aa6b00417b",
   "prevId": "74bfc29d-6f0f-41b0-b1f0-ab3e64c8fe21",
   "tables": {
     "agents": {
@@ -66,13 +66,6 @@
         "max_tokens": {
           "name": "max_tokens",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "skills": {
-          "name": "skills",
-          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

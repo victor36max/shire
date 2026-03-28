@@ -21,16 +21,6 @@ export const agentRoutes = new Hono<AppEnv>()
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
         maxTokens: z.number().optional(),
-        skills: z
-          .array(
-            z.object({
-              name: z.string(),
-              description: z.string(),
-              content: z.string(),
-              references: z.array(z.object({ name: z.string(), content: z.string() })).optional(),
-            }),
-          )
-          .optional(),
       }),
     ),
     async (c) => {
@@ -64,16 +54,6 @@ export const agentRoutes = new Hono<AppEnv>()
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
         maxTokens: z.number().optional(),
-        skills: z
-          .array(
-            z.object({
-              name: z.string(),
-              description: z.string(),
-              content: z.string(),
-              references: z.array(z.object({ name: z.string(), content: z.string() })).optional(),
-            }),
-          )
-          .optional(),
       }),
     ),
     async (c) => {

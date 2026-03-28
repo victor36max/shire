@@ -34,7 +34,6 @@ export function createAgent(
     model?: string;
     systemPrompt?: string;
     maxTokens?: number;
-    skills?: Array<Record<string, unknown>>;
   },
 ) {
   return getDb()
@@ -47,7 +46,6 @@ export function createAgent(
       model: data.model,
       systemPrompt: data.systemPrompt,
       maxTokens: data.maxTokens,
-      skills: data.skills,
     })
     .returning()
     .get();
@@ -62,7 +60,6 @@ export function updateAgent(
     model?: string;
     systemPrompt?: string;
     maxTokens?: number;
-    skills?: Array<Record<string, unknown>>;
   },
 ) {
   return getDb()

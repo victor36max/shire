@@ -12,7 +12,7 @@ import {
   DialogDescription,
 } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import type { Agent, HarnessType, Skill, SkillReference } from "./types";
+import type { Agent, HarnessType } from "./types";
 
 interface AgentFormProps {
   open: boolean;
@@ -30,7 +30,6 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
   const [model, setModel] = React.useState("");
   const [systemPrompt, setSystemPrompt] = React.useState("");
   const [harness, setHarness] = React.useState<HarnessType>("claude_code");
-  const [skills, setSkills] = React.useState<Skill[]>([]);
 
   const nameValid = name === "" || SLUG_REGEX.test(name);
 
@@ -40,7 +39,6 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
     setModel(agent?.model || "");
     setSystemPrompt(agent?.systemPrompt || "");
     setHarness(agent?.harness || "claude_code");
-    setSkills(agent?.skills || []);
   }, [agent]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -55,7 +53,6 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
       harness,
       model: model || undefined,
       systemPrompt: systemPrompt || undefined,
-      skills: skills.length > 0 ? skills : undefined,
     };
     if (isUpdate) {
       payload.id = agent!.id;
@@ -63,42 +60,6 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
 
     onSave(event, payload);
     onClose();
-  };
-
-  const addSkill = () => setSkills([...skills, { name: "", description: "", content: "" }]);
-  const removeSkill = (idx: number) => setSkills(skills.filter((_, i) => i !== idx));
-  const updateSkill = (idx: number, field: "name" | "description" | "content", value: string) => {
-    const updated = [...skills];
-    updated[idx] = { ...updated[idx], [field]: value };
-    setSkills(updated);
-  };
-  const addReference = (skillIdx: number) => {
-    const updated = [...skills];
-    updated[skillIdx] = {
-      ...updated[skillIdx],
-      references: [...(updated[skillIdx].references || []), { name: "", content: "" }],
-    };
-    setSkills(updated);
-  };
-  const removeReference = (skillIdx: number, refIdx: number) => {
-    const updated = [...skills];
-    updated[skillIdx] = {
-      ...updated[skillIdx],
-      references: (updated[skillIdx].references || []).filter((_, i) => i !== refIdx),
-    };
-    setSkills(updated);
-  };
-  const updateReference = (
-    skillIdx: number,
-    refIdx: number,
-    field: keyof SkillReference,
-    value: string,
-  ) => {
-    const updated = [...skills];
-    const refs = [...(updated[skillIdx].references || [])];
-    refs[refIdx] = { ...refs[refIdx], [field]: value };
-    updated[skillIdx] = { ...updated[skillIdx], references: refs };
-    setSkills(updated);
   };
 
   return (
@@ -173,86 +134,6 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
               placeholder="Instructions for the agent..."
               rows={4}
             />
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Skills</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addSkill}>
-                Add Skill
-              </Button>
-            </div>
-            {skills.map((skill, idx) => (
-              <div key={idx} className="rounded-lg border border-border p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={skill.name}
-                    onChange={(e) => updateSkill(idx, "name", e.target.value)}
-                    placeholder="e.g. web-scraping"
-                    className="flex-1"
-                  />
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeSkill(idx)}>
-                    Remove
-                  </Button>
-                </div>
-                <Input
-                  value={skill.description}
-                  onChange={(e) => updateSkill(idx, "description", e.target.value)}
-                  placeholder="When to use this skill..."
-                />
-                <Textarea
-                  value={skill.content}
-                  onChange={(e) => updateSkill(idx, "content", e.target.value)}
-                  placeholder="Markdown instructions..."
-                  rows={6}
-                  className="font-mono text-sm"
-                />
-                <div className="space-y-2 pl-3 border-l-2 border-border">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">References</Label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => addReference(idx)}
-                    >
-                      Add Reference
-                    </Button>
-                  </div>
-                  {(skill.references || []).map((ref, refIdx) => (
-                    <div key={refIdx} className="rounded border border-border p-2 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={ref.name}
-                          onChange={(e) => updateReference(idx, refIdx, "name", e.target.value)}
-                          placeholder="e.g. api-patterns.md"
-                          className="flex-1 text-sm"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeReference(idx, refIdx)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                      <Textarea
-                        value={ref.content}
-                        onChange={(e) => updateReference(idx, refIdx, "content", e.target.value)}
-                        placeholder="Reference content..."
-                        rows={3}
-                        className="font-mono text-sm"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {skills.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No skills defined. Add skills to give the agent specialized knowledge.
-              </p>
-            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

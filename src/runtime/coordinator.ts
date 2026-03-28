@@ -14,7 +14,6 @@ export interface AgentFields {
   model?: string;
   systemPrompt?: string;
   maxTokens?: number;
-  skills?: Array<Record<string, unknown>>;
 }
 
 export class Coordinator {
@@ -91,7 +90,6 @@ export class Coordinator {
       model: params.model,
       systemPrompt: params.systemPrompt,
       maxTokens: params.maxTokens,
-      skills: params.skills,
     });
 
     // Ensure workspace dirs exist
@@ -226,7 +224,6 @@ export class Coordinator {
       harness: agent?.harness ?? "claude_code",
       model: agent?.model ?? null,
       systemPrompt: agent?.systemPrompt ?? null,
-      skills: agent?.skills ?? [],
       maxTokens: agent?.maxTokens ?? null,
       status: proc.status,
     };

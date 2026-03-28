@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from "fs";
 import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/promises";
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
 import { safeYamlLoad } from "../utils/yaml";
@@ -785,38 +785,8 @@ export class AgentManager {
   private async setupWorkspace(): Promise<void> {
     workspace.ensureAgentDirs(this.projectId, this.agentId);
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
-    mkdirSync(join(agentDir, ".claude", "skills"), { recursive: true });
 
     writeFileSync(join(agentDir, "INTERNAL.md"), this.buildInternalPrompt(), "utf-8");
-
-    const agent = agentsService.getAgent(this.agentId);
-    if (agent?.skills && Array.isArray(agent.skills)) {
-      this.deploySkills(agent.harness ?? "claude_code", agent.skills);
-    }
-  }
-
-  private deploySkills(harnessType: string, skills: Array<Record<string, unknown>>): void {
-    const agentDir = workspace.agentDir(this.projectId, this.agentId);
-    const skillBase =
-      harnessType === "claude_code"
-        ? join(agentDir, ".claude", "skills")
-        : join(agentDir, ".pi", "agent", "skills");
-
-    try {
-      rmSync(skillBase, { recursive: true, force: true });
-    } catch {
-      /* ok */
-    }
-
-    for (const skill of skills) {
-      const skillDir = join(skillBase, skill.name as string);
-      mkdirSync(skillDir, { recursive: true });
-      const skillMd = `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n\n${skill.content}\n`;
-      writeFileSync(join(skillDir, "SKILL.md"), skillMd, "utf-8");
-      for (const ref of (skill.references as Array<Record<string, string>>) ?? []) {
-        writeFileSync(join(skillDir, ref.name), ref.content, "utf-8");
-      }
-    }
   }
 
   private buildInternalPrompt(): string {

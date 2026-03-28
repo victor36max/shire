@@ -30,7 +30,6 @@ export const agents = sqliteTable(
     model: text("model"),
     systemPrompt: text("system_prompt"),
     maxTokens: integer("max_tokens"),
-    skills: text("skills", { mode: "json" }).$type<Array<Record<string, unknown>>>(),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
