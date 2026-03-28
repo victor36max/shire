@@ -2,6 +2,7 @@ import { readFile, readdir, access } from "fs/promises";
 import { join, basename, dirname } from "path";
 import { fileURLToPath } from "url";
 import { safeYamlLoad } from "../utils/yaml";
+import { getPackageRoot } from "../utils/package-root";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -24,7 +25,7 @@ export interface CatalogCategory {
 }
 
 function catalogDir(): string {
-  return join(__dirname, "..", "..", "catalog");
+  return join(getPackageRoot(__dirname, 2), "catalog");
 }
 
 async function fileExists(path: string): Promise<boolean> {

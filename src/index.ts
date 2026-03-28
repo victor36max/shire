@@ -5,25 +5,12 @@ import { ProjectManager } from "./runtime/project-manager";
 import { Scheduler } from "./runtime/scheduler";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { getPackageRoot } from "./utils/package-root";
 import homepage from "./frontend/index.html";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_PORT = 8080;
-
-/**
- * Resolves the root directory for packaged assets (drizzle/).
- *
- * When running from source: __dirname is src/, root is one level up.
- * When running as a compiled binary: assets sit alongside the binary.
- */
-function getPackageRoot(): string {
-  // In a compiled Bun binary, argv[1] starts with /$bunfs/root/
-  if (process.argv[1]?.startsWith("/$bunfs/")) {
-    return dirname(process.execPath);
-  }
-  return join(__dirname, "..");
-}
 
 export interface StartOptions {
   port?: number;
@@ -32,7 +19,7 @@ export interface StartOptions {
 export async function startServer(opts: StartOptions = {}) {
   const port = opts.port ?? parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
   const DEV = process.env.NODE_ENV !== "production";
-  const root = getPackageRoot();
+  const root = getPackageRoot(__dirname);
   const migrationsDir = join(root, "drizzle");
 
   // 1. Init database + run migrations
