@@ -71,20 +71,24 @@ export async function startServer(opts: StartOptions = {}) {
       port,
       development: true,
       routes: {
+        "/api/*": {
+          GET: (req: Request) => app.fetch(req),
+          POST: (req: Request) => app.fetch(req),
+          PUT: (req: Request) => app.fetch(req),
+          PATCH: (req: Request) => app.fetch(req),
+          DELETE: (req: Request) => app.fetch(req),
+          OPTIONS: (req: Request) => app.fetch(req),
+          HEAD: (req: Request) => app.fetch(req),
+        },
         "/": homepage.default,
         "/*": homepage.default,
       },
       async fetch(req, server) {
-        const url = new URL(req.url);
-
+        // WebSocket upgrades (e.g. /ws) — must be in fetch since routes can't do upgrades
         if (req.headers.get("upgrade") === "websocket") {
           const upgraded = server.upgrade(req, { data: {} });
           if (upgraded) return undefined;
           return new Response("WebSocket upgrade failed", { status: 400 });
-        }
-
-        if (url.pathname.startsWith("/api")) {
-          return app.fetch(req);
         }
 
         // Fallback
