@@ -6,7 +6,7 @@
  *   bun run scripts/build-binaries.ts          # Build all platforms
  *   bun run scripts/build-binaries.ts local     # Build for current platform only
  */
-import { $ } from "bun";
+import tailwind from "bun-plugin-tailwind";
 import { cpSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -39,11 +39,26 @@ async function buildBinary(target: Target): Promise<void> {
 
   console.log(`Building ${target.bunTarget} → npm/${target.npmDir}/${target.binaryName}`);
 
-  // bun build --compile handles HTML imports automatically — it bundles
-  // the frontend (JS, CSS, assets) into the binary via the manifest
-  await $`bun build src/cli.ts --compile --target=${target.bunTarget} --outfile=${outFile} --define process.env.NODE_ENV='"production"'`.cwd(
-    ROOT,
-  );
+  const result = await Bun.build({
+    entrypoints: [join(ROOT, "src", "cli.ts")],
+    compile: {
+      target: target.bunTarget as "bun-darwin-arm64",
+      outfile: outFile,
+    },
+    minify: true,
+    define: {
+      "process.env.NODE_ENV": JSON.stringify("production"),
+    },
+    plugins: [tailwind],
+  });
+
+  if (!result.success) {
+    console.error("Build failed:");
+    for (const log of result.logs) {
+      console.error(log);
+    }
+    process.exit(1);
+  }
 
   // Copy migrations (needed at runtime, not bundled by bun build)
   const drizzleSrc = join(ROOT, "drizzle");
