@@ -14,11 +14,20 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import type { Agent, HarnessType } from "./types";
 
+export interface AgentFormPayload {
+  id?: string;
+  name: string;
+  description?: string;
+  harness: HarnessType;
+  model?: string;
+  systemPrompt?: string;
+}
+
 interface AgentFormProps {
   open: boolean;
   title: string;
   agent: Agent | null;
-  onSave: (event: string, payload: Record<string, unknown>) => void;
+  onSave: (event: string, payload: AgentFormPayload) => void;
   onClose: () => void;
 }
 
@@ -47,7 +56,7 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
 
     const isUpdate = Boolean(agent?.id);
     const event = isUpdate ? "update-agent" : "create-agent";
-    const payload: Record<string, unknown> = {
+    const payload: AgentFormPayload = {
       name,
       description: description || undefined,
       harness,
@@ -106,7 +115,12 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
           </div>
           <div className="space-y-2">
             <Label htmlFor="harness">Harness</Label>
-            <Select value={harness} onValueChange={(v) => setHarness(v as HarnessType)}>
+            <Select
+              value={harness}
+              onValueChange={(v) => {
+                if (v === "claude_code" || v === "pi") setHarness(v);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

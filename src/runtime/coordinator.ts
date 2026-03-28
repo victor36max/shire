@@ -1,9 +1,15 @@
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import yaml from "js-yaml";
-import { bus } from "../events";
+import {
+  bus,
+  type AgentStatus,
+  type OutboxBusEvent,
+  type SpawnAgentBusEvent,
+  type AgentBusEvent,
+} from "../events";
 import { getDb } from "../db";
-import { AgentManager, type AgentStatus } from "./agent-manager";
+import { AgentManager } from "./agent-manager";
 import * as agentsService from "../services/agents";
 import * as workspace from "../services/workspace";
 import { valid as isValidSlug } from "../services/slug";
@@ -28,15 +34,10 @@ export class Coordinator {
 
     // Listen for outbox messages to route between agents
     this.unsubscribes.push(
-      bus.on(`project:${projectId}:outbox`, (event) => {
+      bus.on<OutboxBusEvent>(`project:${projectId}:outbox`, (event) => {
         if (event.type === "outbox_message") {
-          const p = event.payload as {
-            fromAgentId: string;
-            fromAgentName: string;
-            toAgentName: string;
-            text: string;
-          };
-          this.routeMessage(p.fromAgentId, p.fromAgentName, p.toAgentName, p.text).catch((err) =>
+          const { fromAgentId, fromAgentName, toAgentName, text } = event.payload;
+          this.routeMessage(fromAgentId, fromAgentName, toAgentName, text).catch((err) =>
             console.error("routeMessage error:", err),
           );
         }
@@ -45,10 +46,9 @@ export class Coordinator {
 
     // Listen for spawn_agent requests from agents
     this.unsubscribes.push(
-      bus.on(`project:${projectId}:spawn_agent`, (event) => {
+      bus.on<SpawnAgentBusEvent>(`project:${projectId}:spawn_agent`, (event) => {
         if (event.type === "spawn_agent") {
-          const p = event.payload as { name: string };
-          const agent = agentsService.getAgentByName(projectId, p.name);
+          const agent = agentsService.getAgentByName(projectId, event.payload.name);
           if (agent) {
             const proc = this.agents.get(agent.id);
             if (proc) {
@@ -257,10 +257,9 @@ export class Coordinator {
 
     // Listen for status changes
     this.unsubscribes.push(
-      bus.on(`project:${this.projectId}:agent:${agentId}`, (event) => {
+      bus.on<AgentBusEvent>(`project:${this.projectId}:agent:${agentId}`, (event) => {
         if (event.type === "agent_status") {
-          const p = event.payload as { agentId: string; status: AgentStatus };
-          this.statuses.set(p.agentId, p.status);
+          this.statuses.set(event.payload.agentId, event.payload.status);
         }
       }),
     );

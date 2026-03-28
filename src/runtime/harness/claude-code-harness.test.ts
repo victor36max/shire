@@ -9,7 +9,12 @@ const baseConfig: HarnessConfig = {
   cwd: "/workspace",
 };
 
-function stubQueryMethods(gen: AsyncGenerator): Query {
+/**
+ * Augment an async generator with stub Query methods.
+ * Casts are necessary here because we're building a mock of the SDK Query
+ * interface, which is an AsyncGenerator + many methods with complex return types.
+ */
+function stubQueryMethods(gen: AsyncGenerator<SDKMessage, void, unknown>): Query {
   const q = gen as unknown as Query;
   q.interrupt = mock(() => Promise.resolve());
   q.close = mock(() => {});

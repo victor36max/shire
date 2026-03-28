@@ -199,22 +199,30 @@ const SystemMessage = React.memo(function SystemMessage({ msg }: { msg: Message 
   );
 });
 
+/** Shape of a raw message from the API. */
+interface RawMessage {
+  id: number;
+  role: string;
+  content: Record<string, unknown>;
+  createdAt: string;
+}
+
 /** Transform API messages to ChatPanel Message format */
-function transformMessages(raw: Array<Record<string, unknown>>): Message[] {
+function transformMessages(raw: RawMessage[]): Message[] {
   return raw.map((m) => {
-    const content = m.content as Record<string, unknown> | undefined;
+    const { content } = m;
     return {
-      id: m.id as number | undefined,
-      role: m.role as string,
-      ts: m.createdAt as string,
-      text: content?.text as string | undefined,
-      tool: content?.tool as string | undefined,
-      tool_use_id: content?.tool_use_id as string | undefined,
-      input: content?.input as Record<string, unknown> | undefined,
-      output: content?.output as string | null | undefined,
-      isError: content?.isError as boolean | undefined,
-      fromAgent: content?.fromAgent as string | undefined,
-      attachments: content?.attachments as Attachment[] | undefined,
+      id: m.id,
+      role: m.role,
+      ts: m.createdAt,
+      text: content.text as string | undefined,
+      tool: content.tool as string | undefined,
+      tool_use_id: content.tool_use_id as string | undefined,
+      input: content.input as Record<string, unknown> | undefined,
+      output: content.output as string | null | undefined,
+      isError: content.isError as boolean | undefined,
+      fromAgent: content.fromAgent as string | undefined,
+      attachments: content.attachments as Attachment[] | undefined,
     };
   });
 }
@@ -249,7 +257,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     if (!messagesData) return [];
     // Page 0 = newest (no cursor), page N = oldest. Reverse for chronological order.
     const allRaw = [...messagesData.pages].reverse().flatMap((page) => page.messages);
-    return transformMessages(allRaw as Array<Record<string, unknown>>);
+    return transformMessages(allRaw);
   }, [messagesData]);
   const hasMore = hasNextPage ?? false;
   const loadingMore = isFetchingNextPage;

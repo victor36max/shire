@@ -89,7 +89,18 @@ export const agentRoutes = new Hono<AppEnv>()
       "json",
       z.object({
         text: z.string(),
-        attachments: z.array(z.record(z.string(), z.unknown())).optional(),
+        attachments: z
+          .array(
+            z.object({
+              id: z.string().optional(),
+              name: z.string().optional(),
+              filename: z.string().optional(),
+              content: z.string().optional(),
+              content_type: z.string(),
+              size: z.number().optional(),
+            }),
+          )
+          .optional(),
       }),
     ),
     async (c) => {

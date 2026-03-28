@@ -6,10 +6,21 @@ export interface HarnessConfig {
   resume?: string;
 }
 
-export interface AgentEvent {
-  type: string;
-  payload: Record<string, unknown>;
-}
+export type AgentEvent =
+  | { type: "text_delta"; payload: { delta: string } }
+  | { type: "text"; payload: { text: string } }
+  | {
+      type: "tool_use";
+      payload: {
+        tool: string;
+        tool_use_id: string;
+        input: Record<string, unknown>;
+        status: "started" | "input_ready";
+      };
+    }
+  | { type: "tool_result"; payload: { tool_use_id: string; output: string; is_error: boolean } }
+  | { type: "turn_complete"; payload: { session_id?: string } }
+  | { type: "error"; payload: { message: string } };
 
 export type EventCallback = (event: AgentEvent) => void;
 

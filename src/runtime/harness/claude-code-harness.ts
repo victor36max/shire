@@ -1,5 +1,5 @@
 import { query, type Query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { Harness, HarnessConfig, EventCallback } from "./types";
+import type { AgentEvent, Harness, HarnessConfig, EventCallback } from "./types";
 
 type QueryFn = typeof query;
 
@@ -124,19 +124,16 @@ export class ClaudeCodeHarness implements Harness {
 
       case "assistant": {
         // Extract tool calls with their inputs from the complete assistant message
-        const content = (message as Record<string, unknown>).message as
-          | { content?: unknown[] }
-          | undefined;
-        if (content && Array.isArray(content.content)) {
-          for (const block of content.content) {
-            const b = block as Record<string, unknown>;
-            if (b.type === "tool_use") {
+        const assistantContent = message.message?.content;
+        if (Array.isArray(assistantContent)) {
+          for (const block of assistantContent) {
+            if (block.type === "tool_use") {
               this.emitEvent({
                 type: "tool_use",
                 payload: {
-                  tool: b.name as string,
-                  tool_use_id: b.id as string,
-                  input: b.input as Record<string, unknown>,
+                  tool: block.name,
+                  tool_use_id: block.id,
+                  input: block.input as Record<string, unknown>,
                   status: "input_ready",
                 },
               });
@@ -148,29 +145,37 @@ export class ClaudeCodeHarness implements Harness {
 
       case "user": {
         // Extract tool results from user messages (these follow tool_use)
-        const userMsg = (message as Record<string, unknown>).message as
-          | { content?: unknown }
-          | undefined;
-        const userContent = userMsg?.content;
+        const userContent = message.message?.content;
         if (Array.isArray(userContent)) {
           for (const block of userContent) {
-            const b = block as Record<string, unknown>;
-            if (b.type === "tool_result" && typeof b.tool_use_id === "string") {
+            if (
+              typeof block === "object" &&
+              block !== null &&
+              "type" in block &&
+              block.type === "tool_result" &&
+              "tool_use_id" in block &&
+              typeof block.tool_use_id === "string"
+            ) {
               let output = "";
-              if (typeof b.content === "string") {
-                output = b.content;
-              } else if (Array.isArray(b.content)) {
-                output = (b.content as Record<string, unknown>[])
-                  .filter((c) => c.type === "text")
-                  .map((c) => c.text as string)
+              const resultContent = "content" in block ? block.content : undefined;
+              if (typeof resultContent === "string") {
+                output = resultContent;
+              } else if (Array.isArray(resultContent)) {
+                output = resultContent
+                  .filter(
+                    (c): c is { type: "text"; text: string } =>
+                      typeof c === "object" && c !== null && "type" in c && c.type === "text",
+                  )
+                  .map((c) => c.text)
                   .join("\n");
               }
+              const isError = "is_error" in block ? Boolean(block.is_error) : false;
               this.emitEvent({
                 type: "tool_result",
                 payload: {
-                  tool_use_id: b.tool_use_id,
+                  tool_use_id: block.tool_use_id,
                   output: output.slice(0, 2000),
-                  is_error: (b.is_error as boolean) ?? false,
+                  is_error: isError,
                 },
               });
             }
@@ -199,7 +204,7 @@ export class ClaudeCodeHarness implements Harness {
     }
   }
 
-  private emitEvent(event: { type: string; payload: Record<string, unknown> }): void {
+  private emitEvent(event: AgentEvent): void {
     if (!this.stopped) {
       this.callback(event);
     }

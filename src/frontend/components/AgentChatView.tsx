@@ -7,8 +7,7 @@ import ChatHeader from "./ChatHeader";
 import ChatPanel from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
 import { useAgents, useMessages, useMarkRead } from "../lib/hooks";
-import { useSubscription } from "../lib/ws";
-import type { WsEvent } from "../lib/ws";
+import { useSubscription, type AgentWsEvent } from "../lib/ws";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 
 type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
@@ -43,10 +42,10 @@ export default function AgentChatView() {
   // Subscribe to per-agent streaming events (agent_busy/agent_status are
   // handled by ProjectLayout's project-level subscription, not here)
   const handleAgentEvent = useCallback(
-    (event: WsEvent) => {
+    (event: AgentWsEvent) => {
       switch (event.type) {
         case "text_delta": {
-          const delta = (event.payload as Record<string, unknown>)?.delta as string;
+          const { delta } = event.payload;
           if (delta) setStreamingText((prev) => prev + delta);
           break;
         }

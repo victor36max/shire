@@ -5,7 +5,6 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card";
 import { Loader2 } from "lucide-react";
-import type { CatalogAgentSummary, CatalogCategory } from "./types";
 import { useCatalogAgents, useCatalogCategories } from "../lib/hooks";
 
 interface CatalogBrowserProps {
@@ -18,8 +17,6 @@ export default function CatalogBrowser({ open, onClose, onAdd }: CatalogBrowserP
   const { data: agents = [], isLoading: agentsLoading } = useCatalogAgents(open);
   const { data: categories = [], isLoading: categoriesLoading } = useCatalogCategories(open);
 
-  const typedAgents = agents as unknown as CatalogAgentSummary[];
-  const typedCategories = categories as unknown as CatalogCategory[];
   const loading = agentsLoading || categoriesLoading;
 
   const [search, setSearch] = React.useState("");
@@ -33,7 +30,7 @@ export default function CatalogBrowser({ open, onClose, onAdd }: CatalogBrowserP
   }, [open]);
 
   const filteredAgents = React.useMemo(() => {
-    let result = typedAgents;
+    let result = agents;
 
     if (selectedCategory) {
       result = result.filter((a) => a.category === selectedCategory);
@@ -50,14 +47,14 @@ export default function CatalogBrowser({ open, onClose, onAdd }: CatalogBrowserP
     }
 
     return result;
-  }, [typedAgents, selectedCategory, search]);
+  }, [agents, selectedCategory, search]);
 
   const visibleCategories = React.useMemo(() => {
-    const agentCategories = new Set(typedAgents.map((a) => a.category));
-    return typedCategories.filter((c) => agentCategories.has(c.id));
-  }, [typedAgents, typedCategories]);
+    const agentCategories = new Set(agents.map((a) => a.category));
+    return categories.filter((c) => agentCategories.has(c.id));
+  }, [agents, categories]);
 
-  if (loading || typedAgents.length === 0) {
+  if (loading || agents.length === 0) {
     return (
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
         <DialogContent className="max-w-lg">

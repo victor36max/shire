@@ -44,15 +44,15 @@ export const messageRoutes = new Hono<AppEnv>()
     });
 
     const messages = result.messages.map((row) => {
-      const content = row.content as Record<string, unknown>;
+      const { content } = row;
       return {
         id: row.id,
-        text: (content.text as string) ?? "",
-        fromAgent: (content.from_agent as string) ?? "",
-        toAgent: (content.to_agent as string) ?? "",
+        text: String(content.text ?? ""),
+        fromAgent: String(content.from_agent ?? ""),
+        toAgent: String(content.to_agent ?? ""),
         ts: row.createdAt,
-        ...(content.trigger ? { trigger: content.trigger as string } : {}),
-        ...(content.task_label ? { taskLabel: content.task_label as string } : {}),
+        ...(content.trigger ? { trigger: String(content.trigger) } : {}),
+        ...(content.task_label ? { taskLabel: String(content.task_label) } : {}),
       };
     });
 

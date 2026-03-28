@@ -1,5 +1,5 @@
 import type { AgentSessionEvent, AgentSessionEventListener } from "@mariozechner/pi-coding-agent";
-import type { Harness, HarnessConfig, EventCallback } from "./types";
+import type { AgentEvent, Harness, HarnessConfig, EventCallback } from "./types";
 
 export type SessionLike = {
   subscribe: (cb: AgentSessionEventListener) => void;
@@ -224,7 +224,7 @@ export class PiHarness implements Harness {
     });
   }
 
-  private emitEvent(event: { type: string; payload: Record<string, unknown> }): void {
+  private emitEvent(event: AgentEvent): void {
     if (!this.stopped) this.callback(event);
   }
 }

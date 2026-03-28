@@ -2,8 +2,21 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { api } from "../api";
 import { unwrap } from "./util";
 
+/** Shape returned by the messages API endpoint. */
+export interface MessagesResponse {
+  messages: Array<{
+    id: number;
+    projectId: string;
+    agentId: string;
+    role: string;
+    content: Record<string, unknown>;
+    createdAt: string;
+  }>;
+  hasMore: boolean;
+}
+
 export function useMessages(projectId: string | undefined, agentId: string | undefined) {
-  return useInfiniteQuery({
+  return useInfiniteQuery<MessagesResponse>({
     queryKey: ["messages", projectId, agentId],
     queryFn: async ({ pageParam }) => {
       const query: Record<string, string> = {};
@@ -13,14 +26,14 @@ export function useMessages(projectId: string | undefined, agentId: string | und
           param: { id: projectId!, aid: agentId! },
           query,
         }),
-      );
+      ) as unknown as MessagesResponse;
     },
     enabled: !!projectId && !!agentId,
-    initialPageParam: undefined as number | undefined,
+    initialPageParam: undefined satisfies number | undefined,
     getNextPageParam: (lastPage) => {
       if (!lastPage.hasMore || lastPage.messages.length === 0) return undefined;
       // Oldest message in the page is the cursor for the next (older) page
-      return lastPage.messages[0].id as number;
+      return lastPage.messages[0].id;
     },
   });
 }
@@ -35,7 +48,14 @@ export function useSendMessage(projectId: string) {
     }: {
       agentId: string;
       text: string;
-      attachments?: Record<string, unknown>[];
+      attachments?: Array<{
+        id?: string;
+        name?: string;
+        filename?: string;
+        content?: string;
+        content_type: string;
+        size?: number;
+      }>;
     }) =>
       unwrap(
         await api.projects[":id"].agents[":aid"].message.$post({

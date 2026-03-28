@@ -21,9 +21,9 @@ import {
 } from "./ui/dropdown-menu";
 import AppLayout from "./AppLayout";
 import { navigate } from "../lib/navigate";
-import AgentForm from "./AgentForm";
+import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import { ChevronLeft, MoreHorizontal, Pencil, Loader2 } from "lucide-react";
-import { type Agent, statusVariant, harnessLabel } from "./types";
+import { statusVariant, harnessLabel } from "./types";
 import {
   useProjectId,
   useAgents,
@@ -61,17 +61,9 @@ export default function AgentShow() {
     );
   }
 
-  if ("error" in agentDetail) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-sm text-destructive">Failed to load agent.</p>
-      </div>
-    );
-  }
+  const agent = agentDetail;
 
-  const agent = agentDetail as unknown as Agent;
-
-  const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
+  const handleFormSave = (_event: string, payload: AgentFormPayload) => {
     const { id: _id, ...fields } = payload;
     updateAgent.mutate({ id: agent.id, ...fields });
     setEditOpen(false);

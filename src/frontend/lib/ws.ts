@@ -1,15 +1,102 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import type { AgentStatus } from "../components/types";
 
-export interface WsEvent {
-  topic: string;
-  type: string;
-  payload?: Record<string, unknown>;
-  message?: Record<string, unknown>;
+/** Shape of the serialized message attached to agent-level WebSocket events. */
+export interface WsSerializedMessage {
+  id: number;
+  role: string;
+  ts: string;
+  text?: string;
+  tool?: string;
+  tool_use_id?: string;
+  input?: Record<string, unknown>;
+  output?: string | null;
+  isError?: boolean;
+  fromAgent?: string;
+  attachments?: Array<{
+    id: string;
+    filename: string;
+    content_type: string;
+    size: number;
+  }>;
 }
+
+/** Payload shapes for agent-level WebSocket events. */
+export type AgentWsEvent =
+  | { topic: string; type: "text_delta"; payload: { delta: string } }
+  | { topic: string; type: "text"; payload: { text: string }; message?: WsSerializedMessage }
+  | {
+      topic: string;
+      type: "tool_use";
+      payload: {
+        tool: string;
+        tool_use_id: string;
+        input: Record<string, unknown>;
+        status: string;
+        output?: string;
+        is_error?: boolean;
+      };
+      message?: WsSerializedMessage;
+    }
+  | {
+      topic: string;
+      type: "tool_result";
+      payload: { tool_use_id: string; output: string; is_error: boolean };
+    }
+  | { topic: string; type: "turn_complete"; payload: Record<string, never> }
+  | {
+      topic: string;
+      type: "error";
+      payload: { message: string };
+      message?: WsSerializedMessage;
+    }
+  | {
+      topic: string;
+      type: "inter_agent_message";
+      payload: { fromAgent: string; text: string };
+      message?: WsSerializedMessage;
+    }
+  | {
+      topic: string;
+      type: "system_message";
+      payload: { text: string };
+      message?: WsSerializedMessage;
+    }
+  | {
+      topic: string;
+      type: "attachment";
+      payload: {
+        attachments: Array<{
+          id: string;
+          filename: string;
+          content_type: string;
+          size: number;
+        }>;
+      };
+      message?: WsSerializedMessage;
+    }
+  | { topic: string; type: "agent_status"; payload: { agentId: string; status: AgentStatus } }
+  | { topic: string; type: "agent_busy"; payload: { agentId: string; active: boolean } };
+
+/** Payload shapes for agent-list WebSocket events. */
+export type AgentListWsEvent =
+  | { topic: string; type: "agent_created"; payload: { agentId: string; name: string } }
+  | { topic: string; type: "agent_updated"; payload: { agentId: string; name: string } }
+  | { topic: string; type: "agent_deleted"; payload: { agentId: string } }
+  | { topic: string; type: "agent_status"; payload: { agentId: string; status: AgentStatus } }
+  | { topic: string; type: "agent_busy"; payload: { agentId: string; active: boolean } }
+  | {
+      topic: string;
+      type: "new_message_notification";
+      payload: { agentId: string; messageId: number; role: string };
+    };
+
+/** Union of all WebSocket events. */
+export type WsEvent = AgentWsEvent | AgentListWsEvent;
 
 export type ConnectionState = "connecting" | "connected" | "disconnected";
 
-type EventHandler = (event: WsEvent) => void;
+export type EventHandler<E extends WsEvent = WsEvent> = (event: E) => void;
 type StateListener = () => void;
 
 const INITIAL_RETRY_MS = 1000;
@@ -95,7 +182,7 @@ class WsClient {
     };
   }
 
-  subscribe(topic: string, handler: EventHandler): () => void {
+  subscribe<E extends WsEvent = WsEvent>(topic: string, handler: EventHandler<E>): () => void {
     let topicHandlers = this.handlers.get(topic);
     if (!topicHandlers) {
       topicHandlers = new Set();
@@ -106,10 +193,10 @@ class WsClient {
         this.pendingSubscriptions.add(topic);
       }
     }
-    topicHandlers.add(handler);
+    topicHandlers.add(handler as EventHandler);
 
     return () => {
-      topicHandlers!.delete(handler);
+      topicHandlers!.delete(handler as EventHandler);
       if (topicHandlers!.size === 0) {
         this.handlers.delete(topic);
         if (this.ws?.readyState === WebSocket.OPEN) {
@@ -149,7 +236,10 @@ function getClient(): WsClient {
  * Subscribe to a WebSocket topic. Automatically subscribes on mount
  * and unsubscribes on unmount or when the topic changes.
  */
-export function useSubscription(topic: string | null, handler: EventHandler): void {
+export function useSubscription<E extends WsEvent = WsEvent>(
+  topic: string | null,
+  handler: EventHandler<E>,
+): void {
   const handlerRef = useRef(handler);
   useEffect(() => {
     handlerRef.current = handler;
@@ -159,7 +249,7 @@ export function useSubscription(topic: string | null, handler: EventHandler): vo
     if (!topic) return;
 
     const wsClient = getClient();
-    const unsub = wsClient.subscribe(topic, (event) => {
+    const unsub = wsClient.subscribe<E>(topic, (event) => {
       handlerRef.current(event);
     });
 
@@ -170,7 +260,10 @@ export function useSubscription(topic: string | null, handler: EventHandler): vo
 /**
  * Subscribe to multiple WebSocket topics at once.
  */
-export function useSubscriptions(topics: Array<string | null>, handler: EventHandler): void {
+export function useSubscriptions<E extends WsEvent = WsEvent>(
+  topics: Array<string | null>,
+  handler: EventHandler<E>,
+): void {
   const handlerRef = useRef(handler);
   useEffect(() => {
     handlerRef.current = handler;
@@ -186,7 +279,7 @@ export function useSubscriptions(topics: Array<string | null>, handler: EventHan
     for (const topic of currentTopics) {
       if (!topic) continue;
       unsubs.push(
-        wsClient.subscribe(topic, (event) => {
+        wsClient.subscribe<E>(topic, (event) => {
           handlerRef.current(event);
         }),
       );

@@ -3,13 +3,19 @@ import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/pr
 import { join } from "path";
 import yaml from "js-yaml";
 import { safeYamlLoad } from "../utils/yaml";
-import { bus } from "../events";
+import {
+  bus,
+  type AgentStatus,
+  type AgentBusEvent,
+  type AgentListBusEvent,
+  type SerializedMessage,
+} from "../events";
 import * as agentsService from "../services/agents";
 import * as workspace from "../services/workspace";
 import { createHarness, type Harness, type HarnessType } from "./harness";
 import type { AgentEvent } from "./harness/types";
 
-export type AgentStatus = "idle" | "bootstrapping" | "active" | "crashed";
+export type { AgentStatus } from "../events";
 
 const MAX_AUTO_RESTARTS = 3;
 
@@ -46,24 +52,32 @@ function serializeMessage(msg: {
   role: string;
   content: Record<string, unknown>;
   createdAt: string;
-}) {
+}): SerializedMessage {
   const base = { id: msg.id, role: msg.role, ts: msg.createdAt };
-  const content = msg.content as Record<string, unknown>;
+  const { content } = msg;
 
   switch (msg.role) {
     case "tool_use":
       return {
         ...base,
-        tool: content.tool,
-        tool_use_id: content.tool_use_id,
-        input: content.input,
-        output: content.output,
-        isError: content.is_error ?? false,
+        tool: content.tool as string | undefined,
+        tool_use_id: content.tool_use_id as string | undefined,
+        input: content.input as Record<string, unknown> | undefined,
+        output: content.output as string | null | undefined,
+        isError: (content.is_error as boolean | undefined) ?? false,
       };
     case "inter_agent":
-      return { ...base, text: content.text, fromAgent: content.fromAgent };
+      return {
+        ...base,
+        text: content.text as string | undefined,
+        fromAgent: content.fromAgent as string | undefined,
+      };
     default:
-      return { ...base, text: content.text, attachments: content.attachments ?? [] };
+      return {
+        ...base,
+        text: content.text as string | undefined,
+        attachments: (content.attachments ?? []) as SerializedMessage["attachments"],
+      };
   }
 }
 
@@ -179,7 +193,16 @@ export class AgentManager {
   async sendMessage(
     text: string,
     from: "user" | "system" = "user",
-    opts: { attachments?: Array<Record<string, unknown>> } = {},
+    opts: {
+      attachments?: Array<{
+        id?: string;
+        name?: string;
+        filename?: string;
+        content?: string;
+        content_type: string;
+        size?: number;
+      }>;
+    } = {},
   ): Promise<
     | { ok: true; message: ReturnType<typeof agentsService.createMessage> | null }
     | { ok: false; error: string }
@@ -195,13 +218,10 @@ export class AgentManager {
     if (attachments.length > 0) {
       const refs = attachments
         .map((a) => {
-          const path = workspace.attachmentPath(
-            this.projectId,
-            this.agentId,
-            a.id as string,
-            a.filename as string,
-          );
-          return `[Attached file: ${a.filename} (${a.content_type}) at ${path}]`;
+          const fname = a.filename ?? a.name ?? "unknown";
+          const attachId = a.id ?? fname;
+          const path = workspace.attachmentPath(this.projectId, this.agentId, attachId, fname);
+          return `[Attached file: ${fname} (${a.content_type}) at ${path}]`;
         })
         .join("\n");
       messageText = text ? `${text}\n\n${refs}` : refs;
@@ -285,7 +305,8 @@ export class AgentManager {
     const agent = agentsService.getAgent(this.agentId);
     if (!agent) throw new Error("Agent not found in DB");
 
-    const harnessType = (agent.harness as HarnessType) ?? "claude_code";
+    const harnessType: HarnessType =
+      agent.harness === "pi" || agent.harness === "claude_code" ? agent.harness : "claude_code";
     const model = agent.model ?? "claude-sonnet-4-6";
     const systemPrompt = agent.systemPrompt ?? "";
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
@@ -307,49 +328,45 @@ export class AgentManager {
   // --- Harness event handling ---
 
   private handleHarnessEvent(event: AgentEvent): void {
-    const { type, payload } = event;
-
-    switch (type) {
+    switch (event.type) {
       case "text_delta":
-        this.handleTextDelta(payload);
+        this.handleTextDelta(event.payload);
         break;
       case "tool_use":
-        this.handleToolUse(payload);
+        this.handleToolUse(event.payload);
         break;
       case "tool_result":
-        this.handleToolResult(payload);
+        this.handleToolResult(event.payload);
         break;
       case "text":
-        this.handleText(payload);
+        this.handleText(event.payload);
         break;
       case "turn_complete": {
         this.flushStreaming();
-        const sessionId = payload.session_id as string | undefined;
-        if (sessionId) {
-          agentsService.setSessionId(this.agentId, sessionId);
+        if (event.payload.session_id) {
+          agentsService.setSessionId(this.agentId, event.payload.session_id);
         }
         this.broadcastAgent({ type: "turn_complete", payload: {} });
         break;
       }
       case "error":
-        this.handleError(payload);
+        this.handleError(event.payload);
         break;
-      default:
-        this.broadcastAgent({ type, payload });
     }
   }
 
-  private handleTextDelta(payload: Record<string, unknown>): void {
-    const delta = (payload.delta as string) ?? "";
-    this.streamingText = (this.streamingText ?? "") + delta;
-    this.broadcastAgent({ type: "text_delta", payload: { delta } });
+  private handleTextDelta(payload: { delta: string }): void {
+    this.streamingText = (this.streamingText ?? "") + payload.delta;
+    this.broadcastAgent({ type: "text_delta", payload: { delta: payload.delta } });
   }
 
-  private handleToolUse(payload: Record<string, unknown>): void {
-    const status = payload.status as string;
-    const toolUseId = (payload.tool_use_id as string) ?? "";
-    const tool = (payload.tool as string) ?? "unknown";
-    const input = (payload.input as Record<string, unknown>) ?? {};
+  private handleToolUse(payload: {
+    tool: string;
+    tool_use_id: string;
+    input: Record<string, unknown>;
+    status: "started" | "input_ready";
+  }): void {
+    const { status, tool_use_id: toolUseId, tool, input } = payload;
 
     if (status === "started" || (status === "input_ready" && !this.toolUseIds.has(toolUseId))) {
       this.flushStreaming();
@@ -366,8 +383,9 @@ export class AgentManager {
       if (dbId !== undefined) {
         const existing = agentsService.getMessage(dbId);
         if (existing) {
-          const content = existing.content as Record<string, unknown>;
-          agentsService.updateMessage(dbId, { content: { ...content, input } });
+          agentsService.updateMessage(dbId, {
+            content: { ...existing.content, input },
+          });
         }
       }
       this.broadcastAgent({ type: "tool_use", payload });
@@ -376,25 +394,28 @@ export class AgentManager {
     }
   }
 
-  private handleToolResult(payload: Record<string, unknown>): void {
-    const toolUseId = (payload.tool_use_id as string) ?? "";
-    const output = payload.output ?? "";
-    const isError = payload.is_error ?? false;
+  private handleToolResult(payload: {
+    tool_use_id: string;
+    output: string;
+    is_error: boolean;
+  }): void {
+    const { tool_use_id: toolUseId, output, is_error: isError } = payload;
 
     const dbId = this.toolUseIds.get(toolUseId);
     if (dbId !== undefined) {
       const existing = agentsService.getMessage(dbId);
       if (existing) {
-        const content = existing.content as Record<string, unknown>;
-        agentsService.updateMessage(dbId, { content: { ...content, output, is_error: isError } });
+        agentsService.updateMessage(dbId, {
+          content: { ...existing.content, output, is_error: isError },
+        });
       }
       this.toolUseIds.delete(toolUseId);
     }
     this.broadcastAgent({ type: "tool_result", payload });
   }
 
-  private handleText(payload: Record<string, unknown>): void {
-    const text = (payload.text as string) ?? "";
+  private handleText(payload: { text: string }): void {
+    const { text } = payload;
     const hadStreaming = this.streamingText !== null && this.streamingText !== "";
     this.flushStreaming();
 
@@ -410,9 +431,9 @@ export class AgentManager {
     this.broadcastNewMessage(msg);
   }
 
-  private handleError(payload: Record<string, unknown>): void {
+  private handleError(payload: { message: string }): void {
     this.flushStreaming();
-    const errorMsg = (payload.message as string) ?? "Unknown error";
+    const errorMsg = payload.message ?? "Unknown error";
     console.warn(`Agent error for ${this.agentName}: ${errorMsg}`);
 
     const msg = agentsService.createMessage({
@@ -844,19 +865,12 @@ Read \`${projectDoc}\` for project context before starting tasks.
 
   // --- Broadcasting ---
 
-  private broadcastAgent(event: Record<string, unknown>): void {
-    bus.emit(`project:${this.projectId}:agent:${this.agentId}`, {
-      type: event.type as string,
-      payload: event.payload,
-      message: event.message,
-    });
+  private broadcastAgent(event: AgentBusEvent): void {
+    bus.emit(`project:${this.projectId}:agent:${this.agentId}`, event);
   }
 
-  private broadcastAgents(event: Record<string, unknown>): void {
-    bus.emit(`project:${this.projectId}:agents`, {
-      type: event.type as string,
-      payload: event.payload,
-    });
+  private broadcastAgents(event: AgentListBusEvent): void {
+    bus.emit(`project:${this.projectId}:agents`, event);
   }
 
   private broadcastNewMessage(msg: ReturnType<typeof agentsService.createMessage>): void {
