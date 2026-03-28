@@ -22,7 +22,8 @@ import {
 import AppLayout from "./AppLayout";
 import { navigate } from "../lib/navigate";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
-import { ChevronLeft, MoreHorizontal, Pencil, Loader2 } from "lucide-react";
+import { ChevronLeft, MoreHorizontal, Pencil } from "lucide-react";
+import { Spinner, PageLoader } from "./ui/spinner";
 import { statusVariant, harnessLabel } from "./types";
 import {
   useProjectId,
@@ -54,11 +55,7 @@ export default function AgentShow() {
   const [restartOpen, setRestartOpen] = React.useState(false);
 
   if (!projectId || !agentId || !agentDetail) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const agent = agentDetail;
@@ -99,7 +96,7 @@ export default function AgentShow() {
                 onClick={() => restartAgent.mutate(agentId!)}
                 disabled={restartAgent.isPending}
               >
-                {restartAgent.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                {restartAgent.isPending && <Spinner size="sm" className="mr-1" />}
                 Start Agent
               </Button>
             )}

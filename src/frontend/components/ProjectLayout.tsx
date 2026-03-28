@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "./ui/spinner";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
@@ -148,7 +148,7 @@ export default function ProjectLayout() {
   if (!projectId) {
     return (
       <div className="flex items-center justify-center h-dvh">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size="lg" className="text-muted-foreground" />
       </div>
     );
   }

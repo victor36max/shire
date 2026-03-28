@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Loader2, Paperclip, Square, X, FileIcon, Download } from "lucide-react";
+import { Paperclip, Square, X, FileIcon, Download } from "lucide-react";
+import { Spinner } from "./ui/spinner";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -418,7 +419,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
         )}
         {messagesLoading && (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Spinner size="md" className="text-muted-foreground" />
           </div>
         )}
         {!messagesLoading && !hasMessages && (
@@ -483,8 +484,15 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
           </div>
         )}
         {agent.busy && !streamingText && (
-          <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-status-active animate-pulse" />
+          <div
+            className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full bg-status-active animate-pulse"
+              aria-hidden="true"
+            />
             Thinking...
           </div>
         )}

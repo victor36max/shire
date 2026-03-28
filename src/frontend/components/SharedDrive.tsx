@@ -23,7 +23,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import AppLayout from "./AppLayout";
 import Markdown from "./Markdown";
-import { ChevronLeft, Folder, File, X, Download, Loader2 } from "lucide-react";
+import { ChevronLeft, Folder, File, X, Download } from "lucide-react";
+import { Spinner, PageLoader } from "./ui/spinner";
+import { ErrorState } from "./ui/error-state";
 import { navigate as navigateTo } from "../lib/navigate";
 import {
   useProjectId,
@@ -207,7 +209,13 @@ export default function SharedDrive() {
   const { projectId, projectName } = useProjectId();
   const [currentPath, setCurrentPath] = React.useState("/");
 
-  const { data, isLoading: filesLoading } = useSharedDrive(projectId, currentPath);
+  const {
+    data,
+    isLoading: filesLoading,
+    isError: filesError,
+    error: filesErrorObj,
+    refetch: refetchFiles,
+  } = useSharedDrive(projectId, currentPath);
   const files = data?.files ?? [];
 
   const createDirectory = useCreateDirectory(projectId ?? "");
@@ -316,11 +324,7 @@ export default function SharedDrive() {
   });
 
   if (!projectId) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
@@ -369,7 +373,16 @@ export default function SharedDrive() {
                 {filesLoading ? (
                   <TableRow>
                     <TableCell colSpan={previewFile ? 2 : 3} className="text-center py-8">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mx-auto" />
+                      <Spinner size="sm" className="text-muted-foreground mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : filesError ? (
+                  <TableRow>
+                    <TableCell colSpan={previewFile ? 2 : 3}>
+                      <ErrorState
+                        message={filesErrorObj?.message || "Failed to load files"}
+                        onRetry={() => refetchFiles()}
+                      />
                     </TableCell>
                   </TableRow>
                 ) : sortedFiles.length === 0 ? (
@@ -468,6 +481,7 @@ export default function SharedDrive() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
+                    aria-label="Close preview"
                     onClick={() => setPreviewFile(null)}
                   >
                     <X className="h-4 w-4" />

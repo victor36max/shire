@@ -11,10 +11,19 @@ const deleteMutate = mock(() => {});
 const restartMutate = mock(() => {});
 
 let mockProjects: Project[] = [];
+let mockProjectsError: {
+  isError: boolean;
+  error: Error | null;
+  refetch: ReturnType<typeof mock>;
+} = { isError: false, error: null, refetch: mock(() => {}) };
 
 mock.module("../lib/hooks", () => ({
   ...actualHooks,
-  useProjects: () => ({ data: mockProjects, isLoading: false }),
+  useProjects: () => ({
+    data: mockProjects,
+    isLoading: false,
+    ...mockProjectsError,
+  }),
   useCreateProject: () => ({ mutate: createMutate, isPending: false }),
   useDeleteProject: () => ({ mutate: deleteMutate, isPending: false }),
   useRestartProject: () => ({ mutate: restartMutate, isPending: false }),
@@ -31,6 +40,7 @@ const defaultProjects: Project[] = [
 
 beforeEach(() => {
   mockProjects = defaultProjects;
+  mockProjectsError = { isError: false, error: null, refetch: mock(() => {}) };
   createMutate.mockClear();
   deleteMutate.mockClear();
   restartMutate.mockClear();
@@ -170,5 +180,26 @@ describe("ProjectDashboard", () => {
     await userEvent.click(screen.getByText("Restart"));
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.getByText("Restarting...")).toBeInTheDocument();
+  });
+
+  it("shows error state with retry when projects query fails", () => {
+    mockProjects = [];
+    mockProjectsError = {
+      isError: true,
+      error: new Error("Network error"),
+      refetch: mock(() => {}),
+    };
+    renderWithProviders(<ProjectDashboard />);
+    expect(screen.getByText("Network error")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("calls refetch when clicking Try again on error state", async () => {
+    const refetchFn = mock(() => {});
+    mockProjects = [];
+    mockProjectsError = { isError: true, error: new Error("Network error"), refetch: refetchFn };
+    renderWithProviders(<ProjectDashboard />);
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(refetchFn).toHaveBeenCalled();
   });
 });

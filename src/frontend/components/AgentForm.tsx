@@ -96,9 +96,11 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
               value={name}
               onChange={(e) => setName(e.target.value.toLowerCase())}
               placeholder="my-agent"
+              aria-describedby={name && !nameValid ? "name-error" : undefined}
+              aria-invalid={name !== "" && !nameValid}
             />
             {name && !nameValid && (
-              <p className="text-sm text-destructive">
+              <p id="name-error" className="text-sm text-destructive">
                 Use lowercase letters, numbers, and hyphens only. Must start and end with a letter
                 or number.
               </p>

@@ -17,6 +17,11 @@ const previewFileMutate = mock(
 );
 
 let mockFiles: SharedDriveFile[] = [];
+let mockSharedDriveError: {
+  isError: boolean;
+  error: Error | null;
+  refetch: ReturnType<typeof mock>;
+} = { isError: false, error: null, refetch: mock(() => {}) };
 
 mock.module("../lib/hooks", () => ({
   ...actualHooks,
@@ -24,6 +29,7 @@ mock.module("../lib/hooks", () => ({
   useSharedDrive: () => ({
     data: { files: mockFiles, currentPath: "/" },
     isLoading: false,
+    ...mockSharedDriveError,
   }),
   useCreateDirectory: () => ({ mutate: createDirMutate, isPending: false }),
   useDeleteSharedFile: () => ({ mutate: deleteFileMutate, isPending: false }),
@@ -42,6 +48,7 @@ const sampleFiles: SharedDriveFile[] = [
 
 beforeEach(() => {
   mockFiles = [];
+  mockSharedDriveError = { isError: false, error: null, refetch: mock(() => {}) };
   createDirMutate.mockClear();
   deleteFileMutate.mockClear();
   uploadFileMutate.mockClear();
@@ -276,5 +283,16 @@ describe("SharedDrive", () => {
 
       expect(screen.queryByText("Actions")).not.toBeInTheDocument();
     });
+  });
+
+  it("shows error state with retry when files query fails", () => {
+    mockSharedDriveError = {
+      isError: true,
+      error: new Error("Permission denied"),
+      refetch: mock(() => {}),
+    };
+    renderWithProviders(<SharedDrive />);
+    expect(screen.getByText("Permission denied")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
 });
