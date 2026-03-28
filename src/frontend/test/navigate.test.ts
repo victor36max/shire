@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { navigate, setNavigate } from "../lib/navigate";
 
 describe("navigate", () => {
@@ -8,7 +8,7 @@ describe("navigate", () => {
   });
 
   it("uses setNavigate callback when available", () => {
-    const mockNav = vi.fn();
+    const mockNav = mock(() => {});
     setNavigate(mockNav);
 
     navigate("/projects/test");
@@ -16,7 +16,7 @@ describe("navigate", () => {
   });
 
   it("passes replace option through", () => {
-    const mockNav = vi.fn();
+    const mockNav = mock(() => {});
     setNavigate(mockNav);
 
     navigate("/projects/test", { replace: true });
@@ -24,7 +24,7 @@ describe("navigate", () => {
   });
 
   it("falls back to window.location.assign when no callback set", () => {
-    const assignSpy = vi.fn();
+    const assignSpy = mock(() => {});
     Object.defineProperty(window, "location", {
       value: { assign: assignSpy },
       writable: true,

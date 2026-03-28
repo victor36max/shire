@@ -1,36 +1,32 @@
-import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { afterEach, expect } from "bun:test";
+import { cleanup } from "@testing-library/react";
+import * as matchers from "@testing-library/jest-dom/matchers";
+import { mock } from "bun:test";
 
-// Mock scrollIntoView for jsdom
+expect.extend(matchers);
+
+afterEach(() => {
+  cleanup();
+});
+
+// Mock scrollIntoView for happy-dom
 Element.prototype.scrollIntoView = () => {};
 
-// Mock ResizeObserver for jsdom
+// Mock ResizeObserver for happy-dom
 class MockResizeObserver {
-  observe = vi.fn();
-  unobserve = vi.fn();
-  disconnect = vi.fn();
+  observe = mock(() => {});
+  unobserve = mock(() => {});
+  disconnect = mock(() => {});
 }
 global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 
-// Mock matchMedia for jsdom (ThemeProvider uses it)
+// Mock matchMedia for happy-dom (ThemeProvider uses it)
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
+  value: mock((query: string) => ({
     matches: false,
     media: query,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
+    addEventListener: mock(() => {}),
+    removeEventListener: mock(() => {}),
   })),
 });
-
-// Mock useLiveReact globally — individual tests can override via vi.mocked()
-vi.mock("live_react", () => ({
-  useLiveReact: vi.fn(() => ({
-    handleEvent: vi.fn().mockReturnValue("ref-id"),
-    removeHandleEvent: vi.fn(),
-    pushEvent: vi.fn(),
-    pushEventTo: vi.fn(),
-    upload: vi.fn(),
-    uploadTo: vi.fn(),
-  })),
-}));

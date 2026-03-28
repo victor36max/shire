@@ -1,0 +1,15 @@
+{
+  "name": "@shire/cli-linux-x64",
+  "version": "0.1.0",
+  "description": "Shire CLI binary for Linux x64",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "bin": {
+    "shire": "shire"
+  },
+  "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/victor36max/shire"
+  }
+}

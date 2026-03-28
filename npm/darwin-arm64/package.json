@@ -1,0 +1,15 @@
+{
+  "name": "@shire/cli-darwin-arm64",
+  "version": "0.1.0",
+  "description": "Shire CLI binary for macOS ARM64 (Apple Silicon)",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "bin": {
+    "shire": "shire"
+  },
+  "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/victor36max/shire"
+  }
+}

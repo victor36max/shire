@@ -1,8 +1,10 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { type Agent } from "../components/types";
 import { renderWithProviders } from "./test-utils";
+import * as reactRouterDom from "react-router-dom";
+import * as hooksModule from "../lib/hooks";
 
 const agent: Agent = {
   id: "a1",
@@ -15,9 +17,9 @@ const agent: Agent = {
   harness: "claude_code",
 };
 
-const restartMutate = vi.fn();
-const deleteMutate = vi.fn();
-const updateMutate = vi.fn();
+const restartMutate = mock(() => {});
+const deleteMutate = mock(() => {});
+const updateMutate = mock(() => {});
 
 let mockAgentDetail: Record<string, unknown> | undefined = { ...agent };
 let mockAgentName = "Test Agent";
@@ -25,32 +27,26 @@ let mockAgentsList: Array<{ id: string; name: string; status: string }> = [
   { id: "a1", name: "Test Agent", status: "active" },
 ];
 
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual("react-router-dom");
-  return {
-    ...actual,
-    useParams: () => ({ agentName: mockAgentName, projectName: "test-project" }),
-  };
-});
+mock.module("react-router-dom", () => ({
+  ...reactRouterDom,
+  useParams: () => ({ agentName: mockAgentName, projectName: "test-project" }),
+}));
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useAgents: () => ({
-      data: mockAgentsList,
-      isLoading: false,
-    }),
-    useAgentDetail: () => ({ data: mockAgentDetail, isLoading: false }),
-    useRestartAgent: () => ({ mutate: restartMutate, isPending: false }),
-    useDeleteAgent: () => ({ mutate: deleteMutate, isPending: false }),
-    useUpdateAgent: () => ({ mutate: updateMutate, isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...hooksModule,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useAgents: () => ({
+    data: mockAgentsList,
+    isLoading: false,
+  }),
+  useAgentDetail: () => ({ data: mockAgentDetail, isLoading: false }),
+  useRestartAgent: () => ({ mutate: restartMutate, isPending: false }),
+  useDeleteAgent: () => ({ mutate: deleteMutate, isPending: false }),
+  useUpdateAgent: () => ({ mutate: updateMutate, isPending: false }),
+}));
 
 // Mock Terminal component to avoid xterm/canvas dependencies
-vi.mock("../components/Terminal", () => ({
+mock.module("../components/Terminal", () => ({
   default: ({ pushEvent: _pushEvent }: { pushEvent: unknown }) => (
     <div data-testid="terminal-mock">Terminal Component</div>
   ),

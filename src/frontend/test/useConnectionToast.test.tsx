@@ -1,25 +1,26 @@
 import { renderHook } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { toast } from "sonner";
 import { useConnectionToast } from "../lib/useConnectionToast";
 
 let mockState = "disconnected";
 
-vi.mock("../lib/ws", () => ({
+mock.module("../lib/ws", () => ({
   useConnectionState: () => mockState,
 }));
 
-vi.mock("sonner", () => ({
+mock.module("sonner", () => ({
   toast: {
-    loading: vi.fn(),
-    success: vi.fn(),
+    loading: mock(() => {}),
+    success: mock(() => {}),
   },
 }));
 
 describe("useConnectionToast", () => {
   beforeEach(() => {
     mockState = "disconnected";
-    vi.clearAllMocks();
+    (toast.loading as ReturnType<typeof mock>).mockClear();
+    (toast.success as ReturnType<typeof mock>).mockClear();
   });
 
   it("does not show any toast on initial connection sequence", () => {

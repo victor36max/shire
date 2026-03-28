@@ -67,16 +67,17 @@ Each project has an isolated workspace on disk:
 | Runtime | [Bun](https://bun.sh) |
 | Backend | Hono, Drizzle ORM, SQLite |
 | Frontend | React 19, React Router 7, shadcn/ui (Radix), Tailwind CSS 4, TanStack Query |
+| Bundler | Bun (fullstack dev server + production builds) |
 | Agent Harnesses | Claude Code SDK, Pi Agent SDK |
 | Scheduling | node-schedule (cron-based) |
-| Testing | Bun test (backend), Vitest + Testing Library (frontend) |
+| Testing | Bun test + Testing Library + happy-dom |
 | Validation | Zod, TypeScript strict mode |
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) (v1.0+)
+- [Bun](https://bun.sh) (v1.3.11+)
 - [Claude Code](https://claude.ai/download) (only if using the `claude_code` harness)
 
 ### Quick Start
@@ -84,11 +85,10 @@ Each project has an isolated workspace on disk:
 ```bash
 git clone https://github.com/victor36max/shire.git && cd shire
 bun install
-bun run dev            # Backend on :3000
-bun run dev:frontend   # Frontend on :5173
+bun run dev
 ```
 
-Visit [localhost:5173](http://localhost:5173) to open the dashboard.
+Visit [localhost:8080](http://localhost:8080) to open the dashboard.
 
 By default, Shire uses **SQLite** for storage. Agents run as local processes on your machine — no external services required. All data is stored at `~/.shire/`.
 
@@ -101,7 +101,7 @@ Agent-specific environment variables (API keys, tokens, etc.) are configured per
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3000` | Backend HTTP server port |
+| `PORT` | `8080` | HTTP server port |
 | `NODE_ENV` | — | Set to `production` for production mode |
 | `SHIRE_DATA_DIR` | `~/.shire` | Database and data storage root |
 | `SHIRE_PROJECTS_DIR` | `~/.shire/projects` | Project workspace root |
@@ -112,33 +112,80 @@ Agent-specific environment variables (API keys, tokens, etc.) are configured per
 ## Development
 
 ```bash
-# Development
-bun run dev              # Backend server on :3000
-bun run dev:frontend     # Vite dev server on :5173
+# Run dev server (backend + frontend with HMR)
+bun run dev
+
+# Run with custom port
+bun run dev -- --port 3000
 
 # Testing
-bun test                 # Backend tests
-bun run test:frontend    # Frontend tests (Vitest)
-bun run test:all         # Both suites
+bun test                 # All tests (backend + frontend)
 
 # Quality
 bun run lint             # ESLint
 bun run lint:fix         # ESLint autofix
 bun run format           # Prettier write
 bun run format:check     # Prettier check
-bun run typecheck        # Backend TypeScript check
-bun run typecheck:frontend # Frontend TypeScript check
+bun run typecheck        # TypeScript check
 
 # Database
 bun run db:generate      # Generate Drizzle migrations from schema
 bun run db:migrate       # Apply migrations
 bun run db:studio        # Open Drizzle Studio
 
-# Build
-bun run build            # Build frontend for production
-
 # Catalog
 bun run catalog:sync     # Sync agent catalog from community repo
+```
+
+## Building & Publishing
+
+Shire is distributed as standalone binaries via npm — no runtime dependencies needed.
+
+### Build locally
+
+```bash
+# Build binary for your current platform
+bun run build:local
+
+# Build binaries for all platforms
+bun run build:all
+```
+
+This compiles the backend into a standalone binary and pre-builds the frontend assets alongside it.
+
+### CLI Usage
+
+```bash
+shire                    # Start server on port 8080
+shire start --port 3000  # Start on custom port
+shire start --daemon     # Run in background
+shire stop               # Stop background server
+shire status             # Check if server is running
+shire --help             # Show help
+```
+
+### Publishing to npm
+
+Publishing is automated via GitHub Actions. Tag a release to trigger the workflow:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+This builds platform-specific binaries and publishes:
+- `@shire/cli-darwin-arm64` (macOS Apple Silicon)
+- `@shire/cli-darwin-x64` (macOS Intel)
+- `@shire/cli-linux-x64` (Linux x64)
+- `@shire/cli-linux-arm64` (Linux ARM)
+- `@shire/cli-win32-x64` (Windows x64)
+- `shire` (meta-package that installs the right binary)
+
+Users install with:
+
+```bash
+npm install -g shire
+shire
 ```
 
 ## License

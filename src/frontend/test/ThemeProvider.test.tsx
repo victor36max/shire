@@ -1,9 +1,10 @@
 import { render, act } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { ThemeProvider } from "../components/ThemeProvider";
 
 let matchMediaListeners: Array<(e: { matches: boolean }) => void> = [];
 let matchMediaMatches = false;
+let originalMatchMedia: typeof globalThis.matchMedia;
 
 beforeEach(() => {
   localStorage.clear();
@@ -11,24 +12,26 @@ beforeEach(() => {
   matchMediaListeners = [];
   matchMediaMatches = false;
 
-  vi.stubGlobal(
-    "matchMedia",
-    vi.fn().mockImplementation((query: string) => ({
-      matches: query === "(prefers-color-scheme: dark)" ? matchMediaMatches : false,
-      media: query,
-      addEventListener: (_event: string, handler: (e: { matches: boolean }) => void) => {
-        matchMediaListeners.push(handler);
-      },
-      removeEventListener: (_event: string, handler: (e: { matches: boolean }) => void) => {
-        matchMediaListeners = matchMediaListeners.filter((h) => h !== handler);
-      },
-    })),
-  );
+  originalMatchMedia = globalThis.matchMedia;
+  globalThis.matchMedia = mock((query: string) => ({
+    matches: query === "(prefers-color-scheme: dark)" ? matchMediaMatches : false,
+    media: query,
+    onchange: null,
+    addListener: mock(() => {}),
+    removeListener: mock(() => {}),
+    dispatchEvent: mock(() => true),
+    addEventListener: (_event: string, handler: (e: { matches: boolean }) => void) => {
+      matchMediaListeners.push(handler);
+    },
+    removeEventListener: (_event: string, handler: (e: { matches: boolean }) => void) => {
+      matchMediaListeners = matchMediaListeners.filter((h) => h !== handler);
+    },
+  })) as unknown as typeof globalThis.matchMedia;
 });
 
 afterEach(() => {
   document.documentElement.classList.remove("dark");
-  vi.unstubAllGlobals();
+  globalThis.matchMedia = originalMatchMedia;
 });
 
 describe("ThemeProvider", () => {

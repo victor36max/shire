@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14
+            target: bun-darwin-arm64
+            npm-dir: darwin-arm64
+            binary: shire
+          - runner: macos-13
+            target: bun-darwin-x64
+            npm-dir: darwin-x64
+            binary: shire
+          - runner: ubuntu-latest
+            target: bun-linux-x64
+            npm-dir: linux-x64
+            binary: shire
+          - runner: ubuntu-24.04-arm
+            target: bun-linux-arm64
+            npm-dir: linux-arm64
+            binary: shire
+          - runner: windows-latest
+            target: bun-windows-x64
+            npm-dir: win32-x64
+            binary: shire.exe
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build binary and assets
+        run: bun run scripts/build-binaries.ts local
+
+      - name: Set version in package.json
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd npm/${{ matrix.npm-dir }}
+          jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+
+      - name: Publish platform package
+        run: npm publish --access public
+        working-directory: npm/${{ matrix.npm-dir }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.npm-dir }}
+          path: npm/${{ matrix.npm-dir }}/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version in meta-package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd npm/shire
+          jq --arg v "$VERSION" '
+            .version = $v |
+            .optionalDependencies |= with_entries(.value = $v)
+          ' package.json > tmp.json && mv tmp.json package.json
+
+      - name: Publish meta-package
+        run: npm publish --access public
+        working-directory: npm/shire
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,15 +1,16 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import SchedulesPage from "../components/SchedulesPage";
 import type { ScheduledTask } from "../components/types";
 import { renderWithProviders } from "./test-utils";
+import * as actualHooks from "../lib/hooks";
 
-const createMutate = vi.fn();
-const updateMutate = vi.fn();
-const deleteMutate = vi.fn();
-const toggleMutate = vi.fn();
-const runNowMutate = vi.fn();
+const createMutate = mock(() => {});
+const updateMutate = mock(() => {});
+const deleteMutate = mock(() => {});
+const toggleMutate = mock(() => {});
+const runNowMutate = mock(() => {});
 
 let mockTasks: ScheduledTask[] = [];
 let mockAgents: { id: string; name: string }[] = [
@@ -17,23 +18,20 @@ let mockAgents: { id: string; name: string }[] = [
   { id: "a2", name: "Bob" },
 ];
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useAgents: () => ({ data: mockAgents, isLoading: false }),
-    useSchedules: () => ({ data: mockTasks, isLoading: false }),
-    useCreateSchedule: () => ({ mutate: createMutate, isPending: false }),
-    useUpdateSchedule: () => ({ mutate: updateMutate, isPending: false }),
-    useDeleteSchedule: () => ({ mutate: deleteMutate, isPending: false }),
-    useToggleSchedule: () => ({ mutate: toggleMutate, isPending: false }),
-    useRunScheduleNow: () => ({ mutate: runNowMutate, isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...actualHooks,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useAgents: () => ({ data: mockAgents, isLoading: false }),
+  useSchedules: () => ({ data: mockTasks, isLoading: false }),
+  useCreateSchedule: () => ({ mutate: createMutate, isPending: false }),
+  useUpdateSchedule: () => ({ mutate: updateMutate, isPending: false }),
+  useDeleteSchedule: () => ({ mutate: deleteMutate, isPending: false }),
+  useToggleSchedule: () => ({ mutate: toggleMutate, isPending: false }),
+  useRunScheduleNow: () => ({ mutate: runNowMutate, isPending: false }),
+}));
 
-vi.mock("../lib/ws", () => ({
-  useSubscription: vi.fn(),
+mock.module("../lib/ws", () => ({
+  useSubscription: mock(() => {}),
 }));
 
 const sampleTasks: ScheduledTask[] = [
