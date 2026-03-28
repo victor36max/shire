@@ -91,7 +91,7 @@ mix setup        # Install deps, create SQLite DB, build assets
 mix phx.server   # Start the server
 ```
 
-Visit [localhost:4000](http://localhost:4000) to open the dashboard.
+Visit [localhost:3000](http://localhost:3000) to open the dashboard.
 
 By default, Shire uses **SQLite** for storage and **local mode** for agent execution. Agents run as local processes on your machine — no VMs, no SSH, no tokens. All data is stored at `~/.shire/`.
 
@@ -166,7 +166,7 @@ Full reference. Create a `.env` file in the project root — it's automatically 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `4000` | HTTP server port |
+| `PORT` | `3000` | HTTP server port |
 | `PHX_HOST` | `example.com` | Hostname for URL generation (production) |
 | `SECRET_KEY_BASE` | — | Phoenix session secret. Generate with `mix phx.gen.secret` |
 | `SHIRE_DB` | `sqlite` | Database engine: `sqlite` or `postgres` (compile-time) |

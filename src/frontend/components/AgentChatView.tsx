@@ -90,7 +90,8 @@ export default function AgentChatView() {
   }
 
   // Mark messages as read when viewing an agent
-  const lastMessageId = messagesData?.messages?.at(-1)?.id;
+  // Page 0 = most recent page (no cursor); last element = newest message
+  const lastMessageId = messagesData?.pages?.[0]?.messages?.at(-1)?.id as number | undefined;
   const markReadRef = React.useRef(markRead);
   React.useEffect(() => {
     markReadRef.current = markRead;

@@ -39,11 +39,11 @@ describe("ActivityLog", () => {
     expect(screen.queryByText("Load more")).not.toBeInTheDocument();
   });
 
-  it("calls onLoadMore with before id on Load more click", async () => {
+  it("calls onLoadMore on Load more click", async () => {
     const onLoadMore = vi.fn();
     render(<ActivityLog messages={messages} hasMore={true} onLoadMore={onLoadMore} />);
     await userEvent.click(screen.getByText("Load more"));
-    expect(onLoadMore).toHaveBeenCalledWith(2);
+    expect(onLoadMore).toHaveBeenCalled();
   });
 
   it("truncates long messages and shows expand toggle", async () => {

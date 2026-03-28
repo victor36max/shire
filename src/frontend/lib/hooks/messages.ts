@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { unwrap } from "./util";
 
@@ -16,28 +16,25 @@ export interface MessagesResponse {
 }
 
 export function useMessages(projectId: string | undefined, agentId: string | undefined) {
-  return useQuery<MessagesResponse>({
+  return useInfiniteQuery<MessagesResponse>({
     queryKey: ["messages", projectId, agentId],
-    queryFn: async () =>
-      unwrap(
+    queryFn: async ({ pageParam }) => {
+      const query: Record<string, string> = {};
+      if (pageParam != null) query.before = String(pageParam);
+      return unwrap(
         await api.projects[":id"].agents[":aid"].messages.$get({
           param: { id: projectId!, aid: agentId! },
-          query: {},
+          query,
         }),
-      ) as unknown as MessagesResponse,
+      ) as unknown as MessagesResponse;
+    },
     enabled: !!projectId && !!agentId,
-  });
-}
-
-export function useLoadMoreMessages(projectId: string) {
-  return useMutation({
-    mutationFn: async ({ agentId, before }: { agentId: string; before: number }) =>
-      unwrap(
-        await api.projects[":id"].agents[":aid"].messages.$get({
-          param: { id: projectId, aid: agentId },
-          query: { before: String(before) },
-        }),
-      ) as unknown as MessagesResponse,
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.hasMore || lastPage.messages.length === 0) return undefined;
+      // Oldest message in the page is the cursor for the next (older) page
+      return lastPage.messages[0].id as number;
+    },
   });
 }
 

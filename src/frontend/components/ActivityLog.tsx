@@ -6,7 +6,7 @@ import type { InterAgentMessage } from "./types";
 interface ActivityLogProps {
   messages: InterAgentMessage[];
   hasMore: boolean;
-  onLoadMore: (before: number) => void;
+  onLoadMore: () => void;
 }
 
 export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityLogProps) {
@@ -22,13 +22,6 @@ export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityL
       }
       return next;
     });
-  };
-
-  const handleLoadMore = () => {
-    const oldestId = messages[messages.length - 1]?.id;
-    if (oldestId) {
-      onLoadMore(oldestId);
-    }
   };
 
   if (messages.length === 0) {
@@ -82,7 +75,7 @@ export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityL
       })}
       {hasMore && (
         <div className="text-center pt-2">
-          <Button variant="outline" size="sm" onClick={handleLoadMore}>
+          <Button variant="outline" size="sm" onClick={onLoadMore}>
             Load more
           </Button>
         </div>

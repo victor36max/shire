@@ -21,7 +21,7 @@ const createdAgent: AgentOverview = {
 const sendMutate = vi.fn();
 const interruptMutate = vi.fn();
 const restartMutate = vi.fn();
-const loadMoreMutate = vi.fn();
+const fetchNextPageMock = vi.fn();
 
 let mockMessages: Array<Record<string, unknown>> = [];
 let mockHasMore = false;
@@ -32,13 +32,18 @@ vi.mock("../lib/hooks", async () => {
     ...actual,
     useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
     useMessages: () => ({
-      data: { messages: mockMessages, hasMore: mockHasMore },
+      data: {
+        pages: [{ messages: mockMessages, hasMore: mockHasMore }],
+        pageParams: [undefined],
+      },
       isLoading: false,
+      fetchNextPage: fetchNextPageMock,
+      hasNextPage: mockHasMore,
+      isFetchingNextPage: false,
     }),
     useSendMessage: () => ({ mutate: sendMutate, isPending: false }),
     useInterruptAgent: () => ({ mutate: interruptMutate, isPending: false }),
     useRestartAgent: () => ({ mutate: restartMutate, isPending: false }),
-    useLoadMoreMessages: () => ({ mutate: loadMoreMutate, isPending: false }),
   };
 });
 
@@ -77,7 +82,7 @@ describe("ChatPanel", () => {
     sendMutate.mockClear();
     interruptMutate.mockClear();
     restartMutate.mockClear();
-    loadMoreMutate.mockClear();
+    fetchNextPageMock.mockClear();
   });
 
   it("renders empty state when no messages", () => {
@@ -186,7 +191,7 @@ describe("ChatPanel", () => {
     expect(screen.getByText("done")).toBeInTheDocument();
   });
 
-  it("sends load-more with before param when scrolled to top", () => {
+  it("fetches next page when scrolled to top", () => {
     mockMessages = messages.map(apiMessage);
     mockHasMore = true;
     const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />);
@@ -195,10 +200,10 @@ describe("ChatPanel", () => {
     Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
     fireEvent.scroll(scrollContainer);
 
-    expect(loadMoreMutate).toHaveBeenCalledWith({ agentId: "a1", before: 1 });
+    expect(fetchNextPageMock).toHaveBeenCalled();
   });
 
-  it("does not send load-more when no messages", () => {
+  it("does not fetch next page when no messages", () => {
     mockHasMore = true;
     const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />);
 
@@ -206,7 +211,7 @@ describe("ChatPanel", () => {
     Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
     fireEvent.scroll(scrollContainer);
 
-    expect(loadMoreMutate).not.toHaveBeenCalled();
+    expect(fetchNextPageMock).not.toHaveBeenCalled();
   });
 
   it("renders streaming text from props", () => {

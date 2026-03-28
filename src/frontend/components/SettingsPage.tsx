@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { ChevronLeft, Loader2 } from "lucide-react";
@@ -8,22 +9,26 @@ import ActivityLog from "./ActivityLog";
 import { useProjectId, useActivity } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
 import { useQueryClient } from "@tanstack/react-query";
+import type { InterAgentMessage } from "./types";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { projectId, projectName } = useProjectId();
 
-  const { data: activityData } = useActivity(projectId);
+  const { data: activityData, fetchNextPage, hasNextPage } = useActivity(projectId);
 
   useSubscription(projectId ? `project:${projectId}:schedules` : null, () => {
     queryClient.invalidateQueries({ queryKey: ["activity", projectId] });
   });
 
-  const messages = activityData?.messages ?? [];
-  const has_more_messages = activityData?.hasMore ?? false;
+  const messages = useMemo<InterAgentMessage[]>(
+    () => (activityData?.pages?.flatMap((page) => page.messages) ?? []) as InterAgentMessage[],
+    [activityData],
+  );
+  const has_more_messages = hasNextPage ?? false;
 
-  const handleLoadMoreMessages = (_before: number) => {
-    queryClient.invalidateQueries({ queryKey: ["activity", projectId] });
+  const handleLoadMoreMessages = () => {
+    fetchNextPage();
   };
 
   if (!projectId) {

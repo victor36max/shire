@@ -13,7 +13,6 @@ import {
   useSendMessage,
   useInterruptAgent,
   useRestartAgent,
-  useLoadMoreMessages,
 } from "../lib/hooks";
 
 export interface Attachment {
@@ -243,16 +242,25 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
       prev?.map((a) => (a.id === agent.id ? { ...a, busy: true } : a)),
     );
 
-  const { data: messagesData, isLoading: messagesLoading } = useMessages(projectId, agent.id);
+  const {
+    data: messagesData,
+    isLoading: messagesLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useMessages(projectId, agent.id);
   const sendMessage = useSendMessage(projectId ?? "");
   const interruptAgent = useInterruptAgent(projectId ?? "");
   const restartAgent = useRestartAgent(projectId ?? "");
-  const loadMore = useLoadMoreMessages(projectId ?? "");
 
-  const rawMessages = messagesData?.messages;
-  const messages = React.useMemo(() => transformMessages(rawMessages ?? []), [rawMessages]);
-  const hasMore = messagesData?.hasMore ?? false;
-  const loadingMore = loadMore.isPending;
+  const messages = React.useMemo(() => {
+    if (!messagesData) return [];
+    // Page 0 = newest (no cursor), page N = oldest. Reverse for chronological order.
+    const allRaw = [...messagesData.pages].reverse().flatMap((page) => page.messages);
+    return transformMessages(allRaw);
+  }, [messagesData]);
+  const hasMore = hasNextPage ?? false;
+  const loadingMore = isFetchingNextPage;
 
   const [input, setInput] = React.useState("");
   const [streamingText, setStreamingText] = React.useState("");
@@ -334,12 +342,9 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     const container = scrollContainerRef.current;
     if (!container || !hasMore || loadingMore) return;
     if (container.scrollTop === 0 && messages.length > 0) {
-      const oldest = messages[0];
-      if (oldest.id != null) {
-        loadMore.mutate({ agentId: agent.id, before: oldest.id });
-      }
+      fetchNextPage();
     }
-  }, [hasMore, loadingMore, loadMore, messages, agent.id]);
+  }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
   const handleFileSelect = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
