@@ -2,14 +2,18 @@ import * as React from "react";
 import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useResolveProjectId, useAgents, useMessages, useMarkRead } from "../lib/hooks";
+import { Loader2 } from "lucide-react";
+import ChatHeader from "./ChatHeader";
+import ChatPanel from "./ChatPanel";
+import WelcomePanel from "./WelcomePanel";
+import { useAgents, useMessages, useMarkRead } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
 import type { WsEvent } from "../lib/ws";
-import AgentDashboardComponent from "../components/AgentDashboard";
+import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 
 type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
 
-function updateAgent(
+function updateAgentCache(
   queryClient: ReturnType<typeof useQueryClient>,
   projectId: string,
   agentId: string,
@@ -20,12 +24,13 @@ function updateAgent(
   );
 }
 
-export default function AgentDashboardPage() {
-  const { projectName, agentName } = useParams();
+export default function AgentChatView() {
+  const { agentName } = useParams();
+  const { projectId, sidebarOpen, setSidebarOpen, onNewAgent, onBrowseCatalog } =
+    useProjectLayout();
   const queryClient = useQueryClient();
-  const projectId = useResolveProjectId(projectName);
 
-  const { data: agentList = [] } = useAgents(projectId);
+  const { data: agentList = [], isLoading: agentsLoading } = useAgents(projectId);
   const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
   const selectedAgentId = selectedAgent?.id;
 
@@ -35,37 +40,8 @@ export default function AgentDashboardPage() {
   // --- Streaming state ---
   const [streamingText, setStreamingText] = useState("");
 
-  // Subscribe to agent list updates
-  useSubscription(projectId ? `project:${projectId}:agents` : null, (event) => {
-    const p = event.payload as Record<string, unknown>;
-    const agentId = p.agentId as string;
-
-    switch (event.type) {
-      case "agent_busy":
-        updateAgent(queryClient, projectId!, agentId, { busy: p.active as boolean });
-        break;
-      case "agent_status":
-        updateAgent(queryClient, projectId!, agentId, {
-          status: p.status as AgentData[number]["status"],
-        });
-        break;
-      case "new_message_notification":
-        if (agentId === selectedAgentId) {
-          queryClient.invalidateQueries({ queryKey: ["messages", projectId, selectedAgentId] });
-        } else {
-          const cached = queryClient.getQueryData<AgentData>(["agents", projectId]);
-          const current = cached?.find((a) => a.id === agentId)?.unreadCount ?? 0;
-          updateAgent(queryClient, projectId!, agentId, { unreadCount: current + 1 });
-        }
-        break;
-      case "agent_created":
-      case "agent_deleted":
-        queryClient.invalidateQueries({ queryKey: ["agents", projectId] });
-        break;
-    }
-  });
-
-  // Subscribe to per-agent streaming events
+  // Subscribe to per-agent streaming events (agent_busy/agent_status are
+  // handled by ProjectLayout's project-level subscription, not here)
   const handleAgentEvent = useCallback(
     (event: WsEvent) => {
       switch (event.type) {
@@ -76,7 +52,6 @@ export default function AgentDashboardPage() {
         }
         case "text":
         case "turn_complete": {
-          // Final text arrived — flush streaming and refetch persisted messages
           setStreamingText("");
           if (selectedAgentId) {
             queryClient.invalidateQueries({
@@ -91,27 +66,11 @@ export default function AgentDashboardPage() {
         case "attachment":
         case "error":
         case "system_message": {
-          // Refetch messages for any persisted event
           if (selectedAgentId) {
             queryClient.invalidateQueries({
               queryKey: ["messages", projectId, selectedAgentId],
             });
           }
-          break;
-        }
-        case "agent_busy": {
-          const p = event.payload as Record<string, unknown>;
-          const agentId = p.agentId as string;
-          if (agentId) {
-            updateAgent(queryClient, projectId!, agentId, { busy: p.active as boolean });
-          } else {
-            console.warn("[AgentDashboard] agent_busy event missing agentId", event);
-          }
-          break;
-        }
-        case "agent_status": {
-          const s = event.payload as { agentId: string; status: AgentData[number]["status"] };
-          updateAgent(queryClient, projectId!, s.agentId, { status: s.status });
           break;
         }
       }
@@ -124,7 +83,7 @@ export default function AgentDashboardPage() {
     handleAgentEvent,
   );
 
-  // Reset streaming when switching agents (using ref to avoid setState-in-effect)
+  // Reset streaming when switching agents
   const prevAgentIdRef = React.useRef(selectedAgentId);
   if (prevAgentIdRef.current !== selectedAgentId) {
     prevAgentIdRef.current = selectedAgentId;
@@ -140,10 +99,34 @@ export default function AgentDashboardPage() {
   React.useEffect(() => {
     if (!projectId || !selectedAgentId || !lastMessageId) return;
     markReadRef.current.mutate({ agentId: selectedAgentId, messageId: lastMessageId });
-    updateAgent(queryClient, projectId, selectedAgentId, { unreadCount: 0 });
+    updateAgentCache(queryClient, projectId, selectedAgentId, { unreadCount: 0 });
   }, [projectId, selectedAgentId, lastMessageId, queryClient]);
 
-  if (!projectId) return <div className="p-8">Loading...</div>;
+  if (selectedAgent) {
+    return (
+      <>
+        <ChatHeader agent={selectedAgent} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+        <div className="flex-1 min-h-0">
+          <ChatPanel agent={selectedAgent} streamingText={streamingText} />
+        </div>
+      </>
+    );
+  }
 
-  return <AgentDashboardComponent streamingText={streamingText} />;
+  if (agentsLoading) {
+    return (
+      <div className="flex items-center justify-center flex-1">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <WelcomePanel
+      onNewAgent={onNewAgent}
+      onBrowseCatalog={onBrowseCatalog}
+      onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+      hasAgents={agentList.length > 0}
+    />
+  );
 }
