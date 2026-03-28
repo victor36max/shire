@@ -42,6 +42,7 @@ export class ClaudeCodeHarness implements Harness {
             .filter(Boolean)
             .join("\n\n"),
           cwd: this.config.cwd,
+          pathToClaudeCodeExecutable: "claude",
           allowedTools: ["Bash", "Read", "Edit", "Write", "Skill"],
           settingSources: ["project"],
           permissionMode: "bypassPermissions",
