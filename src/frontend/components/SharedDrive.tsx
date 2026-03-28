@@ -34,12 +34,8 @@ import {
   usePreviewFile,
 } from "../lib/hooks";
 
-export interface SharedDriveFile {
-  name: string;
-  path: string;
-  type: "file" | "directory";
-  size: number;
-}
+import type { SharedDriveFile } from "../lib/hooks/shared-drive";
+export type { SharedDriveFile };
 
 type PreviewType = "markdown" | "text" | "image" | "pdf" | "unsupported";
 
@@ -212,7 +208,7 @@ export default function SharedDrive() {
   const [currentPath, setCurrentPath] = React.useState("/");
 
   const { data, isLoading: filesLoading } = useSharedDrive(projectId, currentPath);
-  const files = (data?.files ?? []) as SharedDriveFile[];
+  const files = data?.files ?? [];
 
   const createDirectory = useCreateDirectory(projectId ?? "");
   const deleteSharedFile = useDeleteSharedFile(projectId ?? "");

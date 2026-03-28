@@ -1,25 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { unwrap } from "./util";
+import type { AgentOverview, Agent } from "../../components/types";
 
 export function useAgents(projectId: string | undefined) {
-  return useQuery({
+  return useQuery<AgentOverview[]>({
     queryKey: ["agents", projectId],
     queryFn: async () =>
-      unwrap(await api.projects[":id"].agents.$get({ param: { id: projectId! } })),
+      unwrap(
+        await api.projects[":id"].agents.$get({ param: { id: projectId! } }),
+      ) as unknown as AgentOverview[],
     enabled: !!projectId,
   });
 }
 
 export function useAgentDetail(projectId: string | undefined, agentId: string | undefined) {
-  return useQuery({
+  return useQuery<Agent>({
     queryKey: ["agent-detail", projectId, agentId],
     queryFn: async () =>
       unwrap(
         await api.projects[":id"].agents[":aid"].$get({
           param: { id: projectId!, aid: agentId! },
         }),
-      ),
+      ) as unknown as Agent,
     enabled: !!projectId && !!agentId,
   });
 }

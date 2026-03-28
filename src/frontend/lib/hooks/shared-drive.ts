@@ -2,8 +2,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { unwrap } from "./util";
 
+export interface SharedDriveFile {
+  name: string;
+  path: string;
+  type: "file" | "directory";
+  size: number;
+}
+
+export interface SharedDriveResponse {
+  files: SharedDriveFile[];
+  currentPath: string;
+}
+
 export function useSharedDrive(projectId: string | undefined, path: string) {
-  return useQuery({
+  return useQuery<SharedDriveResponse>({
     queryKey: ["shared-drive", projectId, path],
     queryFn: async () =>
       unwrap(
@@ -11,7 +23,7 @@ export function useSharedDrive(projectId: string | undefined, path: string) {
           param: { id: projectId! },
           query: { path },
         }),
-      ),
+      ) as unknown as SharedDriveResponse,
     enabled: !!projectId,
   });
 }

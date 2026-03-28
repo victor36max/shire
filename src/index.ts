@@ -65,10 +65,10 @@ async function main() {
     },
     websocket: {
       message(ws, message) {
-        handleWsMessage(ws as unknown as WebSocket, String(message));
+        handleWsMessage(ws, String(message));
       },
       close(ws) {
-        handleWsClose(ws as unknown as WebSocket);
+        handleWsClose(ws);
       },
     },
   });

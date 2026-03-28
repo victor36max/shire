@@ -243,8 +243,8 @@ export default function SchedulesPage() {
     queryClient.invalidateQueries({ queryKey: ["schedules", projectId] });
   });
 
-  const agents = agentList as { id: string; name: string }[];
-  const typedTasks = tasks as unknown as ScheduledTask[];
+  const agents = agentList;
+  const typedTasks = tasks;
   const [formOpen, setFormOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
@@ -277,7 +277,7 @@ export default function SchedulesPage() {
       label: form.label,
       agentId: form.agentId,
       message: form.message,
-      scheduleType: form.scheduleType as "once" | "recurring",
+      scheduleType: form.scheduleType,
     };
 
     const payload =

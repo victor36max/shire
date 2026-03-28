@@ -51,48 +51,64 @@ export function createApp(ctx: AppContext) {
 // Export the app type for Hono RPC client
 export type AppType = ReturnType<typeof createApp>;
 
-// WebSocket connection management
-const wsSubscriptions = new Map<WebSocket, Map<string, () => void>>();
+/** Minimal WebSocket interface covering both DOM WebSocket and Bun ServerWebSocket. */
+interface WsLike {
+  send(data: string): void;
+}
 
-export function handleWsMessage(ws: WebSocket, data: string): void {
-  let msg: Record<string, unknown>;
+// WebSocket connection management
+const wsSubscriptions = new Map<WsLike, Map<string, () => void>>();
+
+type WsCommand = { type: "subscribe"; topic: string } | { type: "unsubscribe"; topic: string };
+
+function parseWsCommand(data: string): WsCommand | null {
+  let raw: unknown;
   try {
-    msg = JSON.parse(data);
+    raw = JSON.parse(data);
   } catch {
-    return;
+    return null;
   }
+  if (typeof raw !== "object" || raw === null) return null;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.topic !== "string") return null;
+  if (obj.type === "subscribe" || obj.type === "unsubscribe") {
+    return { type: obj.type, topic: obj.topic };
+  }
+  return null;
+}
+
+export function handleWsMessage(ws: WsLike, data: string): void {
+  const cmd = parseWsCommand(data);
+  if (!cmd) return;
 
   const subs = wsSubscriptions.get(ws) ?? new Map();
   wsSubscriptions.set(ws, subs);
 
-  switch (msg.type) {
+  switch (cmd.type) {
     case "subscribe": {
-      const topic = msg.topic as string;
-      if (!topic || subs.has(topic)) return;
-
-      const unsub = bus.on(topic, (event: BusEvent) => {
+      if (!cmd.topic || subs.has(cmd.topic)) return;
+      const unsub = bus.on(cmd.topic, (event: BusEvent) => {
         try {
-          ws.send(JSON.stringify({ topic, ...event }));
+          ws.send(JSON.stringify({ topic: cmd.topic, ...event }));
         } catch {
           // ws closed
         }
       });
-      subs.set(topic, unsub);
+      subs.set(cmd.topic, unsub);
       break;
     }
     case "unsubscribe": {
-      const topic = msg.topic as string;
-      const unsub = subs.get(topic);
+      const unsub = subs.get(cmd.topic);
       if (unsub) {
         unsub();
-        subs.delete(topic);
+        subs.delete(cmd.topic);
       }
       break;
     }
   }
 }
 
-export function handleWsClose(ws: WebSocket): void {
+export function handleWsClose(ws: WsLike): void {
   const subs = wsSubscriptions.get(ws);
   if (subs) {
     for (const unsub of subs.values()) unsub();

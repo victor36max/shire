@@ -1,12 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { unwrap } from "./util";
+import type { ScheduledTask } from "../../components/types";
 
 export function useSchedules(projectId: string | undefined) {
-  return useQuery({
+  return useQuery<ScheduledTask[]>({
     queryKey: ["schedules", projectId],
     queryFn: async () =>
-      unwrap(await api.projects[":id"].schedules.$get({ param: { id: projectId! } })),
+      unwrap(
+        await api.projects[":id"].schedules.$get({ param: { id: projectId! } }),
+      ) as unknown as ScheduledTask[],
     enabled: !!projectId,
   });
 }

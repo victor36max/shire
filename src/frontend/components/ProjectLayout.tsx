@@ -3,9 +3,9 @@ import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import AgentSidebar from "./AgentSidebar";
-import AgentForm from "./AgentForm";
+import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
-import { type Agent, type CatalogAgent } from "./types";
+import { type Agent } from "./types";
 import {
   useResolveProjectId,
   useAgents,
@@ -13,7 +13,7 @@ import {
   useUpdateAgent,
   useCatalogAgent,
 } from "../lib/hooks";
-import { useSubscription } from "../lib/ws";
+import { useSubscription, type AgentListWsEvent } from "../lib/ws";
 import {
   ProjectLayoutProvider,
   type ProjectLayoutContextValue,
@@ -64,15 +64,14 @@ export default function ProjectLayout() {
 
   React.useEffect(() => {
     if (catalogSelectedAgent) {
-      const agent = catalogSelectedAgent as unknown as CatalogAgent;
       setCatalogOpen(false);
       setCurrentAgent({
         id: "",
-        name: agent.name,
-        description: agent.description,
-        harness: agent.harness,
-        model: agent.model,
-        systemPrompt: agent.systemPrompt,
+        name: catalogSelectedAgent.name,
+        description: catalogSelectedAgent.description,
+        harness: catalogSelectedAgent.harness,
+        model: catalogSelectedAgent.model,
+        systemPrompt: catalogSelectedAgent.systemPrompt,
         status: "idle",
         busy: false,
         unreadCount: 0,
@@ -85,26 +84,29 @@ export default function ProjectLayout() {
   }, [catalogSelectedAgent]);
 
   // Subscribe to project-level agent list updates
-  useSubscription(projectId ? `project:${projectId}:agents` : null, (event) => {
-    const p = event.payload as Record<string, unknown>;
-    const agentId = p.agentId as string;
-
+  useSubscription<AgentListWsEvent>(projectId ? `project:${projectId}:agents` : null, (event) => {
     switch (event.type) {
       case "agent_busy":
-        updateAgentCache(queryClient, projectId!, agentId, { busy: p.active as boolean });
+        updateAgentCache(queryClient, projectId!, event.payload.agentId, {
+          busy: event.payload.active,
+        });
         break;
       case "agent_status":
-        updateAgentCache(queryClient, projectId!, agentId, {
-          status: p.status as AgentData[number]["status"],
+        updateAgentCache(queryClient, projectId!, event.payload.agentId, {
+          status: event.payload.status,
         });
         break;
       case "new_message_notification":
-        if (agentId === selectedAgentId) {
-          queryClient.invalidateQueries({ queryKey: ["messages", projectId, selectedAgentId] });
+        if (event.payload.agentId === selectedAgentId) {
+          queryClient.invalidateQueries({
+            queryKey: ["messages", projectId, selectedAgentId],
+          });
         } else {
           const cached = queryClient.getQueryData<AgentData>(["agents", projectId]);
-          const current = cached?.find((a) => a.id === agentId)?.unreadCount ?? 0;
-          updateAgentCache(queryClient, projectId!, agentId, { unreadCount: current + 1 });
+          const current = cached?.find((a) => a.id === event.payload.agentId)?.unreadCount ?? 0;
+          updateAgentCache(queryClient, projectId!, event.payload.agentId, {
+            unreadCount: current + 1,
+          });
         }
         break;
       case "agent_created":
@@ -125,13 +127,13 @@ export default function ProjectLayout() {
     setFormOpen(true);
   };
 
-  const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
+  const handleFormSave = (_event: string, payload: AgentFormPayload) => {
     setFormOpen(false);
     if (editingAgent) {
       const { id: _id, ...fields } = payload;
       updateAgent.mutate({ id: editingAgent.id, ...fields });
     } else {
-      createAgent.mutate(payload as unknown as Parameters<typeof createAgent.mutate>[0]);
+      createAgent.mutate(payload);
     }
   };
 
