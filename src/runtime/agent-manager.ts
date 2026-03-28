@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from "fs";
 import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/promises";
-import { join } from "path";
+import { join, basename } from "path";
 import yaml from "js-yaml";
 import { safeYamlLoad } from "../utils/yaml";
 import {
@@ -195,12 +195,9 @@ export class AgentManager {
     from: "user" | "system" = "user",
     opts: {
       attachments?: Array<{
-        id?: string;
-        name?: string;
-        filename?: string;
-        content?: string;
+        name: string;
+        content: string;
         content_type: string;
-        size?: number;
       }>;
     } = {},
   ): Promise<
@@ -213,15 +210,57 @@ export class AgentManager {
 
     const attachments = opts.attachments ?? [];
 
-    // Build text with attachment references
+    // Save attachments to disk and build metadata
     let messageText = text;
+    const savedAttachments: Array<{
+      id: string;
+      filename: string;
+      content_type: string;
+      size: number;
+    }> = [];
+
     if (attachments.length > 0) {
-      const refs = attachments
-        .map((a) => {
-          const fname = a.filename ?? a.name ?? "unknown";
-          const attachId = a.id ?? fname;
-          const path = workspace.attachmentPath(this.projectId, this.agentId, attachId, fname);
-          return `[Attached file: ${fname} (${a.content_type}) at ${path}]`;
+      const attachmentId = `${Date.now()}-${randomSuffix()}`;
+      const destDir = workspace.attachmentDir(this.projectId, this.agentId, attachmentId);
+      await mkdir(destDir, { recursive: true });
+
+      for (const a of attachments) {
+        // Sanitize filename to prevent path traversal
+        const safeName = basename(a.name);
+        if (!safeName || safeName !== a.name) {
+          return { ok: false, error: `Invalid attachment filename: ${a.name}` };
+        }
+
+        // Strip data URL prefix if present (e.g. "data:image/png;base64,...")
+        let raw = a.content;
+        const dataUrlMatch = raw.match(/^data:[^;]+;base64,(.+)$/);
+        if (dataUrlMatch) raw = dataUrlMatch[1];
+
+        const buffer = Buffer.from(raw, "base64");
+        if (buffer.length === 0 && raw.length > 0) {
+          return { ok: false, error: `Attachment "${safeName}": failed to decode base64 content` };
+        }
+
+        const filePath = workspace.attachmentPath(
+          this.projectId,
+          this.agentId,
+          attachmentId,
+          safeName,
+        );
+        await writeFile(filePath, buffer);
+
+        savedAttachments.push({
+          id: attachmentId,
+          filename: safeName,
+          content_type: a.content_type,
+          size: buffer.length,
+        });
+      }
+
+      const refs = savedAttachments
+        .map((sa) => {
+          const path = workspace.attachmentPath(this.projectId, this.agentId, sa.id, sa.filename);
+          return `[Attached file: ${sa.filename} (${sa.content_type}) at ${path}]`;
         })
         .join("\n");
       messageText = text ? `${text}\n\n${refs}` : refs;
@@ -234,7 +273,7 @@ export class AgentManager {
         projectId: this.projectId,
         agentId: this.agentId,
         role: "user",
-        content: attachments.length > 0 ? { text, attachments } : { text },
+        content: savedAttachments.length > 0 ? { text, attachments: savedAttachments } : { text },
       });
     }
 

@@ -5,9 +5,10 @@ import * as agentsService from "../services/agents";
 import * as projects from "../services/projects";
 import * as workspace from "../services/workspace";
 import { bus, type BusEvent } from "../events";
-import { existsSync, rmSync } from "fs";
+import { existsSync, rmSync, readFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { readdir } from "fs/promises";
 let testDir: string;
 let projectId: string;
 let agentId: string;
@@ -253,6 +254,219 @@ describe("AgentManager", () => {
       // The status events are tested through the coordinator tests
 
       unsub();
+    });
+  });
+
+  describe("sendMessage with attachments", () => {
+    let sentMessages: string[];
+
+    function createActiveManager(): AgentManager {
+      const mgr = createManager();
+      // Inject a mock harness to make the agent active
+      const mockHarness = {
+        start: async () => {},
+        sendMessage: async (text: string) => {
+          sentMessages.push(text);
+        },
+        interrupt: async () => {},
+        clearSession: async () => {},
+        stop: async () => {},
+        onEvent: () => {},
+        isProcessing: () => false,
+        getSessionId: () => null,
+      };
+      // Access private fields to set the agent as active
+      (mgr as unknown as Record<string, unknown>).harness = mockHarness;
+      (mgr as unknown as Record<string, unknown>).status = "active";
+      return mgr;
+    }
+
+    beforeEach(async () => {
+      sentMessages = [];
+      await workspace.ensureProjectDirs(projectId);
+      await workspace.ensureAgentDirs(projectId, agentId);
+    });
+
+    it("saves attachment files to disk", async () => {
+      const mgr = createActiveManager();
+      const base64Content = Buffer.from("hello world").toString("base64");
+
+      const result = await mgr.sendMessage("check this file", "user", {
+        attachments: [
+          {
+            name: "test.txt",
+            content: base64Content,
+            content_type: "text/plain",
+          },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+
+      // Find the attachment directory created
+      const attDir = workspace.attachmentsDir(projectId, agentId);
+      const entries = (await readdir(attDir)).filter((e) => e !== "outbox");
+      expect(entries.length).toBe(1);
+
+      // Verify file content
+      const filePath = join(attDir, entries[0], "test.txt");
+      expect(existsSync(filePath)).toBe(true);
+      expect(readFileSync(filePath, "utf-8")).toBe("hello world");
+    });
+
+    it("strips data URL prefix from base64 content", async () => {
+      const mgr = createActiveManager();
+      const rawBase64 = Buffer.from("image data").toString("base64");
+      const dataUrl = `data:image/png;base64,${rawBase64}`;
+
+      const result = await mgr.sendMessage("see image", "user", {
+        attachments: [
+          {
+            name: "photo.png",
+            content: dataUrl,
+            content_type: "image/png",
+          },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+
+      const attDir = workspace.attachmentsDir(projectId, agentId);
+      const entries = (await readdir(attDir)).filter((e) => e !== "outbox");
+      const filePath = join(attDir, entries[0], "photo.png");
+      expect(readFileSync(filePath, "utf-8")).toBe("image data");
+    });
+
+    it("stores correct metadata in DB message", async () => {
+      const mgr = createActiveManager();
+      const content = Buffer.from("file content").toString("base64");
+
+      const result = await mgr.sendMessage("here", "user", {
+        attachments: [
+          {
+            name: "doc.pdf",
+            content,
+            content_type: "application/pdf",
+          },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const msg = result.message!;
+      const msgContent = msg.content as Record<string, unknown>;
+      expect(msgContent.text).toBe("here");
+
+      const atts = msgContent.attachments as Array<Record<string, unknown>>;
+      expect(atts.length).toBe(1);
+      expect(atts[0].filename).toBe("doc.pdf");
+      expect(atts[0].content_type).toBe("application/pdf");
+      expect(atts[0].size).toBe(Buffer.from("file content").length);
+      expect(typeof atts[0].id).toBe("string");
+      // DB should NOT store the raw base64 content
+      expect(atts[0].content).toBeUndefined();
+    });
+
+    it("includes correct file path references in harness message", async () => {
+      const mgr = createActiveManager();
+      const content = Buffer.from("data").toString("base64");
+
+      await mgr.sendMessage("look", "user", {
+        attachments: [
+          {
+            name: "report.csv",
+            content,
+            content_type: "text/csv",
+          },
+        ],
+      });
+
+      expect(sentMessages.length).toBe(1);
+      const sent = sentMessages[0];
+      expect(sent).toContain("look");
+      expect(sent).toContain("[Attached file: report.csv (text/csv) at ");
+      expect(sent).toContain("report.csv]");
+      // The path should point to a real file
+      const pathMatch = sent.match(/at (.+?)]/);
+      expect(pathMatch).toBeTruthy();
+      expect(existsSync(pathMatch![1])).toBe(true);
+    });
+
+    it("works without attachments", async () => {
+      const mgr = createActiveManager();
+      const result = await mgr.sendMessage("just text", "user");
+
+      expect(result.ok).toBe(true);
+      expect(sentMessages[0]).toBe("just text");
+    });
+
+    it("handles multiple attachments in one message", async () => {
+      const mgr = createActiveManager();
+
+      const result = await mgr.sendMessage("files", "user", {
+        attachments: [
+          {
+            name: "a.txt",
+            content: Buffer.from("aaa").toString("base64"),
+            content_type: "text/plain",
+          },
+          {
+            name: "b.txt",
+            content: Buffer.from("bbb").toString("base64"),
+            content_type: "text/plain",
+          },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+
+      const attDir = workspace.attachmentsDir(projectId, agentId);
+      const entries = (await readdir(attDir)).filter((e) => e !== "outbox");
+      expect(entries.length).toBe(1); // One batch = one attachment ID
+
+      const batchDir = join(attDir, entries[0]);
+      const files = await readdir(batchDir);
+      expect(files.sort()).toEqual(["a.txt", "b.txt"]);
+      expect(readFileSync(join(batchDir, "a.txt"), "utf-8")).toBe("aaa");
+      expect(readFileSync(join(batchDir, "b.txt"), "utf-8")).toBe("bbb");
+    });
+
+    it("rejects filenames with path traversal", async () => {
+      const mgr = createActiveManager();
+      const result = await mgr.sendMessage("hack", "user", {
+        attachments: [
+          {
+            name: "../../inbox/evil.yaml",
+            content: Buffer.from("bad").toString("base64"),
+            content_type: "text/plain",
+          },
+        ],
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("Invalid attachment filename");
+      }
+    });
+
+    it("rejects empty base64 content that decodes to zero bytes", async () => {
+      const mgr = createActiveManager();
+      // "=====" is technically valid base64 padding but decodes to 0 bytes
+      const result = await mgr.sendMessage("bad data", "user", {
+        attachments: [
+          {
+            name: "file.txt",
+            content: "=====",
+            content_type: "text/plain",
+          },
+        ],
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("failed to decode base64");
+      }
     });
   });
 
