@@ -93,7 +93,7 @@ async function buildBinary(target: Target, frontendDir: string): Promise<void> {
 
   console.log(`Building ${target.bunTarget} → npm/${target.npmDir}/${target.binaryName}`);
 
-  await $`bun build src/cli.ts --compile --target=${target.bunTarget} --outfile=${outFile}`.cwd(
+  await $`bun build src/cli.ts --compile --target=${target.bunTarget} --outfile=${outFile} --define process.env.NODE_ENV='"production"'`.cwd(
     ROOT,
   );
 
