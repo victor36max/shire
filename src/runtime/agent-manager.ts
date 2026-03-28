@@ -288,15 +288,7 @@ export class AgentManager {
     const systemPrompt = (recipe?.system_prompt as string) ?? "";
     const maxTokens = (recipe?.max_tokens as number) ?? 16384;
 
-    let internalSystemPrompt = "";
-    try {
-      internalSystemPrompt = readFileSync(
-        join(workspace.agentDir(this.projectId, this.agentId), "INTERNAL.md"),
-        "utf-8",
-      );
-    } catch {
-      // INTERNAL.md may not exist yet
-    }
+    const internalSystemPrompt = this.buildInternalPrompt();
 
     this.harness = createHarness(harnessType);
     this.harness.onEvent((event: AgentEvent) => this.handleHarnessEvent(event));
@@ -778,8 +770,6 @@ export class AgentManager {
     workspace.ensureAgentDirs(this.projectId, this.agentId);
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
     mkdirSync(join(agentDir, ".claude", "skills"), { recursive: true });
-
-    writeFileSync(join(agentDir, "INTERNAL.md"), this.buildInternalPrompt(), "utf-8");
 
     const recipe = this.readRecipe();
     if (recipe?.skills && Array.isArray(recipe.skills)) {
