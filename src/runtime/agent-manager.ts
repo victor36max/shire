@@ -1,6 +1,5 @@
 import { watch, type FSWatcher } from "fs";
 import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/promises";
-import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
 import { safeYamlLoad } from "../utils/yaml";
@@ -290,15 +289,8 @@ export class AgentManager {
     const model = agent.model ?? "claude-sonnet-4-6";
     const systemPrompt = agent.systemPrompt ?? "";
     const maxTokens = agent.maxTokens ?? 16384;
-
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
-    const internalMdPath = join(agentDir, "INTERNAL.md");
-    let internalSystemPrompt = "";
-    try {
-      internalSystemPrompt = readFileSync(internalMdPath, "utf-8");
-    } catch {
-      // INTERNAL.md may not exist yet
-    }
+    const internalSystemPrompt = this.buildInternalPrompt();
 
     this.harness = createHarness(harnessType);
     this.harness.onEvent((event: AgentEvent) => this.handleHarnessEvent(event));
@@ -784,9 +776,6 @@ export class AgentManager {
 
   private async setupWorkspace(): Promise<void> {
     workspace.ensureAgentDirs(this.projectId, this.agentId);
-    const agentDir = workspace.agentDir(this.projectId, this.agentId);
-
-    writeFileSync(join(agentDir, "INTERNAL.md"), this.buildInternalPrompt(), "utf-8");
   }
 
   private buildInternalPrompt(): string {

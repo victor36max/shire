@@ -55,18 +55,6 @@ export function sharedDir(projectId: string): string {
   return join(root(projectId), "shared");
 }
 
-export function envPath(projectId: string): string {
-  return join(root(projectId), ".env");
-}
-
-export function projectScriptsDir(projectId: string): string {
-  return join(root(projectId), ".scripts");
-}
-
-export function scriptPath(projectId: string, name: string): string {
-  return join(projectScriptsDir(projectId), name);
-}
-
 export function runnerDir(projectId: string): string {
   return join(root(projectId), ".runner");
 }
@@ -82,7 +70,6 @@ export function projectDocPath(projectId: string): string {
 export function ensureProjectDirs(projectId: string): void {
   mkdirSync(root(projectId), { recursive: true });
   mkdirSync(sharedDir(projectId), { recursive: true });
-  mkdirSync(projectScriptsDir(projectId), { recursive: true });
   mkdirSync(runnerDir(projectId), { recursive: true });
 }
 

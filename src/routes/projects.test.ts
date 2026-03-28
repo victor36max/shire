@@ -43,12 +43,13 @@ describe("POST /api/projects", () => {
     expect(res.status).toBe(422);
   });
 
-  it("lists created project", async () => {
+  it("lists created project with running status", async () => {
     await request("POST", "/api/projects", { name: "listed" });
     const res = await request("GET", "/api/projects");
     const data = (await res.json()) as Array<Record<string, unknown>>;
     expect(data.length).toBe(1);
     expect(data[0].name).toBe("listed");
+    expect(data[0].status).toBe("running");
   });
 });
 

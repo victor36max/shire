@@ -15,44 +15,6 @@ function resolveProjectId(nameOrId: string): string | null {
 const contentSchema = z.object({ content: z.string() });
 
 export const settingsRoutes = new Hono<AppEnv>()
-  .get("/projects/:id/settings/env", (c) => {
-    const projectId = resolveProjectId(c.req.param("id"));
-    if (!projectId) return c.json({ error: "Project not found" }, 404);
-    return c.json({ content: settings.readEnv(projectId) });
-  })
-  .put("/projects/:id/settings/env", zValidator("json", contentSchema), (c) => {
-    const projectId = resolveProjectId(c.req.param("id"));
-    if (!projectId) return c.json({ error: "Project not found" }, 404);
-    const { content } = c.req.valid("json");
-    settings.writeEnv(projectId, content);
-    return c.json({ ok: true });
-  })
-  .get("/projects/:id/settings/scripts", (c) => {
-    const projectId = resolveProjectId(c.req.param("id"));
-    if (!projectId) return c.json({ error: "Project not found" }, 404);
-    return c.json(settings.readAllScripts(projectId));
-  })
-  .put("/projects/:id/settings/scripts/:name", zValidator("json", contentSchema), (c) => {
-    const projectId = resolveProjectId(c.req.param("id"));
-    if (!projectId) return c.json({ error: "Project not found" }, 404);
-    const name = c.req.param("name");
-    const { content } = c.req.valid("json");
-    settings.writeScript(projectId, name, content);
-    return c.json({ ok: true });
-  })
-  .delete("/projects/:id/settings/scripts/:name", (c) => {
-    const projectId = resolveProjectId(c.req.param("id"));
-    if (!projectId) return c.json({ error: "Project not found" }, 404);
-    settings.deleteScript(projectId, c.req.param("name"));
-    return c.json({ ok: true });
-  })
-  .post("/projects/:id/settings/scripts/:name/run", (c) => {
-    const projectId = resolveProjectId(c.req.param("id"));
-    if (!projectId) return c.json({ error: "Project not found" }, 404);
-    const result = settings.runScript(projectId, c.req.param("name"));
-    if (result.ok) return c.json({ output: result.output });
-    return c.json({ error: result.error }, 500);
-  })
   .get("/projects/:id/settings/project-doc", (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
