@@ -37,8 +37,17 @@ describe("CLI", () => {
 
   describe("openBrowser", () => {
     it("spawns the platform-specific open command", () => {
-      const prev = process.env.SHIRE_NO_OPEN;
-      delete process.env.SHIRE_NO_OPEN;
+      const saved: Record<string, string | undefined> = {};
+      const keys = ["SHIRE_NO_OPEN", "SSH_CLIENT", "SSH_TTY"];
+      for (const k of keys) {
+        saved[k] = process.env[k];
+        delete process.env[k];
+      }
+      // Ensure DISPLAY is set on Linux so shouldOpenBrowser() returns true
+      if (process.platform === "linux") {
+        saved.DISPLAY = process.env.DISPLAY;
+        process.env.DISPLAY = ":0";
+      }
       const spawnSpy = spyOn(Bun, "spawn").mockReturnValue({} as ReturnType<typeof Bun.spawn>);
       try {
         openBrowser("http://localhost:8080");
@@ -48,7 +57,10 @@ describe("CLI", () => {
         expect(args).toEqual([expectedCmd, "http://localhost:8080"]);
       } finally {
         spawnSpy.mockRestore();
-        if (prev !== undefined) process.env.SHIRE_NO_OPEN = prev;
+        for (const k of [...keys, "DISPLAY"]) {
+          if (saved[k] !== undefined) process.env[k] = saved[k];
+          else delete process.env[k];
+        }
       }
     });
 
