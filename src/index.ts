@@ -76,7 +76,7 @@ async function main() {
   console.log(`Shire running at http://localhost:${server.port}`);
   if (DEV) {
     console.log(`  Frontend: proxying to Vite at ${VITE_DEV_URL}`);
-    console.log(`  Run "cd src/frontend && bun run dev" to start Vite`);
+    console.log(`  Run "bun run dev:frontend" to start Vite`);
   }
 }
 
@@ -90,12 +90,9 @@ async function proxyToVite(req: Request, url: URL): Promise<Response> {
       body: req.body,
     });
   } catch {
-    return new Response(
-      "Vite dev server not running. Start it with: cd src/frontend && bun run dev",
-      {
-        status: 502,
-      },
-    );
+    return new Response("Vite dev server not running. Start it with: bun run dev:frontend", {
+      status: 502,
+    });
   }
 }
 
