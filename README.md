@@ -18,7 +18,6 @@ https://github.com/user-attachments/assets/04056f61-d2e7-4eb8-b0e4-48a342b298d3
 
 Most AI agent tools follow the same pattern — you give an instruction, an agent executes it, you get the output. The agent disappears. Next time, you start from scratch. Shire is different. Your agents persist between sessions. They communicate with each other autonomously. They build on yesterday's work. You give feedback, iterate, adjust direction — like working with a real team.
 
-- **Zero-config local setup** — Get started in seconds with Bun. No VMs, no containers, no external services. Agents run as local processes.
 - **Works with any model** — Not locked to one AI provider. Supports Claude Code, Pi Agent, and more coming soon. Shire is the infrastructure layer — bring whatever model fits your workflow.
 - **Autonomous agent communication** — Agents discover peers and collaborate on their own — no orchestrator required. Direct messaging, shared context, real teamwork between agents.
 - **Community catalog** — Browse and deploy from a community-maintained library of pre-built agent templates. Powered by [agency-agents](https://github.com/msitarzewski/agency-agents). Get a capable team running in seconds.
@@ -26,39 +25,6 @@ Most AI agent tools follow the same pattern — you give an instruction, an agen
 - **Scheduled tasks** — Automate agent work with one-time or recurring scheduled messages. Set custom intervals and let agents run on autopilot.
 - **Multi-project architecture** — Organize agents into projects, each with its own shared drive, settings, and environment.
 - **Real-time dashboard** — Monitor, chat with, and manage agents from a live web UI with streaming updates.
-
-## Architecture
-
-```mermaid
-graph TD
-    Dashboard["Shire Dashboard<br/><small>React SPA</small>"]
-    PM["ProjectManager"]
-    Coord["Coordinator<br/><small>(per project)</small>"]
-    AM["AgentManagers<br/><small>(per agent)</small>"]
-    CC["Claude Code<br/>Harness"]
-    Pi["Pi Agent<br/>Harness"]
-
-    Dashboard -->|"WebSocket + REST"| PM
-    PM -->|"1 per project"| Coord
-    Coord --> AM
-    AM --> CC
-    AM --> Pi
-```
-
-Each project has an isolated workspace on disk:
-
-```
-~/.shire/
-├── shire.db                        # SQLite database
-└── projects/{projectId}/
-    ├── agents/{agentId}/
-    │   ├── inbox/                  # Incoming inter-agent messages
-    │   ├── outbox/                 # Outgoing inter-agent messages
-    │   └── attachments/            # File attachments
-    ├── shared/                     # Cross-agent shared drive
-    ├── peers.yaml                  # Agent discovery registry
-    └── PROJECT.md                  # Project documentation
-```
 
 ## Tech Stack
 
@@ -73,7 +39,63 @@ Each project has an isolated workspace on disk:
 | Testing | Bun test + Testing Library + happy-dom |
 | Validation | Zod, TypeScript strict mode |
 
-## Getting Started
+## Installation
+
+Install Shire globally via npm — no other dependencies required:
+
+```bash
+npm install -g agents-shire
+shire
+```
+
+Visit [localhost:8080](http://localhost:8080) to open the dashboard.
+
+This installs a standalone binary for your platform (macOS, Linux, or Windows). All data is stored at `~/.shire/`.
+
+### Setting Up Agent Harnesses
+
+Shire supports multiple agent harnesses. Each agent is configured with a harness type in the dashboard.
+
+#### Claude Code
+
+Install [Claude Code](https://claude.ai/download) and authenticate via one of:
+
+```bash
+# Interactive login (opens browser)
+claude login
+
+# Or set an environment variable
+export ANTHROPIC_API_KEY=sk-ant-...
+# or
+export CLAUDE_CODE_OAUTH_KEY=...
+```
+
+#### Pi Agent
+
+The [Pi Agent](https://github.com/badlogic/pi-mono) harness uses the `@mariozechner/pi-coding-agent` SDK, which supports a wide range of AI providers. Set the API key for the provider you want to use as an environment variable:
+
+| Provider | Environment Variable |
+|----------|---------------------|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Google | `GOOGLE_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| xAI | `XAI_API_KEY` |
+| Mistral | `MISTRAL_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+
+You can also store keys in `~/.pi/agent/auth.json` (takes precedence over env vars):
+
+```json
+{
+  "anthropic": { "type": "api_key", "key": "sk-ant-..." },
+  "openai": { "type": "api_key", "key": "sk-..." }
+}
+```
+
+See the [Pi Agent docs](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/providers.md) for the full list of supported providers and subscription services.
+
+## Getting Started (Development)
 
 ### Prerequisites
 
@@ -91,8 +113,6 @@ bun run dev
 Visit [localhost:8080](http://localhost:8080) to open the dashboard.
 
 By default, Shire uses **SQLite** for storage. Agents run as local processes on your machine — no external services required. All data is stored at `~/.shire/`.
-
-Agent-specific environment variables (API keys, tokens, etc.) are configured per-project via the Settings page in the dashboard.
 
 ---
 
@@ -180,13 +200,6 @@ This builds platform-specific binaries and publishes:
 - `@agents-shire/cli-linux-arm64` (Linux ARM)
 - `@agents-shire/cli-win32-x64` (Windows x64)
 - `agents-shire` (meta-package that installs the right binary)
-
-Users install with:
-
-```bash
-npm install -g agents-shire
-shire
-```
 
 ## License
 
