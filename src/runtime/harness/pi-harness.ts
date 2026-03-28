@@ -5,6 +5,7 @@ export type SessionLike = {
   subscribe: (cb: AgentSessionEventListener) => void;
   prompt: (text: string) => Promise<void>;
   abort: () => Promise<void>;
+  readonly sessionId: string;
 };
 
 type SessionFactory = (config: HarnessConfig) => Promise<SessionLike>;
@@ -84,7 +85,7 @@ export class PiHarness implements Harness {
   }
 
   getSessionId(): string | null {
-    return null;
+    return this.session?.sessionId ?? null;
   }
 
   private async createSession(config: HarnessConfig): Promise<SessionLike> {
@@ -119,6 +120,23 @@ export class PiHarness implements Harness {
     });
     await loader.reload();
 
+    let sessionManager: ReturnType<typeof SessionManager.continueRecent> | undefined;
+    if (this.skipContinue) {
+      sessionManager = undefined;
+    } else if (config.resume) {
+      try {
+        const sessions = await SessionManager.list(config.cwd);
+        const match = sessions.find((s) => s.id === config.resume);
+        if (match) {
+          sessionManager = SessionManager.open(match.path);
+        }
+      } catch {
+        // Session not found, start fresh
+      }
+    } else {
+      sessionManager = SessionManager.continueRecent(config.cwd);
+    }
+
     console.error(
       `[pi-harness] creating session with model ${model.provider}/${model.id}, cwd ${config.cwd}`,
     );
@@ -130,7 +148,7 @@ export class PiHarness implements Harness {
       modelRegistry,
       tools: createCodingTools(config.cwd),
       resourceLoader: loader,
-      sessionManager: this.skipContinue ? undefined : SessionManager.continueRecent(config.cwd),
+      sessionManager,
       settingsManager,
     });
     this.skipContinue = false;
@@ -189,7 +207,10 @@ export class PiHarness implements Harness {
           });
           break;
         case "agent_end":
-          this.emitEvent({ type: "turn_complete", payload: {} });
+          this.emitEvent({
+            type: "turn_complete",
+            payload: { session_id: this.session?.sessionId },
+          });
           break;
       }
     });
