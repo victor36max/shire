@@ -1,5 +1,5 @@
 {
-  "name": "@shire/cli-darwin-x64",
+  "name": "@agents-shire/cli-darwin-x64",
   "version": "0.1.0",
   "description": "Shire CLI binary for macOS x64 (Intel)",
   "os": ["darwin"],

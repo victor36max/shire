@@ -174,17 +174,17 @@ git push origin v0.2.0
 ```
 
 This builds platform-specific binaries and publishes:
-- `@shire/cli-darwin-arm64` (macOS Apple Silicon)
-- `@shire/cli-darwin-x64` (macOS Intel)
-- `@shire/cli-linux-x64` (Linux x64)
-- `@shire/cli-linux-arm64` (Linux ARM)
-- `@shire/cli-win32-x64` (Windows x64)
-- `shire` (meta-package that installs the right binary)
+- `@agents-shire/cli-darwin-arm64` (macOS Apple Silicon)
+- `@agents-shire/cli-darwin-x64` (macOS Intel)
+- `@agents-shire/cli-linux-x64` (Linux x64)
+- `@agents-shire/cli-linux-arm64` (Linux ARM)
+- `@agents-shire/cli-win32-x64` (Windows x64)
+- `agents-shire` (meta-package that installs the right binary)
 
 Users install with:
 
 ```bash
-npm install -g shire
+npm install -g agents-shire
 shire
 ```
 

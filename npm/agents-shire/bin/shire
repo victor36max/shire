@@ -5,11 +5,11 @@ const { execFileSync } = require("child_process");
 const { join } = require("path");
 
 const PLATFORMS = {
-  "darwin-arm64": "@shire/cli-darwin-arm64",
-  "darwin-x64": "@shire/cli-darwin-x64",
-  "linux-x64": "@shire/cli-linux-x64",
-  "linux-arm64": "@shire/cli-linux-arm64",
-  "win32-x64": "@shire/cli-win32-x64",
+  "darwin-arm64": "@agents-shire/cli-darwin-arm64",
+  "darwin-x64": "@agents-shire/cli-darwin-x64",
+  "linux-x64": "@agents-shire/cli-linux-x64",
+  "linux-arm64": "@agents-shire/cli-linux-arm64",
+  "win32-x64": "@agents-shire/cli-win32-x64",
 };
 
 const platformKey = `${process.platform}-${process.arch}`;
@@ -32,7 +32,7 @@ try {
   console.error(
     `Could not find package "${packageName}".\n` +
       `This usually means the optional dependency was not installed.\n` +
-      `Try: npm install -g shire`,
+      `Try: npm install -g agents-shire`,
   );
   process.exit(1);
 }
