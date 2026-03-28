@@ -272,5 +272,16 @@ describe("AgentManager", () => {
       expect(existsSync(join(agentDir, "documents"))).toBe(true);
       expect(existsSync(join(agentDir, "attachments"))).toBe(true);
     });
+
+    it("does not write INTERNAL.md to disk", async () => {
+      workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+
+      // start() calls setupWorkspace() then startHarness() (which will fail without SDK)
+      await mgr.start();
+
+      const agentDir = workspace.agentDir(projectId, agentId);
+      expect(existsSync(join(agentDir, "INTERNAL.md"))).toBe(false);
+    });
   });
 });
