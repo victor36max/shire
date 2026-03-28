@@ -130,7 +130,7 @@ export default function ProjectLayout() {
       const { id: _id, ...fields } = payload;
       updateAgent.mutate({ id: editingAgent.id, ...fields });
     } else {
-      createAgent.mutate(payload as Parameters<typeof createAgent.mutate>[0]);
+      createAgent.mutate(payload as unknown as Parameters<typeof createAgent.mutate>[0]);
     }
   };
 
