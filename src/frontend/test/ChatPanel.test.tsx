@@ -417,6 +417,56 @@ describe("ChatPanel", () => {
     );
   });
 
+  it("sets aria-expanded on tool call toggle button", async () => {
+    const toolMsg: Message = {
+      id: 3,
+      role: "tool_use",
+      tool: "read_file",
+      tool_use_id: "tu_1",
+      input: { path: "/test.txt" },
+      output: "file contents",
+      isError: false,
+      ts: "2026-03-17T00:00:02Z",
+    };
+    mockMessages = [apiMessage(toolMsg)];
+    renderWithProviders(<ChatPanel agent={activeAgent} />);
+    const toggle = screen.getByText("read_file").closest("button")!;
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("sets aria-expanded on inter-agent message toggle", async () => {
+    const interAgentMsg: Message = {
+      id: 10,
+      role: "inter_agent",
+      text: "Here is the analysis",
+      fromAgent: "researcher",
+      ts: "2026-03-17T00:00:03Z",
+    };
+    mockMessages = [apiMessage(interAgentMsg)];
+    renderWithProviders(<ChatPanel agent={activeAgent} />);
+    const toggle = screen.getByText("Message from researcher").closest("button")!;
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("sets aria-expanded on system message toggle", async () => {
+    const sysMsg: Message = {
+      id: 20,
+      role: "system",
+      text: "System message content",
+      ts: "2026-03-17T00:00:04Z",
+    };
+    mockMessages = [apiMessage(sysMsg)];
+    renderWithProviders(<ChatPanel agent={activeAgent} />);
+    const toggle = screen.getByText("System notification").closest("button")!;
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("renders user message with attachments", () => {
     const userMsgWithAtt: Message = {
       id: 32,

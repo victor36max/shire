@@ -184,7 +184,12 @@ function PreviewContent({
 
     case "image":
       return (
-        <img src={previewUrl} alt={file.name} className="max-w-full max-h-[70vh] object-contain" />
+        <img
+          src={previewUrl}
+          alt={file.name}
+          loading="lazy"
+          className="max-w-full max-h-[70vh] object-contain"
+        />
       );
 
     case "pdf":
