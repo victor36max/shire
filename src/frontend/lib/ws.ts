@@ -136,11 +136,14 @@ export function useSubscriptions(topics: Array<string | null>, handler: EventHan
     handlerRef.current = handler;
   });
 
+  const topicsKey = topics.join(",");
+
   useEffect(() => {
     const wsClient = getClient();
     const unsubs: Array<() => void> = [];
+    const currentTopics = topicsKey.split(",");
 
-    for (const topic of topics) {
+    for (const topic of currentTopics) {
       if (!topic) continue;
       unsubs.push(
         wsClient.subscribe(topic, (event) => {
@@ -152,7 +155,7 @@ export function useSubscriptions(topics: Array<string | null>, handler: EventHan
     return () => {
       for (const unsub of unsubs) unsub();
     };
-  }, [topics.join(",")]);
+  }, [topicsKey]);
 }
 
 /**
