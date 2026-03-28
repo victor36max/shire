@@ -47,7 +47,7 @@ export class ProjectManager {
   async destroyProject(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
     const coordinator = this.coordinators.get(id);
     if (coordinator) {
-      coordinator.stopAll();
+      await coordinator.stopAll();
       this.coordinators.delete(id);
     }
     this.statuses.delete(id);
@@ -69,7 +69,7 @@ export class ProjectManager {
   async restartProject(id: string): Promise<boolean> {
     const coordinator = this.coordinators.get(id);
     if (coordinator) {
-      coordinator.stopAll();
+      await coordinator.stopAll();
       this.coordinators.delete(id);
     }
 

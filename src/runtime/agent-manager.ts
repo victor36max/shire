@@ -506,6 +506,8 @@ export class AgentManager {
         do {
           count = await this.processAttachmentOutbox();
         } while (count > 0);
+      } catch (err) {
+        console.error(`Attachment processing error for ${this.agentName}:`, err);
       } finally {
         processingAttachments = false;
       }

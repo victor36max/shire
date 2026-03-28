@@ -330,6 +330,30 @@ describe("ClaudeCodeHarness", () => {
     expect(events).toHaveLength(0);
   });
 
+  test("sendMessage() emits turn_complete after exception in query iteration", async () => {
+    const throwingQuery = mock(() => {
+      const gen = (async function* () {
+        throw new Error("SDK crash");
+        yield resultSuccess("never", "s1");
+      })();
+      return stubQueryMethods(gen);
+    }) as unknown as NonNullable<QueryFn>;
+
+    const harness = new ClaudeCodeHarness(throwingQuery);
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const types = events.map((e) => e.type);
+    expect(types).toContain("error");
+    expect(types).toContain("turn_complete");
+    // turn_complete should come after error
+    const errorIdx = types.indexOf("error");
+    const tcIdx = types.indexOf("turn_complete");
+    expect(tcIdx).toBeGreaterThan(errorIdx);
+  });
+
   test("interrupt() calls interrupt and close on active query", async () => {
     let resolveGenerator: (() => void) | null = null;
     const blockingQuery = mock(() => {
