@@ -4,7 +4,7 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "./ui/spinner";
 import { useCatalogAgents, useCatalogCategories } from "../lib/hooks";
 
 interface CatalogBrowserProps {
@@ -66,7 +66,7 @@ export default function CatalogBrowser({ open, onClose, onAdd }: CatalogBrowserP
           </DialogHeader>
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-8">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Spinner size="sm" className="text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Loading catalog...</span>
             </div>
           ) : (

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Button } from "./ui/button";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock } from "lucide-react";
+import { Spinner } from "./ui/spinner";
 import type { InterAgentMessage } from "./types";
 
 interface ActivityLogProps {
@@ -104,7 +105,7 @@ export default function ActivityLog({
       })}
       {loadingMore && (
         <div className="flex justify-center py-2">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Spinner size="md" className="text-muted-foreground" />
         </div>
       )}
     </div>

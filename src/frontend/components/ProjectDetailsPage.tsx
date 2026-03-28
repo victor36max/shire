@@ -3,7 +3,8 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
+import { Spinner, PageLoader } from "./ui/spinner";
 import AppLayout from "./AppLayout";
 import { navigate } from "../lib/navigate";
 import { useProjectId, useProjectDoc, useRenameProject, useSaveProjectDoc } from "../lib/hooks";
@@ -43,11 +44,7 @@ export default function ProjectDetailsPage() {
   };
 
   if (!projectId) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
@@ -77,13 +74,17 @@ export default function ProjectDetailsPage() {
               onChange={(e) => setNameValue(e.target.value)}
               placeholder="project-name"
               className="max-w-sm"
+              aria-describedby={
+                nameDirty && !isValidSlug && nameValue.length > 0 ? "project-name-error" : undefined
+              }
+              aria-invalid={nameDirty && !isValidSlug && nameValue.length > 0}
             />
             <Button onClick={handleRename} disabled={!nameDirty || !isValidSlug || isRenaming}>
               {isRenaming ? "Renaming..." : "Rename"}
             </Button>
           </div>
           {nameDirty && !isValidSlug && nameValue.length > 0 && (
-            <p className="text-xs text-destructive">
+            <p id="project-name-error" className="text-xs text-destructive">
               Invalid name. Use lowercase letters, numbers, and hyphens (1-63 chars).
             </p>
           )}
@@ -94,7 +95,7 @@ export default function ProjectDetailsPage() {
 
         {docLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Spinner size="md" className="text-muted-foreground" />
           </div>
         ) : (
           <div className="space-y-2">

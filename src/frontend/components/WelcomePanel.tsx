@@ -24,7 +24,7 @@ export default function WelcomePanel({
         </div>
       )}
       <div className="flex flex-col items-center justify-center flex-1 p-8 max-w-lg mx-auto">
-        <h2 className="text-2xl font-bold mb-2">Shire</h2>
+        <h1 className="text-2xl font-bold mb-2">Shire</h1>
 
         {hasAgents ? (
           <>

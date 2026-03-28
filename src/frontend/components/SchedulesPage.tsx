@@ -25,7 +25,9 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { ChevronLeft, Plus, Play, Pencil, Trash2, Loader2 } from "lucide-react";
+import { ChevronLeft, Plus, Play, Pencil, Trash2 } from "lucide-react";
+import { Spinner, PageLoader } from "./ui/spinner";
+import { ErrorState } from "./ui/error-state";
 import { navigate } from "../lib/navigate";
 import { type ScheduledTask } from "./types";
 import {
@@ -231,7 +233,13 @@ export default function SchedulesPage() {
   const queryClient = useQueryClient();
   const { projectId, projectName } = useProjectId();
 
-  const { data: tasks = [], isLoading: schedulesLoading } = useSchedules(projectId);
+  const {
+    data: tasks = [],
+    isLoading: schedulesLoading,
+    isError: schedulesError,
+    error: schedulesErrorObj,
+    refetch: refetchSchedules,
+  } = useSchedules(projectId);
   const { data: agentList = [] } = useAgents(projectId);
   const createScheduleMut = useCreateSchedule(projectId ?? "");
   const updateScheduleMut = useUpdateSchedule(projectId ?? "");
@@ -310,11 +318,7 @@ export default function SchedulesPage() {
   };
 
   if (!projectId) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const updateForm = (field: keyof ScheduleFormState, value: unknown) => {
@@ -351,8 +355,13 @@ export default function SchedulesPage() {
 
         {schedulesLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Spinner size="lg" className="text-muted-foreground" />
           </div>
+        ) : schedulesError ? (
+          <ErrorState
+            message={schedulesErrorObj?.message || "Failed to load schedules"}
+            onRetry={() => refetchSchedules()}
+          />
         ) : typedTasks.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p>No scheduled tasks yet.</p>

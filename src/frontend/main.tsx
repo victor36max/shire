@@ -7,6 +7,7 @@ import { Toaster, toast } from "sonner";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useConnectionToast } from "./lib/useConnectionToast";
+import { Spinner } from "./components/ui/spinner";
 import "@fontsource-variable/dm-sans";
 import "./css/app.css";
 
@@ -62,7 +63,7 @@ function App() {
             <Suspense
               fallback={
                 <div className="flex items-center justify-center h-screen">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                  <Spinner size="lg" className="text-muted-foreground" />
                 </div>
               }
             >

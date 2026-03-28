@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
+import { PageLoader } from "./ui/spinner";
 import AppLayout from "./AppLayout";
 import ThemeSelector from "./ThemeSelector";
 import { navigate } from "../lib/navigate";
@@ -33,11 +34,7 @@ export default function SettingsPage() {
   const has_more_messages = hasNextPage ?? false;
 
   if (!projectId) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

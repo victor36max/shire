@@ -12,6 +12,11 @@ const toggleMutate = vi.fn();
 const runNowMutate = vi.fn();
 
 let mockTasks: ScheduledTask[] = [];
+let mockSchedulesError: {
+  isError: boolean;
+  error: Error | null;
+  refetch: ReturnType<typeof vi.fn>;
+} = { isError: false, error: null, refetch: vi.fn() };
 let mockAgents: { id: string; name: string }[] = [
   { id: "a1", name: "Alice" },
   { id: "a2", name: "Bob" },
@@ -23,7 +28,7 @@ vi.mock("../lib/hooks", async () => {
     ...actual,
     useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
     useAgents: () => ({ data: mockAgents, isLoading: false }),
-    useSchedules: () => ({ data: mockTasks, isLoading: false }),
+    useSchedules: () => ({ data: mockTasks, isLoading: false, ...mockSchedulesError }),
     useCreateSchedule: () => ({ mutate: createMutate, isPending: false }),
     useUpdateSchedule: () => ({ mutate: updateMutate, isPending: false }),
     useDeleteSchedule: () => ({ mutate: deleteMutate, isPending: false }),
@@ -69,6 +74,7 @@ beforeEach(() => {
     { id: "a1", name: "Alice" },
     { id: "a2", name: "Bob" },
   ];
+  mockSchedulesError = { isError: false, error: null, refetch: vi.fn() };
   createMutate.mockClear();
   updateMutate.mockClear();
   deleteMutate.mockClear();
@@ -244,5 +250,16 @@ describe("SchedulesPage", () => {
     expect(screen.getByRole("heading", { name: "Edit Schedule" })).toBeInTheDocument();
     expect(screen.getByLabelText("Label")).toHaveValue("Daily standup");
     expect(screen.getByLabelText("Message")).toHaveValue("Give me a standup summary");
+  });
+
+  it("shows error state with retry when schedules query fails", () => {
+    mockSchedulesError = {
+      isError: true,
+      error: new Error("Failed to fetch"),
+      refetch: vi.fn(),
+    };
+    renderWithProviders(<SchedulesPage />);
+    expect(screen.getByText("Failed to fetch")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
 });

@@ -2,7 +2,8 @@ import * as React from "react";
 import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "./ui/spinner";
+import { ErrorState } from "./ui/error-state";
 import ChatHeader from "./ChatHeader";
 import ChatPanel from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
@@ -29,7 +30,13 @@ export default function AgentChatView() {
     useProjectLayout();
   const queryClient = useQueryClient();
 
-  const { data: agentList = [], isLoading: agentsLoading } = useAgents(projectId);
+  const {
+    data: agentList = [],
+    isLoading: agentsLoading,
+    isError: agentsError,
+    error: agentsErrorObj,
+    refetch: refetchAgents,
+  } = useAgents(projectId);
   const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
   const selectedAgentId = selectedAgent?.id;
 
@@ -116,7 +123,18 @@ export default function AgentChatView() {
   if (agentsLoading) {
     return (
       <div className="flex items-center justify-center flex-1">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner size="lg" className="text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (agentsError) {
+    return (
+      <div className="flex items-center justify-center flex-1">
+        <ErrorState
+          message={agentsErrorObj?.message || "Failed to load agents"}
+          onRetry={() => refetchAgents()}
+        />
       </div>
     );
   }

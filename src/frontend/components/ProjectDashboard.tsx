@@ -29,7 +29,9 @@ import {
 } from "./ui/dropdown-menu";
 import AppLayout from "./AppLayout";
 import { navigate } from "../lib/navigate";
-import { Loader2, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
+import { PageLoader } from "./ui/spinner";
+import { ErrorState } from "./ui/error-state";
 import type { Project } from "./types";
 import { useProjects, useCreateProject, useDeleteProject, useRestartProject } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
@@ -52,7 +54,7 @@ const PROJECT_NAME_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
 export default function ProjectDashboard() {
   const queryClient = useQueryClient();
-  const { data: projects = [], isLoading } = useProjects();
+  const { data: projects = [], isLoading, isError, error, refetch } = useProjects();
   const createProject = useCreateProject();
   const deleteProject = useDeleteProject();
   const restartProject = useRestartProject();
@@ -88,9 +90,18 @@ export default function ProjectDashboard() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <PageLoader />
+      </AppLayout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <AppLayout>
+        <ErrorState
+          message={error?.message || "Failed to load projects"}
+          onRetry={() => refetch()}
+        />
       </AppLayout>
     );
   }
@@ -117,8 +128,16 @@ export default function ProjectDashboard() {
             {projects.map((project) => (
               <Card
                 key={project.id}
+                role="button"
+                tabIndex={0}
                 className="cursor-pointer hover:border-primary/50 transition-colors"
                 onClick={() => navigate(`/projects/${project.name}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(`/projects/${project.name}`);
+                  }
+                }}
               >
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
@@ -184,9 +203,11 @@ export default function ProjectDashboard() {
                 if (e.key === "Enter") handleCreate();
               }}
               autoFocus
+              aria-describedby={projectName && !nameValid ? "project-name-error" : undefined}
+              aria-invalid={projectName !== "" && !nameValid}
             />
             {projectName && !nameValid && (
-              <p className="text-sm text-destructive">
+              <p id="project-name-error" className="text-sm text-destructive">
                 Use lowercase letters, numbers, and hyphens only. Must start and end with a letter
                 or number.
               </p>

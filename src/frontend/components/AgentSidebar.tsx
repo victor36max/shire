@@ -17,7 +17,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { FileText, Settings, FolderOpen, Clock, Loader2 } from "lucide-react";
+import { FileText, Settings, FolderOpen, Clock } from "lucide-react";
+import { Spinner } from "./ui/spinner";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { navigate } from "../lib/navigate";
 import { type AgentOverview, type AgentStatus } from "./types";
@@ -82,7 +83,7 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
       <div className="flex-1 overflow-y-auto py-1">
         {agentsLoading && (
           <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <Spinner size="sm" className="text-muted-foreground" />
           </div>
         )}
         {agents.map((agent) => (
@@ -98,6 +99,8 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
             >
               <span
                 className={`w-2 h-2 rounded-full shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
+                role="img"
+                aria-label={`Status: ${agent.status}${agent.busy ? " (busy)" : ""}`}
               />
               <span className="truncate">{agent.name}</span>
               {agent.unreadCount ? (
@@ -113,7 +116,13 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
                   className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 rounded hover:bg-background text-muted-foreground"
                   aria-label={`${agent.name} actions`}
                 >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
                     <circle cx="8" cy="3" r="1.5" />
                     <circle cx="8" cy="8" r="1.5" />
                     <circle cx="8" cy="13" r="1.5" />
