@@ -12,6 +12,8 @@ import { getDb } from "../db";
 import { AgentManager } from "./agent-manager";
 import * as agentsService from "../services/agents";
 import * as workspace from "../services/workspace";
+import * as skillsService from "../services/skills";
+import type { Skill } from "../services/skills";
 import { valid as isValidSlug } from "../services/slug";
 
 export interface AgentFields {
@@ -20,6 +22,7 @@ export interface AgentFields {
   harness?: string;
   model?: string;
   systemPrompt?: string;
+  skills?: Skill[];
 }
 
 export class Coordinator {
@@ -108,6 +111,11 @@ export class Coordinator {
       return a;
     });
 
+    // Write skills to filesystem (after txn so workspace dirs exist)
+    if (params.skills?.length) {
+      await skillsService.writeSkills(this.projectId, agent.id, params.skills, params.harness);
+    }
+
     // Start process
     await this.startAgentManager(agent.id, agent.name);
     await this.writePeersYaml();
@@ -133,8 +141,28 @@ export class Coordinator {
       if (conflict) return { ok: false, error: `Agent "${params.name}" already exists` };
     }
 
-    // Update DB fields
-    agentsService.updateAgent(agentId, params);
+    // Update DB fields + migrate skills if harness changed
+    const harnessChanged = params.harness && params.harness !== agent.harness;
+    try {
+      getDb().transaction((tx) => {
+        agentsService.updateAgent(agentId, params, tx);
+        if (harnessChanged) {
+          skillsService.copySkillsSync(this.projectId, agentId, agent.harness, params.harness!);
+        }
+      });
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+    // Clean up old harness skills dir only after successful commit
+    if (harnessChanged) {
+      skillsService.removeSkillsDirSync(this.projectId, agentId, agent.harness);
+    }
+
+    // Write skills to filesystem if provided
+    if (params.skills !== undefined) {
+      const harness = params.harness ?? agent.harness ?? undefined;
+      await skillsService.writeSkills(this.projectId, agentId, params.skills, harness);
+    }
 
     // Restart the agent to pick up changes
     const proc = this.agents.get(agentId);
@@ -225,6 +253,11 @@ export class Coordinator {
     if (!proc) return null;
 
     const agent = agentsService.getAgent(agentId);
+    const agentSkills = await skillsService.readSkills(
+      this.projectId,
+      agentId,
+      agent?.harness ?? undefined,
+    );
     return {
       id: agentId,
       name: proc.agentName,
@@ -232,6 +265,7 @@ export class Coordinator {
       harness: agent?.harness ?? "claude_code",
       model: agent?.model ?? null,
       systemPrompt: agent?.systemPrompt ?? null,
+      skills: agentSkills,
       status: proc.status,
     };
   }

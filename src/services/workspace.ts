@@ -44,6 +44,22 @@ export function attachmentPath(
   return join(attachmentDir(projectId, agentId, attachmentId), filename);
 }
 
+export function skillsDir(projectId: string, agentId: string, harness?: string): string {
+  if (harness === "claude_code") {
+    return join(agentDir(projectId, agentId), ".claude", "skills");
+  }
+  return join(agentDir(projectId, agentId), ".agents", "skills");
+}
+
+export function skillDir(
+  projectId: string,
+  agentId: string,
+  skillName: string,
+  harness?: string,
+): string {
+  return join(skillsDir(projectId, agentId, harness), skillName);
+}
+
 export function sharedDir(projectId: string): string {
   return join(root(projectId), "shared");
 }

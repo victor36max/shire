@@ -72,6 +72,7 @@ export default function ProjectLayout() {
         harness: catalogSelectedAgent.harness,
         model: catalogSelectedAgent.model,
         systemPrompt: catalogSelectedAgent.systemPrompt,
+        skills: [],
         status: "idle",
         busy: false,
         unreadCount: 0,

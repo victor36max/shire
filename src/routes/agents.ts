@@ -3,6 +3,20 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { AppEnv } from "../types";
 
+const skillSchema = z.object({
+  name: z.string().regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/, "Invalid skill name"),
+  description: z.string(),
+  content: z.string(),
+  references: z
+    .array(
+      z.object({
+        name: z.string().regex(/^[^/\\]+$/, "Invalid reference filename"),
+        content: z.string(),
+      }),
+    )
+    .optional(),
+});
+
 export const agentRoutes = new Hono<AppEnv>()
   .get("/projects/:id/agents", (c) => {
     const pm = c.get("projectManager");
@@ -20,6 +34,7 @@ export const agentRoutes = new Hono<AppEnv>()
         harness: z.enum(["claude_code", "pi"]).optional(),
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
+        skills: z.array(skillSchema).optional(),
       }),
     ),
     async (c) => {
@@ -52,6 +67,7 @@ export const agentRoutes = new Hono<AppEnv>()
         harness: z.enum(["claude_code", "pi"]).optional(),
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
+        skills: z.array(skillSchema).optional(),
       }),
     ),
     async (c) => {
