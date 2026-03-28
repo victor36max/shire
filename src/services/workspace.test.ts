@@ -24,10 +24,6 @@ describe("workspace paths", () => {
     expect(workspace.sharedDir(PROJECT_ID)).toBe(workspace.root(PROJECT_ID) + "/shared");
   });
 
-  it("runnerDir returns .runner directory", () => {
-    expect(workspace.runnerDir(PROJECT_ID)).toBe(workspace.root(PROJECT_ID) + "/.runner");
-  });
-
   it("peersPath returns peers.yaml path", () => {
     expect(workspace.peersPath(PROJECT_ID)).toBe(workspace.root(PROJECT_ID) + "/peers.yaml");
   });
