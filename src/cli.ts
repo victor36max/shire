@@ -59,6 +59,17 @@ function parseArgs(argv: string[]): ParsedArgs {
   return { command, port, daemon, isDaemonChild };
 }
 
+export function openBrowser(url: string): void {
+  if (process.env.SHIRE_NO_OPEN) return;
+  if (!/^https?:\/\//.test(url)) return;
+  try {
+    const cmd = process.platform === "darwin" ? "open" : "xdg-open";
+    Bun.spawn([cmd, url], { stdio: ["ignore", "ignore", "ignore"] });
+  } catch {
+    // Non-fatal — user can open manually
+  }
+}
+
 function printHelp(): void {
   console.log(`shire v${VERSION} — AI agent orchestration platform
 
@@ -113,8 +124,9 @@ async function handleStart(args: ParsedArgs): Promise<void> {
     }
 
     child.unref();
+    const url = `http://localhost:${args.port}`;
     console.log(`Shire daemon started (PID ${child.pid})`);
-    console.log(`  Port: ${args.port}`);
+    console.log(`  URL:  ${url}`);
     console.log(`  Logs: ${logFilePath()}`);
     process.exit(0);
   }
@@ -133,7 +145,8 @@ async function handleStart(args: ParsedArgs): Promise<void> {
     process.on("SIGINT", cleanup);
   }
 
-  await startServer({ port: args.port });
+  const server = await startServer({ port: args.port });
+  openBrowser(`http://localhost:${server.port}`);
 }
 
 function handleStop(): void {
