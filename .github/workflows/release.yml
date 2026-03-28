@@ -43,6 +43,10 @@ jobs:
         with:
           bun-version: "1.3.11"
 
+      - uses: actions/setup-node@v4
+        with:
+          registry-url: "https://registry.npmjs.org"
+
       - run: bun install --frozen-lockfile
 
       - name: Build binary and assets
@@ -50,10 +54,16 @@ jobs:
 
       - name: Set version in package.json
         shell: bash
+        env:
+          PKG_VERSION: ${{ github.ref_name }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           cd npm/${{ matrix.npm-dir }}
-          jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = process.env.PKG_VERSION.replace(/^v/, '');
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
 
       - name: Publish platform package
         run: npm publish --access public
@@ -73,17 +83,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          registry-url: "https://registry.npmjs.org"
+
       - name: Set version in meta-package
+        shell: bash
+        env:
+          PKG_VERSION: ${{ github.ref_name }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          cd npm/shire
-          jq --arg v "$VERSION" '
-            .version = $v |
-            .optionalDependencies |= with_entries(.value = $v)
-          ' package.json > tmp.json && mv tmp.json package.json
+          cd npm/agents-shire
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const version = process.env.PKG_VERSION.replace(/^v/, '');
+            pkg.version = version;
+            for (const key of Object.keys(pkg.optionalDependencies)) {
+              pkg.optionalDependencies[key] = version;
+            }
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
 
       - name: Publish meta-package
         run: npm publish --access public
-        working-directory: npm/shire
+        working-directory: npm/agents-shire
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

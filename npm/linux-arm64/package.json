@@ -1,5 +1,5 @@
 {
-  "name": "@shire/cli-linux-arm64",
+  "name": "@agents-shire/cli-linux-arm64",
   "version": "0.1.0",
   "description": "Shire CLI binary for Linux ARM64",
   "os": ["linux"],
