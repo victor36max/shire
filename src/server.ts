@@ -19,8 +19,17 @@ export interface AppContext {
 }
 
 export function createApp(ctx: AppContext) {
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+    : ["http://localhost:5173", "http://localhost:4000"];
+
   const app = new Hono<AppEnv>()
-    .use("*", cors())
+    .use("*", cors({ origin: allowedOrigins }))
+    .use("*", async (c, next) => {
+      await next();
+      c.header("X-Content-Type-Options", "nosniff");
+      c.header("X-Frame-Options", "DENY");
+    })
     .use("*", async (c, next) => {
       c.set("projectManager", ctx.projectManager);
       c.set("scheduler", ctx.scheduler);

@@ -58,6 +58,7 @@ export class ClaudeCodeHarness implements Harness {
       }
     } catch (err) {
       this.emitEvent({ type: "error", payload: { message: String(err) } });
+      this.emitEvent({ type: "turn_complete", payload: {} });
     } finally {
       this.processing = false;
       this.activeQuery = null;

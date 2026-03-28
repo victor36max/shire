@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  coordinator.stopAll();
+  await coordinator.stopAll();
   rmSync(testDir, { recursive: true, force: true });
 });
 

@@ -21,38 +21,43 @@ export class Coordinator {
   private agents = new Map<string, AgentManager>();
   private statuses = new Map<string, AgentStatus>();
   private deployed = false;
+  private unsubscribes: Array<() => void> = [];
 
   constructor(projectId: string) {
     this.projectId = projectId;
 
     // Listen for outbox messages to route between agents
-    bus.on(`project:${projectId}:outbox`, (event) => {
-      if (event.type === "outbox_message") {
-        const p = event.payload as {
-          fromAgentId: string;
-          fromAgentName: string;
-          toAgentName: string;
-          text: string;
-        };
-        this.routeMessage(p.fromAgentId, p.fromAgentName, p.toAgentName, p.text).catch((err) =>
-          console.error("routeMessage error:", err),
-        );
-      }
-    });
+    this.unsubscribes.push(
+      bus.on(`project:${projectId}:outbox`, (event) => {
+        if (event.type === "outbox_message") {
+          const p = event.payload as {
+            fromAgentId: string;
+            fromAgentName: string;
+            toAgentName: string;
+            text: string;
+          };
+          this.routeMessage(p.fromAgentId, p.fromAgentName, p.toAgentName, p.text).catch((err) =>
+            console.error("routeMessage error:", err),
+          );
+        }
+      }),
+    );
 
     // Listen for spawn_agent requests from agents
-    bus.on(`project:${projectId}:spawn_agent`, (event) => {
-      if (event.type === "spawn_agent") {
-        const p = event.payload as { name: string };
-        const agent = agentsService.getAgentByName(projectId, p.name);
-        if (agent) {
-          const proc = this.agents.get(agent.id);
-          if (proc) {
-            proc.restart().catch((err) => console.error("spawn_agent restart error:", err));
+    this.unsubscribes.push(
+      bus.on(`project:${projectId}:spawn_agent`, (event) => {
+        if (event.type === "spawn_agent") {
+          const p = event.payload as { name: string };
+          const agent = agentsService.getAgentByName(projectId, p.name);
+          if (agent) {
+            const proc = this.agents.get(agent.id);
+            if (proc) {
+              proc.restart().catch((err) => console.error("spawn_agent restart error:", err));
+            }
           }
         }
-      }
-    });
+      }),
+    );
   }
 
   async deployAndScan(): Promise<void> {
@@ -148,7 +153,7 @@ export class Coordinator {
   async deleteAgent(agentId: string): Promise<{ ok: true } | { ok: false; error: string }> {
     const proc = this.agents.get(agentId);
     if (proc) {
-      proc.stop();
+      await proc.stop();
       this.agents.delete(agentId);
       this.statuses.delete(agentId);
     }
@@ -231,12 +236,12 @@ export class Coordinator {
     };
   }
 
-  stopAll(): void {
-    for (const proc of this.agents.values()) {
-      proc.stop();
-    }
+  async stopAll(): Promise<void> {
+    await Promise.all([...this.agents.values()].map((proc) => proc.stop()));
     this.agents.clear();
     this.statuses.clear();
+    for (const unsub of this.unsubscribes) unsub();
+    this.unsubscribes = [];
   }
 
   // --- Private ---
@@ -251,12 +256,14 @@ export class Coordinator {
     this.agents.set(agentId, proc);
 
     // Listen for status changes
-    bus.on(`project:${this.projectId}:agent:${agentId}`, (event) => {
-      if (event.type === "agent_status") {
-        const p = event.payload as { agentId: string; status: AgentStatus };
-        this.statuses.set(p.agentId, p.status);
-      }
-    });
+    this.unsubscribes.push(
+      bus.on(`project:${this.projectId}:agent:${agentId}`, (event) => {
+        if (event.type === "agent_status") {
+          const p = event.payload as { agentId: string; status: AgentStatus };
+          this.statuses.set(p.agentId, p.status);
+        }
+      }),
+    );
 
     await proc.start();
   }
@@ -291,6 +298,20 @@ export class Coordinator {
     const targetProc = this.agents.get(targetAgent.id);
     if (!targetProc) {
       console.warn(`Agent ${toAgentName} exists but has no running process`);
+      const sender = this.agents.get(fromAgentId);
+      if (sender) {
+        const errorEnvelope = {
+          ts: Date.now(),
+          type: "system_message",
+          from: "system",
+          payload: {
+            text: `Message delivery failed: agent "${toAgentName}" is not running.`,
+          },
+        };
+        const errorFilename = `${Date.now()}-error.yaml`;
+        const errorInboxPath = join(workspace.inboxDir(this.projectId, fromAgentId), errorFilename);
+        await writeFile(errorInboxPath, yaml.dump(errorEnvelope), "utf-8").catch(() => {});
+      }
       return;
     }
 

@@ -14,11 +14,12 @@ function resolveProjectId(nameOrId: string): string | null {
   return byName?.id ?? null;
 }
 
-function safePath(sharedRoot: string, userPath: string): string | null {
+export function safePath(sharedRoot: string, userPath: string): string | null {
   // Normalize: treat "/" or empty as the shared root itself
   const normalized = userPath === "/" || userPath === "" ? "." : userPath.replace(/^\//, "");
   const resolved = resolve(sharedRoot, normalized);
-  if (!resolved.startsWith(sharedRoot)) return null;
+  // Guard against prefix collisions (e.g. /shared vs /shared-evil)
+  if (resolved !== sharedRoot && !resolved.startsWith(sharedRoot + "/")) return null;
   return resolved;
 }
 
