@@ -41,7 +41,7 @@ async function buildBinary(target: Target): Promise<void> {
 
   // bun build --compile handles HTML imports automatically — it bundles
   // the frontend (JS, CSS, assets) into the binary via the manifest
-  await $`bun build src/cli.ts --compile --target=${target.bunTarget} --outfile=${outFile}`.cwd(
+  await $`bun build src/cli.ts --compile --target=${target.bunTarget} --outfile=${outFile} --define process.env.NODE_ENV='"production"'`.cwd(
     ROOT,
   );
 
