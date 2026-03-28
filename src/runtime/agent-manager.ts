@@ -12,6 +12,7 @@ import {
 } from "../events";
 import * as agentsService from "../services/agents";
 import * as workspace from "../services/workspace";
+import * as skillsService from "../services/skills";
 import { createHarness, type Harness, type HarnessType } from "./harness";
 import type { AgentEvent } from "./harness/types";
 
@@ -836,6 +837,8 @@ export class AgentManager {
 
   private async setupWorkspace(): Promise<void> {
     await workspace.ensureAgentDirs(this.projectId, this.agentId);
+    const agent = agentsService.getAgent(this.agentId);
+    await skillsService.ensureSkillsDir(this.projectId, this.agentId, agent?.harness ?? undefined);
   }
 
   private buildInternalPrompt(): string {

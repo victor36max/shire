@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { unwrap } from "./util";
-import type { AgentOverview, Agent } from "../../components/types";
+import type { AgentOverview, Agent, Skill } from "../../components/types";
 
 export function useAgents(projectId: string | undefined) {
   return useQuery<AgentOverview[]>({
@@ -33,6 +33,7 @@ interface AgentMutationData {
   harness?: "claude_code" | "pi";
   model?: string;
   systemPrompt?: string;
+  skills?: Skill[];
 }
 
 export function useCreateAgent(projectId: string) {
