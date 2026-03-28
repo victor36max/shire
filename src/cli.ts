@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { spawn } from "child_process";
-import { openSync } from "fs";
+import { mkdirSync, openSync } from "fs";
 import {
   writePidFile,
   readPidFile,
@@ -92,8 +92,16 @@ async function handleStart(args: ParsedArgs): Promise<void> {
 
   if (args.daemon && !args.isDaemonChild) {
     // Spawn a detached child process
-    const logFd = openSync(logFilePath(), "a");
-    const child = spawn(process.execPath, [...process.argv.slice(1), "--_daemon-child"], {
+    const logPath = logFilePath();
+    mkdirSync(logPath.substring(0, logPath.lastIndexOf("/")), { recursive: true });
+    const logFd = openSync(logPath, "a");
+    // In compiled binaries, argv[1] is /$bunfs/root/... which isn't a real path.
+    // The binary is process.execPath itself — just pass CLI args, not the script path.
+    const isCompiled = process.argv[1]?.startsWith("/$bunfs/");
+    const childArgs = isCompiled
+      ? [...process.argv.slice(2), "--_daemon-child"]
+      : [...process.argv.slice(1), "--_daemon-child"];
+    const child = spawn(process.execPath, childArgs, {
       detached: true,
       stdio: ["ignore", logFd, logFd],
       env: { ...process.env, NODE_ENV: "production" },
