@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.85",
-    "@fontsource-variable/dm-sans": "^5.2.8",
     "@hono/zod-validator": "^0.7.6",
     "@mariozechner/pi-ai": "^0.63.1",
     "@mariozechner/pi-coding-agent": "^0.63.1",
