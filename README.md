@@ -56,7 +56,6 @@ Each project has an isolated workspace on disk:
     │   ├── outbox/                 # Outgoing inter-agent messages
     │   └── attachments/            # File attachments
     ├── shared/                     # Cross-agent shared drive
-    ├── .runner/                    # Internal runtime state
     ├── peers.yaml                  # Agent discovery registry
     └── PROJECT.md                  # Project documentation
 ```
