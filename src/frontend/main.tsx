@@ -8,8 +8,6 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useConnectionToast } from "./lib/useConnectionToast";
 import { Spinner } from "./components/ui/spinner";
-import "@fontsource-variable/dm-sans";
-
 import ProjectLayout from "./components/ProjectLayout";
 
 const ProjectDashboard = lazy(() => import("./pages/ProjectDashboard"));
