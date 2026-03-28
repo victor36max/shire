@@ -47,12 +47,15 @@ export const messageRoutes = new Hono<AppEnv>()
       const { content } = row;
       return {
         id: row.id,
+        role: row.role,
         text: String(content.text ?? ""),
-        fromAgent: String(content.from_agent ?? ""),
-        toAgent: String(content.to_agent ?? ""),
+        fromAgent: String(content.fromAgent ?? content.from_agent ?? ""),
+        toAgent: String(content.toAgent ?? content.to_agent ?? ""),
         ts: row.createdAt,
         ...(content.trigger ? { trigger: String(content.trigger) } : {}),
-        ...(content.task_label ? { taskLabel: String(content.task_label) } : {}),
+        ...(content.taskLabel != null || content.task_label != null
+          ? { taskLabel: String(content.taskLabel ?? content.task_label) }
+          : {}),
       };
     });
 

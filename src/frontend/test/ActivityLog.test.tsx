@@ -137,6 +137,32 @@ describe("ActivityLog", () => {
     if (origCH) Object.defineProperty(HTMLDivElement.prototype, "clientHeight", origCH);
   });
 
+  it("renders system messages without from/to arrow", () => {
+    const systemMessages: InterAgentMessage[] = [
+      {
+        id: 10,
+        fromAgent: "",
+        toAgent: "",
+        text: "Session cleared",
+        ts: "2026-03-17T10:00:00Z",
+        role: "system",
+      },
+      {
+        id: 11,
+        fromAgent: "",
+        toAgent: "",
+        text: "Error: something went wrong",
+        ts: "2026-03-17T10:01:00Z",
+        role: "system",
+      },
+    ];
+    render(<ActivityLog {...defaultProps} messages={systemMessages} />);
+    expect(screen.getByText("Session cleared")).toBeInTheDocument();
+    expect(screen.getByText("Error: something went wrong")).toBeInTheDocument();
+    // Should show "System" label, not empty arrows
+    expect(screen.getAllByText("System")).toHaveLength(2);
+  });
+
   it("truncates long messages and shows expand toggle", async () => {
     const longText = "A".repeat(250);
     const longMessages: InterAgentMessage[] = [

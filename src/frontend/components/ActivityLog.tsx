@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Button } from "./ui/button";
-import { Clock } from "lucide-react";
+import { Clock, Info } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import type { InterAgentMessage } from "./types";
 
@@ -76,7 +76,14 @@ export default function ActivityLog({
                 {msg.trigger === "scheduled_task" ? (
                   <>
                     <Clock className="inline h-3 w-3 mr-1" />
-                    <span className="font-medium text-foreground">{msg.taskLabel}</span>
+                    <span className="font-medium text-foreground">
+                      {msg.taskLabel ?? "Scheduled task"}
+                    </span>
+                  </>
+                ) : msg.role === "system" || (!msg.fromAgent && !msg.toAgent) ? (
+                  <>
+                    <Info className="inline h-3 w-3 mr-1" />
+                    <span className="font-medium text-foreground">System</span>
                   </>
                 ) : (
                   <>
