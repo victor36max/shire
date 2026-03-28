@@ -14,8 +14,13 @@ vi.mock("../lib/hooks", async () => {
     ...actual,
     useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
     useActivity: () => ({
-      data: { messages: mockMessages, hasMore: mockHasMore },
-      isLoading: false,
+      data: {
+        pages: [{ messages: mockMessages, hasMore: mockHasMore }],
+        pageParams: [undefined],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: mockHasMore,
+      isFetchingNextPage: false,
     }),
   };
 });

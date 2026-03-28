@@ -55,11 +55,19 @@ vi.mock("../lib/hooks", async () => {
     }),
     useDeleteAgent: () => ({ mutate: vi.fn(), isPending: false }),
     useClearSession: () => ({ mutate: vi.fn(), isPending: false }),
-    useMessages: () => ({ data: { messages: [], hasMore: false }, isLoading: false }),
+    useMessages: () => ({
+      data: {
+        pages: [{ messages: [], hasMore: false }],
+        pageParams: [undefined],
+      },
+      isLoading: false,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+    }),
     useSendMessage: () => ({ mutate: vi.fn(), isPending: false }),
     useInterruptAgent: () => ({ mutate: vi.fn(), isPending: false }),
     useRestartAgent: () => ({ mutate: vi.fn(), isPending: false }),
-    useLoadMoreMessages: () => ({ mutate: vi.fn(), isPending: false }),
     useMarkRead: () => ({ mutate: vi.fn(), isPending: false }),
   };
 });
