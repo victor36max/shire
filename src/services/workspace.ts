@@ -27,14 +27,6 @@ export function outboxDir(projectId: string, agentId: string): string {
   return join(agentDir(projectId, agentId), "outbox");
 }
 
-export function scriptsDir(projectId: string, agentId: string): string {
-  return join(agentDir(projectId, agentId), "scripts");
-}
-
-export function documentsDir(projectId: string, agentId: string): string {
-  return join(agentDir(projectId, agentId), "documents");
-}
-
 export function attachmentsDir(projectId: string, agentId: string): string {
   return join(agentDir(projectId, agentId), "attachments");
 }
@@ -81,8 +73,6 @@ export async function ensureAgentDirs(projectId: string, agentId: string): Promi
     mkdir(agentDir(projectId, agentId), { recursive: true }),
     mkdir(inboxDir(projectId, agentId), { recursive: true }),
     mkdir(outboxDir(projectId, agentId), { recursive: true }),
-    mkdir(scriptsDir(projectId, agentId), { recursive: true }),
-    mkdir(documentsDir(projectId, agentId), { recursive: true }),
     mkdir(attachmentsDir(projectId, agentId), { recursive: true }),
     mkdir(join(attachmentsDir(projectId, agentId), "outbox"), { recursive: true }),
   ]);
@@ -100,8 +90,6 @@ export function ensureAgentDirsSync(projectId: string, agentId: string): void {
   mkdirSync(agentDir(projectId, agentId), { recursive: true });
   mkdirSync(inboxDir(projectId, agentId), { recursive: true });
   mkdirSync(outboxDir(projectId, agentId), { recursive: true });
-  mkdirSync(scriptsDir(projectId, agentId), { recursive: true });
-  mkdirSync(documentsDir(projectId, agentId), { recursive: true });
   mkdirSync(attachmentsDir(projectId, agentId), { recursive: true });
   mkdirSync(join(attachmentsDir(projectId, agentId), "outbox"), { recursive: true });
 }

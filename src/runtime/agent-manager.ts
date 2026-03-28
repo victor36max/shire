@@ -822,10 +822,6 @@ Messages arrive in your conversation automatically:
 - **User messages:** sent directly by the user
 - **Agent messages:** arrive prefixed with \`[Message from agent "<name>"]\`
 
-## Your Workspace
-- \`scripts/\` — Save reusable automation scripts
-- \`documents/\` — Store internal documents and notes
-
 ## Attachments
 Write files to \`attachments/outbox/\` to share them with the user in chat.
 
