@@ -116,7 +116,8 @@ describe("ProjectLayout + AgentChatView", () => {
 
   it("opens new agent dialog from sidebar", async () => {
     renderWithLayout();
-    await userEvent.click(screen.getByText("+ New Agent"));
+    const buttons = screen.getAllByText("+ New Agent");
+    await userEvent.click(buttons[0]);
     await waitFor(() => {
       expect(screen.getByText("Create a new agent to get started.")).toBeInTheDocument();
     });
