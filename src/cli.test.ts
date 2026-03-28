@@ -4,7 +4,7 @@ import { join } from "path";
 import { existsSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { logFilePath } from "./daemon";
-import { openBrowser } from "./cli";
+import { openBrowser, shouldOpenBrowser } from "./cli";
 
 const CLI_PATH = join(import.meta.dirname, "cli.ts");
 
@@ -18,6 +18,7 @@ describe("CLI", () => {
     expect(result).toContain("status");
     expect(result).toContain("--port");
     expect(result).toContain("--daemon");
+    expect(result).toContain("--no-open");
   });
 
   it("prints version with --version", async () => {
@@ -60,6 +61,17 @@ describe("CLI", () => {
       } finally {
         spawnSpy.mockRestore();
         delete process.env.SHIRE_NO_OPEN;
+      }
+    });
+
+    it("skips opening in SSH sessions", () => {
+      const prev = process.env.SSH_CLIENT;
+      process.env.SSH_CLIENT = "192.168.1.1 12345 22";
+      try {
+        expect(shouldOpenBrowser()).toBe(false);
+      } finally {
+        if (prev !== undefined) process.env.SSH_CLIENT = prev;
+        else delete process.env.SSH_CLIENT;
       }
     });
 

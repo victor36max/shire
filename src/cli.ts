@@ -19,6 +19,7 @@ interface ParsedArgs {
   command: string;
   port: number;
   daemon: boolean;
+  noOpen: boolean;
   isDaemonChild: boolean;
 }
 
@@ -27,6 +28,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   let command = "start";
   let port = 8080;
   let daemon = false;
+  let noOpen = false;
   let isDaemonChild = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -38,6 +40,8 @@ function parseArgs(argv: string[]): ParsedArgs {
       command = "version";
     } else if (arg === "--daemon" || arg === "-d") {
       daemon = true;
+    } else if (arg === "--no-open") {
+      noOpen = true;
     } else if (arg === "--_daemon-child") {
       isDaemonChild = true;
     } else if (arg === "--port" || arg === "-p") {
@@ -56,11 +60,20 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { command, port, daemon, isDaemonChild };
+  return { command, port, daemon, noOpen, isDaemonChild };
+}
+
+export function shouldOpenBrowser(): boolean {
+  if (process.env.SHIRE_NO_OPEN) return false;
+  if (process.env.SSH_CLIENT || process.env.SSH_TTY) return false;
+  if (process.platform === "linux" && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+    return false;
+  }
+  return true;
 }
 
 export function openBrowser(url: string): void {
-  if (process.env.SHIRE_NO_OPEN) return;
+  if (!shouldOpenBrowser()) return;
   if (!/^https?:\/\//.test(url)) return;
   try {
     const cmd = process.platform === "darwin" ? "open" : "xdg-open";
@@ -84,6 +97,7 @@ Commands:
 Options:
   -p, --port     Port to listen on (default: 8080)
   -d, --daemon   Run in background (daemon mode)
+  --no-open      Don't open browser on start
   -h, --help     Show this help message
   -v, --version  Show version
 `);
@@ -146,7 +160,9 @@ async function handleStart(args: ParsedArgs): Promise<void> {
   }
 
   const server = await startServer({ port: args.port });
-  openBrowser(`http://localhost:${server.port}`);
+  if (!args.noOpen) {
+    openBrowser(`http://localhost:${server.port}`);
+  }
 }
 
 function handleStop(): void {
