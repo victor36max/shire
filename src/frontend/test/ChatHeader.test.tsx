@@ -1,20 +1,18 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, mock } from "bun:test";
 import ChatHeader from "../components/ChatHeader";
 import { type AgentOverview } from "../components/types";
 import { renderWithProviders } from "./test-utils";
+import * as hooksModule from "../lib/hooks";
 
-const clearMutate = vi.fn();
+const clearMutate = mock(() => {});
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useClearSession: () => ({ mutate: clearMutate, isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...hooksModule,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useClearSession: () => ({ mutate: clearMutate, isPending: false }),
+}));
 
 const agent: AgentOverview = {
   id: "a1",
@@ -43,7 +41,7 @@ describe("ChatHeader", () => {
   });
 
   it("renders mobile menu toggle when onMenuToggle is provided", () => {
-    renderWithProviders(<ChatHeader agent={agent} onMenuToggle={vi.fn()} />);
+    renderWithProviders(<ChatHeader agent={agent} onMenuToggle={mock(() => {})} />);
     expect(screen.getByRole("button", { name: "Open menu" })).toBeInTheDocument();
   });
 });

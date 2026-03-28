@@ -1,0 +1,47 @@
+#!/usr/bin/env node
+"use strict";
+
+const { execFileSync } = require("child_process");
+const { join } = require("path");
+
+const PLATFORMS = {
+  "darwin-arm64": "@shire/cli-darwin-arm64",
+  "darwin-x64": "@shire/cli-darwin-x64",
+  "linux-x64": "@shire/cli-linux-x64",
+  "linux-arm64": "@shire/cli-linux-arm64",
+  "win32-x64": "@shire/cli-win32-x64",
+};
+
+const platformKey = `${process.platform}-${process.arch}`;
+const packageName = PLATFORMS[platformKey];
+
+if (!packageName) {
+  console.error(
+    `Unsupported platform: ${process.platform}-${process.arch}\n` +
+      `Shire supports: ${Object.keys(PLATFORMS).join(", ")}`,
+  );
+  process.exit(1);
+}
+
+let binPath;
+try {
+  const packageDir = require.resolve(`${packageName}/package.json`);
+  const ext = process.platform === "win32" ? ".exe" : "";
+  binPath = join(packageDir, "..", `shire${ext}`);
+} catch {
+  console.error(
+    `Could not find package "${packageName}".\n` +
+      `This usually means the optional dependency was not installed.\n` +
+      `Try: npm install -g shire`,
+  );
+  process.exit(1);
+}
+
+try {
+  execFileSync(binPath, process.argv.slice(2), { stdio: "inherit" });
+} catch (err) {
+  if (err && typeof err === "object" && "status" in err) {
+    process.exit(err.status);
+  }
+  throw err;
+}

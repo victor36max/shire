@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, jest, mock } from "bun:test";
 
 describe("WsClient connection behavior", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.resetModules();
+    jest.useFakeTimers();
+    mock.restore();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    jest.useRealTimers();
   });
 
   it("applies exponential backoff capped at 30s", async () => {

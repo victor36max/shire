@@ -1,14 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, mock } from "bun:test";
 import AgentForm from "../components/AgentForm";
 import type { Agent } from "../components/types";
 
-const onSave = vi.fn();
+const onSave = mock(() => {});
 
 function renderForm(agent: Agent | null = null) {
   return render(
-    <AgentForm open={true} title="New Agent" agent={agent} onSave={onSave} onClose={vi.fn()} />,
+    <AgentForm
+      open={true}
+      title="New Agent"
+      agent={agent}
+      onSave={onSave}
+      onClose={mock(() => {})}
+    />,
   );
 }
 
@@ -40,14 +46,14 @@ describe("AgentForm", () => {
   });
 
   it("does not submit when name is invalid", async () => {
-    const localOnSave = vi.fn();
+    const localOnSave = mock(() => {});
     render(
       <AgentForm
         open={true}
         title="New Agent"
         agent={null}
         onSave={localOnSave}
-        onClose={vi.fn()}
+        onClose={mock(() => {})}
       />,
     );
 
@@ -76,7 +82,7 @@ describe("AgentForm", () => {
   });
 
   it("submits create-agent with structured fields when agent has empty id (catalog prefill)", async () => {
-    const localOnSave = vi.fn();
+    const localOnSave = mock(() => {});
     const catalogAgent: Agent = {
       id: "",
       name: "frontend-developer",
@@ -95,7 +101,7 @@ describe("AgentForm", () => {
         title="New Agent from Catalog"
         agent={catalogAgent}
         onSave={localOnSave}
-        onClose={vi.fn()}
+        onClose={mock(() => {})}
       />,
     );
 
@@ -110,7 +116,7 @@ describe("AgentForm", () => {
       }),
     );
     // Should NOT have id in payload
-    const payload = localOnSave.mock.calls[0][1];
+    const payload = (localOnSave.mock.calls[0] as unknown[])[1];
     expect(payload).not.toHaveProperty("id");
   });
 
@@ -126,7 +132,13 @@ describe("AgentForm", () => {
     };
 
     render(
-      <AgentForm open={true} title="Edit Agent" agent={agent} onSave={onSave} onClose={vi.fn()} />,
+      <AgentForm
+        open={true}
+        title="Edit Agent"
+        agent={agent}
+        onSave={onSave}
+        onClose={mock(() => {})}
+      />,
     );
 
     await userEvent.click(screen.getByText("Save Agent"));

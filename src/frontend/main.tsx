@@ -9,7 +9,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useConnectionToast } from "./lib/useConnectionToast";
 import { Spinner } from "./components/ui/spinner";
 import "@fontsource-variable/dm-sans";
-import "./css/app.css";
 
 import ProjectLayout from "./components/ProjectLayout";
 

@@ -1,17 +1,22 @@
 {
   "compilerOptions": {
     "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
     "strict": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "declaration": true,
+    "esModuleInterop": true,
+    "noEmit": true,
     "resolveJsonModule": true,
-    "types": ["bun"]
+    "isolatedModules": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@/*": ["./src/frontend/*"]
+    }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/frontend", "runner"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

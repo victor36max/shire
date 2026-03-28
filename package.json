@@ -3,27 +3,23 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "shire": "./src/index.ts"
+    "shire": "./src/cli.ts"
   },
   "scripts": {
-    "dev": "bun run src/index.ts",
-    "dev:frontend": "vite --config src/frontend/vite.config.ts",
-    "build:frontend": "vite build --config src/frontend/vite.config.ts",
-    "build": "bun run build:frontend",
+    "dev": "bun run src/cli.ts",
+    "build:local": "bun run scripts/build-binaries.ts local",
+    "build:all": "bun run scripts/build-binaries.ts",
     "db:generate": "bunx drizzle-kit generate",
     "db:migrate": "bunx drizzle-kit migrate",
     "db:studio": "bunx drizzle-kit studio",
     "catalog:sync": "bun run src/scripts/catalog-sync.ts",
-    "test": "bun test src/services src/runtime src/routes src/scripts",
-    "test:frontend": "bunx vitest run --config src/frontend/vite.config.ts",
-    "test:all": "bun run test && bun run test:frontend",
+    "test": "bun test",
     "test:watch": "bun test --watch src/",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
-    "typecheck": "tsc --noEmit",
-    "typecheck:frontend": "tsc --noEmit --project src/frontend/tsconfig.json"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.85",
@@ -40,6 +36,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^5.0.0",
+    "bun-plugin-tailwind": "^0.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.39.0",
@@ -59,7 +56,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.2.1",
+    "@happy-dom/global-registrator": "^20.8.9",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -70,18 +67,14 @@
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^8.57.0",
-    "@vitejs/plugin-react": "^6.0.1",
     "drizzle-kit": "^0.30.0",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
-    "jsdom": "^29.0.0",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5.7.0",
-    "vite": "^8.0.0",
-    "vitest": "^4.1.0"
+    "typescript": "^5.7.0"
   }
 }

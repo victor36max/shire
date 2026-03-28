@@ -1,38 +1,36 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import ProjectDashboard from "../components/ProjectDashboard";
 import type { Project } from "../components/types";
 import { renderWithProviders } from "./test-utils";
+import * as actualHooks from "../lib/hooks";
 
-const createMutate = vi.fn();
-const deleteMutate = vi.fn();
-const restartMutate = vi.fn();
+const createMutate = mock(() => {});
+const deleteMutate = mock(() => {});
+const restartMutate = mock(() => {});
 
 let mockProjects: Project[] = [];
 let mockProjectsError: {
   isError: boolean;
   error: Error | null;
-  refetch: ReturnType<typeof vi.fn>;
-} = { isError: false, error: null, refetch: vi.fn() };
+  refetch: ReturnType<typeof mock>;
+} = { isError: false, error: null, refetch: mock(() => {}) };
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjects: () => ({
-      data: mockProjects,
-      isLoading: false,
-      ...mockProjectsError,
-    }),
-    useCreateProject: () => ({ mutate: createMutate, isPending: false }),
-    useDeleteProject: () => ({ mutate: deleteMutate, isPending: false }),
-    useRestartProject: () => ({ mutate: restartMutate, isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...actualHooks,
+  useProjects: () => ({
+    data: mockProjects,
+    isLoading: false,
+    ...mockProjectsError,
+  }),
+  useCreateProject: () => ({ mutate: createMutate, isPending: false }),
+  useDeleteProject: () => ({ mutate: deleteMutate, isPending: false }),
+  useRestartProject: () => ({ mutate: restartMutate, isPending: false }),
+}));
 
-vi.mock("../lib/ws", () => ({
-  useSubscription: vi.fn(),
+mock.module("../lib/ws", () => ({
+  useSubscription: mock(() => {}),
 }));
 
 const defaultProjects: Project[] = [
@@ -42,7 +40,7 @@ const defaultProjects: Project[] = [
 
 beforeEach(() => {
   mockProjects = defaultProjects;
-  mockProjectsError = { isError: false, error: null, refetch: vi.fn() };
+  mockProjectsError = { isError: false, error: null, refetch: mock(() => {}) };
   createMutate.mockClear();
   deleteMutate.mockClear();
   restartMutate.mockClear();
@@ -186,14 +184,18 @@ describe("ProjectDashboard", () => {
 
   it("shows error state with retry when projects query fails", () => {
     mockProjects = [];
-    mockProjectsError = { isError: true, error: new Error("Network error"), refetch: vi.fn() };
+    mockProjectsError = {
+      isError: true,
+      error: new Error("Network error"),
+      refetch: mock(() => {}),
+    };
     renderWithProviders(<ProjectDashboard />);
     expect(screen.getByText("Network error")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
 
   it("calls refetch when clicking Try again on error state", async () => {
-    const refetchFn = vi.fn();
+    const refetchFn = mock(() => {});
     mockProjects = [];
     mockProjectsError = { isError: true, error: new Error("Network error"), refetch: refetchFn };
     renderWithProviders(<ProjectDashboard />);

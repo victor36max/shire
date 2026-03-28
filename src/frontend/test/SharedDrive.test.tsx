@@ -1,41 +1,44 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import SharedDrive from "../components/SharedDrive";
 import type { SharedDriveFile } from "../components/SharedDrive";
 import { renderWithProviders } from "./test-utils";
+import * as actualHooks from "../lib/hooks";
 
-const createDirMutate = vi.fn();
-const deleteFileMutate = vi.fn();
-const uploadFileMutate = vi.fn();
-const previewFileMutate = vi.fn();
+const createDirMutate = mock(() => {});
+const deleteFileMutate = mock(() => {});
+const uploadFileMutate = mock(() => {});
+const previewFileMutate = mock(
+  (
+    _path: string,
+    _opts: { onSuccess?: (data: unknown) => void; onError?: (err: Error) => void },
+  ) => {},
+);
 
 let mockFiles: SharedDriveFile[] = [];
 let mockSharedDriveError: {
   isError: boolean;
   error: Error | null;
-  refetch: ReturnType<typeof vi.fn>;
-} = { isError: false, error: null, refetch: vi.fn() };
+  refetch: ReturnType<typeof mock>;
+} = { isError: false, error: null, refetch: mock(() => {}) };
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useSharedDrive: () => ({
-      data: { files: mockFiles, currentPath: "/" },
-      isLoading: false,
-      ...mockSharedDriveError,
-    }),
-    useCreateDirectory: () => ({ mutate: createDirMutate, isPending: false }),
-    useDeleteSharedFile: () => ({ mutate: deleteFileMutate, isPending: false }),
-    useUploadFile: () => ({ mutate: uploadFileMutate, isPending: false }),
-    usePreviewFile: () => ({
-      mutate: previewFileMutate,
-      isPending: false,
-    }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...actualHooks,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useSharedDrive: () => ({
+    data: { files: mockFiles, currentPath: "/" },
+    isLoading: false,
+    ...mockSharedDriveError,
+  }),
+  useCreateDirectory: () => ({ mutate: createDirMutate, isPending: false }),
+  useDeleteSharedFile: () => ({ mutate: deleteFileMutate, isPending: false }),
+  useUploadFile: () => ({ mutate: uploadFileMutate, isPending: false }),
+  usePreviewFile: () => ({
+    mutate: previewFileMutate,
+    isPending: false,
+  }),
+}));
 
 const sampleFiles: SharedDriveFile[] = [
   { name: "docs", path: "docs", type: "directory", size: 0 },
@@ -45,7 +48,7 @@ const sampleFiles: SharedDriveFile[] = [
 
 beforeEach(() => {
   mockFiles = [];
-  mockSharedDriveError = { isError: false, error: null, refetch: vi.fn() };
+  mockSharedDriveError = { isError: false, error: null, refetch: mock(() => {}) };
   createDirMutate.mockClear();
   deleteFileMutate.mockClear();
   uploadFileMutate.mockClear();
@@ -128,8 +131,8 @@ describe("SharedDrive", () => {
     it("opens preview panel when clicking a file name", async () => {
       mockFiles = sampleFiles;
       previewFileMutate.mockImplementation(
-        (_path: string, opts: { onSuccess: (data: unknown) => void }) => {
-          opts.onSuccess({ content: "test content", filename: "readme.md", size: 1024 });
+        (_path: string, opts: { onSuccess?: (data: unknown) => void }) => {
+          opts.onSuccess!({ content: "test content", filename: "readme.md", size: 1024 });
         },
       );
       renderWithProviders(<SharedDrive />);
@@ -153,8 +156,8 @@ describe("SharedDrive", () => {
     it("renders markdown content with Preview/Source tabs", async () => {
       mockFiles = sampleFiles;
       previewFileMutate.mockImplementation(
-        (_path: string, opts: { onSuccess: (data: unknown) => void }) => {
-          opts.onSuccess({ content: "# Hello World", filename: "readme.md", size: 1024 });
+        (_path: string, opts: { onSuccess?: (data: unknown) => void }) => {
+          opts.onSuccess!({ content: "# Hello World", filename: "readme.md", size: 1024 });
         },
       );
       renderWithProviders(<SharedDrive />);
@@ -168,8 +171,8 @@ describe("SharedDrive", () => {
     it("closes preview when clicking X button", async () => {
       mockFiles = sampleFiles;
       previewFileMutate.mockImplementation(
-        (_path: string, opts: { onSuccess: (data: unknown) => void }) => {
-          opts.onSuccess({ content: "# Hello", filename: "readme.md", size: 1024 });
+        (_path: string, opts: { onSuccess?: (data: unknown) => void }) => {
+          opts.onSuccess!({ content: "# Hello", filename: "readme.md", size: 1024 });
         },
       );
       renderWithProviders(<SharedDrive />);
@@ -192,8 +195,8 @@ describe("SharedDrive", () => {
     it("closes preview when clicking the same file again", async () => {
       mockFiles = sampleFiles;
       previewFileMutate.mockImplementation(
-        (_path: string, opts: { onSuccess: (data: unknown) => void }) => {
-          opts.onSuccess({ content: "test", filename: "data.json", size: 2048 });
+        (_path: string, opts: { onSuccess?: (data: unknown) => void }) => {
+          opts.onSuccess!({ content: "test", filename: "data.json", size: 2048 });
         },
       );
       renderWithProviders(<SharedDrive />);
@@ -237,8 +240,8 @@ describe("SharedDrive", () => {
     it("shows error when preview-file returns error", async () => {
       mockFiles = sampleFiles;
       previewFileMutate.mockImplementation(
-        (_path: string, opts: { onError: (err: Error) => void }) => {
-          opts.onError(new Error("File too large to preview"));
+        (_path: string, opts: { onError?: (err: Error) => void }) => {
+          opts.onError!(new Error("File too large to preview"));
         },
       );
       renderWithProviders(<SharedDrive />);
@@ -268,8 +271,8 @@ describe("SharedDrive", () => {
     it("hides actions column when preview is open", async () => {
       mockFiles = sampleFiles;
       previewFileMutate.mockImplementation(
-        (_path: string, opts: { onSuccess: (data: unknown) => void }) => {
-          opts.onSuccess({ content: "content", filename: "readme.md", size: 1024 });
+        (_path: string, opts: { onSuccess?: (data: unknown) => void }) => {
+          opts.onSuccess!({ content: "content", filename: "readme.md", size: 1024 });
         },
       );
       renderWithProviders(<SharedDrive />);
@@ -286,7 +289,7 @@ describe("SharedDrive", () => {
     mockSharedDriveError = {
       isError: true,
       error: new Error("Permission denied"),
-      refetch: vi.fn(),
+      refetch: mock(() => {}),
     };
     renderWithProviders(<SharedDrive />);
     expect(screen.getByText("Permission denied")).toBeInTheDocument();

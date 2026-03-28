@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, mock } from "bun:test";
 import { ErrorState } from "../components/ui/error-state";
 
 describe("ErrorState", () => {
@@ -30,9 +30,9 @@ describe("ErrorState", () => {
   });
 
   it("calls onRetry when clicking retry button", async () => {
-    const onRetry = vi.fn();
+    const onRetry = mock(() => {});
     render(<ErrorState onRetry={onRetry} />);
     await userEvent.click(screen.getByRole("button", { name: /try again/i }));
-    expect(onRetry).toHaveBeenCalledOnce();
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

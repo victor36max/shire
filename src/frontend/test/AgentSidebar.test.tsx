@@ -1,9 +1,11 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import AgentSidebar from "../components/AgentSidebar";
 import { type AgentOverview, type Project } from "../components/types";
 import { renderWithProviders } from "./test-utils";
+import * as reactRouterDom from "react-router-dom";
+import * as hooksModule from "../lib/hooks";
 
 const defaultAgents: AgentOverview[] = [
   {
@@ -34,28 +36,22 @@ const projects: Project[] = [
   { id: "p2", name: "other-project", status: "running" },
 ];
 
-const deleteMutate = vi.fn();
+const deleteMutate = mock(() => {});
 let mockAgents: AgentOverview[] = defaultAgents;
 let mockAgentName: string | undefined = undefined;
 
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual("react-router-dom");
-  return {
-    ...actual,
-    useParams: () => ({ agentName: mockAgentName }),
-  };
-});
+mock.module("react-router-dom", () => ({
+  ...reactRouterDom,
+  useParams: () => ({ agentName: mockAgentName }),
+}));
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useProjects: () => ({ data: projects, isLoading: false }),
-    useAgents: () => ({ data: mockAgents, isLoading: false }),
-    useDeleteAgent: () => ({ mutate: deleteMutate, isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...hooksModule,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useProjects: () => ({ data: projects, isLoading: false }),
+  useAgents: () => ({ data: mockAgents, isLoading: false }),
+  useDeleteAgent: () => ({ mutate: deleteMutate, isPending: false }),
+}));
 
 beforeEach(() => {
   mockAgents = defaultAgents;
@@ -64,8 +60,8 @@ beforeEach(() => {
 });
 
 const defaultProps = {
-  onNewAgent: vi.fn(),
-  onBrowseCatalog: vi.fn(),
+  onNewAgent: mock(() => {}),
+  onBrowseCatalog: mock(() => {}),
 };
 
 describe("AgentSidebar", () => {
@@ -84,7 +80,7 @@ describe("AgentSidebar", () => {
   });
 
   it("calls onNewAgent when clicking New Agent button", async () => {
-    const onNewAgent = vi.fn();
+    const onNewAgent = mock(() => {});
     renderWithProviders(<AgentSidebar {...defaultProps} onNewAgent={onNewAgent} />);
 
     await userEvent.click(screen.getByText("+ New Agent"));
@@ -150,7 +146,7 @@ describe("AgentSidebar", () => {
   });
 
   it("calls onBrowseCatalog when clicking Browse Catalog button", async () => {
-    const onBrowseCatalog = vi.fn();
+    const onBrowseCatalog = mock(() => {});
     renderWithProviders(<AgentSidebar {...defaultProps} onBrowseCatalog={onBrowseCatalog} />);
 
     await userEvent.click(screen.getByText("Browse Catalog"));

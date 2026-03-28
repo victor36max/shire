@@ -1,32 +1,30 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import SettingsPage from "../components/SettingsPage";
 import { renderWithProviders } from "./test-utils";
 import type { InterAgentMessage } from "../components/types";
+import * as actualHooks from "../lib/hooks";
 
 let mockMessages: InterAgentMessage[] = [];
 let mockHasMore = false;
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useActivity: () => ({
-      data: {
-        pages: [{ messages: mockMessages, hasMore: mockHasMore }],
-        pageParams: [undefined],
-      },
-      fetchNextPage: vi.fn(),
-      hasNextPage: mockHasMore,
-      isFetchingNextPage: false,
-    }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...actualHooks,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useActivity: () => ({
+    data: {
+      pages: [{ messages: mockMessages, hasMore: mockHasMore }],
+      pageParams: [undefined],
+    },
+    fetchNextPage: mock(() => {}),
+    hasNextPage: mockHasMore,
+    isFetchingNextPage: false,
+  }),
+}));
 
-vi.mock("../lib/ws", () => ({
-  useSubscription: vi.fn(),
+mock.module("../lib/ws", () => ({
+  useSubscription: mock(() => {}),
 }));
 
 const activityMessages: InterAgentMessage[] = [
@@ -42,11 +40,11 @@ beforeEach(() => {
 
   Object.defineProperty(window, "matchMedia", {
     writable: true,
-    value: vi.fn().mockImplementation((query: string) => ({
+    value: mock((query: string) => ({
       matches: false,
       media: query,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
+      addEventListener: mock(() => {}),
+      removeEventListener: mock(() => {}),
     })),
   });
 });

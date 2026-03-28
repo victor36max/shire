@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { Spinner, PageLoader } from "../components/ui/spinner";
 
 describe("Spinner", () => {

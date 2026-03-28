@@ -1,9 +1,10 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import CatalogBrowser from "../components/CatalogBrowser";
 import type { CatalogAgentSummary, CatalogCategory } from "../components/types";
 import { renderWithProviders } from "./test-utils";
+import * as hooksModule from "../lib/hooks";
 
 const agents: CatalogAgentSummary[] = [
   {
@@ -57,19 +58,16 @@ let mockCatalogAgents: CatalogAgentSummary[] = agents;
 let mockCatalogAgentsLoading = false;
 let mockCatalogCategoriesLoading = false;
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useCatalogAgents: () => ({ data: mockCatalogAgents, isLoading: mockCatalogAgentsLoading }),
-    useCatalogCategories: () => ({ data: categories, isLoading: mockCatalogCategoriesLoading }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...hooksModule,
+  useCatalogAgents: () => ({ data: mockCatalogAgents, isLoading: mockCatalogAgentsLoading }),
+  useCatalogCategories: () => ({ data: categories, isLoading: mockCatalogCategoriesLoading }),
+}));
 
 const defaultProps = {
   open: true,
-  onClose: vi.fn(),
-  onAdd: vi.fn(),
+  onClose: mock(() => {}),
+  onAdd: mock(() => {}),
 };
 
 beforeEach(() => {
@@ -124,7 +122,7 @@ describe("CatalogBrowser", () => {
   });
 
   it("calls onAdd with agent name when Add button is clicked", async () => {
-    const onAdd = vi.fn();
+    const onAdd = mock(() => {});
     renderWithProviders(<CatalogBrowser {...defaultProps} onAdd={onAdd} />);
     const addButtons = screen.getAllByRole("button", { name: /add/i });
     await userEvent.click(addButtons[0]);

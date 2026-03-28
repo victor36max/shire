@@ -11,31 +11,26 @@ Shire is an AI agent orchestration platform. Users create projects, add agents (
 - **Runtime**: Bun (never use npm/node)
 - **Backend**: Hono (HTTP framework) + Drizzle ORM + SQLite
 - **Frontend**: React 19 + React Router 7 + Radix UI/shadcn + Tailwind CSS 4 + TanStack Query
+- **Bundler**: Bun fullstack (dev server with HMR) + bun-plugin-tailwind
 - **Agent harnesses**: Claude Code SDK (`@anthropic-ai/claude-agent-sdk`), Pi Agent SDK
-- **Testing**: Bun test (backend), Vitest + Testing Library (frontend)
+- **Testing**: Bun test + Testing Library + happy-dom (unified for backend and frontend)
 - **Validation**: Zod (API input), TypeScript strict mode throughout
 
 ## Commands
 
 ```bash
 # Development
-bun run dev                # Backend server on :3000
-bun run dev:frontend       # Vite dev server on :5173
+bun run dev                # Server on :8080 with HMR
 
 # Testing
-bun test                                    # Backend tests
-bun run test:frontend                       # Frontend tests (Vitest)
-bun run test:all                            # Both suites
-bun test src/path/to/file.test.ts           # Single backend test file
-bunx vitest run src/frontend/test/File.test.tsx --config src/frontend/vite.config.ts  # Single frontend test
+bun test                   # All tests (backend + frontend)
 
 # Quality
 bun run lint               # ESLint
 bun run lint:fix           # ESLint autofix
 bun run format             # Prettier write
 bun run format:check       # Prettier check
-bun run typecheck          # tsc --noEmit (backend)
-bun run typecheck:frontend # tsc --noEmit (frontend)
+bun run typecheck          # tsc --noEmit
 
 # Database
 bun run db:generate        # Generate Drizzle migrations from schema
@@ -43,7 +38,8 @@ bun run db:migrate         # Apply migrations
 bun run db:studio          # Open Drizzle Studio
 
 # Build
-bun run build              # Build frontend for production
+bun run build:local        # Build standalone binary for current platform
+bun run build:all          # Build standalone binaries for all platforms
 
 # Catalog
 bun run catalog:sync       # Sync agent catalog from community repo
@@ -70,7 +66,15 @@ Hono routes under `/api`. Real-time updates via WebSocket with topic-based pub/s
 
 ### Frontend (`src/frontend/`)
 
-React SPA with file-based page structure. Uses shadcn/ui components in `src/frontend/components/ui/`. Vite config at `src/frontend/vite.config.ts`, separate tsconfig at `src/frontend/tsconfig.json`.
+React SPA bundled by Bun's fullstack dev server in development (HMR, automatic CSS/JS processing). In production, pre-built via `Bun.build()` with `bun-plugin-tailwind`. Uses shadcn/ui components in `src/frontend/components/ui/`.
+
+### CLI (`src/cli.ts`)
+
+Entry point for the `shire` command. Supports `start`, `stop`, `status` subcommands with `--port` and `--daemon` flags. Daemon mode uses PID files at `~/.shire/`.
+
+### npm Packaging (`npm/`)
+
+Platform-specific packages with standalone binaries (same pattern as esbuild/turbo). Built via `scripts/build-binaries.ts`. Released via `.github/workflows/release.yml`.
 
 ### Workspace on Disk
 
@@ -94,4 +98,4 @@ React SPA with file-based page structure. Uses shadcn/ui components in `src/fron
 - **Unused vars**: prefix with `_` (enforced by ESLint)
 - **Formatting**: Prettier with double quotes, semicolons, trailing commas, 100 char width
 - **Agent/project names**: must be valid slugs (2-63 chars, lowercase, letters/numbers/hyphens)
-- **Backend tsconfig** excludes `src/frontend/` — they have separate TypeScript configs
+- **Single tsconfig** at project root — covers both backend and frontend
