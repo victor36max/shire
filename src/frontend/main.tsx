@@ -1,13 +1,12 @@
-import { StrictMode, Suspense, lazy } from "react";
+import { StrictMode, Suspense, lazy, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { setNavigate } from "./lib/navigate";
 import { Toaster, toast } from "sonner";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import ConnectionBanner from "./components/ConnectionBanner";
+import { useConnectionToast } from "./lib/useConnectionToast";
 import "@fontsource-variable/dm-sans";
 import "./css/app.css";
 
@@ -46,13 +45,18 @@ function NavigateBridge() {
   return null;
 }
 
+function ConnectionToastManager() {
+  useConnectionToast();
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <ConnectionBanner />
           <Toaster position="bottom-right" richColors />
+          <ConnectionToastManager />
           <BrowserRouter>
             <NavigateBridge />
             <Suspense
