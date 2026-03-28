@@ -15,7 +15,12 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { projectId, projectName } = useProjectId();
 
-  const { data: activityData, fetchNextPage, hasNextPage } = useActivity(projectId);
+  const {
+    data: activityData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useActivity(projectId);
 
   useSubscription(projectId ? `project:${projectId}:schedules` : null, () => {
     queryClient.invalidateQueries({ queryKey: ["activity", projectId] });
@@ -26,10 +31,6 @@ export default function SettingsPage() {
     [activityData],
   );
   const has_more_messages = hasNextPage ?? false;
-
-  const handleLoadMoreMessages = () => {
-    fetchNextPage();
-  };
 
   if (!projectId) {
     return (
@@ -64,7 +65,8 @@ export default function SettingsPage() {
             <ActivityLog
               messages={messages}
               hasMore={has_more_messages}
-              onLoadMore={handleLoadMoreMessages}
+              loadingMore={isFetchingNextPage}
+              onLoadMore={fetchNextPage}
             />
           </TabsContent>
 
