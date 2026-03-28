@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Shire is an AI agent orchestration platform. Users create projects, add agents (defined as YAML recipes), and work alongside them in real-time. Agents persist across sessions, communicate with each other via an inbox/outbox mailbox system, and share files through a shared drive.
+Shire is an AI agent orchestration platform. Users create projects, add agents (configured through the dashboard and stored in the database), and work alongside them in real-time. Agents persist across sessions, communicate with each other via an inbox/outbox mailbox system, and share files through a shared drive.
 
 ## Tech Stack
 
 - **Runtime**: Bun (never use npm/node)
 - **Backend**: Hono (HTTP framework) + Drizzle ORM + SQLite
-- **Frontend**: React 19 + React Router 7 + Radix UI/shadcn + Tailwind CSS 4 + TanStack Query + Zustand
+- **Frontend**: React 19 + React Router 7 + Radix UI/shadcn + Tailwind CSS 4 + TanStack Query
 - **Agent harnesses**: Claude Code SDK (`@anthropic-ai/claude-agent-sdk`), Pi Agent SDK
 - **Testing**: Bun test (backend), Vitest + Testing Library (frontend)
 - **Validation**: Zod (API input), TypeScript strict mode throughout
@@ -34,11 +34,19 @@ bun run lint               # ESLint
 bun run lint:fix           # ESLint autofix
 bun run format             # Prettier write
 bun run format:check       # Prettier check
-bun run typecheck          # tsc --noEmit
+bun run typecheck          # tsc --noEmit (backend)
+bun run typecheck:frontend # tsc --noEmit (frontend)
 
 # Database
 bun run db:generate        # Generate Drizzle migrations from schema
 bun run db:migrate         # Apply migrations
+bun run db:studio          # Open Drizzle Studio
+
+# Build
+bun run build              # Build frontend for production
+
+# Catalog
+bun run catalog:sync       # Sync agent catalog from community repo
 ```
 
 ## Architecture
@@ -47,7 +55,7 @@ bun run db:migrate         # Apply migrations
 
 Three-tier orchestration hierarchy:
 1. **ProjectManager** — boots all projects, creates one Coordinator per project
-2. **Coordinator** — per-project: manages AgentManagers, routes inter-agent messages, watches recipe.yaml changes, maintains peers.yaml
+2. **Coordinator** — per-project: manages AgentManagers, routes inter-agent messages, maintains peers.yaml
 3. **AgentManager** — per-agent: manages harness process lifecycle, message queue (inbox/outbox), streaming, auto-restart (up to 3 times)
 
 Harnesses (`src/runtime/harness/`) are adapters for different AI backends (Claude Code, Pi). They implement a common interface: `start`, `sendMessage`, `interrupt`, `clearSession`, `isProcessing`.
@@ -71,11 +79,12 @@ React SPA with file-based page structure. Uses shadcn/ui components in `src/fron
 ├── shire.db
 └── projects/{projectId}/
     ├── agents/{agentId}/
-    │   ├── recipe.yaml      # Agent definition
     │   ├── inbox/           # Incoming inter-agent messages
-    │   └── outbox/          # Outgoing inter-agent messages
+    │   ├── outbox/          # Outgoing inter-agent messages
+    │   └── attachments/     # File attachments
     ├── shared/              # Cross-agent shared drive
-    └── peers.yaml           # Agent discovery registry
+    ├── peers.yaml           # Agent discovery registry
+    └── PROJECT.md           # Project documentation
 ```
 
 ## Code Conventions

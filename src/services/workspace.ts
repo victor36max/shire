@@ -48,10 +48,6 @@ export function sharedDir(projectId: string): string {
   return join(root(projectId), "shared");
 }
 
-export function runnerDir(projectId: string): string {
-  return join(root(projectId), ".runner");
-}
-
 export function peersPath(projectId: string): string {
   return join(root(projectId), "peers.yaml");
 }
@@ -64,7 +60,6 @@ export async function ensureProjectDirs(projectId: string): Promise<void> {
   await Promise.all([
     mkdir(root(projectId), { recursive: true }),
     mkdir(sharedDir(projectId), { recursive: true }),
-    mkdir(runnerDir(projectId), { recursive: true }),
   ]);
 }
 
@@ -83,7 +78,6 @@ export async function ensureAgentDirs(projectId: string, agentId: string): Promi
 export function ensureProjectDirsSync(projectId: string): void {
   mkdirSync(root(projectId), { recursive: true });
   mkdirSync(sharedDir(projectId), { recursive: true });
-  mkdirSync(runnerDir(projectId), { recursive: true });
 }
 
 export function ensureAgentDirsSync(projectId: string, agentId: string): void {
