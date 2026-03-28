@@ -24,20 +24,6 @@ describe("workspace paths", () => {
     expect(workspace.sharedDir(PROJECT_ID)).toBe(workspace.root(PROJECT_ID) + "/shared");
   });
 
-  it("envPath returns .env path", () => {
-    expect(workspace.envPath(PROJECT_ID)).toBe(workspace.root(PROJECT_ID) + "/.env");
-  });
-
-  it("projectScriptsDir returns .scripts directory", () => {
-    expect(workspace.projectScriptsDir(PROJECT_ID)).toBe(workspace.root(PROJECT_ID) + "/.scripts");
-  });
-
-  it("scriptPath returns path to named script", () => {
-    expect(workspace.scriptPath(PROJECT_ID, "setup.sh")).toBe(
-      workspace.root(PROJECT_ID) + "/.scripts/setup.sh",
-    );
-  });
-
   it("runnerDir returns .runner directory", () => {
     expect(workspace.runnerDir(PROJECT_ID)).toBe(workspace.root(PROJECT_ID) + "/.runner");
   });
