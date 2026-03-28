@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import AppLayout from "./AppLayout";
 import Markdown from "./Markdown";
 import { ChevronLeft, Folder, File, X, Download, Loader2 } from "lucide-react";
-import { navigate as navigateTo } from "./lib/navigate";
+import { navigate as navigateTo } from "../lib/navigate";
 import {
   useProjectId,
   useSharedDrive,
@@ -319,7 +319,13 @@ export default function SharedDrive() {
     return a.name.localeCompare(b.name);
   });
 
-  if (!projectId) return <div className="p-8">Loading...</div>;
+  if (!projectId) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <AppLayout>

@@ -1,9 +1,9 @@
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import AppLayout from "./AppLayout";
 import ThemeSelector from "./ThemeSelector";
-import { navigate } from "./lib/navigate";
+import { navigate } from "../lib/navigate";
 import ActivityLog from "./ActivityLog";
 import { useProjectId, useActivity } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
@@ -26,7 +26,13 @@ export default function SettingsPage() {
     queryClient.invalidateQueries({ queryKey: ["activity", projectId] });
   };
 
-  if (!projectId) return <div className="p-8">Loading...</div>;
+  if (!projectId) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <AppLayout>

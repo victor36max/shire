@@ -26,7 +26,7 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { ChevronLeft, Plus, Play, Pencil, Trash2, Loader2 } from "lucide-react";
-import { navigate } from "./lib/navigate";
+import { navigate } from "../lib/navigate";
 import { type ScheduledTask } from "./types";
 import {
   useProjectId,
@@ -309,7 +309,13 @@ export default function SchedulesPage() {
     runNowMut.mutate(task.id);
   };
 
-  if (!projectId) return <div className="p-8">Loading...</div>;
+  if (!projectId) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const updateForm = (field: keyof ScheduleFormState, value: unknown) => {
     setForm((prev) => ({ ...prev, [field]: value }));

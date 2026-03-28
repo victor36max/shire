@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { navigate } from "./lib/navigate";
+import { navigate } from "../lib/navigate";
 import type { Project } from "./types";
 
 interface ProjectSwitcherProps {

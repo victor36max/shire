@@ -5,7 +5,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import AppLayout from "./AppLayout";
-import { navigate } from "./lib/navigate";
+import { navigate } from "../lib/navigate";
 import { useProjectId, useProjectDoc, useRenameProject, useSaveProjectDoc } from "../lib/hooks";
 
 export default function ProjectDetailsPage() {
@@ -42,7 +42,13 @@ export default function ProjectDetailsPage() {
     saveDoc.mutate(docValue);
   };
 
-  if (!projectId) return <div className="p-8">Loading...</div>;
+  if (!projectId) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <AppLayout>
