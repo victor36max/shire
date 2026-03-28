@@ -1,15 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import {
-  readdirSync,
-  statSync,
-  readFileSync,
-  mkdirSync,
-  unlinkSync,
-  rmSync,
-  writeFileSync,
-} from "fs";
+import { readdir, stat, readFile, mkdir, unlink, rm, writeFile } from "fs/promises";
 import { join, resolve, basename } from "path";
 import * as workspace from "../services/workspace";
 import * as projectsService from "../services/projects";
@@ -34,7 +26,7 @@ const pathQuery = z.object({ path: z.string().optional() });
 const requiredPathQuery = z.object({ path: z.string() });
 
 export const sharedDriveRoutes = new Hono<AppEnv>()
-  .get("/projects/:id/shared-drive", zValidator("query", pathQuery), (c) => {
+  .get("/projects/:id/shared-drive", zValidator("query", pathQuery), async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
 
@@ -44,18 +36,20 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
     if (!fullPath) return c.json({ error: "Invalid path" }, 400);
 
     try {
-      mkdirSync(sharedRoot, { recursive: true });
-      const entries = readdirSync(fullPath, { withFileTypes: true });
-      const files = entries.map((entry) => {
-        const entryPath = join(fullPath, entry.name);
-        const stat = statSync(entryPath);
-        return {
-          name: entry.name,
-          path: join(path, entry.name),
-          type: entry.isDirectory() ? ("directory" as const) : ("file" as const),
-          size: stat.size,
-        };
-      });
+      await mkdir(sharedRoot, { recursive: true });
+      const entries = await readdir(fullPath, { withFileTypes: true });
+      const files = await Promise.all(
+        entries.map(async (entry) => {
+          const entryPath = join(fullPath, entry.name);
+          const s = await stat(entryPath);
+          return {
+            name: entry.name,
+            path: join(path, entry.name),
+            type: entry.isDirectory() ? ("directory" as const) : ("file" as const),
+            size: s.size,
+          };
+        }),
+      );
       return c.json({ files, currentPath: path });
     } catch {
       return c.json({
@@ -69,7 +63,7 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       });
     }
   })
-  .get("/projects/:id/shared-drive/preview", zValidator("query", requiredPathQuery), (c) => {
+  .get("/projects/:id/shared-drive/preview", zValidator("query", requiredPathQuery), async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
 
@@ -80,17 +74,17 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
     if (!fullPath) return c.json({ error: "Invalid path" }, 400);
 
     try {
-      const stat = statSync(fullPath);
-      if (stat.size > 1024 * 1024) {
+      const s = await stat(fullPath);
+      if (s.size > 1024 * 1024) {
         return c.json({ error: "File too large for preview" }, 413);
       }
-      const content = readFileSync(fullPath, "utf-8");
-      return c.json({ content, filename: basename(fullPath), size: stat.size });
+      const content = await readFile(fullPath, "utf-8");
+      return c.json({ content, filename: basename(fullPath), size: s.size });
     } catch {
       return c.json({ error: "File not found" }, 404);
     }
   })
-  .get("/projects/:id/shared-drive/download", zValidator("query", requiredPathQuery), (c) => {
+  .get("/projects/:id/shared-drive/download", zValidator("query", requiredPathQuery), async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
 
@@ -101,7 +95,7 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
     if (!fullPath) return c.json({ error: "Invalid path" }, 400);
 
     try {
-      const data = readFileSync(fullPath);
+      const data = await readFile(fullPath);
       const filename = basename(fullPath);
       return new Response(data, {
         headers: {
@@ -116,7 +110,7 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
   .post(
     "/projects/:id/shared-drive/directory",
     zValidator("json", z.object({ name: z.string(), path: z.string().optional() })),
-    (c) => {
+    async (c) => {
       const projectId = resolveProjectId(c.req.param("id"));
       if (!projectId) return c.json({ error: "Project not found" }, 404);
 
@@ -125,7 +119,7 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       const fullPath = safePath(sharedRoot, join(parentPath ?? "/", name));
       if (!fullPath) return c.json({ error: "Invalid path" }, 400);
 
-      mkdirSync(fullPath, { recursive: true });
+      await mkdir(fullPath, { recursive: true });
       return c.json({ ok: true }, 201);
     },
   )
@@ -135,7 +129,7 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       "json",
       z.object({ name: z.string(), content: z.string(), path: z.string().optional() }),
     ),
-    (c) => {
+    async (c) => {
       const projectId = resolveProjectId(c.req.param("id"));
       if (!projectId) return c.json({ error: "Project not found" }, 404);
 
@@ -145,11 +139,11 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       if (!fullPath) return c.json({ error: "Invalid path" }, 400);
 
       const decoded = Buffer.from(content, "base64");
-      writeFileSync(fullPath, decoded);
+      await writeFile(fullPath, decoded);
       return c.json({ ok: true }, 201);
     },
   )
-  .delete("/projects/:id/shared-drive", zValidator("query", requiredPathQuery), (c) => {
+  .delete("/projects/:id/shared-drive", zValidator("query", requiredPathQuery), async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
 
@@ -160,11 +154,11 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
     if (!fullPath) return c.json({ error: "Invalid path" }, 400);
 
     try {
-      const stat = statSync(fullPath);
-      if (stat.isDirectory()) {
-        rmSync(fullPath, { recursive: true, force: true });
+      const s = await stat(fullPath);
+      if (s.isDirectory()) {
+        await rm(fullPath, { recursive: true, force: true });
       } else {
-        unlinkSync(fullPath);
+        await unlink(fullPath);
       }
       return c.json({ ok: true });
     } catch {

@@ -773,7 +773,7 @@ export class AgentManager {
   // --- Workspace setup ---
 
   private async setupWorkspace(): Promise<void> {
-    workspace.ensureAgentDirs(this.projectId, this.agentId);
+    await workspace.ensureAgentDirs(this.projectId, this.agentId);
   }
 
   private buildInternalPrompt(): string {

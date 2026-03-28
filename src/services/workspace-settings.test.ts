@@ -8,10 +8,10 @@ import * as workspace from "./workspace";
 const PROJECT_ID = "ws-test-project";
 let testDir: string;
 
-beforeEach(() => {
+beforeEach(async () => {
   testDir = join(tmpdir(), `ws_settings_${Date.now()}_${Math.random().toString(36).slice(2)}`);
   process.env.SHIRE_PROJECTS_DIR = testDir;
-  workspace.ensureProjectDirs(PROJECT_ID);
+  await workspace.ensureProjectDirs(PROJECT_ID);
 });
 
 afterEach(() => {
@@ -20,19 +20,19 @@ afterEach(() => {
 
 describe("workspace settings", () => {
   describe("readProjectDoc", () => {
-    it("returns content when PROJECT.md exists", () => {
+    it("returns content when PROJECT.md exists", async () => {
       writeFileSync(workspace.projectDocPath(PROJECT_ID), "# My Project\n");
-      expect(settings.readProjectDoc(PROJECT_ID)).toBe("# My Project\n");
+      expect(await settings.readProjectDoc(PROJECT_ID)).toBe("# My Project\n");
     });
 
-    it("returns empty string when PROJECT.md does not exist", () => {
-      expect(settings.readProjectDoc(PROJECT_ID)).toBe("");
+    it("returns empty string when PROJECT.md does not exist", async () => {
+      expect(await settings.readProjectDoc(PROJECT_ID)).toBe("");
     });
   });
 
   describe("writeProjectDoc", () => {
-    it("writes content to PROJECT.md", () => {
-      settings.writeProjectDoc(PROJECT_ID, "# Updated");
+    it("writes content to PROJECT.md", async () => {
+      await settings.writeProjectDoc(PROJECT_ID, "# Updated");
       expect(readFileSync(workspace.projectDocPath(PROJECT_ID), "utf-8")).toBe("# Updated");
     });
   });

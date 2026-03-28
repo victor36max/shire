@@ -33,12 +33,12 @@ export const agentRoutes = new Hono<AppEnv>()
       return c.json({ id: result.agentId }, 201);
     },
   )
-  .get("/projects/:id/agents/:aid", (c) => {
+  .get("/projects/:id/agents/:aid", async (c) => {
     const pm = c.get("projectManager");
     const coordinator = pm.getCoordinator(c.req.param("id"));
     if (!coordinator) return c.json({ error: "Project not found" }, 404);
 
-    const detail = coordinator.getAgentDetail(c.req.param("aid"));
+    const detail = await coordinator.getAgentDetail(c.req.param("aid"));
     if (!detail) return c.json({ error: "Agent not found" }, 404);
     return c.json(detail);
   })

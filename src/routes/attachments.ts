@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { readFileSync, existsSync } from "fs";
+import { readFile, access } from "fs/promises";
 import { basename } from "path";
 import * as workspace from "../services/workspace";
 import * as projectsService from "../services/projects";
@@ -7,7 +7,7 @@ import type { AppEnv } from "../types";
 
 export const attachmentRoutes = new Hono<AppEnv>().get(
   "/projects/:id/agents/:aid/attachments/:attId/:filename",
-  (c) => {
+  async (c) => {
     const projectIdParam = c.req.param("id");
     const agentId = c.req.param("aid");
     const attId = c.req.param("attId");
@@ -23,12 +23,14 @@ export const attachmentRoutes = new Hono<AppEnv>().get(
 
     const filePath = workspace.attachmentPath(projectId, agentId, attId, filename);
 
-    if (!existsSync(filePath)) {
+    try {
+      await access(filePath);
+    } catch {
       return c.json({ error: "Attachment not found" }, 404);
     }
 
     try {
-      const data = readFileSync(filePath);
+      const data = await readFile(filePath);
       return new Response(data, {
         headers: {
           "Content-Disposition": `attachment; filename="${basename(filename)}"`,

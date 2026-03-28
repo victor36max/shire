@@ -1,4 +1,4 @@
-import { writeFileSync, rmSync } from "fs";
+import { writeFile, rm } from "fs/promises";
 import { join } from "path";
 import yaml from "js-yaml";
 import { bus } from "../events";
@@ -33,7 +33,9 @@ export class Coordinator {
           toAgentName: string;
           text: string;
         };
-        this.routeMessage(p.fromAgentId, p.fromAgentName, p.toAgentName, p.text);
+        this.routeMessage(p.fromAgentId, p.fromAgentName, p.toAgentName, p.text).catch((err) =>
+          console.error("routeMessage error:", err),
+        );
       }
     });
 
@@ -44,7 +46,9 @@ export class Coordinator {
         const agent = agentsService.getAgentByName(projectId, p.name);
         if (agent) {
           const proc = this.agents.get(agent.id);
-          if (proc) proc.restart();
+          if (proc) {
+            proc.restart().catch((err) => console.error("spawn_agent restart error:", err));
+          }
         }
       }
     });
@@ -53,14 +57,14 @@ export class Coordinator {
   async deployAndScan(): Promise<void> {
     if (this.deployed) return;
 
-    workspace.ensureProjectDirs(this.projectId);
+    await workspace.ensureProjectDirs(this.projectId);
 
     const dbAgents = agentsService.listAgents(this.projectId);
     for (const agent of dbAgents) {
       await this.startAgentManager(agent.id, agent.name);
     }
 
-    this.writePeersYaml();
+    await this.writePeersYaml();
     this.deployed = true;
   }
 
@@ -91,11 +95,11 @@ export class Coordinator {
     });
 
     // Ensure workspace dirs exist
-    workspace.ensureAgentDirs(this.projectId, agent.id);
+    await workspace.ensureAgentDirs(this.projectId, agent.id);
 
     // Start process
     await this.startAgentManager(agent.id, agent.name);
-    this.writePeersYaml();
+    await this.writePeersYaml();
 
     bus.emit(`project:${this.projectId}:agents`, {
       type: "agent_created",
@@ -125,7 +129,7 @@ export class Coordinator {
     const proc = this.agents.get(agentId);
     if (proc) await proc.restart();
 
-    this.writePeersYaml();
+    await this.writePeersYaml();
 
     bus.emit(`project:${this.projectId}:agents`, {
       type: "agent_updated",
@@ -145,15 +149,11 @@ export class Coordinator {
 
     // Delete workspace
     const agentDir = workspace.agentDir(this.projectId, agentId);
-    try {
-      rmSync(agentDir, { recursive: true, force: true });
-    } catch {
-      // ok
-    }
+    await rm(agentDir, { recursive: true, force: true }).catch(() => {});
 
     // Delete DB record (cascades messages)
     agentsService.deleteAgent(agentId);
-    this.writePeersYaml();
+    await this.writePeersYaml();
 
     bus.emit(`project:${this.projectId}:agents`, {
       type: "agent_deleted",
@@ -210,7 +210,7 @@ export class Coordinator {
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  getAgentDetail(agentId: string): Record<string, unknown> | null {
+  async getAgentDetail(agentId: string): Promise<Record<string, unknown> | null> {
     const proc = this.agents.get(agentId);
     if (!proc) return null;
 
@@ -256,12 +256,12 @@ export class Coordinator {
     await proc.start();
   }
 
-  private routeMessage(
+  private async routeMessage(
     fromAgentId: string,
     fromAgentName: string,
     toAgentName: string,
     text: string,
-  ): void {
+  ): Promise<void> {
     const targetAgent = agentsService.getAgentByName(this.projectId, toAgentName);
     if (!targetAgent) {
       console.warn(`Inter-agent message from ${fromAgentName} to unknown agent ${toAgentName}`);
@@ -278,11 +278,7 @@ export class Coordinator {
         };
         const filename = `${Date.now()}-error.yaml`;
         const inboxPath = join(workspace.inboxDir(this.projectId, fromAgentId), filename);
-        try {
-          writeFileSync(inboxPath, yaml.dump(errorEnvelope), "utf-8");
-        } catch {
-          // ok
-        }
+        await writeFile(inboxPath, yaml.dump(errorEnvelope), "utf-8").catch(() => {});
       }
       return;
     }
@@ -302,10 +298,10 @@ export class Coordinator {
     };
     const filename = `${Date.now()}-${fromAgentName}.yaml`;
     const inboxPath = join(workspace.inboxDir(this.projectId, targetAgent.id), filename);
-    writeFileSync(inboxPath, yaml.dump(envelope), "utf-8");
+    await writeFile(inboxPath, yaml.dump(envelope), "utf-8");
   }
 
-  private writePeersYaml(): void {
+  private async writePeersYaml(): Promise<void> {
     const dbAgents = agentsService.listAgents(this.projectId);
     const agentMap = new Map(dbAgents.map((a) => [a.id, a]));
     const peers: Array<Record<string, string>> = [];
@@ -319,6 +315,6 @@ export class Coordinator {
     }
 
     const peersPath = workspace.peersPath(this.projectId);
-    writeFileSync(peersPath, yaml.dump(peers), "utf-8");
+    await writeFile(peersPath, yaml.dump(peers), "utf-8");
   }
 }

@@ -258,12 +258,12 @@ describe("AgentManager", () => {
 
   describe("workspace setup", () => {
     it("creates agent directories on start", async () => {
-      workspace.ensureProjectDirs(projectId);
+      await workspace.ensureProjectDirs(projectId);
       createManager();
 
       // setupWorkspace is called during start(), which also tries to start the harness
       // For a unit test, we verify ensureAgentDirs creates the right structure
-      workspace.ensureAgentDirs(projectId, agentId);
+      await workspace.ensureAgentDirs(projectId, agentId);
 
       const agentDir = workspace.agentDir(projectId, agentId);
       expect(existsSync(join(agentDir, "inbox"))).toBe(true);
