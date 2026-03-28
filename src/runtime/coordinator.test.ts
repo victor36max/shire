@@ -153,8 +153,8 @@ describe("listAgentStatuses", () => {
 });
 
 describe("getAgentDetail", () => {
-  it("returns null for nonexistent agent", () => {
-    expect(coordinator.getAgentDetail("nonexistent")).toBeNull();
+  it("returns null for nonexistent agent", async () => {
+    expect(await coordinator.getAgentDetail("nonexistent")).toBeNull();
   });
 
   it("returns agent detail with recipe fields", async () => {
@@ -165,7 +165,7 @@ describe("getAgentDetail", () => {
     });
     if (!result.ok) return;
 
-    const detail = coordinator.getAgentDetail(result.agentId);
+    const detail = await coordinator.getAgentDetail(result.agentId);
     expect(detail).not.toBeNull();
     expect(detail!.name).toBe("detail-agent");
     expect(detail!.description).toBe("A test");
@@ -210,6 +210,10 @@ describe("routeMessage (inter-agent)", () => {
     expect(receiverResult.ok).toBe(true);
     if (!senderResult.ok || !receiverResult.ok) return;
 
+    // Stop the receiver so its inbox watcher doesn't consume the file
+    const receiverProc = coordinator.getAgent(receiverResult.agentId);
+    await receiverProc?.stop();
+
     // Trigger the outbox event that the coordinator listens on
     bus.emit(`project:${projectId}:outbox`, {
       type: "outbox_message",
@@ -220,6 +224,9 @@ describe("routeMessage (inter-agent)", () => {
         text: "hello from sender",
       },
     });
+
+    // Wait for async routeMessage to complete
+    await new Promise((r) => setTimeout(r, 200));
 
     // Check that a YAML file was written to receiver's inbox
     const inboxDir = workspace.inboxDir(projectId, receiverResult.agentId);
@@ -258,6 +265,9 @@ describe("routeMessage (inter-agent)", () => {
       },
     });
 
+    // Wait for async routeMessage to complete
+    await new Promise((r) => setTimeout(r, 200));
+
     // Sender should have no inter-agent messages in their history
     const { messages: senderMessages } = agentsService.listMessages(
       projectId,
@@ -275,6 +285,10 @@ describe("routeMessage (inter-agent)", () => {
     expect(senderResult.ok).toBe(true);
     if (!senderResult.ok) return;
 
+    // Stop the sender so its inbox watcher doesn't consume the error file
+    const senderProc = coordinator.getAgent(senderResult.agentId);
+    await senderProc?.stop();
+
     bus.emit(`project:${projectId}:outbox`, {
       type: "outbox_message",
       payload: {
@@ -284,6 +298,9 @@ describe("routeMessage (inter-agent)", () => {
         text: "hello?",
       },
     });
+
+    // Wait for async routeMessage to complete
+    await new Promise((r) => setTimeout(r, 200));
 
     const inboxDir = workspace.inboxDir(projectId, senderResult.agentId);
     const errorFile = readdirSync(inboxDir).find((f) => f.endsWith("-error.yaml"));

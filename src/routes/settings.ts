@@ -15,15 +15,15 @@ function resolveProjectId(nameOrId: string): string | null {
 const contentSchema = z.object({ content: z.string() });
 
 export const settingsRoutes = new Hono<AppEnv>()
-  .get("/projects/:id/settings/project-doc", (c) => {
+  .get("/projects/:id/settings/project-doc", async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
-    return c.json({ content: settings.readProjectDoc(projectId) });
+    return c.json({ content: await settings.readProjectDoc(projectId) });
   })
-  .put("/projects/:id/settings/project-doc", zValidator("json", contentSchema), (c) => {
+  .put("/projects/:id/settings/project-doc", zValidator("json", contentSchema), async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);
     const { content } = c.req.valid("json");
-    settings.writeProjectDoc(projectId, content);
+    await settings.writeProjectDoc(projectId, content);
     return c.json({ ok: true });
   });

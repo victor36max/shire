@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, existsSync } from "fs";
+import { readFile, readdir, access } from "fs/promises";
 import { join, basename, dirname } from "path";
 import { fileURLToPath } from "url";
 import { safeYamlLoad } from "../utils/yaml";
@@ -27,28 +27,39 @@ function catalogDir(): string {
   return join(__dirname, "..", "..", "catalog");
 }
 
-export function listCategories(): CatalogCategory[] {
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function listCategories(): Promise<CatalogCategory[]> {
   const path = join(catalogDir(), "categories.yaml");
-  if (!existsSync(path)) return [];
-  const content = readFileSync(path, "utf-8");
+  if (!(await fileExists(path))) return [];
+  const content = await readFile(path, "utf-8");
   const data = safeYamlLoad(content) as CatalogCategory[];
   return data ?? [];
 }
 
-export function listAgents(category?: string): CatalogAgent[] {
+export async function listAgents(category?: string): Promise<CatalogAgent[]> {
   const agentsDir = join(catalogDir(), "agents");
-  if (!existsSync(agentsDir)) return [];
+  if (!(await fileExists(agentsDir))) return [];
 
   const result: CatalogAgent[] = [];
-  const categories = readdirSync(agentsDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+  const entries = await readdir(agentsDir, { withFileTypes: true });
+  const categories = entries.filter((d) => d.isDirectory());
 
   for (const cat of categories) {
     if (category && cat.name !== category) continue;
     const catDir = join(agentsDir, cat.name);
-    const files = readdirSync(catDir).filter((f) => f.endsWith(".yaml"));
+    const allFiles = await readdir(catDir);
+    const files = allFiles.filter((f) => f.endsWith(".yaml"));
 
     for (const file of files) {
-      const content = readFileSync(join(catDir, file), "utf-8");
+      const content = await readFile(join(catDir, file), "utf-8");
       const data = safeYamlLoad(content) as Record<string, unknown>;
       if (!data) continue;
 
@@ -69,14 +80,14 @@ export function listAgents(category?: string): CatalogAgent[] {
   return result;
 }
 
-export function getAgent(name: string): CatalogAgent | null {
-  const allAgents = listAgents();
+export async function getAgent(name: string): Promise<CatalogAgent | null> {
+  const allAgents = await listAgents();
   return allAgents.find((a) => a.name === name) ?? null;
 }
 
-export function searchAgents(query: string): CatalogAgent[] {
+export async function searchAgents(query: string): Promise<CatalogAgent[]> {
   const q = query.toLowerCase();
-  return listAgents().filter(
+  return (await listAgents()).filter(
     (a) =>
       a.displayName.toLowerCase().includes(q) ||
       a.description.toLowerCase().includes(q) ||

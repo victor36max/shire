@@ -5,7 +5,7 @@
  * Usage:
  *   bun run src/scripts/catalog-sync.ts [--repo URL] [--clear]
  */
-import { mkdirSync, rmSync, readdirSync, statSync, readFileSync, writeFileSync } from "fs";
+import { mkdir, rm, readdir, stat, readFile, writeFile } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { tmpdir } from "os";
@@ -103,7 +103,7 @@ async function main() {
 
   if (clear) {
     console.log("Clearing existing catalog...");
-    rmSync(CATALOG_DIR, { recursive: true, force: true });
+    await rm(CATALOG_DIR, { recursive: true, force: true });
   }
 
   const tmpDir = join(tmpdir(), `catalog_sync_${Date.now()}`);
@@ -117,40 +117,41 @@ async function main() {
     }
 
     // Find category dirs (dirs containing .md files, excluding skip list)
-    const entries = readdirSync(tmpDir);
-    const categories = entries.filter((entry) => {
-      if (SKIP_DIRS.has(entry)) return false;
+    const entries = await readdir(tmpDir);
+    const categories: string[] = [];
+    for (const entry of entries) {
+      if (SKIP_DIRS.has(entry)) continue;
       const path = join(tmpDir, entry);
-      if (!statSync(path).isDirectory()) return false;
-      return readdirSync(path).some((f) => f.endsWith(".md"));
-    });
+      if (!(await stat(path)).isDirectory()) continue;
+      const contents = await readdir(path);
+      if (contents.some((f) => f.endsWith(".md"))) categories.push(entry);
+    }
 
     let agentsCount = 0;
 
     for (const category of categories) {
       const categoryPath = join(tmpDir, category);
       const outDir = join(CATALOG_DIR, "agents", category);
-      mkdirSync(outDir, { recursive: true });
+      await mkdir(outDir, { recursive: true });
 
-      const mdFiles = readdirSync(categoryPath).filter(
-        (f) => f.endsWith(".md") && f !== "README.md",
-      );
+      const allFiles = await readdir(categoryPath);
+      const mdFiles = allFiles.filter((f) => f.endsWith(".md") && f !== "README.md");
 
       for (const file of mdFiles) {
-        const content = readFileSync(join(categoryPath, file), "utf-8");
+        const content = await readFile(join(categoryPath, file), "utf-8");
         const { frontmatter, body } = parseFrontmatter(content);
 
         if (frontmatter.name) {
           const agentYaml = buildAgentYaml(frontmatter, body, category);
           const yamlContent = encodeAgentYaml(agentYaml);
-          writeFileSync(join(outDir, `${agentYaml.name}.yaml`), yamlContent);
+          await writeFile(join(outDir, `${agentYaml.name}.yaml`), yamlContent);
           agentsCount++;
         }
       }
     }
 
     // Write categories.yaml
-    mkdirSync(CATALOG_DIR, { recursive: true });
+    await mkdir(CATALOG_DIR, { recursive: true });
     const categoryMaps = categories.map((cat) => ({
       id: cat,
       name: cat
@@ -166,11 +167,11 @@ async function main() {
         .map((c) => `- id: ${c.id}\n  name: "${c.name}"\n  description: "${c.description}"`)
         .join("\n") + "\n";
 
-    writeFileSync(join(CATALOG_DIR, "categories.yaml"), categoriesYaml);
+    await writeFile(join(CATALOG_DIR, "categories.yaml"), categoriesYaml);
 
     console.log(`Synced ${agentsCount} agents across ${categories.length} categories`);
   } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, { recursive: true, force: true });
   }
 }
 

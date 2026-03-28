@@ -6,7 +6,6 @@ import { ProjectManager } from "./runtime/project-manager";
 import { Scheduler } from "./runtime/scheduler";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { existsSync, readFileSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -62,7 +61,7 @@ async function main() {
       if (DEV) {
         return proxyToVite(req, url);
       }
-      return serveStatic(url);
+      return await serveStatic(url);
     },
     websocket: {
       message(ws, message) {
@@ -101,23 +100,24 @@ async function proxyToVite(req: Request, url: URL): Promise<Response> {
 }
 
 // Production: serve pre-built frontend static files
-function serveStatic(url: URL): Response {
+async function serveStatic(url: URL): Promise<Response> {
   let filePath = join(FRONTEND_DIST, url.pathname);
 
   // SPA fallback: serve index.html for non-file routes
-  if (!existsSync(filePath) || !filePath.includes(".")) {
+  const file = Bun.file(filePath);
+  if (!(await file.exists()) || !filePath.includes(".")) {
     filePath = join(FRONTEND_DIST, "index.html");
   }
 
-  if (!existsSync(filePath)) {
+  const indexFile = Bun.file(filePath);
+  if (!(await indexFile.exists())) {
     return new Response("Not Found", { status: 404 });
   }
 
-  const file = readFileSync(filePath);
   const ext = filePath.split(".").pop() ?? "";
   const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
 
-  return new Response(file, {
+  return new Response(indexFile, {
     headers: { "Content-Type": contentType },
   });
 }

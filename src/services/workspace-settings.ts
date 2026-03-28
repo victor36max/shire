@@ -1,14 +1,14 @@
-import { readFileSync, writeFileSync } from "fs";
+import { readFile, writeFile } from "fs/promises";
 import * as workspace from "./workspace";
 
-export function readProjectDoc(projectId: string): string {
+export async function readProjectDoc(projectId: string): Promise<string> {
   try {
-    return readFileSync(workspace.projectDocPath(projectId), "utf-8");
+    return await readFile(workspace.projectDocPath(projectId), "utf-8");
   } catch {
     return "";
   }
 }
 
-export function writeProjectDoc(projectId: string, content: string): void {
-  writeFileSync(workspace.projectDocPath(projectId), content, "utf-8");
+export async function writeProjectDoc(projectId: string, content: string): Promise<void> {
+  await writeFile(workspace.projectDocPath(projectId), content, "utf-8");
 }

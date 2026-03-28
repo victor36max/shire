@@ -1,4 +1,4 @@
-import { rmSync } from "fs";
+import { rm } from "fs/promises";
 import { bus } from "../events";
 import { Coordinator } from "./coordinator";
 import * as projectsService from "../services/projects";
@@ -48,11 +48,7 @@ export class ProjectManager {
     this.statuses.delete(id);
 
     // Remove workspace
-    try {
-      rmSync(workspace.root(id), { recursive: true, force: true });
-    } catch {
-      // ok
-    }
+    await rm(workspace.root(id), { recursive: true, force: true }).catch(() => {});
 
     projectsService.deleteProject(id);
 

@@ -1,6 +1,5 @@
 import { watch, type FSWatcher } from "fs";
-import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/promises";
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
+import { readFile, readdir, rename, unlink, writeFile, mkdir, stat, rm } from "fs/promises";
 import { join } from "path";
 import yaml from "js-yaml";
 import { safeYamlLoad } from "../utils/yaml";
@@ -282,7 +281,7 @@ export class AgentManager {
   // --- Harness setup ---
 
   private async startHarness(): Promise<void> {
-    const recipe = this.readRecipe();
+    const recipe = await this.readRecipe();
     const harnessType = (recipe?.harness as HarnessType) ?? "claude_code";
     const model = (recipe?.model as string) ?? "claude-sonnet-4-6";
     const systemPrompt = (recipe?.system_prompt as string) ?? "";
@@ -767,26 +766,26 @@ export class AgentManager {
   // --- Workspace setup ---
 
   private async setupWorkspace(): Promise<void> {
-    workspace.ensureAgentDirs(this.projectId, this.agentId);
+    await workspace.ensureAgentDirs(this.projectId, this.agentId);
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
-    mkdirSync(join(agentDir, ".claude", "skills"), { recursive: true });
+    await mkdir(join(agentDir, ".claude", "skills"), { recursive: true });
 
-    const recipe = this.readRecipe();
+    const recipe = await this.readRecipe();
     if (recipe?.skills && Array.isArray(recipe.skills)) {
-      this.deploySkills(recipe);
+      await this.deploySkills(recipe);
     }
   }
 
-  private readRecipe(): Record<string, unknown> | null {
+  private async readRecipe(): Promise<Record<string, unknown> | null> {
     try {
-      const content = readFileSync(workspace.recipePath(this.projectId, this.agentId), "utf-8");
+      const content = await readFile(workspace.recipePath(this.projectId, this.agentId), "utf-8");
       return safeYamlLoad(content) as Record<string, unknown>;
     } catch {
       return null;
     }
   }
 
-  private deploySkills(recipe: Record<string, unknown>): void {
+  private async deploySkills(recipe: Record<string, unknown>): Promise<void> {
     const skills = recipe.skills as Array<Record<string, unknown>>;
     const harnessType = (recipe.harness as string) ?? "claude_code";
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
@@ -795,19 +794,15 @@ export class AgentManager {
         ? join(agentDir, ".claude", "skills")
         : join(agentDir, ".pi", "agent", "skills");
 
-    try {
-      rmSync(skillBase, { recursive: true, force: true });
-    } catch {
-      /* ok */
-    }
+    await rm(skillBase, { recursive: true, force: true }).catch(() => {});
 
     for (const skill of skills) {
       const skillDir = join(skillBase, skill.name as string);
-      mkdirSync(skillDir, { recursive: true });
+      await mkdir(skillDir, { recursive: true });
       const skillMd = `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n\n${skill.content}\n`;
-      writeFileSync(join(skillDir, "SKILL.md"), skillMd, "utf-8");
+      await writeFile(join(skillDir, "SKILL.md"), skillMd, "utf-8");
       for (const ref of (skill.references as Array<Record<string, string>>) ?? []) {
-        writeFileSync(join(skillDir, ref.name), ref.content, "utf-8");
+        await writeFile(join(skillDir, ref.name), ref.content, "utf-8");
       }
     }
   }
