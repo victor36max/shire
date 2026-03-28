@@ -18,9 +18,8 @@ const DEFAULT_PORT = 8080;
  * When running as a compiled binary: assets sit alongside the binary.
  */
 function getPackageRoot(): string {
-  // In a compiled binary, argv[1] is undefined (no script path).
-  // When running from source, argv[1] is the script path (e.g., src/cli.ts).
-  if (!process.argv[1]) {
+  // In a compiled Bun binary, argv[1] starts with /$bunfs/root/
+  if (process.argv[1]?.startsWith("/$bunfs/")) {
     return dirname(process.execPath);
   }
   return join(__dirname, "..");
