@@ -49,12 +49,9 @@ export function useSendMessage(projectId: string) {
       agentId: string;
       text: string;
       attachments?: Array<{
-        id?: string;
-        name?: string;
-        filename?: string;
-        content?: string;
+        name: string;
+        content: string;
         content_type: string;
-        size?: number;
       }>;
     }) =>
       unwrap(
