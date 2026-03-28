@@ -52,7 +52,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function AttachmentDisplay({
+const AttachmentDisplay = React.memo(function AttachmentDisplay({
   attachments,
   projectName,
   agentId,
@@ -77,7 +77,12 @@ function AttachmentDisplay({
             rel="noopener noreferrer"
             className="block rounded-md border border-border overflow-hidden hover:opacity-90 transition-opacity"
           >
-            <img src={url} alt={att.filename} className="max-w-48 max-h-32 object-cover" />
+            <img
+              src={url}
+              alt={att.filename}
+              loading="lazy"
+              className="max-w-48 max-h-32 object-cover"
+            />
           </a>
         ) : (
           <a
@@ -98,9 +103,9 @@ function AttachmentDisplay({
       })}
     </div>
   );
-}
+});
 
-function ToolCallMessage({ msg }: { msg: Message }) {
+const ToolCallMessage = React.memo(function ToolCallMessage({ msg }: { msg: Message }) {
   const [open, setOpen] = React.useState(false);
   const inputStr = msg.input ? JSON.stringify(msg.input, null, 2) : "";
   const hasOutput = msg.output != null;
@@ -110,6 +115,7 @@ function ToolCallMessage({ msg }: { msg: Message }) {
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 rounded-lg"
       >
         <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
@@ -146,9 +152,9 @@ function ToolCallMessage({ msg }: { msg: Message }) {
       )}
     </div>
   );
-}
+});
 
-function InterAgentMessage({ msg }: { msg: Message }) {
+const InterAgentMessage = React.memo(function InterAgentMessage({ msg }: { msg: Message }) {
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -156,6 +162,7 @@ function InterAgentMessage({ msg }: { msg: Message }) {
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 rounded-lg italic"
       >
         <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
@@ -168,9 +175,9 @@ function InterAgentMessage({ msg }: { msg: Message }) {
       )}
     </div>
   );
-}
+});
 
-function SystemMessage({ msg }: { msg: Message }) {
+const SystemMessage = React.memo(function SystemMessage({ msg }: { msg: Message }) {
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -178,6 +185,7 @@ function SystemMessage({ msg }: { msg: Message }) {
       <Button
         variant="ghost"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left italic h-auto justify-start"
       >
         <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
@@ -190,7 +198,7 @@ function SystemMessage({ msg }: { msg: Message }) {
       )}
     </div>
   );
-}
+});
 
 /** Transform API messages to ChatPanel Message format */
 function transformMessages(raw: Array<Record<string, unknown>>): Message[] {
@@ -233,7 +241,8 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   const restartAgent = useRestartAgent(projectId ?? "");
   const loadMore = useLoadMoreMessages(projectId ?? "");
 
-  const messages = transformMessages(messagesData?.messages ?? []);
+  const rawMessages = messagesData?.messages;
+  const messages = React.useMemo(() => transformMessages(rawMessages ?? []), [rawMessages]);
   const hasMore = messagesData?.hasMore ?? false;
   const loadingMore = loadMore.isPending;
 

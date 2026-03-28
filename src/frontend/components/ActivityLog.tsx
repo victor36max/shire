@@ -70,6 +70,7 @@ export default function ActivityLog({ messages, hasMore, onLoadMore }: ActivityL
               <Button
                 variant="link"
                 size="sm"
+                aria-expanded={isExpanded}
                 className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => toggleExpand(msg.id)}
               >

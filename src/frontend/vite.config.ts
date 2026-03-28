@@ -25,7 +25,7 @@ export default defineConfig({
   },
   build: {
     outDir: path.resolve(__dirname, "dist"),
-    assetsInlineLimit: 0,
+    assetsInlineLimit: 4096,
   },
   test: {
     environment: "jsdom",

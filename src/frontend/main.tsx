@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,17 +7,19 @@ import { setNavigate } from "./lib/navigate";
 import { Toaster, toast } from "sonner";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import ConnectionBanner from "./components/ConnectionBanner";
 import "@fontsource-variable/dm-sans";
 import "./css/app.css";
 
-import ProjectDashboard from "./pages/ProjectDashboard";
 import ProjectLayout from "./components/ProjectLayout";
-import AgentChatView from "./components/AgentChatView";
-import AgentSettings from "./pages/AgentSettings";
-import ProjectDetails from "./pages/ProjectDetails";
-import Settings from "./pages/Settings";
-import SharedDrivePage from "./pages/SharedDrive";
-import Schedules from "./pages/Schedules";
+
+const ProjectDashboard = lazy(() => import("./pages/ProjectDashboard"));
+const AgentChatView = lazy(() => import("./components/AgentChatView"));
+const AgentSettings = lazy(() => import("./pages/AgentSettings"));
+const ProjectDetails = lazy(() => import("./pages/ProjectDetails"));
+const Settings = lazy(() => import("./pages/Settings"));
+const SharedDrivePage = lazy(() => import("./pages/SharedDrive"));
+const Schedules = lazy(() => import("./pages/Schedules"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,21 +51,30 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
+          <ConnectionBanner />
           <Toaster position="bottom-right" richColors />
           <BrowserRouter>
             <NavigateBridge />
-            <Routes>
-              <Route path="/" element={<ProjectDashboard />} />
-              <Route path="/projects/:projectName" element={<ProjectLayout />}>
-                <Route index element={<AgentChatView />} />
-                <Route path="agents/:agentName" element={<AgentChatView />} />
-                <Route path="agents/:agentName/settings" element={<AgentSettings />} />
-                <Route path="details" element={<ProjectDetails />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="shared" element={<SharedDrivePage />} />
-                <Route path="schedules" element={<Schedules />} />
-              </Route>
-            </Routes>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-screen">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                </div>
+              }
+            >
+              <Routes>
+                <Route path="/" element={<ProjectDashboard />} />
+                <Route path="/projects/:projectName" element={<ProjectLayout />}>
+                  <Route index element={<AgentChatView />} />
+                  <Route path="agents/:agentName" element={<AgentChatView />} />
+                  <Route path="agents/:agentName/settings" element={<AgentSettings />} />
+                  <Route path="details" element={<ProjectDetails />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="shared" element={<SharedDrivePage />} />
+                  <Route path="schedules" element={<Schedules />} />
+                </Route>
+              </Routes>
+            </Suspense>
           </BrowserRouter>
         </ThemeProvider>
       </QueryClientProvider>
