@@ -19,7 +19,7 @@ Shire is an AI agent orchestration platform. Users create projects, add agents (
 
 ```bash
 # Development
-bun run dev                # Backend server on :4000
+bun run dev                # Backend server on :3000
 bun run dev:frontend       # Vite dev server on :5173
 
 # Testing
