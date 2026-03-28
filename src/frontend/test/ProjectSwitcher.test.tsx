@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, mock } from "bun:test";
 import ProjectSwitcher from "../components/ProjectSwitcher";
 import type { Project } from "../components/types";
 
@@ -20,7 +20,7 @@ describe("ProjectSwitcher", () => {
   });
 
   it("navigates to / when All Projects is selected", async () => {
-    const assignMock = vi.fn();
+    const assignMock = mock(() => {});
     Object.defineProperty(window, "location", {
       value: { assign: assignMock },
       writable: true,

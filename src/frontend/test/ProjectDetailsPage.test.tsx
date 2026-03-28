@@ -1,24 +1,22 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import ProjectDetailsPage from "../components/ProjectDetailsPage";
 import { renderWithProviders } from "./test-utils";
+import * as actualHooks from "../lib/hooks";
 
-const renameMutate = vi.fn();
-const saveDocMutate = vi.fn();
+const renameMutate = mock(() => {});
+const saveDocMutate = mock(() => {});
 
 let mockProjectDoc = "# My Project\n\nSome content here.";
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useProjectDoc: () => ({ data: { content: mockProjectDoc }, isLoading: false }),
-    useRenameProject: () => ({ mutate: renameMutate, isPending: false }),
-    useSaveProjectDoc: () => ({ mutate: saveDocMutate, isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...actualHooks,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useProjectDoc: () => ({ data: { content: mockProjectDoc }, isLoading: false }),
+  useRenameProject: () => ({ mutate: renameMutate, isPending: false }),
+  useSaveProjectDoc: () => ({ mutate: saveDocMutate, isPending: false }),
+}));
 
 describe("ProjectDetailsPage", () => {
   beforeEach(() => {

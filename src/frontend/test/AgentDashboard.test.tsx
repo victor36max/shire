@@ -1,7 +1,7 @@
 import * as React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ProjectLayout from "../components/ProjectLayout";
@@ -11,6 +11,8 @@ import {
   type CatalogAgentSummary,
   type CatalogCategory,
 } from "../components/types";
+import * as hooksModule from "../lib/hooks";
+import * as wsModule from "../lib/ws";
 
 const agents: AgentOverview[] = [
   {
@@ -29,51 +31,49 @@ const agents: AgentOverview[] = [
   },
 ];
 
-const createMutate = vi.fn();
-const updateMutate = vi.fn();
+const createMutate = mock(() => {});
+const updateMutate = mock(() => {});
 
 let mockAgentList: AgentOverview[] = agents;
 let mockCatalogAgents: CatalogAgentSummary[] = [];
 let mockCatalogCategories: CatalogCategory[] = [];
 let mockCatalogSelectedAgent: Record<string, unknown> | undefined = undefined;
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useResolveProjectId: () => "p1",
-    useAgents: () => ({ data: mockAgentList, isLoading: false }),
-    useCreateAgent: () => ({ mutate: createMutate, isPending: false }),
-    useUpdateAgent: () => ({ mutate: updateMutate, isPending: false }),
-    useCatalogAgent: () => ({ data: mockCatalogSelectedAgent }),
-    useCatalogAgents: () => ({ data: mockCatalogAgents, isLoading: false }),
-    useCatalogCategories: () => ({ data: mockCatalogCategories, isLoading: false }),
-    useProjects: () => ({
-      data: [{ id: "p1", name: "test-project", status: "running" }],
-      isLoading: false,
-    }),
-    useDeleteAgent: () => ({ mutate: vi.fn(), isPending: false }),
-    useClearSession: () => ({ mutate: vi.fn(), isPending: false }),
-    useMessages: () => ({
-      data: {
-        pages: [{ messages: [], hasMore: false }],
-        pageParams: [undefined],
-      },
-      isLoading: false,
-      fetchNextPage: vi.fn(),
-      hasNextPage: false,
-      isFetchingNextPage: false,
-    }),
-    useSendMessage: () => ({ mutate: vi.fn(), isPending: false }),
-    useInterruptAgent: () => ({ mutate: vi.fn(), isPending: false }),
-    useRestartAgent: () => ({ mutate: vi.fn(), isPending: false }),
-    useMarkRead: () => ({ mutate: vi.fn(), isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...hooksModule,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useResolveProjectId: () => "p1",
+  useAgents: () => ({ data: mockAgentList, isLoading: false }),
+  useCreateAgent: () => ({ mutate: createMutate, isPending: false }),
+  useUpdateAgent: () => ({ mutate: updateMutate, isPending: false }),
+  useCatalogAgent: () => ({ data: mockCatalogSelectedAgent }),
+  useCatalogAgents: () => ({ data: mockCatalogAgents, isLoading: false }),
+  useCatalogCategories: () => ({ data: mockCatalogCategories, isLoading: false }),
+  useProjects: () => ({
+    data: [{ id: "p1", name: "test-project", status: "running" }],
+    isLoading: false,
+  }),
+  useDeleteAgent: () => ({ mutate: mock(() => {}), isPending: false }),
+  useClearSession: () => ({ mutate: mock(() => {}), isPending: false }),
+  useMessages: () => ({
+    data: {
+      pages: [{ messages: [], hasMore: false }],
+      pageParams: [undefined],
+    },
+    isLoading: false,
+    fetchNextPage: mock(() => {}),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+  }),
+  useSendMessage: () => ({ mutate: mock(() => {}), isPending: false }),
+  useInterruptAgent: () => ({ mutate: mock(() => {}), isPending: false }),
+  useRestartAgent: () => ({ mutate: mock(() => {}), isPending: false }),
+  useMarkRead: () => ({ mutate: mock(() => {}), isPending: false }),
+}));
 
-vi.mock("../lib/ws", () => ({
-  useSubscription: vi.fn(),
+mock.module("../lib/ws", () => ({
+  ...wsModule,
+  useSubscription: mock(() => {}),
 }));
 
 function renderWithLayout(route = "/projects/test-project") {

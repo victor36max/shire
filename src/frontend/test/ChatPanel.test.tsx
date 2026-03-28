@@ -1,9 +1,10 @@
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import ChatPanel, { type Message } from "../components/ChatPanel";
 import { type AgentOverview } from "../components/types";
 import { renderWithProviders } from "./test-utils";
+import * as actualHooks from "../lib/hooks";
 
 const activeAgent: AgentOverview = {
   id: "a1",
@@ -18,37 +19,34 @@ const createdAgent: AgentOverview = {
   status: "created",
 };
 
-const sendMutate = vi.fn();
-const interruptMutate = vi.fn();
-const restartMutate = vi.fn();
-const fetchNextPageMock = vi.fn();
+const sendMutate = mock(() => {});
+const interruptMutate = mock(() => {});
+const restartMutate = mock(() => {});
+const fetchNextPageMock = mock(() => {});
 
 let mockMessages: Array<Record<string, unknown>> = [];
 let mockHasMore = false;
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-    useMessages: () => ({
-      data: {
-        pages: [{ messages: mockMessages, hasMore: mockHasMore }],
-        pageParams: [undefined],
-      },
-      isLoading: false,
-      fetchNextPage: fetchNextPageMock,
-      hasNextPage: mockHasMore,
-      isFetchingNextPage: false,
-    }),
-    useSendMessage: () => ({ mutate: sendMutate, isPending: false }),
-    useInterruptAgent: () => ({ mutate: interruptMutate, isPending: false }),
-    useRestartAgent: () => ({ mutate: restartMutate, isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...actualHooks,
+  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
+  useMessages: () => ({
+    data: {
+      pages: [{ messages: mockMessages, hasMore: mockHasMore }],
+      pageParams: [undefined],
+    },
+    isLoading: false,
+    fetchNextPage: fetchNextPageMock,
+    hasNextPage: mockHasMore,
+    isFetchingNextPage: false,
+  }),
+  useSendMessage: () => ({ mutate: sendMutate, isPending: false }),
+  useInterruptAgent: () => ({ mutate: interruptMutate, isPending: false }),
+  useRestartAgent: () => ({ mutate: restartMutate, isPending: false }),
+}));
 
-vi.mock("../lib/ws", () => ({
-  useSubscription: vi.fn(),
+mock.module("../lib/ws", () => ({
+  useSubscription: mock(() => {}),
 }));
 
 /** Helper to build API-format messages that transformMessages() in the component will process */

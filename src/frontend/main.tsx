@@ -8,7 +8,6 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useConnectionToast } from "./lib/useConnectionToast";
 import "@fontsource-variable/dm-sans";
-import "./css/app.css";
 
 import ProjectLayout from "./components/ProjectLayout";
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock, spyOn } from "bun:test";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 
@@ -9,7 +9,7 @@ function ThrowingComponent({ shouldThrow }: { shouldThrow: boolean }) {
 
 describe("ErrorBoundary", () => {
   beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    spyOn(console, "error").mockImplementation(() => {});
   });
 
   it("renders children when no error", () => {
@@ -33,7 +33,7 @@ describe("ErrorBoundary", () => {
   });
 
   it("calls window.location.reload when clicking Reload Page", () => {
-    const reloadMock = vi.fn();
+    const reloadMock = mock(() => {});
     Object.defineProperty(window, "location", {
       value: { ...window.location, reload: reloadMock },
       writable: true,

@@ -1,29 +1,27 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import ProjectDashboard from "../components/ProjectDashboard";
 import type { Project } from "../components/types";
 import { renderWithProviders } from "./test-utils";
+import * as actualHooks from "../lib/hooks";
 
-const createMutate = vi.fn();
-const deleteMutate = vi.fn();
-const restartMutate = vi.fn();
+const createMutate = mock(() => {});
+const deleteMutate = mock(() => {});
+const restartMutate = mock(() => {});
 
 let mockProjects: Project[] = [];
 
-vi.mock("../lib/hooks", async () => {
-  const actual = await vi.importActual("../lib/hooks");
-  return {
-    ...actual,
-    useProjects: () => ({ data: mockProjects, isLoading: false }),
-    useCreateProject: () => ({ mutate: createMutate, isPending: false }),
-    useDeleteProject: () => ({ mutate: deleteMutate, isPending: false }),
-    useRestartProject: () => ({ mutate: restartMutate, isPending: false }),
-  };
-});
+mock.module("../lib/hooks", () => ({
+  ...actualHooks,
+  useProjects: () => ({ data: mockProjects, isLoading: false }),
+  useCreateProject: () => ({ mutate: createMutate, isPending: false }),
+  useDeleteProject: () => ({ mutate: deleteMutate, isPending: false }),
+  useRestartProject: () => ({ mutate: restartMutate, isPending: false }),
+}));
 
-vi.mock("../lib/ws", () => ({
-  useSubscription: vi.fn(),
+mock.module("../lib/ws", () => ({
+  useSubscription: mock(() => {}),
 }));
 
 const defaultProjects: Project[] = [

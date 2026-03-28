@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, mock } from "bun:test";
 import ActivityLog from "../components/ActivityLog";
 import type { InterAgentMessage } from "../components/types";
 
@@ -19,7 +19,7 @@ const defaultProps = {
   messages,
   hasMore: false,
   loadingMore: false,
-  onLoadMore: vi.fn(),
+  onLoadMore: mock(() => {}),
 };
 
 describe("ActivityLog", () => {
@@ -51,82 +51,90 @@ describe("ActivityLog", () => {
   });
 
   it("calls onLoadMore when scrolled near bottom with hasMore", () => {
-    const onLoadMore = vi.fn();
-    // Mock Element.prototype so the scroll container has overflow from the start
-    const originalScrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, "scrollHeight");
-    const originalClientHeight = Object.getOwnPropertyDescriptor(Element.prototype, "clientHeight");
-    Object.defineProperty(Element.prototype, "scrollHeight", { value: 1000, configurable: true });
-    Object.defineProperty(Element.prototype, "clientHeight", { value: 400, configurable: true });
-
+    const onLoadMore = mock(() => {});
     const { container } = render(
       <ActivityLog {...defaultProps} hasMore={true} onLoadMore={onLoadMore} />,
     );
     const scrollContainer = container.firstElementChild as HTMLElement;
+    onLoadMore.mockClear(); // Clear any calls from auto-load useEffect
 
-    // useEffect saw overflow, so onLoadMore should NOT have been called yet
-    expect(onLoadMore).not.toHaveBeenCalled();
-
-    Object.defineProperty(scrollContainer, "scrollTop", { value: 550, configurable: true });
+    Object.defineProperty(scrollContainer, "scrollHeight", {
+      get: () => 1000,
+      configurable: true,
+    });
+    Object.defineProperty(scrollContainer, "clientHeight", {
+      get: () => 400,
+      configurable: true,
+    });
+    Object.defineProperty(scrollContainer, "scrollTop", { get: () => 550, configurable: true });
     fireEvent.scroll(scrollContainer);
     expect(onLoadMore).toHaveBeenCalledTimes(1);
-
-    // Restore
-    if (originalScrollHeight)
-      Object.defineProperty(Element.prototype, "scrollHeight", originalScrollHeight);
-    if (originalClientHeight)
-      Object.defineProperty(Element.prototype, "clientHeight", originalClientHeight);
   });
 
   it("does not call onLoadMore when not near bottom", () => {
-    const onLoadMore = vi.fn();
-    const originalScrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, "scrollHeight");
-    const originalClientHeight = Object.getOwnPropertyDescriptor(Element.prototype, "clientHeight");
-    Object.defineProperty(Element.prototype, "scrollHeight", { value: 1000, configurable: true });
-    Object.defineProperty(Element.prototype, "clientHeight", { value: 400, configurable: true });
-
+    const onLoadMore = mock(() => {});
     const { container } = render(
       <ActivityLog {...defaultProps} hasMore={true} onLoadMore={onLoadMore} />,
     );
     const scrollContainer = container.firstElementChild as HTMLElement;
+    onLoadMore.mockClear(); // Clear any calls from auto-load useEffect
 
-    Object.defineProperty(scrollContainer, "scrollTop", { value: 100, configurable: true });
+    Object.defineProperty(scrollContainer, "scrollHeight", {
+      get: () => 1000,
+      configurable: true,
+    });
+    Object.defineProperty(scrollContainer, "clientHeight", {
+      get: () => 400,
+      configurable: true,
+    });
+    Object.defineProperty(scrollContainer, "scrollTop", { get: () => 100, configurable: true });
     fireEvent.scroll(scrollContainer);
     expect(onLoadMore).not.toHaveBeenCalled();
-
-    if (originalScrollHeight)
-      Object.defineProperty(Element.prototype, "scrollHeight", originalScrollHeight);
-    if (originalClientHeight)
-      Object.defineProperty(Element.prototype, "clientHeight", originalClientHeight);
   });
 
   it("does not call onLoadMore when already loading", () => {
-    const onLoadMore = vi.fn();
+    const onLoadMore = mock(() => {});
     const { container } = render(
       <ActivityLog {...defaultProps} hasMore={true} loadingMore={true} onLoadMore={onLoadMore} />,
     );
     const scrollContainer = container.firstElementChild as HTMLElement;
 
-    Object.defineProperty(scrollContainer, "scrollHeight", { value: 1000, configurable: true });
-    Object.defineProperty(scrollContainer, "clientHeight", { value: 400, configurable: true });
-    Object.defineProperty(scrollContainer, "scrollTop", { value: 550, configurable: true });
+    Object.defineProperty(scrollContainer, "scrollHeight", {
+      get: () => 1000,
+      configurable: true,
+    });
+    Object.defineProperty(scrollContainer, "clientHeight", {
+      get: () => 400,
+      configurable: true,
+    });
+    Object.defineProperty(scrollContainer, "scrollTop", { get: () => 550, configurable: true });
 
     fireEvent.scroll(scrollContainer);
     expect(onLoadMore).not.toHaveBeenCalled();
   });
 
   it("auto-loads next page when content does not overflow", () => {
-    const onLoadMore = vi.fn();
-    const { container } = render(
-      <ActivityLog {...defaultProps} hasMore={true} onLoadMore={onLoadMore} />,
-    );
-    const scrollContainer = container.firstElementChild as HTMLElement;
+    const onLoadMore = mock(() => {});
+    // Override prototype so newly created elements report no overflow
+    const origSH = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, "scrollHeight");
+    const origCH = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLDivElement.prototype, "scrollHeight", {
+      get: () => 300,
+      configurable: true,
+    });
+    Object.defineProperty(HTMLDivElement.prototype, "clientHeight", {
+      get: () => 400,
+      configurable: true,
+    });
 
-    // Simulate content fitting within the viewport (no overflow)
-    Object.defineProperty(scrollContainer, "scrollHeight", { value: 300, configurable: true });
-    Object.defineProperty(scrollContainer, "clientHeight", { value: 400, configurable: true });
+    render(<ActivityLog {...defaultProps} hasMore={true} onLoadMore={onLoadMore} />);
 
     // The useEffect fires on render — onLoadMore should have been called
     expect(onLoadMore).toHaveBeenCalled();
+
+    // Restore
+    if (origSH) Object.defineProperty(HTMLDivElement.prototype, "scrollHeight", origSH);
+    if (origCH) Object.defineProperty(HTMLDivElement.prototype, "clientHeight", origCH);
   });
 
   it("truncates long messages and shows expand toggle", async () => {

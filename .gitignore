@@ -1,1 +1,7 @@
 node_modules/
+dist/
+src/frontend/dist/
+npm/*/shire
+npm/*/shire.exe
+npm/*/frontend/
+npm/*/drizzle/
