@@ -16,7 +16,7 @@ jobs:
             target: bun-darwin-arm64
             npm-dir: darwin-arm64
             binary: shire
-          - runner: macos-13
+          - runner: macos-15
             target: bun-darwin-x64
             npm-dir: darwin-x64
             binary: shire
