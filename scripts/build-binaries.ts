@@ -60,11 +60,13 @@ async function buildBinary(target: Target): Promise<void> {
     process.exit(1);
   }
 
-  // Copy migrations (needed at runtime, not bundled by bun build)
-  const drizzleSrc = join(ROOT, "drizzle");
-  const drizzleDest = join(outDir, "drizzle");
-  mkdirSync(drizzleDest, { recursive: true });
-  cpSync(drizzleSrc, drizzleDest, { recursive: true });
+  // Copy runtime assets (not bundled by bun build)
+  for (const dir of ["drizzle", "catalog"]) {
+    const src = join(ROOT, dir);
+    const dest = join(outDir, dir);
+    mkdirSync(dest, { recursive: true });
+    cpSync(src, dest, { recursive: true });
+  }
 
   console.log(`  Done: ${target.npmDir}`);
 }
