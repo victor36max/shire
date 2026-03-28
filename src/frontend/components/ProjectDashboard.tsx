@@ -28,8 +28,8 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import AppLayout from "./AppLayout";
-import { navigate } from "./lib/navigate";
-import { MoreHorizontal } from "lucide-react";
+import { navigate } from "../lib/navigate";
+import { Loader2, MoreHorizontal } from "lucide-react";
 import type { Project } from "./types";
 import { useProjects, useCreateProject, useDeleteProject, useRestartProject } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
@@ -85,7 +85,15 @@ export default function ProjectDashboard() {
     setDeleteTarget(null);
   };
 
-  if (isLoading) return <div className="p-8">Loading...</div>;
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

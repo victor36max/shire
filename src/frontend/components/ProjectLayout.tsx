@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
@@ -142,7 +143,13 @@ export default function ProjectLayout() {
     onBrowseCatalog: handleBrowseCatalog,
   };
 
-  if (!projectId) return <div className="p-8">Loading...</div>;
+  if (!projectId) {
+    return (
+      <div className="flex items-center justify-center h-dvh">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">

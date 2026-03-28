@@ -19,7 +19,7 @@ import {
 } from "./ui/alert-dialog";
 import { FileText, Settings, FolderOpen, Clock, Loader2 } from "lucide-react";
 import ProjectSwitcher from "./ProjectSwitcher";
-import { navigate } from "./lib/navigate";
+import { navigate } from "../lib/navigate";
 import { type AgentOverview, type AgentStatus } from "./types";
 import { useProjectId, useProjects, useAgents, useDeleteAgent } from "../lib/hooks";
 

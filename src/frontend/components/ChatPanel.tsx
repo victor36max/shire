@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Paperclip, Square, X, FileIcon, Download } from "lucide-react";
+import { Loader2, Paperclip, Square, X, FileIcon, Download } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -405,7 +405,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
         )}
         {messagesLoading && (
           <div className="flex items-center justify-center h-full">
-            <span className="text-sm text-muted-foreground animate-pulse">Loading messages...</span>
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         )}
         {!messagesLoading && !hasMessages && (

@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import AppLayout from "./AppLayout";
-import { navigate } from "./lib/navigate";
+import { navigate } from "../lib/navigate";
 import AgentForm from "./AgentForm";
 import { ChevronLeft, MoreHorizontal, Pencil, Loader2 } from "lucide-react";
 import { type Agent, statusVariant, harnessLabel } from "./types";
@@ -53,8 +53,20 @@ export default function AgentShow() {
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [restartOpen, setRestartOpen] = React.useState(false);
 
-  if (!projectId || !agentId || !agentDetail || "error" in agentDetail) {
-    return <div className="p-8">Loading...</div>;
+  if (!projectId || !agentId || !agentDetail) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if ("error" in agentDetail) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <p className="text-sm text-destructive">Failed to load agent.</p>
+      </div>
+    );
   }
 
   const agent = agentDetail as unknown as Agent;
