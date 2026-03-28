@@ -268,8 +268,6 @@ describe("AgentManager", () => {
       const agentDir = workspace.agentDir(projectId, agentId);
       expect(existsSync(join(agentDir, "inbox"))).toBe(true);
       expect(existsSync(join(agentDir, "outbox"))).toBe(true);
-      expect(existsSync(join(agentDir, "scripts"))).toBe(true);
-      expect(existsSync(join(agentDir, "documents"))).toBe(true);
       expect(existsSync(join(agentDir, "attachments"))).toBe(true);
     });
   });

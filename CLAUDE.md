@@ -73,8 +73,7 @@ React SPA with file-based page structure. Uses shadcn/ui components in `src/fron
     ├── agents/{agentId}/
     │   ├── recipe.yaml      # Agent definition
     │   ├── inbox/           # Incoming inter-agent messages
-    │   ├── outbox/          # Outgoing inter-agent messages
-    │   └── documents/       # Agent artifacts
+    │   └── outbox/          # Outgoing inter-agent messages
     ├── shared/              # Cross-agent shared drive
     └── peers.yaml           # Agent discovery registry
 ```
