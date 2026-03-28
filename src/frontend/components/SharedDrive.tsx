@@ -142,7 +142,7 @@ function PreviewContent({
   error: string | null;
 }) {
   const type = getPreviewType(file.name);
-  const previewUrl = `/projects/${projectName}/shared/preview?path=${encodeURIComponent(file.path)}`;
+  const previewUrl = `/api/projects/${projectName}/shared-drive/preview?path=${encodeURIComponent(file.path)}`;
 
   if (error) {
     return <p className="text-sm text-destructive p-4">{error}</p>;
@@ -417,7 +417,7 @@ export default function SharedDrive() {
                             {file.type === "file" && (
                               <Button variant="ghost" size="sm" asChild>
                                 <a
-                                  href={`/projects/${projectName}/shared/download?path=${encodeURIComponent(file.path)}`}
+                                  href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(file.path)}`}
                                   download
                                 >
                                   Download

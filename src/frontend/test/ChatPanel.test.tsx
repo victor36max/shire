@@ -399,7 +399,7 @@ describe("ChatPanel", () => {
     const link = screen.getByText("report.pdf").closest("a");
     expect(link).toHaveAttribute(
       "href",
-      "/projects/test-project/agents/a1/attachments/abc123/report.pdf",
+      "/api/projects/test-project/agents/a1/attachments/abc123/report.pdf",
     );
   });
 
@@ -418,7 +418,7 @@ describe("ChatPanel", () => {
     const img = screen.getByAltText("screenshot.png");
     expect(img).toHaveAttribute(
       "src",
-      "/projects/test-project/agents/a1/attachments/img001/screenshot.png",
+      "/api/projects/test-project/agents/a1/attachments/img001/screenshot.png",
     );
   });
 
