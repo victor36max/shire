@@ -19,11 +19,11 @@ export function useActivity(projectId: string | undefined) {
       ) as unknown as ActivityResponse;
     },
     enabled: !!projectId,
-    initialPageParam: undefined as number | undefined,
+    initialPageParam: undefined satisfies number | undefined,
     getNextPageParam: (lastPage) => {
       if (!lastPage.hasMore || lastPage.messages.length === 0) return undefined;
       // Activity is displayed newest-first; oldest message in page is the cursor
-      return lastPage.messages[lastPage.messages.length - 1].id as number;
+      return lastPage.messages[lastPage.messages.length - 1].id;
     },
   });
 }

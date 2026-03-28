@@ -29,11 +29,11 @@ export function useMessages(projectId: string | undefined, agentId: string | und
       ) as unknown as MessagesResponse;
     },
     enabled: !!projectId && !!agentId,
-    initialPageParam: undefined as number | undefined,
+    initialPageParam: undefined satisfies number | undefined,
     getNextPageParam: (lastPage) => {
       if (!lastPage.hasMore || lastPage.messages.length === 0) return undefined;
       // Oldest message in the page is the cursor for the next (older) page
-      return lastPage.messages[0].id as number;
+      return lastPage.messages[0].id;
     },
   });
 }
