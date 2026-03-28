@@ -91,3 +91,7 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </StrictMode>,
 );
+
+if (import.meta.hot) {
+  import.meta.hot.accept();
+}
