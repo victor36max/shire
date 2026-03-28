@@ -10,10 +10,9 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import "@fontsource-variable/dm-sans";
 import "./css/app.css";
 
-// Page components — will be copied from assets/react-components/
-// For now, use placeholder imports that we'll wire up
 import ProjectDashboard from "./pages/ProjectDashboard";
-import AgentDashboard from "./pages/AgentDashboard";
+import ProjectLayout from "./components/ProjectLayout";
+import AgentChatView from "./components/AgentChatView";
 import AgentSettings from "./pages/AgentSettings";
 import ProjectDetails from "./pages/ProjectDetails";
 import Settings from "./pages/Settings";
@@ -55,16 +54,15 @@ function App() {
             <NavigateBridge />
             <Routes>
               <Route path="/" element={<ProjectDashboard />} />
-              <Route path="/projects/:projectName" element={<AgentDashboard />} />
-              <Route path="/projects/:projectName/agents/:agentName" element={<AgentDashboard />} />
-              <Route
-                path="/projects/:projectName/agents/:agentName/settings"
-                element={<AgentSettings />}
-              />
-              <Route path="/projects/:projectName/details" element={<ProjectDetails />} />
-              <Route path="/projects/:projectName/settings" element={<Settings />} />
-              <Route path="/projects/:projectName/shared" element={<SharedDrivePage />} />
-              <Route path="/projects/:projectName/schedules" element={<Schedules />} />
+              <Route path="/projects/:projectName" element={<ProjectLayout />}>
+                <Route index element={<AgentChatView />} />
+                <Route path="agents/:agentName" element={<AgentChatView />} />
+                <Route path="agents/:agentName/settings" element={<AgentSettings />} />
+                <Route path="details" element={<ProjectDetails />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="shared" element={<SharedDrivePage />} />
+                <Route path="schedules" element={<Schedules />} />
+              </Route>
             </Routes>
           </BrowserRouter>
         </ThemeProvider>
