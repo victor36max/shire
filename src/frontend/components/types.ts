@@ -73,6 +73,7 @@ export interface InterAgentMessage {
   toAgent: string;
   text: string;
   ts: string;
+  role?: string;
   trigger?: string;
   taskLabel?: string;
 }

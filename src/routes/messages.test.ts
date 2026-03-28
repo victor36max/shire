@@ -66,7 +66,7 @@ describe("GET /api/projects/:id/activity", () => {
       projectId,
       agentId,
       role: "inter_agent",
-      content: { text: "Hello from Alice", from_agent: "Alice", to_agent: "Bob" },
+      content: { text: "Hello from Alice", fromAgent: "Alice", toAgent: "Bob" },
     });
 
     const res = await request("GET", `/api/projects/${projectId}/activity`);
@@ -79,12 +79,27 @@ describe("GET /api/projects/:id/activity", () => {
     expect(msg.text).toBe("Hello from Alice");
     expect(msg.fromAgent).toBe("Alice");
     expect(msg.toAgent).toBe("Bob");
+    expect(msg.role).toBe("inter_agent");
     expect(msg.ts).toBeDefined();
     expect(msg.id).toBeDefined();
     // Raw DB fields should not leak through
     expect(msg.content).toBeUndefined();
-    expect(msg.role).toBeUndefined();
     expect(msg.createdAt).toBeUndefined();
+  });
+
+  it("supports legacy snake_case field names for backwards compatibility", async () => {
+    agentsService.createMessage({
+      projectId,
+      agentId,
+      role: "inter_agent",
+      content: { text: "Legacy msg", from_agent: "Alice", to_agent: "Bob" },
+    });
+
+    const res = await request("GET", `/api/projects/${projectId}/activity`);
+    const data = (await res.json()) as { messages: Record<string, unknown>[] };
+    const msg = data.messages[0];
+    expect(msg.fromAgent).toBe("Alice");
+    expect(msg.toAgent).toBe("Bob");
   });
 
   it("includes trigger and taskLabel for scheduled task messages", async () => {
@@ -108,12 +123,28 @@ describe("GET /api/projects/:id/activity", () => {
     expect(msg.taskLabel).toBe("daily-check");
   });
 
+  it("includes role for system messages", async () => {
+    agentsService.createMessage({
+      projectId,
+      agentId,
+      role: "system",
+      content: { text: "Session cleared" },
+    });
+
+    const res = await request("GET", `/api/projects/${projectId}/activity`);
+    const data = (await res.json()) as { messages: Record<string, unknown>[] };
+    const msg = data.messages[0];
+    expect(msg.role).toBe("system");
+    expect(msg.fromAgent).toBe("");
+    expect(msg.toAgent).toBe("");
+  });
+
   it("omits trigger and taskLabel when not present", async () => {
     agentsService.createMessage({
       projectId,
       agentId,
       role: "inter_agent",
-      content: { text: "plain msg", from_agent: "A", to_agent: "B" },
+      content: { text: "plain msg", fromAgent: "A", toAgent: "B" },
     });
 
     const res = await request("GET", `/api/projects/${projectId}/activity`);
@@ -129,7 +160,7 @@ describe("GET /api/projects/:id/activity", () => {
         projectId,
         agentId,
         role: "inter_agent",
-        content: { text: `msg-${i}`, from_agent: "A", to_agent: "B" },
+        content: { text: `msg-${i}`, fromAgent: "A", toAgent: "B" },
       });
     }
 
@@ -162,7 +193,7 @@ describe("GET /api/projects/:id/activity", () => {
       projectId,
       agentId,
       role: "inter_agent",
-      content: { from_agent: "A", to_agent: "B" },
+      content: { fromAgent: "A", toAgent: "B" },
     });
 
     const res = await request("GET", `/api/projects/${projectId}/activity`);
