@@ -3,9 +3,9 @@ import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { createApp, handleWsMessage, handleWsClose, type AppContext } from "./server";
 import { ProjectManager } from "./runtime/project-manager";
 import { Scheduler } from "./runtime/scheduler";
-import { join, dirname, resolve } from "path";
+import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { existsSync } from "fs";
+import homepage from "./frontend/index.html";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -57,78 +57,33 @@ export async function startServer(opts: StartOptions = {}) {
   const ctx: AppContext = { projectManager, scheduler };
   const app = createApp(ctx);
 
-  // 5. Start server — dev uses Bun's fullstack bundler, prod serves pre-built files
+  // 5. Start server — Bun's HTML import handles both dev (HMR) and prod (pre-built manifest)
   type WsData = Record<string, unknown>;
-
-  if (DEV) {
-    // Dynamic import of HTML for Bun's fullstack dev bundler (HMR, CSS processing)
-    // Variable path prevents bun build --compile from bundling this
-    const htmlPath = "./frontend/index.html";
-    const homepage = await import(htmlPath);
-
-    const server = Bun.serve<WsData>({
-      port,
-      development: true,
-      routes: {
-        "/api/*": {
-          GET: (req: Request) => app.fetch(req),
-          POST: (req: Request) => app.fetch(req),
-          PUT: (req: Request) => app.fetch(req),
-          PATCH: (req: Request) => app.fetch(req),
-          DELETE: (req: Request) => app.fetch(req),
-          OPTIONS: (req: Request) => app.fetch(req),
-          HEAD: (req: Request) => app.fetch(req),
-        },
-        "/": homepage.default,
-        "/*": homepage.default,
-      },
-      async fetch(req, server) {
-        // WebSocket upgrades (e.g. /ws) — must be in fetch since routes can't do upgrades
-        if (req.headers.get("upgrade") === "websocket") {
-          const upgraded = server.upgrade(req, { data: {} });
-          if (upgraded) return undefined;
-          return new Response("WebSocket upgrade failed", { status: 400 });
-        }
-
-        // Fallback
-        return new Response("Not Found", { status: 404 });
-      },
-      websocket: {
-        message(ws, message) {
-          handleWsMessage(ws, String(message));
-        },
-        close(ws) {
-          handleWsClose(ws);
-        },
-      },
-    });
-
-    console.log(`Shire running at http://localhost:${server.port} (dev)`);
-    return server;
-  }
-
-  // Production: serve pre-built static files
-  const FRONTEND_DIST = join(root, "frontend");
-  const indexHtml = existsSync(join(FRONTEND_DIST, "index.html"))
-    ? Bun.file(join(FRONTEND_DIST, "index.html"))
-    : null;
 
   const server = Bun.serve<WsData>({
     port,
+    development: DEV,
+    routes: {
+      "/api/*": {
+        GET: (req: Request) => app.fetch(req),
+        POST: (req: Request) => app.fetch(req),
+        PUT: (req: Request) => app.fetch(req),
+        PATCH: (req: Request) => app.fetch(req),
+        DELETE: (req: Request) => app.fetch(req),
+        OPTIONS: (req: Request) => app.fetch(req),
+        HEAD: (req: Request) => app.fetch(req),
+      },
+      "/": homepage,
+      "/*": homepage,
+    },
     async fetch(req, server) {
-      const url = new URL(req.url);
-
       if (req.headers.get("upgrade") === "websocket") {
         const upgraded = server.upgrade(req, { data: {} });
         if (upgraded) return undefined;
         return new Response("WebSocket upgrade failed", { status: 400 });
       }
 
-      if (url.pathname.startsWith("/api")) {
-        return app.fetch(req);
-      }
-
-      return serveStatic(url, FRONTEND_DIST, indexHtml);
+      return new Response("Not Found", { status: 404 });
     },
     websocket: {
       message(ws, message) {
@@ -140,36 +95,6 @@ export async function startServer(opts: StartOptions = {}) {
     },
   });
 
-  console.log(`Shire running at http://localhost:${server.port}`);
+  console.log(`Shire running at http://localhost:${server.port}${DEV ? " (dev)" : ""}`);
   return server;
-}
-
-// Production: serve pre-built frontend static files
-async function serveStatic(
-  url: URL,
-  frontendDist: string,
-  indexHtml: ReturnType<typeof Bun.file> | null,
-): Promise<Response> {
-  const filePath = resolve(join(frontendDist, url.pathname));
-
-  // Prevent path traversal — resolved path must stay within frontendDist
-  if (!filePath.startsWith(frontendDist + "/") && filePath !== frontendDist) {
-    return new Response("Forbidden", { status: 403 });
-  }
-
-  // Serve static files (must have a file extension in the last segment)
-  const lastSegment = filePath.substring(filePath.lastIndexOf("/") + 1);
-  if (lastSegment.includes(".")) {
-    const file = Bun.file(filePath);
-    if (await file.exists()) {
-      return new Response(file);
-    }
-  }
-
-  // SPA fallback
-  if (indexHtml) {
-    return new Response(indexHtml);
-  }
-
-  return new Response("Not Found", { status: 404 });
 }
