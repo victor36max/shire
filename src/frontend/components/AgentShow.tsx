@@ -60,7 +60,8 @@ export default function AgentShow() {
   const agent = agentDetail as unknown as Agent;
 
   const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
-    updateAgent.mutate({ id: agent.id, recipeYaml: payload.recipeYaml as string });
+    const { id: _id, ...fields } = payload;
+    updateAgent.mutate({ id: agent.id, ...fields });
     setEditOpen(false);
   };
 

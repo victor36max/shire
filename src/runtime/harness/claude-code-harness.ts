@@ -10,7 +10,8 @@ export class ClaudeCodeHarness implements Harness {
   private config: HarnessConfig | null = null;
   private activeQuery: Query | null = null;
   private queryFn: QueryFn;
-  private shouldContinue = true;
+  private shouldResume = true;
+  private sessionId: string | null = null;
 
   constructor(queryFn?: QueryFn) {
     this.queryFn = queryFn ?? query;
@@ -19,6 +20,7 @@ export class ClaudeCodeHarness implements Harness {
   async start(config: HarnessConfig): Promise<void> {
     this.config = config;
     this.stopped = false;
+    this.sessionId = config.resume ?? null;
   }
 
   async sendMessage(text: string, from?: string): Promise<void> {
@@ -27,10 +29,11 @@ export class ClaudeCodeHarness implements Harness {
 
     const content = from ? `[Message from agent "${from}"]\n${text}` : text;
 
-    const shouldContinue = this.shouldContinue;
-    this.shouldContinue = true;
+    const shouldResume = this.shouldResume;
+    this.shouldResume = true;
     this.processing = true;
     try {
+      const resumeId = shouldResume && this.sessionId ? this.sessionId : undefined;
       const q = this.queryFn({
         prompt: content,
         options: {
@@ -43,7 +46,7 @@ export class ClaudeCodeHarness implements Harness {
           settingSources: ["project"],
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
-          continue: shouldContinue,
+          resume: resumeId,
           includePartialMessages: true,
         },
       });
@@ -62,7 +65,8 @@ export class ClaudeCodeHarness implements Harness {
   }
 
   async clearSession(): Promise<void> {
-    this.shouldContinue = false;
+    this.shouldResume = false;
+    this.sessionId = null;
   }
 
   async interrupt(): Promise<void> {
@@ -87,6 +91,10 @@ export class ClaudeCodeHarness implements Harness {
 
   isProcessing(): boolean {
     return this.processing;
+  }
+
+  getSessionId(): string | null {
+    return this.sessionId;
   }
 
   private handleMessage(message: SDKMessage): void {
@@ -172,14 +180,19 @@ export class ClaudeCodeHarness implements Harness {
 
       case "result": {
         if (message.subtype === "success") {
+          this.sessionId = message.session_id;
           this.emitEvent({ type: "text", payload: { text: message.result } });
+          this.emitEvent({
+            type: "turn_complete",
+            payload: { session_id: this.sessionId },
+          });
         } else {
           this.emitEvent({
             type: "error",
             payload: { message: message.errors.join(", ") },
           });
+          this.emitEvent({ type: "turn_complete", payload: {} });
         }
-        this.emitEvent({ type: "turn_complete", payload: {} });
         break;
       }
     }

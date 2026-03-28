@@ -1,5 +1,5 @@
 import { watch, type FSWatcher } from "fs";
-import { readFile, readdir, rename, unlink, writeFile, mkdir, stat, rm } from "fs/promises";
+import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/promises";
 import { join } from "path";
 import yaml from "js-yaml";
 import { safeYamlLoad } from "../utils/yaml";
@@ -255,6 +255,7 @@ export class AgentManager {
   async clearSession(): Promise<boolean> {
     if (this.status !== "active" || !this.harness) return false;
     await this.harness.clearSession();
+    agentsService.setSessionId(this.agentId, null);
     const msg = agentsService.createMessage({
       projectId: this.projectId,
       agentId: this.agentId,
@@ -281,12 +282,13 @@ export class AgentManager {
   // --- Harness setup ---
 
   private async startHarness(): Promise<void> {
-    const recipe = await this.readRecipe();
-    const harnessType = (recipe?.harness as HarnessType) ?? "claude_code";
-    const model = (recipe?.model as string) ?? "claude-sonnet-4-6";
-    const systemPrompt = (recipe?.system_prompt as string) ?? "";
-    const maxTokens = (recipe?.max_tokens as number) ?? 16384;
+    const agent = agentsService.getAgent(this.agentId);
+    if (!agent) throw new Error("Agent not found in DB");
 
+    const harnessType = (agent.harness as HarnessType) ?? "claude_code";
+    const model = agent.model ?? "claude-sonnet-4-6";
+    const systemPrompt = agent.systemPrompt ?? "";
+    const agentDir = workspace.agentDir(this.projectId, this.agentId);
     const internalSystemPrompt = this.buildInternalPrompt();
 
     this.harness = createHarness(harnessType);
@@ -295,8 +297,8 @@ export class AgentManager {
       model,
       systemPrompt,
       internalSystemPrompt,
-      cwd: workspace.agentDir(this.projectId, this.agentId),
-      maxTokens,
+      cwd: agentDir,
+      resume: agent.sessionId ?? undefined,
     });
 
     this.autoRestartCount = 0;
@@ -320,10 +322,15 @@ export class AgentManager {
       case "text":
         this.handleText(payload);
         break;
-      case "turn_complete":
+      case "turn_complete": {
         this.flushStreaming();
+        const sessionId = payload.session_id as string | undefined;
+        if (sessionId) {
+          agentsService.setSessionId(this.agentId, sessionId);
+        }
         this.broadcastAgent({ type: "turn_complete", payload: {} });
         break;
+      }
       case "error":
         this.handleError(payload);
         break;
@@ -767,44 +774,6 @@ export class AgentManager {
 
   private async setupWorkspace(): Promise<void> {
     await workspace.ensureAgentDirs(this.projectId, this.agentId);
-    const agentDir = workspace.agentDir(this.projectId, this.agentId);
-    await mkdir(join(agentDir, ".claude", "skills"), { recursive: true });
-
-    const recipe = await this.readRecipe();
-    if (recipe?.skills && Array.isArray(recipe.skills)) {
-      await this.deploySkills(recipe);
-    }
-  }
-
-  private async readRecipe(): Promise<Record<string, unknown> | null> {
-    try {
-      const content = await readFile(workspace.recipePath(this.projectId, this.agentId), "utf-8");
-      return safeYamlLoad(content) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-
-  private async deploySkills(recipe: Record<string, unknown>): Promise<void> {
-    const skills = recipe.skills as Array<Record<string, unknown>>;
-    const harnessType = (recipe.harness as string) ?? "claude_code";
-    const agentDir = workspace.agentDir(this.projectId, this.agentId);
-    const skillBase =
-      harnessType === "claude_code"
-        ? join(agentDir, ".claude", "skills")
-        : join(agentDir, ".pi", "agent", "skills");
-
-    await rm(skillBase, { recursive: true, force: true }).catch(() => {});
-
-    for (const skill of skills) {
-      const skillDir = join(skillBase, skill.name as string);
-      await mkdir(skillDir, { recursive: true });
-      const skillMd = `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n\n${skill.content}\n`;
-      await writeFile(join(skillDir, "SKILL.md"), skillMd, "utf-8");
-      for (const ref of (skill.references as Array<Record<string, string>>) ?? []) {
-        await writeFile(join(skillDir, ref.name), ref.content, "utf-8");
-      }
-    }
   }
 
   private buildInternalPrompt(): string {

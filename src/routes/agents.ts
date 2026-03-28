@@ -12,14 +12,23 @@ export const agentRoutes = new Hono<AppEnv>()
   })
   .post(
     "/projects/:id/agents",
-    zValidator("json", z.object({ name: z.string(), recipeYaml: z.string() })),
+    zValidator(
+      "json",
+      z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        harness: z.enum(["claude_code", "pi"]).optional(),
+        model: z.string().optional(),
+        systemPrompt: z.string().optional(),
+      }),
+    ),
     async (c) => {
       const pm = c.get("projectManager");
       const coordinator = pm.getCoordinator(c.req.param("id"));
       if (!coordinator) return c.json({ error: "Project not found" }, 404);
 
-      const { name, recipeYaml } = c.req.valid("json");
-      const result = await coordinator.createAgent({ name, recipeYaml });
+      const params = c.req.valid("json");
+      const result = await coordinator.createAgent(params);
       if (!result.ok) return c.json({ error: result.error }, 422);
       return c.json({ id: result.agentId }, 201);
     },
@@ -35,14 +44,23 @@ export const agentRoutes = new Hono<AppEnv>()
   })
   .patch(
     "/projects/:id/agents/:aid",
-    zValidator("json", z.object({ recipeYaml: z.string() })),
+    zValidator(
+      "json",
+      z.object({
+        name: z.string().optional(),
+        description: z.string().optional(),
+        harness: z.enum(["claude_code", "pi"]).optional(),
+        model: z.string().optional(),
+        systemPrompt: z.string().optional(),
+      }),
+    ),
     async (c) => {
       const pm = c.get("projectManager");
       const coordinator = pm.getCoordinator(c.req.param("id"));
       if (!coordinator) return c.json({ error: "Project not found" }, 404);
 
-      const { recipeYaml } = c.req.valid("json");
-      const result = await coordinator.updateAgent(c.req.param("aid"), { recipeYaml });
+      const params = c.req.valid("json");
+      const result = await coordinator.updateAgent(c.req.param("aid"), params);
       if (!result.ok) return c.json({ error: result.error }, 422);
       return c.json({ ok: true });
     },

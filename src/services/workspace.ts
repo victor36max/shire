@@ -67,10 +67,6 @@ export function projectDocPath(projectId: string): string {
   return join(root(projectId), "PROJECT.md");
 }
 
-export function recipePath(projectId: string, agentId: string): string {
-  return join(agentDir(projectId, agentId), "recipe.yaml");
-}
-
 export async function ensureProjectDirs(projectId: string): Promise<void> {
   await Promise.all([
     mkdir(root(projectId), { recursive: true }),

@@ -1,10 +1,9 @@
-// priv/sprite/harness/types.ts
 export interface HarnessConfig {
   model: string;
   systemPrompt: string;
   internalSystemPrompt?: string;
   cwd: string;
-  maxTokens?: number;
+  resume?: string;
 }
 
 export interface AgentEvent {
@@ -22,4 +21,5 @@ export interface Harness {
   stop(): Promise<void>;
   onEvent(callback: EventCallback): void;
   isProcessing(): boolean;
+  getSessionId(): string | null;
 }

@@ -72,7 +72,6 @@ export default function ProjectLayout() {
         harness: agent.harness,
         model: agent.model,
         systemPrompt: agent.systemPrompt,
-        skills: [],
         status: "idle",
         busy: false,
         unreadCount: 0,
@@ -128,9 +127,10 @@ export default function ProjectLayout() {
   const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
     setFormOpen(false);
     if (editingAgent) {
-      updateAgent.mutate({ id: editingAgent.id, recipeYaml: payload.recipeYaml as string });
+      const { id: _id, ...fields } = payload;
+      updateAgent.mutate({ id: editingAgent.id, ...fields });
     } else {
-      createAgent.mutate(payload as never);
+      createAgent.mutate(payload as unknown as Parameters<typeof createAgent.mutate>[0]);
     }
   };
 

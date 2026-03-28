@@ -31,6 +31,7 @@ beforeEach(async () => {
       stop: async () => {},
       onEvent: () => {},
       isProcessing: () => false,
+      getSessionId: () => null,
     }),
   }));
 
@@ -46,7 +47,7 @@ beforeEach(async () => {
   // Create an agent
   const agentRes = await request("POST", `/api/projects/${projectId}/agents`, {
     name: "test-agent",
-    recipeYaml: "name: test-agent\ndescription: Test\n",
+    description: "Test",
   });
   const agentData = (await agentRes.json()) as Record<string, string>;
   agentId = agentData.id;

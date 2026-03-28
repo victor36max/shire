@@ -24,6 +24,11 @@ export const agents = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    sessionId: text("session_id"),
+    description: text("description"),
+    harness: text("harness"),
+    model: text("model"),
+    systemPrompt: text("system_prompt"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

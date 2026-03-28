@@ -8,18 +8,6 @@ export type HarnessType = "pi" | "claude_code";
 
 export type AgentStatus = "created" | "starting" | "bootstrapping" | "active" | "idle" | "crashed";
 
-export interface SkillReference {
-  name: string;
-  content: string;
-}
-
-export interface Skill {
-  name: string;
-  description: string;
-  content: string;
-  references?: SkillReference[];
-}
-
 export interface AgentOverview {
   id: string;
   name: string;
@@ -33,7 +21,6 @@ export interface Agent extends AgentOverview {
   model?: string;
   systemPrompt?: string;
   harness?: HarnessType;
-  skills?: Skill[];
 }
 
 export interface CatalogAgentSummary {
