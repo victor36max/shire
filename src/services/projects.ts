@@ -15,8 +15,8 @@ export function getProjectByName(name: string) {
   return getDb().select().from(projects).where(eq(projects.name, name)).get();
 }
 
-export function createProject(name: string) {
-  return getDb().insert(projects).values({ name }).returning().get();
+export function createProject(name: string, db?: Db) {
+  return (db ?? getDb()).insert(projects).values({ name }).returning().get();
 }
 
 export function renameProject(id: string, name: string) {
