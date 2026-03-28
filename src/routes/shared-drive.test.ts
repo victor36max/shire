@@ -54,4 +54,12 @@ describe("safePath", () => {
     // A sibling directory that starts with the same prefix should be rejected
     expect(safePath(root, "../shared-evil/secret")).toBeNull();
   });
+
+  it("resolves double-slash paths (e.g. //docs from frontend)", () => {
+    expect(safePath(root, "//docs")).toBe(`${root}/docs`);
+  });
+
+  it("resolves triple-slash paths", () => {
+    expect(safePath(root, "///file.txt")).toBe(`${root}/file.txt`);
+  });
 });

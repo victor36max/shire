@@ -405,7 +405,7 @@ export default function SharedDrive() {
                           <Button
                             variant="link"
                             className="flex items-center gap-2 text-foreground h-auto p-0"
-                            onClick={() => navigate("/" + file.path)}
+                            onClick={() => navigate(file.path)}
                           >
                             <Folder className="h-4 w-4 text-muted-foreground" />
                             {file.name}
