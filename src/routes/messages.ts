@@ -43,5 +43,18 @@ export const messageRoutes = new Hono<AppEnv>()
       limit: limit ? Math.min(parseInt(limit, 10), MAX_PAGE_SIZE) : undefined,
     });
 
-    return c.json(result);
+    const messages = result.messages.map((row) => {
+      const content = row.content as Record<string, unknown>;
+      return {
+        id: row.id,
+        text: (content.text as string) ?? "",
+        fromAgent: (content.from_agent as string) ?? "",
+        toAgent: (content.to_agent as string) ?? "",
+        ts: row.createdAt,
+        ...(content.trigger ? { trigger: content.trigger as string } : {}),
+        ...(content.task_label ? { taskLabel: content.task_label as string } : {}),
+      };
+    });
+
+    return c.json({ messages, hasMore: result.hasMore });
   });
