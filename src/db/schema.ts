@@ -24,6 +24,13 @@ export const agents = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    sessionId: text("session_id"),
+    description: text("description"),
+    harness: text("harness"),
+    model: text("model"),
+    systemPrompt: text("system_prompt"),
+    maxTokens: integer("max_tokens"),
+    skills: text("skills", { mode: "json" }).$type<Array<Record<string, unknown>>>(),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

@@ -13,7 +13,7 @@ describe("schedules service", () => {
   beforeEach(() => {
     const project = projects.createProject("schedule-project");
     projectId = project.id;
-    const agent = agents.createAgent(projectId, "sched-agent");
+    const agent = agents.createAgent(projectId, { name: "sched-agent" });
     agentId = agent.id;
   });
 

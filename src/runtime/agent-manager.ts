@@ -256,6 +256,7 @@ export class AgentManager {
   async clearSession(): Promise<boolean> {
     if (this.status !== "active" || !this.harness) return false;
     await this.harness.clearSession();
+    agentsService.setSessionId(this.agentId, null);
     const msg = agentsService.createMessage({
       projectId: this.projectId,
       agentId: this.agentId,
@@ -282,18 +283,19 @@ export class AgentManager {
   // --- Harness setup ---
 
   private async startHarness(): Promise<void> {
-    const recipe = this.readRecipe();
-    const harnessType = (recipe?.harness as HarnessType) ?? "claude_code";
-    const model = (recipe?.model as string) ?? "claude-sonnet-4-6";
-    const systemPrompt = (recipe?.system_prompt as string) ?? "";
-    const maxTokens = (recipe?.max_tokens as number) ?? 16384;
+    const agent = agentsService.getAgent(this.agentId);
+    if (!agent) throw new Error("Agent not found in DB");
 
+    const harnessType = (agent.harness as HarnessType) ?? "claude_code";
+    const model = agent.model ?? "claude-sonnet-4-6";
+    const systemPrompt = agent.systemPrompt ?? "";
+    const maxTokens = agent.maxTokens ?? 16384;
+
+    const agentDir = workspace.agentDir(this.projectId, this.agentId);
+    const internalMdPath = join(agentDir, "INTERNAL.md");
     let internalSystemPrompt = "";
     try {
-      internalSystemPrompt = readFileSync(
-        join(workspace.agentDir(this.projectId, this.agentId), "INTERNAL.md"),
-        "utf-8",
-      );
+      internalSystemPrompt = readFileSync(internalMdPath, "utf-8");
     } catch {
       // INTERNAL.md may not exist yet
     }
@@ -304,8 +306,9 @@ export class AgentManager {
       model,
       systemPrompt,
       internalSystemPrompt,
-      cwd: workspace.agentDir(this.projectId, this.agentId),
+      cwd: agentDir,
       maxTokens,
+      resume: agent.sessionId ?? undefined,
     });
 
     this.autoRestartCount = 0;
@@ -329,10 +332,15 @@ export class AgentManager {
       case "text":
         this.handleText(payload);
         break;
-      case "turn_complete":
+      case "turn_complete": {
         this.flushStreaming();
+        const sessionId = payload.session_id as string | undefined;
+        if (sessionId) {
+          agentsService.setSessionId(this.agentId, sessionId);
+        }
         this.broadcastAgent({ type: "turn_complete", payload: {} });
         break;
+      }
       case "error":
         this.handleError(payload);
         break;
@@ -781,24 +789,13 @@ export class AgentManager {
 
     writeFileSync(join(agentDir, "INTERNAL.md"), this.buildInternalPrompt(), "utf-8");
 
-    const recipe = this.readRecipe();
-    if (recipe?.skills && Array.isArray(recipe.skills)) {
-      this.deploySkills(recipe);
+    const agent = agentsService.getAgent(this.agentId);
+    if (agent?.skills && Array.isArray(agent.skills)) {
+      this.deploySkills(agent.harness ?? "claude_code", agent.skills);
     }
   }
 
-  private readRecipe(): Record<string, unknown> | null {
-    try {
-      const content = readFileSync(workspace.recipePath(this.projectId, this.agentId), "utf-8");
-      return safeYamlLoad(content) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-
-  private deploySkills(recipe: Record<string, unknown>): void {
-    const skills = recipe.skills as Array<Record<string, unknown>>;
-    const harnessType = (recipe.harness as string) ?? "claude_code";
+  private deploySkills(harnessType: string, skills: Array<Record<string, unknown>>): void {
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
     const skillBase =
       harnessType === "claude_code"

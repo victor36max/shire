@@ -34,6 +34,7 @@ export interface Agent extends AgentOverview {
   systemPrompt?: string;
   harness?: HarnessType;
   skills?: Skill[];
+  maxTokens?: number;
 }
 
 export interface CatalogAgentSummary {

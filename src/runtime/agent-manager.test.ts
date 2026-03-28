@@ -18,7 +18,7 @@ beforeEach(() => {
   process.env.SHIRE_PROJECTS_DIR = testDir;
   const project = projects.createProject(`test-project-${Date.now()}`);
   projectId = project.id;
-  const agent = agentsService.createAgent(projectId, "test-agent");
+  const agent = agentsService.createAgent(projectId, { name: "test-agent" });
   agentId = agent.id;
 });
 

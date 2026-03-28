@@ -79,10 +79,6 @@ export function projectDocPath(projectId: string): string {
   return join(root(projectId), "PROJECT.md");
 }
 
-export function recipePath(projectId: string, agentId: string): string {
-  return join(agentDir(projectId, agentId), "recipe.yaml");
-}
-
 export function ensureProjectDirs(projectId: string): void {
   mkdirSync(root(projectId), { recursive: true });
   mkdirSync(sharedDir(projectId), { recursive: true });

@@ -25,14 +25,58 @@ export function getAgentByName(projectId: string, name: string) {
     .get();
 }
 
-export function createAgent(projectId: string, name: string) {
-  return getDb().insert(agents).values({ projectId, name }).returning().get();
+export function createAgent(
+  projectId: string,
+  data: {
+    name: string;
+    description?: string;
+    harness?: string;
+    model?: string;
+    systemPrompt?: string;
+    maxTokens?: number;
+    skills?: Array<Record<string, unknown>>;
+  },
+) {
+  return getDb()
+    .insert(agents)
+    .values({
+      projectId,
+      name: data.name,
+      description: data.description,
+      harness: data.harness,
+      model: data.model,
+      systemPrompt: data.systemPrompt,
+      maxTokens: data.maxTokens,
+      skills: data.skills,
+    })
+    .returning()
+    .get();
 }
 
-export function renameAgent(id: string, name: string) {
+export function updateAgent(
+  id: string,
+  fields: {
+    name?: string;
+    description?: string;
+    harness?: string;
+    model?: string;
+    systemPrompt?: string;
+    maxTokens?: number;
+    skills?: Array<Record<string, unknown>>;
+  },
+) {
   return getDb()
     .update(agents)
-    .set({ name, updatedAt: new Date().toISOString() })
+    .set({ ...fields, updatedAt: new Date().toISOString() })
+    .where(eq(agents.id, id))
+    .returning()
+    .get();
+}
+
+export function setSessionId(id: string, sessionId: string | null) {
+  return getDb()
+    .update(agents)
+    .set({ sessionId, updatedAt: new Date().toISOString() })
     .where(eq(agents.id, id))
     .returning()
     .get();

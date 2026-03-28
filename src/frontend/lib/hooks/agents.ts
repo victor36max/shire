@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { unwrap } from "./util";
+import type { Skill } from "../../components/types";
 
 export function useAgents(projectId: string | undefined) {
   return useQuery({
@@ -24,10 +25,20 @@ export function useAgentDetail(projectId: string | undefined, agentId: string | 
   });
 }
 
+interface AgentMutationData {
+  name: string;
+  description?: string;
+  harness?: "claude_code" | "pi";
+  model?: string;
+  systemPrompt?: string;
+  maxTokens?: number;
+  skills?: Skill[];
+}
+
 export function useCreateAgent(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { name: string; recipeYaml: string }) =>
+    mutationFn: async (data: AgentMutationData) =>
       unwrap(await api.projects[":id"].agents.$post({ param: { id: projectId }, json: data })),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["agents", projectId] }),
   });
@@ -36,14 +47,17 @@ export function useCreateAgent(projectId: string) {
 export function useUpdateAgent(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, recipeYaml }: { id: string; recipeYaml: string }) =>
+    mutationFn: async ({ id, ...fields }: { id: string } & Partial<AgentMutationData>) =>
       unwrap(
         await api.projects[":id"].agents[":aid"].$patch({
           param: { id: projectId, aid: id },
-          json: { recipeYaml },
+          json: fields,
         }),
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["agents", projectId] }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["agents", projectId] });
+      qc.invalidateQueries({ queryKey: ["agent-detail", projectId, vars.id] });
+    },
   });
 }
 

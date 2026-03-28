@@ -1,12 +1,21 @@
-import { writeFileSync, rmSync, readFileSync } from "fs";
+import { writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
-import { safeYamlLoad } from "../utils/yaml";
 import { bus } from "../events";
 import { AgentManager, type AgentStatus } from "./agent-manager";
 import * as agentsService from "../services/agents";
 import * as workspace from "../services/workspace";
 import { valid as isValidSlug } from "../services/slug";
+
+export interface AgentFields {
+  name?: string;
+  description?: string;
+  harness?: string;
+  model?: string;
+  systemPrompt?: string;
+  maxTokens?: number;
+  skills?: Array<Record<string, unknown>>;
+}
 
 export class Coordinator {
   readonly projectId: string;
@@ -57,10 +66,9 @@ export class Coordinator {
     this.deployed = true;
   }
 
-  async createAgent(params: {
-    name: string;
-    recipeYaml: string;
-  }): Promise<{ ok: true; agentId: string } | { ok: false; error: string }> {
+  async createAgent(
+    params: { name: string } & AgentFields,
+  ): Promise<{ ok: true; agentId: string } | { ok: false; error: string }> {
     // Validate slug
     if (!isValidSlug(params.name)) {
       return {
@@ -75,12 +83,19 @@ export class Coordinator {
       return { ok: false, error: `Agent "${params.name}" already exists` };
     }
 
-    // Create DB record
-    const agent = agentsService.createAgent(this.projectId, params.name);
+    // Create DB record with recipe fields
+    const agent = agentsService.createAgent(this.projectId, {
+      name: params.name,
+      description: params.description,
+      harness: params.harness,
+      model: params.model,
+      systemPrompt: params.systemPrompt,
+      maxTokens: params.maxTokens,
+      skills: params.skills,
+    });
 
-    // Write recipe.yaml
+    // Ensure workspace dirs exist
     workspace.ensureAgentDirs(this.projectId, agent.id);
-    writeFileSync(workspace.recipePath(this.projectId, agent.id), params.recipeYaml, "utf-8");
 
     // Start process
     await this.startAgentManager(agent.id, agent.name);
@@ -96,22 +111,21 @@ export class Coordinator {
 
   async updateAgent(
     agentId: string,
-    params: { recipeYaml: string },
+    params: AgentFields,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     const agent = agentsService.getAgent(agentId);
     if (!agent) return { ok: false, error: "Agent not found" };
 
-    // Parse new recipe to check for name change
-    const recipe = safeYamlLoad(params.recipeYaml) as Record<string, unknown>;
-    const newName = recipe?.name as string | undefined;
-    if (newName && newName !== agent.name) {
-      agentsService.renameAgent(agentId, newName);
+    // Check name uniqueness if renaming
+    if (params.name && params.name !== agent.name) {
+      const conflict = agentsService.getAgentByName(this.projectId, params.name);
+      if (conflict) return { ok: false, error: `Agent "${params.name}" already exists` };
     }
 
-    // Write updated recipe
-    writeFileSync(workspace.recipePath(this.projectId, agentId), params.recipeYaml, "utf-8");
+    // Update DB fields
+    agentsService.updateAgent(agentId, params);
 
-    // Restart the agent
+    // Restart the agent to pick up changes
     const proc = this.agents.get(agentId);
     if (proc) await proc.restart();
 
@@ -119,7 +133,7 @@ export class Coordinator {
 
     bus.emit(`project:${this.projectId}:agents`, {
       type: "agent_updated",
-      payload: { agentId, name: newName ?? agent.name },
+      payload: { agentId, name: params.name ?? agent.name },
     });
 
     return { ok: true };
@@ -204,15 +218,16 @@ export class Coordinator {
     const proc = this.agents.get(agentId);
     if (!proc) return null;
 
-    const recipe = this.readRecipe(agentId);
+    const agent = agentsService.getAgent(agentId);
     return {
       id: agentId,
       name: proc.agentName,
-      description: recipe?.description ?? "",
-      harness: recipe?.harness ?? "claude_code",
-      model: recipe?.model ?? null,
-      systemPrompt: recipe?.system_prompt ?? null,
-      skills: recipe?.skills ?? [],
+      description: agent?.description ?? "",
+      harness: agent?.harness ?? "claude_code",
+      model: agent?.model ?? null,
+      systemPrompt: agent?.systemPrompt ?? null,
+      skills: agent?.skills ?? [],
+      maxTokens: agent?.maxTokens ?? null,
       status: proc.status,
     };
   }
@@ -296,23 +311,16 @@ export class Coordinator {
     writeFileSync(inboxPath, yaml.dump(envelope), "utf-8");
   }
 
-  private readRecipe(agentId: string): Record<string, unknown> | null {
-    try {
-      const content = readFileSync(workspace.recipePath(this.projectId, agentId), "utf-8");
-      return safeYamlLoad(content) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-
   private writePeersYaml(): void {
+    const dbAgents = agentsService.listAgents(this.projectId);
+    const agentMap = new Map(dbAgents.map((a) => [a.id, a]));
     const peers: Array<Record<string, string>> = [];
     for (const [id, proc] of this.agents) {
-      const recipe = this.readRecipe(id);
+      const agent = agentMap.get(id);
       peers.push({
         id,
         name: proc.agentName,
-        description: (recipe?.description as string) ?? "",
+        description: agent?.description ?? "",
       });
     }
 

@@ -83,9 +83,10 @@ export default function AgentDashboard({ streamingText }: AgentDashboardProps) {
   const handleFormSave = (_event: string, payload: Record<string, unknown>) => {
     setFormOpen(false);
     if (editingAgent) {
-      updateAgent.mutate({ id: editingAgent.id, recipeYaml: payload.recipeYaml as string });
+      const { id: _id, ...fields } = payload;
+      updateAgent.mutate({ id: editingAgent.id, ...fields });
     } else {
-      createAgent.mutate(payload as never);
+      createAgent.mutate(payload as Parameters<typeof createAgent.mutate>[0]);
     }
   };
 

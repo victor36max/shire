@@ -13,9 +13,9 @@ describe("agents service", () => {
   beforeEach(() => {
     const project = projects.createProject("test-project");
     projectId = project.id;
-    const agent = agents.createAgent(projectId, "test-agent");
+    const agent = agents.createAgent(projectId, { name: "test-agent" });
     agentId = agent.id;
-    const agent2 = agents.createAgent(projectId, "chat-agent");
+    const agent2 = agents.createAgent(projectId, { name: "chat-agent" });
     agent2Id = agent2.id;
   });
 
@@ -210,9 +210,62 @@ describe("agents service", () => {
     });
   });
 
+  describe("updateAgent", () => {
+    it("updates agent fields", () => {
+      const updated = agents.updateAgent(agentId, {
+        description: "Updated description",
+        model: "claude-sonnet-4-6",
+      });
+      expect(updated).toBeDefined();
+      expect(updated!.description).toBe("Updated description");
+      expect(updated!.model).toBe("claude-sonnet-4-6");
+    });
+
+    it("updates name without affecting other fields", () => {
+      agents.updateAgent(agentId, { description: "Keep me", model: "test-model" });
+      const renamed = agents.updateAgent(agentId, { name: "renamed-agent" });
+      expect(renamed!.name).toBe("renamed-agent");
+      expect(renamed!.description).toBe("Keep me");
+      expect(renamed!.model).toBe("test-model");
+    });
+  });
+
+  describe("setSessionId", () => {
+    it("sets sessionId on an agent", () => {
+      agents.setSessionId(agentId, "session-abc-123");
+      const agent = agents.getAgent(agentId);
+      expect(agent!.sessionId).toBe("session-abc-123");
+    });
+
+    it("clears sessionId when set to null", () => {
+      agents.setSessionId(agentId, "session-abc-123");
+      agents.setSessionId(agentId, null);
+      const agent = agents.getAgent(agentId);
+      expect(agent!.sessionId).toBeNull();
+    });
+  });
+
+  describe("createAgent with recipe fields", () => {
+    it("stores recipe fields in DB", () => {
+      const agent = agents.createAgent(projectId, {
+        name: "recipe-agent",
+        description: "A test agent",
+        harness: "claude_code",
+        model: "claude-sonnet-4-6",
+        maxTokens: 8192,
+        skills: [{ name: "skill1", description: "test", content: "content" }],
+      });
+      expect(agent.description).toBe("A test agent");
+      expect(agent.harness).toBe("claude_code");
+      expect(agent.model).toBe("claude-sonnet-4-6");
+      expect(agent.maxTokens).toBe(8192);
+      expect(agent.skills).toEqual([{ name: "skill1", description: "test", content: "content" }]);
+    });
+  });
+
   describe("deleteAgent", () => {
     it("deletes agent and cascades messages", () => {
-      const delAgent = agents.createAgent(projectId, "delete-test");
+      const delAgent = agents.createAgent(projectId, { name: "delete-test" });
       agents.createMessage({
         projectId,
         agentId: delAgent.id,
@@ -221,7 +274,7 @@ describe("agents service", () => {
       });
 
       // Other agent's messages should survive
-      const otherAgent = agents.createAgent(projectId, "other-agent");
+      const otherAgent = agents.createAgent(projectId, { name: "other-agent" });
       agents.createMessage({
         projectId,
         agentId: otherAgent.id,

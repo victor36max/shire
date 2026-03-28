@@ -83,6 +83,10 @@ export class PiHarness implements Harness {
     return this.processing;
   }
 
+  getSessionId(): string | null {
+    return null;
+  }
+
   private async createSession(config: HarnessConfig): Promise<SessionLike> {
     if (this.sessionFactory) return this.sessionFactory(config);
 

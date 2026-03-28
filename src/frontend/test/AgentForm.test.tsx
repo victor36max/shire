@@ -39,7 +39,7 @@ describe("AgentForm", () => {
     expect(screen.queryByPlaceholderText("e.g. web-scraping")).not.toBeInTheDocument();
   });
 
-  it("includes skills in recipeYaml payload", async () => {
+  it("includes skills in structured payload", async () => {
     const user = userEvent.setup();
     renderForm();
 
@@ -71,10 +71,11 @@ describe("AgentForm", () => {
     );
 
     const payload = onSave.mock.calls[onSave.mock.calls.length - 1][1];
-    expect(payload.recipeYaml).toBeDefined();
-    expect(payload.recipeYaml).toContain("my-skill");
-    expect(payload.recipeYaml).toContain("Use for testing");
-    expect(payload.recipeYaml).toContain("# Test Skill");
+    expect(payload.skills).toBeDefined();
+    expect(payload.skills).toHaveLength(1);
+    expect(payload.skills[0].name).toBe("my-skill");
+    expect(payload.skills[0].description).toBe("Use for testing");
+    expect(payload.skills[0].content).toBe("# Test Skill");
   });
 
   it("loads skills from existing agent", () => {
@@ -165,64 +166,7 @@ describe("AgentForm", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not submit in raw YAML mode when name is not a valid slug", async () => {
-    const localOnSave = vi.fn();
-    render(
-      <AgentForm
-        open={true}
-        title="New Agent"
-        agent={null}
-        onSave={localOnSave}
-        onClose={vi.fn()}
-      />,
-    );
-
-    const user = userEvent.setup();
-
-    // Switch to raw YAML mode
-    await user.click(screen.getByText("Raw YAML"));
-
-    // Enter YAML with an invalid name
-    const yamlInput = screen.getByLabelText("Recipe YAML");
-    await user.clear(yamlInput);
-    await user.paste('version: 1\nname: "Invalid Name!"');
-
-    await user.click(screen.getByText("Save Agent"));
-
-    expect(localOnSave).not.toHaveBeenCalled();
-  });
-
-  it("submits in raw YAML mode when name is a valid slug", async () => {
-    const localOnSave = vi.fn();
-    render(
-      <AgentForm
-        open={true}
-        title="New Agent"
-        agent={null}
-        onSave={localOnSave}
-        onClose={vi.fn()}
-      />,
-    );
-
-    const user = userEvent.setup();
-
-    // Switch to raw YAML mode
-    await user.click(screen.getByText("Raw YAML"));
-
-    // Enter YAML with a valid slug name
-    const yamlInput = screen.getByLabelText("Recipe YAML");
-    await user.clear(yamlInput);
-    await user.paste("version: 1\nname: valid-agent");
-
-    await user.click(screen.getByText("Save Agent"));
-
-    expect(localOnSave).toHaveBeenCalledWith(
-      "create-agent",
-      expect.objectContaining({ name: "valid-agent" }),
-    );
-  });
-
-  it("submits create-agent with name when agent has empty id (catalog prefill)", async () => {
+  it("submits create-agent with structured fields when agent has empty id (catalog prefill)", async () => {
     const localOnSave = vi.fn();
     const catalogAgent: Agent = {
       id: "",
@@ -252,7 +196,8 @@ describe("AgentForm", () => {
       "create-agent",
       expect.objectContaining({
         name: "frontend-developer",
-        recipeYaml: expect.any(String),
+        harness: "claude_code",
+        model: "claude-sonnet-4-6",
       }),
     );
     // Should NOT have id in payload
@@ -260,7 +205,7 @@ describe("AgentForm", () => {
     expect(payload).not.toHaveProperty("id");
   });
 
-  it("submits update-agent event with recipeYaml for existing agent", async () => {
+  it("submits update-agent event with structured fields for existing agent", async () => {
     const agent: Agent = {
       id: "a-existing",
       name: "existing-agent",
@@ -281,7 +226,8 @@ describe("AgentForm", () => {
       "update-agent",
       expect.objectContaining({
         id: "a-existing",
-        recipeYaml: expect.any(String),
+        name: "existing-agent",
+        harness: "claude_code",
       }),
     );
   });

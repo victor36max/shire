@@ -32,6 +32,7 @@ beforeEach(() => {
       stop: async () => {},
       onEvent: () => {},
       isProcessing: () => false,
+      getSessionId: () => null,
     }),
   }));
 
@@ -47,7 +48,7 @@ describe("createAgent", () => {
   it("creates agent and returns ok with agentId", async () => {
     const result = await coordinator.createAgent({
       name: "my-agent",
-      recipeYaml: "name: my-agent\ndescription: Test\n",
+      description: "Test",
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -56,39 +57,33 @@ describe("createAgent", () => {
   });
 
   it("rejects duplicate names", async () => {
-    await coordinator.createAgent({
-      name: "dup-agent",
-      recipeYaml: "name: dup-agent\n",
-    });
-    const result = await coordinator.createAgent({
-      name: "dup-agent",
-      recipeYaml: "name: dup-agent\n",
-    });
+    await coordinator.createAgent({ name: "dup-agent" });
+    const result = await coordinator.createAgent({ name: "dup-agent" });
     expect(result.ok).toBe(false);
   });
 
   it("rejects invalid slug names", async () => {
     const cases = ["MyAgent", "my agent", "-invalid", "invalid-", "my_agent"];
     for (const name of cases) {
-      const result = await coordinator.createAgent({
-        name,
-        recipeYaml: `name: ${name}\n`,
-      });
+      const result = await coordinator.createAgent({ name });
       expect(result.ok).toBe(false);
     }
   });
 
-  it("writes recipe.yaml to workspace", async () => {
+  it("stores recipe fields in DB", async () => {
     const result = await coordinator.createAgent({
       name: "recipe-test",
-      recipeYaml: "name: recipe-test\nharness: claude_code\n",
+      harness: "claude_code",
+      description: "A test agent",
+      model: "claude-sonnet-4-6",
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      const recipePath = workspace.recipePath(projectId, result.agentId);
-      expect(existsSync(recipePath)).toBe(true);
-      const content = readFileSync(recipePath, "utf-8");
-      expect(content).toContain("recipe-test");
+      const agent = agentsService.getAgent(result.agentId);
+      expect(agent).toBeDefined();
+      expect(agent!.harness).toBe("claude_code");
+      expect(agent!.description).toBe("A test agent");
+      expect(agent!.model).toBe("claude-sonnet-4-6");
     }
   });
 
@@ -96,10 +91,7 @@ describe("createAgent", () => {
     const events: Array<{ type: string }> = [];
     const unsub = bus.on(`project:${projectId}:agents`, (e) => events.push(e));
 
-    await coordinator.createAgent({
-      name: "event-test",
-      recipeYaml: "name: event-test\n",
-    });
+    await coordinator.createAgent({ name: "event-test" });
 
     unsub();
     expect(events.some((e) => e.type === "agent_created")).toBe(true);
@@ -108,10 +100,7 @@ describe("createAgent", () => {
 
 describe("deleteAgent", () => {
   it("deletes agent from DB and emits event", async () => {
-    const createResult = await coordinator.createAgent({
-      name: "delete-me",
-      recipeYaml: "name: delete-me\n",
-    });
+    const createResult = await coordinator.createAgent({ name: "delete-me" });
     expect(createResult.ok).toBe(true);
     if (!createResult.ok) return;
 
@@ -132,14 +121,8 @@ describe("listAgentStatuses", () => {
   });
 
   it("returns agents with status", async () => {
-    await coordinator.createAgent({
-      name: "agent-one",
-      recipeYaml: "name: agent-one\n",
-    });
-    await coordinator.createAgent({
-      name: "agent-two",
-      recipeYaml: "name: agent-two\n",
-    });
+    await coordinator.createAgent({ name: "agent-one" });
+    await coordinator.createAgent({ name: "agent-two" });
 
     const statuses = coordinator.listAgentStatuses();
     expect(statuses.length).toBe(2);
@@ -160,8 +143,9 @@ describe("getAgentDetail", () => {
   it("returns agent detail with recipe fields", async () => {
     const result = await coordinator.createAgent({
       name: "detail-agent",
-      recipeYaml:
-        "name: detail-agent\ndescription: A test\nharness: claude_code\nmodel: claude-3-haiku\n",
+      description: "A test",
+      harness: "claude_code",
+      model: "claude-3-haiku",
     });
     if (!result.ok) return;
 
@@ -176,10 +160,10 @@ describe("getAgentDetail", () => {
 });
 
 describe("updateAgent", () => {
-  it("updates recipe and emits event", async () => {
+  it("updates fields and emits event", async () => {
     const createResult = await coordinator.createAgent({
       name: "update-agent",
-      recipeYaml: "name: update-agent\ndescription: Old\n",
+      description: "Old",
     });
     if (!createResult.ok) return;
 
@@ -187,25 +171,22 @@ describe("updateAgent", () => {
     const unsub = bus.on(`project:${projectId}:agents`, (e) => events.push(e));
 
     const result = await coordinator.updateAgent(createResult.agentId, {
-      recipeYaml: "name: update-agent\ndescription: New\n",
+      description: "New",
     });
 
     unsub();
     expect(result.ok).toBe(true);
     expect(events.some((e) => e.type === "agent_updated")).toBe(true);
+
+    const agent = agentsService.getAgent(createResult.agentId);
+    expect(agent!.description).toBe("New");
   });
 });
 
 describe("routeMessage (inter-agent)", () => {
   it("delivers message to target agent inbox with type agent_message", async () => {
-    const senderResult = await coordinator.createAgent({
-      name: "sender",
-      recipeYaml: "name: sender\n",
-    });
-    const receiverResult = await coordinator.createAgent({
-      name: "receiver",
-      recipeYaml: "name: receiver\n",
-    });
+    const senderResult = await coordinator.createAgent({ name: "sender" });
+    const receiverResult = await coordinator.createAgent({ name: "receiver" });
     expect(senderResult.ok).toBe(true);
     expect(receiverResult.ok).toBe(true);
     if (!senderResult.ok || !receiverResult.ok) return;
@@ -236,14 +217,8 @@ describe("routeMessage (inter-agent)", () => {
   });
 
   it("does not persist inter-agent message in sender's message history", async () => {
-    const senderResult = await coordinator.createAgent({
-      name: "sender2",
-      recipeYaml: "name: sender2\n",
-    });
-    const receiverResult = await coordinator.createAgent({
-      name: "receiver2",
-      recipeYaml: "name: receiver2\n",
-    });
+    const senderResult = await coordinator.createAgent({ name: "sender2" });
+    const receiverResult = await coordinator.createAgent({ name: "receiver2" });
     expect(senderResult.ok).toBe(true);
     expect(receiverResult.ok).toBe(true);
     if (!senderResult.ok || !receiverResult.ok) return;
@@ -268,10 +243,7 @@ describe("routeMessage (inter-agent)", () => {
   });
 
   it("sends error to sender when target agent does not exist", async () => {
-    const senderResult = await coordinator.createAgent({
-      name: "lonely",
-      recipeYaml: "name: lonely\n",
-    });
+    const senderResult = await coordinator.createAgent({ name: "lonely" });
     expect(senderResult.ok).toBe(true);
     if (!senderResult.ok) return;
 
@@ -305,7 +277,7 @@ describe("peers.yaml", () => {
     await coordinator.deployAndScan();
     await coordinator.createAgent({
       name: "peer-agent",
-      recipeYaml: "name: peer-agent\ndescription: A peer\n",
+      description: "A peer",
     });
 
     const peersPath = workspace.peersPath(projectId);
