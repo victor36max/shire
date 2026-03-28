@@ -35,16 +35,12 @@ import { useProjects, useCreateProject, useDeleteProject, useRestartProject } fr
 import { useSubscription } from "../lib/ws";
 import { useQueryClient } from "@tanstack/react-query";
 
-function projectStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
+function projectStatusVariant(status: string): "default" | "secondary" | "destructive" {
   switch (status) {
     case "running":
       return "default";
     case "starting":
-    case "stopped":
       return "secondary";
-    case "idle":
-      return "outline";
-    case "unreachable":
     case "error":
       return "destructive";
     default:
@@ -134,7 +130,7 @@ export default function ProjectDashboard() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {project.status !== "running" && (
+                          {project.status === "error" && (
                             <DropdownMenuItem
                               disabled={restartingId === project.id}
                               onClick={() => {

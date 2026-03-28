@@ -67,21 +67,17 @@ describe("ProjectDashboard", () => {
     expect(screen.getByText("error")).toBeInTheDocument();
   });
 
-  it("shows idle and unreachable status badges", () => {
-    mockProjects = [
-      { id: "p9", name: "idle-project", status: "idle" },
-      { id: "p10", name: "unreachable-project", status: "unreachable" },
-    ];
+  it("shows starting status badge", () => {
+    mockProjects = [{ id: "p9", name: "starting-project", status: "starting" }];
     renderWithProviders(<ProjectDashboard />);
-    expect(screen.getByText("idle")).toBeInTheDocument();
-    expect(screen.getByText("unreachable")).toBeInTheDocument();
+    expect(screen.getByText("starting")).toBeInTheDocument();
   });
 
-  it("shows Restart option in menu for unreachable projects", async () => {
-    mockProjects = [{ id: "p11", name: "unreachable-proj", status: "unreachable" }];
+  it("does not show Restart option for starting projects", async () => {
+    mockProjects = [{ id: "p10", name: "starting-proj", status: "starting" }];
     renderWithProviders(<ProjectDashboard />);
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
-    expect(screen.getByText("Restart")).toBeInTheDocument();
+    expect(screen.queryByText("Restart")).not.toBeInTheDocument();
   });
 
   it("does not show Restart option for running projects (explicit)", async () => {
@@ -145,15 +141,8 @@ describe("ProjectDashboard", () => {
     expect(deleteMutate).toHaveBeenCalledWith("p1");
   });
 
-  it("shows Restart option in menu for stopped projects", async () => {
-    mockProjects = [{ id: "p5", name: "stopped-proj", status: "stopped" }];
-    renderWithProviders(<ProjectDashboard />);
-    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
-    expect(screen.getByText("Restart")).toBeInTheDocument();
-  });
-
   it("shows Restart option in menu for error projects", async () => {
-    mockProjects = [{ id: "p6", name: "error-proj", status: "error" }];
+    mockProjects = [{ id: "p5", name: "errored-proj", status: "error" }];
     renderWithProviders(<ProjectDashboard />);
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.getByText("Restart")).toBeInTheDocument();
@@ -167,7 +156,7 @@ describe("ProjectDashboard", () => {
   });
 
   it("calls restartProject.mutate when clicking Restart in menu", async () => {
-    mockProjects = [{ id: "p7", name: "restart-me", status: "stopped" }];
+    mockProjects = [{ id: "p7", name: "restart-me", status: "error" }];
     renderWithProviders(<ProjectDashboard />);
 
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
@@ -176,7 +165,7 @@ describe("ProjectDashboard", () => {
   });
 
   it("shows Restarting... text while restart is in progress", async () => {
-    mockProjects = [{ id: "p8", name: "restarting-proj", status: "stopped" }];
+    mockProjects = [{ id: "p8", name: "restarting-proj", status: "error" }];
     renderWithProviders(<ProjectDashboard />);
 
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));

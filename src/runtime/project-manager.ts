@@ -4,8 +4,11 @@ import { Coordinator } from "./coordinator";
 import * as projectsService from "../services/projects";
 import * as workspace from "../services/workspace";
 
+export type ProjectStatus = "starting" | "running" | "error";
+
 export class ProjectManager {
   private coordinators = new Map<string, Coordinator>();
+  private statuses = new Map<string, ProjectStatus>();
 
   async boot(): Promise<void> {
     const projects = projectsService.listProjects();
@@ -42,6 +45,7 @@ export class ProjectManager {
       coordinator.stopAll();
       this.coordinators.delete(id);
     }
+    this.statuses.delete(id);
 
     // Remove workspace
     try {
@@ -67,14 +71,14 @@ export class ProjectManager {
       this.coordinators.delete(id);
     }
 
-    await this.bootProject(id);
+    const ok = await this.bootProject(id);
 
     bus.emit("projects:lobby", {
       type: "project_restarted",
       payload: { id },
     });
 
-    return true;
+    return ok;
   }
 
   renameProject(id: string, name: string): ReturnType<typeof projectsService.renameProject> {
@@ -95,21 +99,30 @@ export class ProjectManager {
   listProjects(): Array<{
     id: string;
     name: string;
-    status: "running" | "stopped";
+    status: ProjectStatus;
   }> {
     const projects = projectsService.listProjects();
     return projects.map((p) => ({
       id: p.id,
       name: p.name,
-      status: this.coordinators.has(p.id) ? ("running" as const) : ("stopped" as const),
+      status: this.statuses.get(p.id) ?? "starting",
     }));
   }
 
   // --- Private ---
 
-  private async bootProject(projectId: string): Promise<void> {
-    const coordinator = new Coordinator(projectId);
-    this.coordinators.set(projectId, coordinator);
-    await coordinator.deployAndScan();
+  private async bootProject(projectId: string): Promise<boolean> {
+    this.statuses.set(projectId, "starting");
+    try {
+      const coordinator = new Coordinator(projectId);
+      this.coordinators.set(projectId, coordinator);
+      await coordinator.deployAndScan();
+      this.statuses.set(projectId, "running");
+      return true;
+    } catch (err) {
+      this.statuses.set(projectId, "error");
+      console.error(`ProjectManager: failed to boot project ${projectId}:`, err);
+      return false;
+    }
   }
 }
