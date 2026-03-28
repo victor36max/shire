@@ -450,7 +450,7 @@ export default function SharedDrive() {
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="sm" asChild>
                     <a
-                      href={`/projects/${projectName}/shared/download?path=${encodeURIComponent(previewFile.path)}`}
+                      href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(previewFile.path)}`}
                       download
                     >
                       <Download className="h-4 w-4" />
