@@ -21,7 +21,6 @@ export interface Agent extends AgentOverview {
   model?: string;
   systemPrompt?: string;
   harness?: HarnessType;
-  maxTokens?: number;
 }
 
 export interface CatalogAgentSummary {

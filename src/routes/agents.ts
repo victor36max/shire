@@ -20,7 +20,6 @@ export const agentRoutes = new Hono<AppEnv>()
         harness: z.enum(["claude_code", "pi"]).optional(),
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
-        maxTokens: z.number().optional(),
       }),
     ),
     async (c) => {
@@ -53,7 +52,6 @@ export const agentRoutes = new Hono<AppEnv>()
         harness: z.enum(["claude_code", "pi"]).optional(),
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
-        maxTokens: z.number().optional(),
       }),
     ),
     async (c) => {

@@ -288,7 +288,6 @@ export class AgentManager {
     const harnessType = (agent.harness as HarnessType) ?? "claude_code";
     const model = agent.model ?? "claude-sonnet-4-6";
     const systemPrompt = agent.systemPrompt ?? "";
-    const maxTokens = agent.maxTokens ?? 16384;
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
     const internalSystemPrompt = this.buildInternalPrompt();
 
@@ -299,7 +298,6 @@ export class AgentManager {
       systemPrompt,
       internalSystemPrompt,
       cwd: agentDir,
-      maxTokens,
       resume: agent.sessionId ?? undefined,
     });
 

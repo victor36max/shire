@@ -29,7 +29,6 @@ export const agents = sqliteTable(
     harness: text("harness"),
     model: text("model"),
     systemPrompt: text("system_prompt"),
-    maxTokens: integer("max_tokens"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

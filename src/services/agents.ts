@@ -33,7 +33,6 @@ export function createAgent(
     harness?: string;
     model?: string;
     systemPrompt?: string;
-    maxTokens?: number;
   },
 ) {
   return getDb()
@@ -45,7 +44,6 @@ export function createAgent(
       harness: data.harness,
       model: data.model,
       systemPrompt: data.systemPrompt,
-      maxTokens: data.maxTokens,
     })
     .returning()
     .get();
@@ -59,7 +57,6 @@ export function updateAgent(
     harness?: string;
     model?: string;
     systemPrompt?: string;
-    maxTokens?: number;
   },
 ) {
   return getDb()

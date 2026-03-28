@@ -252,12 +252,10 @@ describe("agents service", () => {
         description: "A test agent",
         harness: "claude_code",
         model: "claude-sonnet-4-6",
-        maxTokens: 8192,
       });
       expect(agent.description).toBe("A test agent");
       expect(agent.harness).toBe("claude_code");
       expect(agent.model).toBe("claude-sonnet-4-6");
-      expect(agent.maxTokens).toBe(8192);
     });
   });
 

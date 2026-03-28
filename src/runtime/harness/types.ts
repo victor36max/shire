@@ -3,7 +3,6 @@ export interface HarnessConfig {
   systemPrompt: string;
   internalSystemPrompt?: string;
   cwd: string;
-  maxTokens?: number;
   resume?: string;
 }
 

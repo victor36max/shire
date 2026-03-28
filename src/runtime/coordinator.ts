@@ -13,7 +13,6 @@ export interface AgentFields {
   harness?: string;
   model?: string;
   systemPrompt?: string;
-  maxTokens?: number;
 }
 
 export class Coordinator {
@@ -89,7 +88,6 @@ export class Coordinator {
       harness: params.harness,
       model: params.model,
       systemPrompt: params.systemPrompt,
-      maxTokens: params.maxTokens,
     });
 
     // Ensure workspace dirs exist
@@ -224,7 +222,6 @@ export class Coordinator {
       harness: agent?.harness ?? "claude_code",
       model: agent?.model ?? null,
       systemPrompt: agent?.systemPrompt ?? null,
-      maxTokens: agent?.maxTokens ?? null,
       status: proc.status,
     };
   }

@@ -30,7 +30,6 @@ interface AgentMutationData {
   harness?: "claude_code" | "pi";
   model?: string;
   systemPrompt?: string;
-  maxTokens?: number;
 }
 
 export function useCreateAgent(projectId: string) {
