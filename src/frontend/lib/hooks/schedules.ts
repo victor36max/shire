@@ -9,7 +9,7 @@ export function useSchedules(projectId: string | undefined) {
     queryFn: async () =>
       unwrap(
         await api.projects[":id"].schedules.$get({ param: { id: projectId! } }),
-      ) as unknown as ScheduledTask[],
+      ) as unknown as Promise<ScheduledTask[]>,
     enabled: !!projectId,
   });
 }
