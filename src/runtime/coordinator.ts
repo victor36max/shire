@@ -66,8 +66,16 @@ export class Coordinator {
     await workspace.ensureProjectDirs(this.projectId);
 
     const dbAgents = agentsService.listAgents(this.projectId);
-    for (const agent of dbAgents) {
-      await this.startAgentManager(agent.id, agent.name);
+    const results = await Promise.allSettled(
+      dbAgents.map((agent) => this.startAgentManager(agent.id, agent.name)),
+    );
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected");
+    for (const f of failed) {
+      console.error(`Coordinator[${this.projectId}]: agent boot failed:`, f.reason);
+    }
+    if (failed.length > 0) {
+      console.warn(`Coordinator[${this.projectId}]: ${ok}/${dbAgents.length} agent(s) started`);
     }
 
     await this.writePeersYaml();
