@@ -6,7 +6,7 @@
 
 Shire gives you a team of AI agents you actually work alongside — they persist, communicate, and pick up where they left off. Agents are stored in the database and configured through the dashboard. Open source.
 
-![Shire Dashboard](docs/screenshot.png)
+![Shire Dashboard](dashboard-screenshot.png)
 
 ## See it in action
 
