@@ -125,4 +125,59 @@ describe("GET /api/projects/:id/schedules", () => {
     const data = await res.json();
     expect(data).toEqual([]);
   });
+
+  it("returns flat objects with agentName", async () => {
+    const agentRes = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "list-agent",
+    });
+    const agent = (await agentRes.json()) as Record<string, string>;
+
+    await request("POST", `/api/projects/${projectId}/schedules`, {
+      agentId: agent.id,
+      label: "my-task",
+      message: "hello",
+      scheduleType: "recurring",
+      cronExpression: "0 9 * * *",
+    });
+
+    const res = await request("GET", `/api/projects/${projectId}/schedules`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>[];
+    expect(data).toHaveLength(1);
+    expect(data[0].label).toBe("my-task");
+    expect(data[0].agentName).toBe("list-agent");
+    expect(data[0].id).toBeDefined();
+    // Should be flat — no nested scheduled_tasks key
+    expect(data[0]).not.toHaveProperty("scheduled_tasks");
+  });
+});
+
+describe("POST /api/projects/:id/schedules/:sid/toggle", () => {
+  it("toggles enabled using id from the flat list response", async () => {
+    const agentRes = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "toggle-agent",
+    });
+    const agent = (await agentRes.json()) as Record<string, string>;
+
+    await request("POST", `/api/projects/${projectId}/schedules`, {
+      agentId: agent.id,
+      label: "toggle-task",
+      message: "hi",
+      scheduleType: "recurring",
+      cronExpression: "0 9 * * *",
+    });
+
+    const listRes = await request("GET", `/api/projects/${projectId}/schedules`);
+    const tasks = (await listRes.json()) as { id: string; enabled: boolean }[];
+    expect(tasks[0].enabled).toBe(true);
+
+    const toggleRes = await request(
+      "POST",
+      `/api/projects/${projectId}/schedules/${tasks[0].id}/toggle`,
+      { enabled: false },
+    );
+    expect(toggleRes.status).toBe(200);
+    const toggled = (await toggleRes.json()) as { enabled: boolean };
+    expect(toggled.enabled).toBe(false);
+  });
 });

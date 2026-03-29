@@ -49,7 +49,13 @@ const updateScheduleSchema = z.object({
 export const scheduleRoutes = new Hono<AppEnv>()
   .get("/projects/:id/schedules", (c) => {
     const projectId = c.req.param("id");
-    return c.json(schedulesService.listScheduledTasks(projectId));
+    const rows = schedulesService.listScheduledTasks(projectId);
+    return c.json(
+      rows.map((r) => ({
+        ...r.scheduled_tasks,
+        agentName: r.agents?.name ?? "",
+      })),
+    );
   })
   .post("/projects/:id/schedules", zValidator("json", createScheduleSchema), (c) => {
     const scheduler = c.get("scheduler");
