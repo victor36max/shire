@@ -12,8 +12,9 @@ import {
   logFilePath,
 } from "./daemon";
 import { startServer } from "./index";
+import pkg from "../package.json";
 
-const VERSION = "0.1.0";
+const VERSION = pkg.version;
 
 interface ParsedArgs {
   command: string;

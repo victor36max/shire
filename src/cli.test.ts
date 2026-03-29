@@ -5,6 +5,7 @@ import { existsSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { logFilePath } from "./daemon";
 import { openBrowser, shouldOpenBrowser } from "./cli";
+import pkg from "../package.json";
 
 const CLI_PATH = join(import.meta.dirname, "cli.ts");
 
@@ -24,6 +25,7 @@ describe("CLI", () => {
   it("prints version with --version", async () => {
     const result = await $`bun run ${CLI_PATH} --version`.text();
     expect(result.trim()).toMatch(/^shire v\d+\.\d+\.\d+$/);
+    expect(result.trim()).toBe(`shire v${pkg.version}`);
   });
 
   it("exits with error for unknown argument", async () => {
