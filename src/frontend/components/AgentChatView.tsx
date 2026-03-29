@@ -10,6 +10,7 @@ import WelcomePanel from "./WelcomePanel";
 import { useAgents, useMessages, useMarkRead } from "../lib/hooks";
 import { useSubscription, type AgentWsEvent } from "../lib/ws";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
+import { insertMessageIntoCache } from "../lib/insertMessageIntoCache";
 
 type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
 
@@ -50,20 +51,33 @@ export default function AgentChatView() {
   // handled by ProjectLayout's project-level subscription, not here)
   const handleAgentEvent = useCallback(
     (event: AgentWsEvent) => {
+      if (!projectId || !selectedAgentId) return;
+
+      // Optimistically insert the message into the cache if the event carries one,
+      // so it appears instantly without waiting for a refetch round-trip.
+      if ("message" in event && event.message) {
+        insertMessageIntoCache(queryClient, projectId, selectedAgentId, event.message);
+      }
+
       switch (event.type) {
         case "text_delta": {
           const { delta } = event.payload;
           if (delta) setStreamingText((prev) => prev + delta);
           break;
         }
-        case "text":
+        case "text": {
+          setStreamingText("");
+          // Background refetch to reconcile with server state
+          queryClient.invalidateQueries({
+            queryKey: ["messages", projectId, selectedAgentId],
+          });
+          break;
+        }
         case "turn_complete": {
           setStreamingText("");
-          if (selectedAgentId) {
-            queryClient.invalidateQueries({
-              queryKey: ["messages", projectId, selectedAgentId],
-            });
-          }
+          queryClient.invalidateQueries({
+            queryKey: ["messages", projectId, selectedAgentId],
+          });
           break;
         }
         case "tool_use":
@@ -72,11 +86,9 @@ export default function AgentChatView() {
         case "attachment":
         case "error":
         case "system_message": {
-          if (selectedAgentId) {
-            queryClient.invalidateQueries({
-              queryKey: ["messages", projectId, selectedAgentId],
-            });
-          }
+          queryClient.invalidateQueries({
+            queryKey: ["messages", projectId, selectedAgentId],
+          });
           break;
         }
       }
