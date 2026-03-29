@@ -3,6 +3,7 @@ import { readFile, access } from "fs/promises";
 import { basename } from "path";
 import * as workspace from "../services/workspace";
 import * as projectsService from "../services/projects";
+import { mimeFromPath } from "../utils/mime";
 import type { AppEnv } from "../types";
 
 export const attachmentRoutes = new Hono<AppEnv>().get(
@@ -13,7 +14,12 @@ export const attachmentRoutes = new Hono<AppEnv>().get(
     const attId = c.req.param("attId");
     const filename = c.req.param("filename");
 
-    if (filename.includes("..") || filename.includes("/") || attId.includes("..")) {
+    if (
+      filename.includes("..") ||
+      filename.includes("/") ||
+      attId.includes("..") ||
+      agentId.includes("..")
+    ) {
       return c.json({ error: "Invalid path" }, 400);
     }
 
@@ -31,10 +37,13 @@ export const attachmentRoutes = new Hono<AppEnv>().get(
 
     try {
       const data = await readFile(filePath);
+      const contentType = mimeFromPath(filename);
+      const isSafeImage = contentType.startsWith("image/") && contentType !== "image/svg+xml";
+      const disposition = isSafeImage ? "inline" : "attachment";
       return new Response(data, {
         headers: {
-          "Content-Disposition": `attachment; filename="${basename(filename)}"`,
-          "Content-Type": "application/octet-stream",
+          "Content-Disposition": `${disposition}; filename="${basename(filename)}"`,
+          "Content-Type": contentType,
         },
       });
     } catch {

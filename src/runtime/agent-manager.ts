@@ -3,6 +3,7 @@ import { readFile, readdir, rename, unlink, writeFile, mkdir, stat } from "fs/pr
 import { join, basename } from "path";
 import yaml from "js-yaml";
 import { safeYamlLoad } from "../utils/yaml";
+import { mimeFromPath } from "../utils/mime";
 import {
   bus,
   type AgentStatus,
@@ -80,26 +81,6 @@ function serializeMessage(msg: {
         attachments: (content.attachments ?? []) as SerializedMessage["attachments"],
       };
   }
-}
-
-const MIME_TYPES: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".svg": "image/svg+xml",
-  ".pdf": "application/pdf",
-  ".json": "application/json",
-  ".txt": "text/plain",
-  ".md": "text/markdown",
-  ".html": "text/html",
-  ".csv": "text/csv",
-  ".zip": "application/zip",
-};
-
-function mimeFromPath(filename: string): string {
-  const ext = filename.slice(filename.lastIndexOf(".")).toLowerCase();
-  return MIME_TYPES[ext] ?? "application/octet-stream";
 }
 
 export class AgentManager {
