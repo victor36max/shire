@@ -12,10 +12,11 @@ export class ProjectManager {
 
   async boot(): Promise<void> {
     const projects = projectsService.listProjects();
-    for (const project of projects) {
-      await this.bootProject(project.id);
-    }
-    console.log(`ProjectManager: booted ${projects.length} project(s)`);
+    const results = await Promise.allSettled(
+      projects.map((project) => this.bootProject(project.id)),
+    );
+    const ok = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
+    console.log(`ProjectManager: booted ${ok}/${projects.length} project(s)`);
   }
 
   async createProject(

@@ -5,7 +5,7 @@ import * as agentsService from "../services/agents";
 import * as projects from "../services/projects";
 import * as workspace from "../services/workspace";
 import { bus } from "../events";
-import { rmSync, readFileSync, existsSync, readdirSync } from "fs";
+import { rmSync, readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from "fs";
 import { join } from "path";
 import yaml from "js-yaml";
 import { tmpdir } from "os";
@@ -42,6 +42,66 @@ beforeEach(() => {
 afterEach(async () => {
   await coordinator.stopAll();
   rmSync(testDir, { recursive: true, force: true });
+});
+
+describe("deployAndScan", () => {
+  it("boots multiple agents in parallel without blocking on inbox", async () => {
+    // Create agents in DB before deploying
+    agentsService.createAgent(projectId, { name: "alpha" });
+    agentsService.createAgent(projectId, { name: "bravo" });
+    agentsService.createAgent(projectId, { name: "charlie" });
+
+    // deployAndScan should complete quickly even with multiple agents
+    const start = Date.now();
+    await coordinator.deployAndScan();
+    const elapsed = Date.now() - start;
+
+    const statuses = coordinator.listAgentStatuses();
+    expect(statuses.length).toBe(3);
+    for (const s of statuses) {
+      expect(s.status).toBe("active");
+    }
+    // Should be fast (parallel) — well under 1s
+    expect(elapsed).toBeLessThan(2000);
+  });
+
+  it("does not block startup on stale inbox messages", async () => {
+    const agent = agentsService.createAgent(projectId, { name: "inbox-agent" });
+
+    // Write a stale inbox message before deploying
+    const inboxDir = workspace.inboxDir(projectId, agent.id);
+    mkdirSync(inboxDir, { recursive: true });
+    writeFileSync(
+      join(inboxDir, "stale.yaml"),
+      "ts: 1000\ntype: user_message\nfrom: user\npayload:\n  text: old message\n",
+    );
+
+    // deployAndScan should still complete quickly
+    const start = Date.now();
+    await coordinator.deployAndScan();
+    const elapsed = Date.now() - start;
+
+    const statuses = coordinator.listAgentStatuses();
+    expect(statuses[0].status).toBe("active");
+    expect(elapsed).toBeLessThan(2000);
+  });
+
+  it("continues booting other agents when one fails", async () => {
+    // Create two agents; the second will have a corrupted harness
+    agentsService.createAgent(projectId, { name: "good-agent" });
+    const badAgent = agentsService.createAgent(projectId, { name: "bad-agent" });
+
+    // Sabotage: remove the bad agent from DB so startHarness fails
+    agentsService.deleteAgent(badAgent.id);
+
+    await coordinator.deployAndScan();
+
+    // The good agent should still be active
+    const statuses = coordinator.listAgentStatuses();
+    const good = statuses.find((s) => s.name === "good-agent");
+    expect(good).toBeDefined();
+    expect(good!.status).toBe("active");
+  });
 });
 
 describe("createAgent", () => {

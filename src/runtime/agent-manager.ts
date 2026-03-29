@@ -146,8 +146,13 @@ export class AgentManager {
       this.startWatchers();
       this.setStatus("active");
 
-      // Process any existing inbox messages (no subscriber at cold boot, skip broadcast)
-      await this.processInbox();
+      // Process any existing inbox messages in the background (fs.watch won't fire for pre-existing files)
+      this.busy = true;
+      this.processInbox()
+        .catch((err) => console.error(`Inbox processing error for ${this.agentName}:`, err))
+        .finally(() => {
+          this.busy = false;
+        });
     } catch (err) {
       console.error(`Bootstrap failed for ${this.agentName}:`, err);
       this.setStatus("idle");
