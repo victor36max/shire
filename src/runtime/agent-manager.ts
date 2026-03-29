@@ -843,12 +843,11 @@ export class AgentManager {
 
   private buildInternalPrompt(): string {
     const peersPath = workspace.peersPath(this.projectId);
-    const outboxPath = join(
-      workspace.agentDir(this.projectId, this.agentId),
-      "outbox/<any-name>.yaml",
-    );
+    const agentDir = workspace.agentDir(this.projectId, this.agentId);
+    const outboxPath = join(agentDir, "outbox/<any-name>.yaml");
     const sharedPath = workspace.sharedDir(this.projectId);
     const projectDoc = workspace.projectDocPath(this.projectId);
+    const projectRoot = workspace.root(this.projectId);
 
     return `# Inter-Agent Communication
 
@@ -898,6 +897,32 @@ Read \`${projectDoc}\` for project context before starting tasks.
 - Read \`${peersPath}\` before messaging to confirm the target agent exists
 - Be specific about what you need from the other agent
 - Don't send messages unnecessarily — only when collaboration genuinely helps
+
+## File Access Boundary — MANDATORY
+
+Your project root is \`${projectRoot}\`. You MUST NOT create, modify, move, copy, or delete any file or directory outside this path. This applies to ALL tools:
+
+- **Write / Edit**: Only target paths under \`${projectRoot}\`
+- **Bash**: Do not use shell commands (cp, mv, rm, mkdir, touch, tee, sed, >, >>) to write outside \`${projectRoot}\`. Do not use symlinks or hard links to escape this boundary.
+- **Read**: You may read a file outside the project root only if the user's message contains an explicit absolute path to that file. Never write based on paths discovered outside the boundary.
+
+**Write-allowed paths** (you may create, modify, and delete files here):
+- Your own directory: \`${agentDir}\` and all its subdirectories (inbox/, outbox/, attachments/)
+- The shared drive: \`${sharedPath}\`
+- Project document: \`${projectDoc}\`
+
+**Read-only paths** (you may read but MUST NOT write, modify, or delete):
+- Other agents' directories under \`${projectRoot}/agents/\` — these belong to other agents
+- \`${peersPath}\` — read to discover available agents before messaging
+
+**Agent-specific state**: Any rules, memory files, skills, or configuration that are specific to you (this agent) MUST be stored within your own directory \`${agentDir}\`. Never write agent-specific state to the shared drive or other locations.
+
+Violations include:
+- Writing to another agent's directory
+- Writing agent-specific rules, memory, or skills outside your own directory
+- Writing to another project's folder
+- Modifying system files or dotfiles outside the project root
+- Using Bash to pipe, redirect, or copy data to paths outside \`${projectRoot}\`
 `;
   }
 
