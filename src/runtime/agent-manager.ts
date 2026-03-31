@@ -35,11 +35,6 @@ interface MessageEnvelope {
   payload: Record<string, unknown>;
 }
 
-interface OutboxMessage {
-  to: string;
-  text: string;
-}
-
 interface PeerEntry {
   id: string;
   name: string;
@@ -688,17 +683,17 @@ export class AgentManager {
     let routed = 0;
     for (const file of files) {
       const path = join(outboxDir, file);
-      let msg: OutboxMessage;
+      let parsed: Record<string, unknown>;
       try {
         const raw = await readFile(path, "utf-8");
-        msg = safeYamlLoad(raw) as OutboxMessage;
+        parsed = safeYamlLoad(raw) as Record<string, unknown>;
       } catch (err) {
         await this.writeSystemInbox(`Your outbox message "${file}" could not be parsed: ${err}`);
         await unlink(path);
         continue;
       }
 
-      if (!msg || typeof msg.to !== "string" || typeof msg.text !== "string") {
+      if (!parsed || typeof parsed.to !== "string" || typeof parsed.text !== "string") {
         await this.writeSystemInbox(
           `Your outbox message "${file}" is missing required "to" and/or "text" fields.`,
         );
@@ -706,8 +701,7 @@ export class AgentManager {
         continue;
       }
 
-      // Collect extra YAML fields beyond `to` and `text`
-      const { to: _to, text: _text, ...extra } = msg as unknown as Record<string, unknown>;
+      const { to, text, ...extra } = parsed;
 
       // Emit outbox event — coordinator handles the actual routing
       bus.emit(`project:${this.projectId}:outbox`, {
@@ -715,8 +709,8 @@ export class AgentManager {
         payload: {
           fromAgentId: this.agentId,
           fromAgentName: this.agentName,
-          toAgentName: msg.to,
-          text: msg.text,
+          toAgentName: to as string,
+          text: text as string,
           ...(Object.keys(extra).length > 0 ? { extra } : {}),
         },
       });
