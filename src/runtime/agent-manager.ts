@@ -12,6 +12,7 @@ import {
   type SerializedMessage,
 } from "../events";
 import * as agentsService from "../services/agents";
+import * as alertChannelsService from "../services/alert-channels";
 import * as workspace from "../services/workspace";
 import * as skillsService from "../services/skills";
 import { createHarness, type Harness, type HarnessType } from "./harness";
@@ -32,11 +33,6 @@ interface MessageEnvelope {
   type: string;
   from: string;
   payload: Record<string, unknown>;
-}
-
-interface OutboxMessage {
-  to: string;
-  text: string;
 }
 
 interface PeerEntry {
@@ -687,17 +683,17 @@ export class AgentManager {
     let routed = 0;
     for (const file of files) {
       const path = join(outboxDir, file);
-      let msg: OutboxMessage;
+      let parsed: Record<string, unknown>;
       try {
         const raw = await readFile(path, "utf-8");
-        msg = safeYamlLoad(raw) as OutboxMessage;
+        parsed = safeYamlLoad(raw) as Record<string, unknown>;
       } catch (err) {
         await this.writeSystemInbox(`Your outbox message "${file}" could not be parsed: ${err}`);
         await unlink(path);
         continue;
       }
 
-      if (!msg || typeof msg.to !== "string" || typeof msg.text !== "string") {
+      if (!parsed || typeof parsed.to !== "string" || typeof parsed.text !== "string") {
         await this.writeSystemInbox(
           `Your outbox message "${file}" is missing required "to" and/or "text" fields.`,
         );
@@ -705,14 +701,17 @@ export class AgentManager {
         continue;
       }
 
+      const { to, text, ...extra } = parsed;
+
       // Emit outbox event — coordinator handles the actual routing
       bus.emit(`project:${this.projectId}:outbox`, {
         type: "outbox_message",
         payload: {
           fromAgentId: this.agentId,
           fromAgentName: this.agentName,
-          toAgentName: msg.to,
-          text: msg.text,
+          toAgentName: to as string,
+          text: text as string,
+          ...(Object.keys(extra).length > 0 ? { extra } : {}),
         },
       });
       await unlink(path);
@@ -835,7 +834,7 @@ export class AgentManager {
     const projectDoc = workspace.projectDocPath(this.projectId);
     const projectRoot = workspace.root(this.projectId);
 
-    return `# Inter-Agent Communication
+    let prompt = `# Inter-Agent Communication
 
 You are **${this.agentName}**, one of several agents running in a shared environment.
 
@@ -910,6 +909,45 @@ Violations include:
 - Modifying system files or dotfiles outside the project root
 - Using Bash to pipe, redirect, or copy data to paths outside \`${projectRoot}\`
 `;
+
+    // Conditionally inject alert instructions when a channel is configured
+    if (alertChannelsService.hasAlertChannel(this.projectId)) {
+      prompt += `
+## Sending Alerts / Notifications
+
+When something important happens that the user should know about — such as task completion,
+errors, build failures, or warnings — write a YAML file to your **outbox** with a special target:
+
+**Path:** \`${outboxPath.replace("<any-name>", "<alert-name>")}\`
+
+**Format:**
+\`\`\`yaml
+to: system_alert
+text: alert
+title: Short summary of the alert
+body: Detailed description of what happened
+severity: info  # one of: info | success | warning | error
+\`\`\`
+
+The \`text\` field is required by the outbox system. Set it to any non-empty string (e.g. "alert").
+
+The system will deliver the alert to the user's configured notification channel.
+Alert files are removed once delivered — this is expected.
+
+**Severity levels:**
+- \`info\` — general status updates
+- \`success\` — task completed successfully
+- \`warning\` — potential problems that may need attention
+- \`error\` — failures and critical issues
+
+**Guidelines:**
+- Keep titles concise (under 100 characters)
+- Include actionable details in the body
+- Don't send alerts for routine operations — only for notable events
+`;
+    }
+
+    return prompt;
   }
 
   // --- Broadcasting ---

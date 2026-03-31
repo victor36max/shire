@@ -83,6 +83,36 @@ export const scheduledTasks = sqliteTable("scheduled_tasks", {
     .default(sql`(datetime('now'))`),
 });
 
+export type AlertSeverity = "info" | "success" | "warning" | "error";
+export const ALERT_SEVERITIES: AlertSeverity[] = ["info", "success", "warning", "error"];
+
+export type DiscordChannelConfig = { type: "discord"; webhookUrl: string };
+export type SlackChannelConfig = { type: "slack"; webhookUrl: string };
+export type TelegramChannelConfig = { type: "telegram"; botToken: string; chatId: string };
+export type AlertChannelConfig = DiscordChannelConfig | SlackChannelConfig | TelegramChannelConfig;
+
+export const CHANNEL_TYPES = ["discord", "slack", "telegram"] as const;
+export type ChannelType = (typeof CHANNEL_TYPES)[number];
+
+export const alertChannels = sqliteTable("alert_channels", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  projectId: text("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  channelType: text("channel_type").notNull().$type<ChannelType>(),
+  config: text("config", { mode: "json" }).notNull().$type<AlertChannelConfig>(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
@@ -91,3 +121,5 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type ScheduledTask = typeof scheduledTasks.$inferSelect;
 export type NewScheduledTask = typeof scheduledTasks.$inferInsert;
+export type AlertChannel = typeof alertChannels.$inferSelect;
+export type NewAlertChannel = typeof alertChannels.$inferInsert;

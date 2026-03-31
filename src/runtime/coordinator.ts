@@ -9,10 +9,13 @@ import {
   type AgentBusEvent,
 } from "../events";
 import { getDb } from "../db";
+import { ALERT_SEVERITIES, type AlertSeverity } from "../db/schema";
 import { AgentManager } from "./agent-manager";
 import * as agentsService from "../services/agents";
+import * as projectsService from "../services/projects";
 import * as workspace from "../services/workspace";
 import * as skillsService from "../services/skills";
+import { dispatchAlert } from "../services/alert-dispatcher";
 import type { Skill } from "../services/skills";
 import { valid as isValidSlug } from "../services/slug";
 
@@ -35,14 +38,20 @@ export class Coordinator {
   constructor(projectId: string) {
     this.projectId = projectId;
 
-    // Listen for outbox messages to route between agents
+    // Listen for outbox messages to route between agents or handle system commands
     this.unsubscribes.push(
       bus.on<OutboxBusEvent>(`project:${projectId}:outbox`, (event) => {
         if (event.type === "outbox_message") {
-          const { fromAgentId, fromAgentName, toAgentName, text } = event.payload;
-          this.routeMessage(fromAgentId, fromAgentName, toAgentName, text).catch((err) =>
-            console.error("routeMessage error:", err),
-          );
+          const { fromAgentId, fromAgentName, toAgentName, text, extra } = event.payload;
+          if (toAgentName.startsWith("system_")) {
+            this.handleSystemCommand(fromAgentId, fromAgentName, toAgentName, text, extra).catch(
+              (err) => console.error("handleSystemCommand error:", err),
+            );
+          } else {
+            this.routeMessage(fromAgentId, fromAgentName, toAgentName, text).catch((err) =>
+              console.error("routeMessage error:", err),
+            );
+          }
         }
       }),
     );
@@ -216,6 +225,10 @@ export class Coordinator {
     return true;
   }
 
+  async restartAllAgents(): Promise<void> {
+    await Promise.all([...this.agents.values()].map((proc) => proc.restart()));
+  }
+
   getAgent(agentId: string): AgentManager | undefined {
     return this.agents.get(agentId);
   }
@@ -309,6 +322,55 @@ export class Coordinator {
     await proc.start();
   }
 
+  private async handleSystemCommand(
+    fromAgentId: string,
+    fromAgentName: string,
+    command: string,
+    text: string,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
+    if (command === "system_alert") {
+      const title = (extra?.title as string) || text;
+      const body = (extra?.body as string) || text;
+      const rawSeverity = (extra?.severity as string) || "info";
+
+      if (!ALERT_SEVERITIES.includes(rawSeverity as AlertSeverity)) {
+        await this.sendSystemError(
+          fromAgentId,
+          `Invalid alert severity "${rawSeverity}". Must be one of: ${ALERT_SEVERITIES.join(", ")}.`,
+        );
+        return;
+      }
+
+      const project = projectsService.getProject(this.projectId);
+      await dispatchAlert(this.projectId, {
+        title,
+        body,
+        severity: rawSeverity as AlertSeverity,
+        agentName: fromAgentName,
+        projectName: project?.name ?? this.projectId,
+      });
+      return;
+    }
+
+    await this.sendSystemError(
+      fromAgentId,
+      `Unknown system command "${command}". Only "system_alert" is supported.`,
+    );
+  }
+
+  private async sendSystemError(agentId: string, text: string): Promise<void> {
+    const errorEnvelope = {
+      ts: Date.now(),
+      type: "system_message",
+      from: "system",
+      payload: { text },
+    };
+    const filename = `${Date.now()}-error.yaml`;
+    const inboxPath = join(workspace.inboxDir(this.projectId, agentId), filename);
+    await writeFile(inboxPath, yaml.dump(errorEnvelope), "utf-8").catch(() => {});
+  }
+
   private async routeMessage(
     fromAgentId: string,
     fromAgentName: string,
@@ -318,41 +380,20 @@ export class Coordinator {
     const targetAgent = agentsService.getAgentByName(this.projectId, toAgentName);
     if (!targetAgent) {
       console.warn(`Inter-agent message from ${fromAgentName} to unknown agent ${toAgentName}`);
-      // Notify sender of error
-      const sender = this.agents.get(fromAgentId);
-      if (sender) {
-        const errorEnvelope = {
-          ts: Date.now(),
-          type: "system_message",
-          from: "system",
-          payload: {
-            text: `Message delivery failed: agent "${toAgentName}" not found. Check peers.yaml for available agents.`,
-          },
-        };
-        const filename = `${Date.now()}-error.yaml`;
-        const inboxPath = join(workspace.inboxDir(this.projectId, fromAgentId), filename);
-        await writeFile(inboxPath, yaml.dump(errorEnvelope), "utf-8").catch(() => {});
-      }
+      await this.sendSystemError(
+        fromAgentId,
+        `Message delivery failed: agent "${toAgentName}" not found. Check peers.yaml for available agents.`,
+      );
       return;
     }
 
     const targetProc = this.agents.get(targetAgent.id);
     if (!targetProc) {
       console.warn(`Agent ${toAgentName} exists but has no running process`);
-      const sender = this.agents.get(fromAgentId);
-      if (sender) {
-        const errorEnvelope = {
-          ts: Date.now(),
-          type: "system_message",
-          from: "system",
-          payload: {
-            text: `Message delivery failed: agent "${toAgentName}" is not running.`,
-          },
-        };
-        const errorFilename = `${Date.now()}-error.yaml`;
-        const errorInboxPath = join(workspace.inboxDir(this.projectId, fromAgentId), errorFilename);
-        await writeFile(errorInboxPath, yaml.dump(errorEnvelope), "utf-8").catch(() => {});
-      }
+      await this.sendSystemError(
+        fromAgentId,
+        `Message delivery failed: agent "${toAgentName}" is not running.`,
+      );
       return;
     }
 

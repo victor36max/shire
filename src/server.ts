@@ -12,6 +12,7 @@ import { sharedDriveRoutes } from "./routes/shared-drive";
 import { settingsRoutes } from "./routes/settings";
 import { catalogRoutes } from "./routes/catalog";
 import { attachmentRoutes } from "./routes/attachments";
+import { alertChannelRoutes } from "./routes/alert-channels";
 
 export interface AppContext {
   projectManager: ProjectManager;
@@ -43,6 +44,7 @@ export function createApp(ctx: AppContext) {
     .route("/api", settingsRoutes)
     .route("/api", catalogRoutes)
     .route("/api", attachmentRoutes)
+    .route("/api", alertChannelRoutes)
     .get("/api/health", (c) => c.json({ status: "ok" }));
 
   return app;
