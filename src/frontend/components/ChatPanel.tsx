@@ -405,7 +405,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   };
 
   // Re-render every 60s so relative timestamps stay fresh
-  useTickingClock();
+  useTickingClock(60_000);
 
   const hasMessages = messages.length > 0 || streamingText.length > 0;
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
-/** Re-renders the consuming component at a fixed interval (default 60s). */
-export function useTickingClock(intervalMs = 60_000): number {
+/** Re-renders the consuming component at a fixed interval. */
+export function useTickingClock(intervalMs: number): number {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), intervalMs);
