@@ -5,6 +5,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import Markdown from "./Markdown";
+import { CopyButton } from "./CopyButton";
 import { type AgentOverview } from "./types";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,6 +16,8 @@ import {
   useInterruptAgent,
   useRestartAgent,
 } from "../lib/hooks";
+import { messageTimeLabel, dateSeparatorLabel, isSameDay } from "../lib/time";
+import { useTickingClock } from "../lib/useTickingClock";
 
 export interface Attachment {
   id: string;
@@ -401,6 +404,9 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     }
   };
 
+  // Re-render every 60s so relative timestamps stay fresh
+  useTickingClock();
+
   const hasMessages = messages.length > 0 || streamingText.length > 0;
 
   return (
@@ -447,35 +453,59 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
             )}
           </div>
         )}
-        {messages.map((msg, i) =>
-          msg.role === "tool_use" ? (
-            <ToolCallMessage key={msg.id ?? `msg-${i}`} msg={msg} />
-          ) : msg.role === "inter_agent" ? (
-            <InterAgentMessage key={msg.id ?? `msg-${i}`} msg={msg} />
-          ) : msg.role === "system" ? (
-            <SystemMessage key={msg.id ?? `msg-${i}`} msg={msg} />
-          ) : (
-            <div
-              key={msg.id ?? `msg-${i}`}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`px-3 py-1.5 rounded-lg text-sm w-fit max-w-[80%] ${
-                  msg.role === "user" ? "bg-primary/10 text-foreground" : "bg-muted"
-                }`}
-              >
-                {msg.text ? <Markdown>{msg.text}</Markdown> : null}
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <AttachmentDisplay
-                    attachments={msg.attachments}
-                    projectName={projectName}
-                    agentId={agent.id}
-                  />
-                )}
-              </div>
-            </div>
-          ),
-        )}
+        {messages.map((msg, i) => {
+          const prevMsg = i > 0 ? messages[i - 1] : null;
+          const showSeparator = !prevMsg || !isSameDay(prevMsg.ts, msg.ts);
+          const key = msg.id ?? `msg-${i}`;
+
+          return (
+            <React.Fragment key={key}>
+              {showSeparator && (
+                <div className="flex items-center gap-2 my-2">
+                  <div className="flex-1 border-t border-border" />
+                  <span className="text-xs text-muted-foreground px-2">
+                    {dateSeparatorLabel(msg.ts)}
+                  </span>
+                  <div className="flex-1 border-t border-border" />
+                </div>
+              )}
+              {msg.role === "tool_use" ? (
+                <ToolCallMessage msg={msg} />
+              ) : msg.role === "inter_agent" ? (
+                <InterAgentMessage msg={msg} />
+              ) : msg.role === "system" ? (
+                <SystemMessage msg={msg} />
+              ) : (
+                <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className="flex flex-col max-w-[80%]">
+                    <div
+                      className={`px-3 py-1.5 rounded-lg text-sm w-fit ${
+                        msg.role === "user" ? "bg-primary/10 text-foreground" : "bg-muted"
+                      }`}
+                    >
+                      {msg.text ? <Markdown>{msg.text}</Markdown> : null}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <AttachmentDisplay
+                          attachments={msg.attachments}
+                          projectName={projectName}
+                          agentId={agent.id}
+                        />
+                      )}
+                    </div>
+                    <div
+                      className={`flex items-center gap-1.5 mt-0.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                      <span className="text-xs text-muted-foreground">
+                        {messageTimeLabel(msg.ts)}
+                      </span>
+                      {msg.role === "agent" && msg.text && <CopyButton text={msg.text} />}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
         {streamingText && (
           <div className="flex justify-start">
             <div className="px-3 py-1.5 rounded-lg text-sm w-fit max-w-[80%] bg-muted">
