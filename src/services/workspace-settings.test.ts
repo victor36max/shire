@@ -36,4 +36,45 @@ describe("workspace settings", () => {
       expect(readFileSync(workspace.projectDocPath(PROJECT_ID), "utf-8")).toBe("# Updated");
     });
   });
+
+  describe("agent claude settings", () => {
+    const AGENT_ID = "claude-settings-test";
+
+    it("ensureAgentDirs creates .claude/settings.json with permissions", async () => {
+      await workspace.ensureAgentDirs(PROJECT_ID, AGENT_ID);
+      const content = JSON.parse(
+        readFileSync(workspace.claudeSettingsPath(PROJECT_ID, AGENT_ID), "utf-8"),
+      );
+      expect(content.permissions.allow).toContain("Edit(.claude/**)");
+      expect(content.permissions.allow).toContain("Write(.claude/**)");
+    });
+
+    it("ensureAgentDirsSync creates .claude/settings.json with permissions", () => {
+      workspace.ensureAgentDirsSync(PROJECT_ID, AGENT_ID);
+      const content = JSON.parse(
+        readFileSync(workspace.claudeSettingsPath(PROJECT_ID, AGENT_ID), "utf-8"),
+      );
+      expect(content.permissions.allow).toContain("Edit(.claude/**)");
+    });
+
+    it("does not overwrite existing settings.json", async () => {
+      await workspace.ensureAgentDirs(PROJECT_ID, AGENT_ID);
+      const customSettings = JSON.stringify({
+        permissions: { allow: ["Edit(.claude/**)", "Write(.claude/**)", "Bash(custom:*)"] },
+      });
+      writeFileSync(workspace.claudeSettingsPath(PROJECT_ID, AGENT_ID), customSettings);
+      await workspace.ensureAgentDirs(PROJECT_ID, AGENT_ID);
+      const content = readFileSync(workspace.claudeSettingsPath(PROJECT_ID, AGENT_ID), "utf-8");
+      expect(content).toBe(customSettings);
+    });
+
+    it("does not overwrite existing settings.json (sync)", () => {
+      workspace.ensureAgentDirsSync(PROJECT_ID, AGENT_ID);
+      const customSettings = JSON.stringify({ permissions: { allow: ["custom"] } });
+      writeFileSync(workspace.claudeSettingsPath(PROJECT_ID, AGENT_ID), customSettings);
+      workspace.ensureAgentDirsSync(PROJECT_ID, AGENT_ID);
+      const content = readFileSync(workspace.claudeSettingsPath(PROJECT_ID, AGENT_ID), "utf-8");
+      expect(content).toBe(customSettings);
+    });
+  });
 });

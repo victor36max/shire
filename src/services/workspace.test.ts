@@ -36,4 +36,16 @@ describe("workspace paths", () => {
     const path = workspace.attachmentPath(PROJECT_ID, "agent-1", "att-1", "file.pdf");
     expect(path).toContain("agents/agent-1/attachments/att-1/file.pdf");
   });
+
+  it("claudeConfigDir is under agent dir", () => {
+    expect(workspace.claudeConfigDir(PROJECT_ID, "agent-123")).toBe(
+      workspace.agentDir(PROJECT_ID, "agent-123") + "/.claude",
+    );
+  });
+
+  it("claudeSettingsPath points to settings.json", () => {
+    expect(workspace.claudeSettingsPath(PROJECT_ID, "agent-123")).toBe(
+      workspace.agentDir(PROJECT_ID, "agent-123") + "/.claude/settings.json",
+    );
+  });
 });
