@@ -1,6 +1,6 @@
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { describe, it, expect, beforeEach, mock, afterEach } from "bun:test";
 import ChatPanel, { type Message } from "../components/ChatPanel";
 import { type AgentOverview } from "../components/types";
 import { renderWithProviders } from "./test-utils";
@@ -482,5 +482,112 @@ describe("ChatPanel", () => {
     renderWithProviders(<ChatPanel agent={activeAgent} />);
     expect(screen.getByText("Check this file")).toBeInTheDocument();
     expect(screen.getByText("data.csv")).toBeInTheDocument();
+  });
+
+  describe("timestamps and day separators", () => {
+    // Pin Date.now so timestamps are deterministic
+    const NOW = new Date(2026, 2, 17, 12, 0, 0).getTime();
+    let origDateNow: () => number;
+
+    beforeEach(() => {
+      origDateNow = Date.now;
+      Date.now = () => NOW;
+    });
+
+    afterEach(() => {
+      Date.now = origDateNow;
+    });
+
+    it("shows day separator for messages", () => {
+      // Messages are on 2026-03-17 which is "today" with our mocked NOW
+      const todayMsgs: Message[] = [
+        { id: 1, role: "user", text: "Hi", ts: new Date(NOW - 120_000).toISOString() },
+        { id: 2, role: "agent", text: "Hello", ts: new Date(NOW - 60_000).toISOString() },
+      ];
+      mockMessages = todayMsgs.map(apiMessage);
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      expect(screen.getByText("Today")).toBeInTheDocument();
+    });
+
+    it("shows separate day separators for messages on different days", () => {
+      const multiDayMsgs: Message[] = [
+        {
+          id: 1,
+          role: "user",
+          text: "Old message",
+          ts: new Date(2026, 2, 15, 10, 0, 0).toISOString(),
+        },
+        { id: 2, role: "agent", text: "Reply", ts: new Date(NOW - 60_000).toISOString() },
+      ];
+      mockMessages = multiDayMsgs.map(apiMessage);
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      expect(screen.getByText("Today")).toBeInTheDocument();
+      // The older message should have a different day label containing 2026
+      const separators = screen.getAllByText(/Today|2026/);
+      expect(separators.length).toBe(2);
+    });
+
+    it("shows timestamps below user and agent messages", () => {
+      const recentMsgs: Message[] = [
+        { id: 1, role: "user", text: "Hi", ts: new Date(NOW - 120_000).toISOString() },
+        { id: 2, role: "agent", text: "Hello", ts: new Date(NOW - 60_000).toISOString() },
+      ];
+      mockMessages = recentMsgs.map(apiMessage);
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      const timestamps = screen.getAllByText(/ago/);
+      expect(timestamps.length).toBe(2);
+    });
+
+    it("does not show timestamp for tool_use messages", () => {
+      const toolMsg: Message = {
+        id: 3,
+        role: "tool_use",
+        tool: "read_file",
+        tool_use_id: "tu_1",
+        input: { path: "/test.txt" },
+        output: "contents",
+        isError: false,
+        ts: new Date(NOW - 60_000).toISOString(),
+      };
+      mockMessages = [apiMessage(toolMsg)];
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      expect(screen.getByText("read_file")).toBeInTheDocument();
+      expect(screen.queryByText(/ago/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("copy button", () => {
+    const writeTextMock = mock(() => Promise.resolve());
+
+    beforeEach(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: writeTextMock },
+        writable: true,
+        configurable: true,
+      });
+      writeTextMock.mockClear();
+    });
+
+    it("shows copy button on agent messages", () => {
+      mockMessages = messages.map(apiMessage);
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      expect(screen.getByLabelText("Copy message")).toBeInTheDocument();
+    });
+
+    it("does not show copy button on user messages", () => {
+      const userOnly: Message[] = [
+        { id: 1, role: "user", text: "Hello", ts: "2026-03-17T00:00:00Z" },
+      ];
+      mockMessages = userOnly.map(apiMessage);
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      expect(screen.queryByLabelText("Copy message")).not.toBeInTheDocument();
+    });
+
+    it("copies agent message text on click", async () => {
+      mockMessages = messages.map(apiMessage);
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      await userEvent.click(screen.getByLabelText("Copy message"));
+      expect(writeTextMock).toHaveBeenCalledWith("Hello human");
+    });
   });
 });

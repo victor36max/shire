@@ -48,6 +48,7 @@ import {
   useToggleSchedule,
   useRunScheduleNow,
 } from "../lib/hooks";
+import { timeAgo } from "../lib/time";
 import { useSubscription } from "../lib/ws";
 
 interface ScheduleFormState extends CronFormFields {
@@ -93,16 +94,6 @@ function utcIsoToLocal(isoString: string): { date: string; time: string } {
 }
 
 // Props interface removed — component now owns its data fetching
-
-function timeAgo(isoString: string): string {
-  const now = Date.now();
-  const then = new Date(isoString).getTime();
-  const diff = Math.floor((now - then) / 1000);
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
 
 export default function SchedulesPage() {
   const queryClient = useQueryClient();
