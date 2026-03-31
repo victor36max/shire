@@ -23,9 +23,56 @@ import {
   useDeleteAlertChannel,
   useTestAlertChannel,
 } from "../lib/hooks";
-import { channelTypeLabel, type AlertChannel, type ChannelType } from "./types";
+import {
+  channelTypeLabel,
+  type AlertChannel,
+  type AlertChannelConfig,
+  type ChannelType,
+} from "./types";
 
 const CHANNEL_TYPES: ChannelType[] = ["discord", "slack", "telegram"];
+
+function configToFormState(config: AlertChannelConfig) {
+  switch (config.type) {
+    case "discord":
+      return {
+        channelType: "discord" as const,
+        webhookUrl: config.webhookUrl,
+        botToken: "",
+        chatId: "",
+      };
+    case "slack":
+      return {
+        channelType: "slack" as const,
+        webhookUrl: config.webhookUrl,
+        botToken: "",
+        chatId: "",
+      };
+    case "telegram":
+      return {
+        channelType: "telegram" as const,
+        webhookUrl: "",
+        botToken: config.botToken,
+        chatId: config.chatId,
+      };
+  }
+}
+
+function formStateToConfig(state: {
+  channelType: ChannelType;
+  webhookUrl: string;
+  botToken: string;
+  chatId: string;
+}): AlertChannelConfig {
+  switch (state.channelType) {
+    case "discord":
+      return { type: "discord", webhookUrl: state.webhookUrl };
+    case "slack":
+      return { type: "slack", webhookUrl: state.webhookUrl };
+    case "telegram":
+      return { type: "telegram", botToken: state.botToken, chatId: state.chatId };
+  }
+}
 
 interface Props {
   projectId: string;
@@ -42,38 +89,50 @@ function AlertChannelForm({
   const remove = useDeleteAlertChannel(projectId);
   const test = useTestAlertChannel(projectId);
 
-  const [channelType, setChannelType] = useState<ChannelType>(channel?.channelType ?? "discord");
-  const [webhookUrl, setWebhookUrl] = useState(channel?.webhookUrl ?? "");
-  const [chatId, setChatId] = useState(channel?.chatId ?? "");
+  const initial = channel ? configToFormState(channel.config) : null;
+  const [channelType, setChannelType] = useState<ChannelType>(initial?.channelType ?? "discord");
+  const [webhookUrl, setWebhookUrl] = useState(initial?.webhookUrl ?? "");
+  const [botToken, setBotToken] = useState(initial?.botToken ?? "");
+  const [chatId, setChatId] = useState(initial?.chatId ?? "");
   const [enabled, setEnabled] = useState(channel?.enabled ?? true);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const hasChanges =
-    !channel ||
-    channel.channelType !== channelType ||
-    channel.webhookUrl !== webhookUrl ||
-    (channel.chatId ?? "") !== chatId ||
-    channel.enabled !== enabled;
+  function buildConfig(): AlertChannelConfig {
+    return formStateToConfig({
+      channelType,
+      webhookUrl: webhookUrl.trim(),
+      botToken: botToken.trim(),
+      chatId: chatId.trim(),
+    });
+  }
+
+  function hasChanges(): boolean {
+    if (!channel) return true;
+    const current = buildConfig();
+    return (
+      JSON.stringify(current) !== JSON.stringify(channel.config) || channel.enabled !== enabled
+    );
+  }
 
   function handleSave() {
-    if (!webhookUrl.trim()) {
-      toast.error("Webhook URL is required");
-      return;
-    }
-    if (channelType === "telegram" && !chatId.trim()) {
-      toast.error("Chat ID is required for Telegram");
-      return;
+    if (channelType === "telegram") {
+      if (!botToken.trim()) {
+        toast.error("Bot token is required for Telegram");
+        return;
+      }
+      if (!chatId.trim()) {
+        toast.error("Chat ID is required for Telegram");
+        return;
+      }
+    } else {
+      if (!webhookUrl.trim()) {
+        toast.error("Webhook URL is required");
+        return;
+      }
     }
     upsert.mutate(
-      {
-        channelType,
-        webhookUrl: webhookUrl.trim(),
-        chatId: channelType === "telegram" ? chatId.trim() : undefined,
-        enabled,
-      },
-      {
-        onSuccess: () => toast.success("Alert channel saved"),
-      },
+      { config: buildConfig(), enabled },
+      { onSuccess: () => toast.success("Alert channel saved") },
     );
   }
 
@@ -112,31 +171,37 @@ function AlertChannelForm({
           </Select>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="webhook-url">
-            {channelType === "telegram" ? "Bot Token" : "Webhook URL"}
-          </Label>
-          <Input
-            id="webhook-url"
-            type="password"
-            value={webhookUrl}
-            onChange={(e) => setWebhookUrl(e.target.value)}
-            placeholder={
-              channelType === "telegram"
-                ? "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-                : "https://..."
-            }
-          />
-        </div>
-
-        {channelType === "telegram" && (
+        {channelType === "telegram" ? (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="bot-token">Bot Token</Label>
+              <Input
+                id="bot-token"
+                type="password"
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+                placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="chat-id">Chat ID</Label>
+              <Input
+                id="chat-id"
+                value={chatId}
+                onChange={(e) => setChatId(e.target.value)}
+                placeholder="-1001234567890"
+              />
+            </div>
+          </>
+        ) : (
           <div className="space-y-2">
-            <Label htmlFor="chat-id">Chat ID</Label>
+            <Label htmlFor="webhook-url">Webhook URL</Label>
             <Input
-              id="chat-id"
-              value={chatId}
-              onChange={(e) => setChatId(e.target.value)}
-              placeholder="-1001234567890"
+              id="webhook-url"
+              type="password"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              placeholder="https://..."
             />
           </div>
         )}
@@ -148,7 +213,7 @@ function AlertChannelForm({
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={handleSave} disabled={!hasChanges || upsert.isPending}>
+        <Button onClick={handleSave} disabled={!hasChanges() || upsert.isPending}>
           {upsert.isPending ? <Spinner className="mr-2 h-4 w-4" /> : null}
           Save
         </Button>

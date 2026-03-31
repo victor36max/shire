@@ -106,12 +106,16 @@ export interface ScheduledTask {
 
 export type ChannelType = "discord" | "slack" | "telegram";
 
+export type DiscordChannelConfig = { type: "discord"; webhookUrl: string };
+export type SlackChannelConfig = { type: "slack"; webhookUrl: string };
+export type TelegramChannelConfig = { type: "telegram"; botToken: string; chatId: string };
+export type AlertChannelConfig = DiscordChannelConfig | SlackChannelConfig | TelegramChannelConfig;
+
 export interface AlertChannel {
   id: string;
   projectId: string;
   channelType: ChannelType;
-  webhookUrl: string;
-  chatId: string | null;
+  config: AlertChannelConfig;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;

@@ -1,4 +1,4 @@
-import type { AlertChannel, AlertSeverity } from "../db/schema";
+import type { AlertChannelConfig, AlertSeverity } from "../db/schema";
 import { getAlertChannel } from "./alert-channels";
 
 export interface AlertPayload {
@@ -83,16 +83,19 @@ function formatTelegram(alert: AlertPayload): object {
   return { text, parse_mode: "MarkdownV2" };
 }
 
-function buildRequest(channel: AlertChannel, alert: AlertPayload): { url: string; body: object } {
-  switch (channel.channelType) {
+function buildRequest(
+  config: AlertChannelConfig,
+  alert: AlertPayload,
+): { url: string; body: object } {
+  switch (config.type) {
     case "discord":
-      return { url: channel.webhookUrl, body: formatDiscord(alert) };
+      return { url: config.webhookUrl, body: formatDiscord(alert) };
     case "slack":
-      return { url: channel.webhookUrl, body: formatSlack(alert) };
+      return { url: config.webhookUrl, body: formatSlack(alert) };
     case "telegram":
       return {
-        url: `https://api.telegram.org/bot${channel.webhookUrl}/sendMessage`,
-        body: { chat_id: channel.chatId, ...formatTelegram(alert) },
+        url: `https://api.telegram.org/bot${config.botToken}/sendMessage`,
+        body: { chat_id: config.chatId, ...formatTelegram(alert) },
       };
   }
 }
@@ -113,7 +116,7 @@ export async function dispatchAlert(projectId: string, alert: AlertPayload): Pro
   const channel = getAlertChannel(projectId);
   if (!channel || !channel.enabled) return;
 
-  const { url, body } = buildRequest(channel, alert);
+  const { url, body } = buildRequest(channel.config, alert);
   try {
     await postWebhook(url, body);
   } catch (err) {
@@ -122,7 +125,7 @@ export async function dispatchAlert(projectId: string, alert: AlertPayload): Pro
 }
 
 export async function sendTestAlert(
-  channel: AlertChannel,
+  config: AlertChannelConfig,
 ): Promise<{ ok: boolean; error?: string }> {
   const alert: AlertPayload = {
     title: "Test Alert",
@@ -131,7 +134,7 @@ export async function sendTestAlert(
     agentName: "system",
     projectName: "test",
   };
-  const { url, body } = buildRequest(channel, alert);
+  const { url, body } = buildRequest(config, alert);
   try {
     await postWebhook(url, body);
     return { ok: true };

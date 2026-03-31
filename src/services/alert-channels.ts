@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { getDb, schema } from "../db";
-import type { NewAlertChannel } from "../db/schema";
+import type { AlertChannelConfig } from "../db/schema";
 
 const { alertChannels } = schema;
 
@@ -10,20 +10,21 @@ export function getAlertChannel(projectId: string) {
 
 export function upsertAlertChannel(
   projectId: string,
-  attrs: Omit<NewAlertChannel, "id" | "projectId" | "createdAt" | "updatedAt">,
+  attrs: { config: AlertChannelConfig; enabled?: boolean },
 ) {
   const existing = getAlertChannel(projectId);
+  const channelType = attrs.config.type;
   if (existing) {
     return getDb()
       .update(alertChannels)
-      .set({ ...attrs, updatedAt: new Date().toISOString() })
+      .set({ ...attrs, channelType, updatedAt: new Date().toISOString() })
       .where(eq(alertChannels.id, existing.id))
       .returning()
       .get();
   }
   return getDb()
     .insert(alertChannels)
-    .values({ ...attrs, projectId })
+    .values({ ...attrs, channelType, projectId })
     .returning()
     .get();
 }

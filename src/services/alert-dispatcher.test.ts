@@ -3,7 +3,7 @@ import { useTestDb } from "../test/setup";
 import * as projects from "./projects";
 import * as alertChannels from "./alert-channels";
 import { dispatchAlert, sendTestAlert } from "./alert-dispatcher";
-import type { AlertChannel } from "../db/schema";
+import type { AlertChannelConfig } from "../db/schema";
 
 describe("alert-dispatcher", () => {
   useTestDb();
@@ -38,8 +38,7 @@ describe("alert-dispatcher", () => {
 
     it("does nothing when channel is disabled", async () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        config: { type: "discord", webhookUrl: "https://discord.com/api/webhooks/123/abc" },
         enabled: false,
       });
       await dispatchAlert(projectId, {
@@ -54,8 +53,7 @@ describe("alert-dispatcher", () => {
 
     it("sends to discord webhook with embeds", async () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        config: { type: "discord", webhookUrl: "https://discord.com/api/webhooks/123/abc" },
       });
       await dispatchAlert(projectId, {
         title: "Build failed",
@@ -76,8 +74,7 @@ describe("alert-dispatcher", () => {
 
     it("sends to slack webhook with blocks", async () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "slack",
-        webhookUrl: "https://hooks.slack.com/services/T00/B00/xxx",
+        config: { type: "slack", webhookUrl: "https://hooks.slack.com/services/T00/B00/xxx" },
       });
       await dispatchAlert(projectId, {
         title: "Deploy complete",
@@ -98,9 +95,7 @@ describe("alert-dispatcher", () => {
 
     it("sends to telegram API with correct URL", async () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "telegram",
-        webhookUrl: "123456:ABC-DEF",
-        chatId: "-1001234567890",
+        config: { type: "telegram", botToken: "123456:ABC-DEF", chatId: "-1001234567890" },
       });
       await dispatchAlert(projectId, {
         title: "Alert",
@@ -122,8 +117,7 @@ describe("alert-dispatcher", () => {
 
     it("does not throw when webhook fails", async () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        config: { type: "discord", webhookUrl: "https://discord.com/api/webhooks/123/abc" },
       });
       globalThis.fetch = mock(() =>
         Promise.resolve(new Response("error", { status: 500 })),
@@ -142,17 +136,11 @@ describe("alert-dispatcher", () => {
 
   describe("sendTestAlert", () => {
     it("returns ok on success", async () => {
-      const channel: AlertChannel = {
-        id: "test-id",
-        projectId,
-        channelType: "discord",
+      const config: AlertChannelConfig = {
+        type: "discord",
         webhookUrl: "https://discord.com/api/webhooks/123/abc",
-        chatId: null,
-        enabled: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
-      const result = await sendTestAlert(channel);
+      const result = await sendTestAlert(config);
       expect(result.ok).toBe(true);
     });
 
@@ -160,17 +148,11 @@ describe("alert-dispatcher", () => {
       globalThis.fetch = mock(() =>
         Promise.resolve(new Response("bad request", { status: 400 })),
       ) as unknown as typeof fetch;
-      const channel: AlertChannel = {
-        id: "test-id",
-        projectId,
-        channelType: "discord",
+      const config: AlertChannelConfig = {
+        type: "discord",
         webhookUrl: "https://discord.com/api/webhooks/123/abc",
-        chatId: null,
-        enabled: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
-      const result = await sendTestAlert(channel);
+      const result = await sendTestAlert(config);
       expect(result.ok).toBe(false);
       expect(result.error).toBeDefined();
     });

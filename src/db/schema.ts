@@ -83,11 +83,16 @@ export const scheduledTasks = sqliteTable("scheduled_tasks", {
     .default(sql`(datetime('now'))`),
 });
 
-export type ChannelType = "discord" | "slack" | "telegram";
 export type AlertSeverity = "info" | "success" | "warning" | "error";
-
-export const CHANNEL_TYPES: ChannelType[] = ["discord", "slack", "telegram"];
 export const ALERT_SEVERITIES: AlertSeverity[] = ["info", "success", "warning", "error"];
+
+export type DiscordChannelConfig = { type: "discord"; webhookUrl: string };
+export type SlackChannelConfig = { type: "slack"; webhookUrl: string };
+export type TelegramChannelConfig = { type: "telegram"; botToken: string; chatId: string };
+export type AlertChannelConfig = DiscordChannelConfig | SlackChannelConfig | TelegramChannelConfig;
+
+export const CHANNEL_TYPES = ["discord", "slack", "telegram"] as const;
+export type ChannelType = (typeof CHANNEL_TYPES)[number];
 
 export const alertChannels = sqliteTable("alert_channels", {
   id: text("id")
@@ -98,8 +103,7 @@ export const alertChannels = sqliteTable("alert_channels", {
     .unique()
     .references(() => projects.id, { onDelete: "cascade" }),
   channelType: text("channel_type").notNull().$type<ChannelType>(),
-  webhookUrl: text("webhook_url").notNull(),
-  chatId: text("chat_id"),
+  config: text("config", { mode: "json" }).notNull().$type<AlertChannelConfig>(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at")
     .notNull()

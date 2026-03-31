@@ -20,59 +20,56 @@ describe("alert-channels service", () => {
 
     it("returns the channel when one exists", () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        config: { type: "discord", webhookUrl: "https://discord.com/api/webhooks/123/abc" },
       });
       const channel = alertChannels.getAlertChannel(projectId);
       expect(channel).toBeDefined();
-      expect(channel!.channelType).toBe("discord");
-      expect(channel!.webhookUrl).toBe("https://discord.com/api/webhooks/123/abc");
+      expect(channel!.config.type).toBe("discord");
+      expect((channel!.config as { webhookUrl: string }).webhookUrl).toBe(
+        "https://discord.com/api/webhooks/123/abc",
+      );
     });
   });
 
   describe("upsertAlertChannel", () => {
     it("creates a new channel", () => {
       const channel = alertChannels.upsertAlertChannel(projectId, {
-        channelType: "slack",
-        webhookUrl: "https://hooks.slack.com/services/T00/B00/xxx",
+        config: { type: "slack", webhookUrl: "https://hooks.slack.com/services/T00/B00/xxx" },
       });
-      expect(channel.channelType).toBe("slack");
+      expect(channel.config.type).toBe("slack");
       expect(channel.enabled).toBe(true);
     });
 
     it("updates an existing channel", () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://old-url",
+        config: { type: "discord", webhookUrl: "https://old-url" },
       });
       const updated = alertChannels.upsertAlertChannel(projectId, {
-        channelType: "slack",
-        webhookUrl: "https://new-url",
+        config: { type: "slack", webhookUrl: "https://new-url" },
       });
-      expect(updated.channelType).toBe("slack");
-      expect(updated.webhookUrl).toBe("https://new-url");
+      expect(updated.config.type).toBe("slack");
 
       // Should still be just one channel
       const channel = alertChannels.getAlertChannel(projectId);
       expect(channel!.id).toBe(updated.id);
     });
 
-    it("creates telegram channel with chatId", () => {
+    it("creates telegram channel with botToken and chatId", () => {
       const channel = alertChannels.upsertAlertChannel(projectId, {
-        channelType: "telegram",
-        webhookUrl: "123456:ABC-DEF",
-        chatId: "-1001234567890",
+        config: { type: "telegram", botToken: "123456:ABC-DEF", chatId: "-1001234567890" },
       });
-      expect(channel.channelType).toBe("telegram");
-      expect(channel.chatId).toBe("-1001234567890");
+      expect(channel.config.type).toBe("telegram");
+      if (channel.config.type === "telegram") {
+        expect(channel.config.botToken).toBe("123456:ABC-DEF");
+        expect(channel.config.chatId).toBe("-1001234567890");
+      }
     });
   });
 
   describe("deleteAlertChannel", () => {
     it("removes the channel", () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        config: { type: "discord", webhookUrl: "https://discord.com/api/webhooks/123/abc" },
       });
       alertChannels.deleteAlertChannel(projectId);
       expect(alertChannels.getAlertChannel(projectId)).toBeUndefined();
@@ -90,8 +87,7 @@ describe("alert-channels service", () => {
 
     it("returns true when an enabled channel exists", () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        config: { type: "discord", webhookUrl: "https://discord.com/api/webhooks/123/abc" },
         enabled: true,
       });
       expect(alertChannels.hasAlertChannel(projectId)).toBe(true);
@@ -99,8 +95,7 @@ describe("alert-channels service", () => {
 
     it("returns false when channel is disabled", () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        config: { type: "discord", webhookUrl: "https://discord.com/api/webhooks/123/abc" },
         enabled: false,
       });
       expect(alertChannels.hasAlertChannel(projectId)).toBe(false);
@@ -110,8 +105,7 @@ describe("alert-channels service", () => {
   describe("cascade delete", () => {
     it("deletes channel when project is deleted", () => {
       alertChannels.upsertAlertChannel(projectId, {
-        channelType: "discord",
-        webhookUrl: "https://discord.com/api/webhooks/123/abc",
+        config: { type: "discord", webhookUrl: "https://discord.com/api/webhooks/123/abc" },
       });
       projects.deleteProject(projectId);
       expect(alertChannels.getAlertChannel(projectId)).toBeUndefined();

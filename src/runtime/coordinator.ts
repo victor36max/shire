@@ -225,6 +225,10 @@ export class Coordinator {
     return true;
   }
 
+  async restartAllAgents(): Promise<void> {
+    await Promise.all([...this.agents.values()].map((proc) => proc.restart()));
+  }
+
   getAgent(agentId: string): AgentManager | undefined {
     return this.agents.get(agentId);
   }

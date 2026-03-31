@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "500a4626-b6ab-4b0c-906e-1aa9597a2514",
+  "id": "4b189153-9f03-4bb8-8901-89b62d54efb9",
   "prevId": "ec10d297-b37a-4716-92ac-3ef89d7fb821",
   "tables": {
     "agents": {
@@ -133,18 +133,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "webhook_url": {
-          "name": "webhook_url",
+        "config": {
+          "name": "config",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "chat_id": {
-          "name": "chat_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "enabled": {

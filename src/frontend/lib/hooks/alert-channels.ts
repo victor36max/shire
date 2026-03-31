@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { unwrap } from "./util";
-import type { AlertChannel } from "../../components/types";
+import type { AlertChannel, AlertChannelConfig } from "../../components/types";
 
 export function useAlertChannel(projectId: string | undefined) {
   return useQuery<AlertChannel | null>({
@@ -11,8 +11,7 @@ export function useAlertChannel(projectId: string | undefined) {
         param: { id: projectId! },
       });
       if (res.status === 404) return null;
-      const data = await unwrap(res);
-      return data as AlertChannel;
+      return (await unwrap(res)) as AlertChannel;
     },
     enabled: !!projectId,
   });
@@ -21,12 +20,7 @@ export function useAlertChannel(projectId: string | undefined) {
 export function useUpsertAlertChannel(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: {
-      channelType: string;
-      webhookUrl: string;
-      chatId?: string;
-      enabled?: boolean;
-    }) =>
+    mutationFn: async (data: { config: AlertChannelConfig; enabled?: boolean }) =>
       unwrap(
         await api.projects[":id"]["alert-channel"].$put({
           param: { id: projectId },
