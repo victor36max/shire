@@ -5,9 +5,20 @@ import { CopyButton } from "../components/CopyButton";
 import { renderWithProviders } from "./test-utils";
 
 const writeTextMock = mock(() => Promise.resolve());
+const toastSuccessMock = mock(() => {});
+const toastErrorMock = mock(() => {});
+
+mock.module("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
+}));
 
 beforeEach(() => {
   writeTextMock.mockClear();
+  toastSuccessMock.mockClear();
+  toastErrorMock.mockClear();
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText: writeTextMock },
     writable: true,
@@ -27,9 +38,16 @@ describe("CopyButton", () => {
     expect(writeTextMock).toHaveBeenCalledWith("hello world");
   });
 
-  it("shows 'Copied' aria-label after click", async () => {
+  it("shows success toast after copy", async () => {
     renderWithProviders(<CopyButton text="hello" />);
     await userEvent.click(screen.getByLabelText("Copy message"));
-    expect(screen.getByLabelText("Copied")).toBeInTheDocument();
+    expect(toastSuccessMock).toHaveBeenCalledWith("Copied to clipboard");
+  });
+
+  it("shows error toast on clipboard failure", async () => {
+    writeTextMock.mockImplementation(() => Promise.reject(new Error("denied")));
+    renderWithProviders(<CopyButton text="hello" />);
+    await userEvent.click(screen.getByLabelText("Copy message"));
+    expect(toastErrorMock).toHaveBeenCalledWith("Failed to copy");
   });
 });

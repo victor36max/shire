@@ -1,17 +1,15 @@
 import * as React from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "./ui/button";
 
 export function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = React.useState(false);
-
   const handleCopy = React.useCallback(async () => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      toast.success("Copied to clipboard");
     } catch {
-      // clipboard access denied (non-HTTPS, unfocused document, etc.)
+      toast.error("Failed to copy");
     }
   }, [text]);
 
@@ -21,9 +19,9 @@ export function CopyButton({ text }: { text: string }) {
       variant="ghost"
       className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
       onClick={handleCopy}
-      aria-label={copied ? "Copied" : "Copy message"}
+      aria-label="Copy message"
     >
-      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      <Copy className="h-3 w-3" />
     </Button>
   );
 }
