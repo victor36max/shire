@@ -29,6 +29,14 @@ import { ChevronLeft, Plus, Play, Pencil, Trash2 } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
 import { navigate } from "../lib/navigate";
+import {
+  DAY_LABELS,
+  buildCronExpression,
+  describeCron,
+  parseCronToForm,
+  type CronFormFields,
+  type Frequency,
+} from "../lib/cron-utils";
 import { type ScheduledTask } from "./types";
 import {
   useProjectId,
@@ -42,19 +50,11 @@ import {
 } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
 
-type Frequency = "every_n_minutes" | "hourly" | "daily" | "weekly" | "monthly";
-
-interface ScheduleFormState {
+interface ScheduleFormState extends CronFormFields {
   label: string;
   agentId: string;
   message: string;
   scheduleType: "once" | "recurring";
-  frequency: Frequency;
-  minute: string;
-  hour: string;
-  daysOfWeek: number[];
-  dayOfMonth: string;
-  intervalMinutes: string;
   date: string;
   time: string;
 }
@@ -73,21 +73,6 @@ const DEFAULT_FORM: ScheduleFormState = {
   date: "",
   time: "09:00",
 };
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-// Get the local timezone offset in hours (e.g., UTC-5 returns -5)
-const TZ_OFFSET_HOURS = new Date().getTimezoneOffset() / -60;
-
-/** Convert local hour to UTC hour */
-function localHourToUtc(hour: number): number {
-  return (((hour - TZ_OFFSET_HOURS) % 24) + 24) % 24;
-}
-
-/** Convert UTC hour to local hour */
-function utcHourToLocal(hour: number): number {
-  return (((hour + TZ_OFFSET_HOURS) % 24) + 24) % 24;
-}
 
 /** Convert a local date + time string to a UTC ISO string */
 function localToUtcIso(date: string, time: string): string {
@@ -109,73 +94,6 @@ function utcIsoToLocal(isoString: string): { date: string; time: string } {
 
 // Props interface removed — component now owns its data fetching
 
-function buildCronExpression(form: ScheduleFormState): string {
-  // Convert local hour/minute to UTC for the cron expression stored on the server
-  const localMin = parseInt(form.minute || "0");
-  const localHr = parseInt(form.hour || "9");
-  const utcHr = localHourToUtc(localHr);
-  const min = String(localMin);
-  const hr = String(utcHr);
-
-  switch (form.frequency) {
-    case "every_n_minutes":
-      return `*/${form.intervalMinutes || "30"} * * * *`;
-    case "hourly":
-      return `${min} * * * *`;
-    case "daily":
-      return `${min} ${hr} * * *`;
-    case "weekly": {
-      if (form.daysOfWeek.length === 0) return `${min} ${hr} * * *`;
-      const dayNames = form.daysOfWeek
-        .sort((a, b) => a - b)
-        .map((d) => DAY_LABELS[d - 1]?.toUpperCase().slice(0, 3))
-        .join(",");
-      return `${min} ${hr} * * ${dayNames}`;
-    }
-    case "monthly":
-      return `${min} ${hr} ${form.dayOfMonth || "1"} * *`;
-    default:
-      return `${min} ${hr} * * *`;
-  }
-}
-
-function describeCron(cron: string): string {
-  const parts = cron.split(" ");
-  if (parts.length !== 5) return cron;
-  const [min, hr, dom, , dow] = parts;
-
-  if (min?.startsWith("*/")) {
-    return `Every ${min.slice(2)} minutes`;
-  }
-  if (hr === "*" && dom === "*") {
-    return `Hourly at :${min?.padStart(2, "0")}`;
-  }
-
-  // Convert UTC cron hour to local for display
-  const utcHour = parseInt(hr || "0");
-  const localHour = utcHourToLocal(utcHour);
-  const timeStr = formatTime(localHour, parseInt(min || "0"));
-
-  if (dow && dow !== "*") {
-    const dayStr = dow
-      .split(",")
-      .map((d) => d.slice(0, 3))
-      .map((d) => d.charAt(0) + d.slice(1).toLowerCase())
-      .join(", ");
-    return `${dayStr} at ${timeStr}`;
-  }
-  if (dom && dom !== "*") {
-    return `Monthly on day ${dom} at ${timeStr}`;
-  }
-  return `Daily at ${timeStr}`;
-}
-
-function formatTime(hour: number, minute: number): string {
-  const ampm = hour >= 12 ? "PM" : "AM";
-  const h = hour % 12 || 12;
-  return `${h}:${minute.toString().padStart(2, "0")} ${ampm}`;
-}
-
 function timeAgo(isoString: string): string {
   const now = Date.now();
   const then = new Date(isoString).getTime();
@@ -184,49 +102,6 @@ function timeAgo(isoString: string): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
-}
-
-function parseCronToForm(cron: string): Partial<ScheduleFormState> {
-  const parts = cron.split(" ");
-  if (parts.length !== 5) return {};
-  const [min, hr, dom, , dow] = parts;
-
-  if (min?.startsWith("*/")) {
-    return {
-      frequency: "every_n_minutes",
-      intervalMinutes: min.slice(2),
-    };
-  }
-  if (hr === "*") {
-    return { frequency: "hourly", minute: min || "0" };
-  }
-
-  // Convert UTC hour from cron to local for the form
-  const localHour = String(utcHourToLocal(parseInt(hr || "9")));
-
-  if (dow && dow !== "*") {
-    const days = dow.split(",").map((d) => {
-      const idx = DAY_LABELS.findIndex(
-        (l) => l.toUpperCase().slice(0, 3) === d.toUpperCase().slice(0, 3),
-      );
-      return idx + 1;
-    });
-    return {
-      frequency: "weekly",
-      hour: localHour,
-      minute: min || "0",
-      daysOfWeek: days,
-    };
-  }
-  if (dom && dom !== "*") {
-    return {
-      frequency: "monthly",
-      hour: localHour,
-      minute: min || "0",
-      dayOfMonth: dom,
-    };
-  }
-  return { frequency: "daily", hour: localHour, minute: min || "0" };
 }
 
 export default function SchedulesPage() {

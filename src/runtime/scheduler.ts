@@ -39,7 +39,7 @@ export class Scheduler {
     const callback = () => this.fireTask(task);
 
     if (task.scheduleType === "recurring" && task.cronExpression) {
-      const job = schedule.scheduleJob(task.cronExpression, callback);
+      const job = schedule.scheduleJob({ rule: task.cronExpression, tz: "Etc/UTC" }, callback);
       if (job) this.jobs.set(task.id, job);
     } else if (task.scheduleType === "once" && task.scheduledAt) {
       const date = new Date(task.scheduledAt);
