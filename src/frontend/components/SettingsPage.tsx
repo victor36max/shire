@@ -7,6 +7,7 @@ import AppLayout from "./AppLayout";
 import ThemeSelector from "./ThemeSelector";
 import { navigate } from "../lib/navigate";
 import ActivityLog from "./ActivityLog";
+import AlertChannelTab from "./AlertChannelTab";
 import { useProjectId, useActivity } from "../lib/hooks";
 import { useSubscription } from "../lib/ws";
 import { useQueryClient } from "@tanstack/react-query";
@@ -55,6 +56,7 @@ export default function SettingsPage() {
         <Tabs defaultValue="activity">
           <TabsList>
             <TabsTrigger value="activity">Activity Log</TabsTrigger>
+            <TabsTrigger value="alerts">Alerts</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
           </TabsList>
 
@@ -65,6 +67,10 @@ export default function SettingsPage() {
               loadingMore={isFetchingNextPage}
               onLoadMore={fetchNextPage}
             />
+          </TabsContent>
+
+          <TabsContent value="alerts" className="pt-4">
+            {projectId && <AlertChannelTab projectId={projectId} />}
           </TabsContent>
 
           <TabsContent value="appearance" className="space-y-4 pt-4">

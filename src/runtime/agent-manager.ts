@@ -12,6 +12,7 @@ import {
   type SerializedMessage,
 } from "../events";
 import * as agentsService from "../services/agents";
+import * as alertChannelsService from "../services/alert-channels";
 import * as workspace from "../services/workspace";
 import * as skillsService from "../services/skills";
 import { createHarness, type Harness, type HarnessType } from "./harness";
@@ -705,6 +706,9 @@ export class AgentManager {
         continue;
       }
 
+      // Collect extra YAML fields beyond `to` and `text`
+      const { to: _to, text: _text, ...extra } = msg as unknown as Record<string, unknown>;
+
       // Emit outbox event — coordinator handles the actual routing
       bus.emit(`project:${this.projectId}:outbox`, {
         type: "outbox_message",
@@ -713,6 +717,7 @@ export class AgentManager {
           fromAgentName: this.agentName,
           toAgentName: msg.to,
           text: msg.text,
+          ...(Object.keys(extra).length > 0 ? { extra } : {}),
         },
       });
       await unlink(path);
@@ -835,7 +840,7 @@ export class AgentManager {
     const projectDoc = workspace.projectDocPath(this.projectId);
     const projectRoot = workspace.root(this.projectId);
 
-    return `# Inter-Agent Communication
+    let prompt = `# Inter-Agent Communication
 
 You are **${this.agentName}**, one of several agents running in a shared environment.
 
@@ -910,6 +915,45 @@ Violations include:
 - Modifying system files or dotfiles outside the project root
 - Using Bash to pipe, redirect, or copy data to paths outside \`${projectRoot}\`
 `;
+
+    // Conditionally inject alert instructions when a channel is configured
+    if (alertChannelsService.hasAlertChannel(this.projectId)) {
+      prompt += `
+## Sending Alerts / Notifications
+
+When something important happens that the user should know about — such as task completion,
+errors, build failures, or warnings — write a YAML file to your **outbox** with a special target:
+
+**Path:** \`${outboxPath.replace("<any-name>", "<alert-name>")}\`
+
+**Format:**
+\`\`\`yaml
+to: system_alert
+text: alert
+title: Short summary of the alert
+body: Detailed description of what happened
+severity: info  # one of: info | success | warning | error
+\`\`\`
+
+The \`text\` field is required by the outbox system. Set it to any non-empty string (e.g. "alert").
+
+The system will deliver the alert to the user's configured notification channel.
+Alert files are removed once delivered — this is expected.
+
+**Severity levels:**
+- \`info\` — general status updates
+- \`success\` — task completed successfully
+- \`warning\` — potential problems that may need attention
+- \`error\` — failures and critical issues
+
+**Guidelines:**
+- Keep titles concise (under 100 characters)
+- Include actionable details in the body
+- Don't send alerts for routine operations — only for notable events
+`;
+    }
+
+    return prompt;
   }
 
   // --- Broadcasting ---

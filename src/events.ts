@@ -90,6 +90,7 @@ export type OutboxBusEvent = {
     fromAgentName: string;
     toAgentName: string;
     text: string;
+    extra?: Record<string, unknown>;
   };
 };
 

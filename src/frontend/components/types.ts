@@ -104,6 +104,30 @@ export interface ScheduledTask {
   lastRunAt: string | null;
 }
 
+export type ChannelType = "discord" | "slack" | "telegram";
+
+export interface AlertChannel {
+  id: string;
+  projectId: string;
+  channelType: ChannelType;
+  webhookUrl: string;
+  chatId: string | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const channelTypeLabel = (type: ChannelType): string => {
+  switch (type) {
+    case "discord":
+      return "Discord";
+    case "slack":
+      return "Slack";
+    case "telegram":
+      return "Telegram";
+  }
+};
+
 export const harnessLabel = (harness: HarnessType): string => {
   switch (harness) {
     case "claude_code":
