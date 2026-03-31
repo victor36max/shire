@@ -1,7 +1,7 @@
 import { join } from "path";
 import { homedir } from "os";
-import { mkdir } from "fs/promises";
-import { mkdirSync, rmSync } from "fs";
+import { access, mkdir, writeFile } from "fs/promises";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 
 export function projectsDir(): string {
   return process.env.SHIRE_PROJECTS_DIR || join(homedir(), ".shire", "projects");
@@ -60,6 +60,24 @@ export function skillDir(
   return join(skillsDir(projectId, agentId, harness), skillName);
 }
 
+export function claudeConfigDir(projectId: string, agentId: string): string {
+  return join(agentDir(projectId, agentId), ".claude");
+}
+
+export function claudeSettingsPath(projectId: string, agentId: string): string {
+  return join(claudeConfigDir(projectId, agentId), "settings.json");
+}
+
+const AGENT_CLAUDE_SETTINGS = JSON.stringify(
+  {
+    permissions: {
+      allow: ["Edit(.claude/**)", "Write(.claude/**)"],
+    },
+  },
+  null,
+  2,
+);
+
 export function sharedDir(projectId: string): string {
   return join(root(projectId), "shared");
 }
@@ -86,7 +104,14 @@ export async function ensureAgentDirs(projectId: string, agentId: string): Promi
     mkdir(outboxDir(projectId, agentId), { recursive: true }),
     mkdir(attachmentsDir(projectId, agentId), { recursive: true }),
     mkdir(join(attachmentsDir(projectId, agentId), "outbox"), { recursive: true }),
+    mkdir(claudeConfigDir(projectId, agentId), { recursive: true }),
   ]);
+  const settingsPath = claudeSettingsPath(projectId, agentId);
+  try {
+    await access(settingsPath);
+  } catch {
+    await writeFile(settingsPath, AGENT_CLAUDE_SETTINGS, "utf-8");
+  }
 }
 
 /** Sync versions for use inside DB transactions */
@@ -102,6 +127,11 @@ export function ensureAgentDirsSync(projectId: string, agentId: string): void {
   mkdirSync(outboxDir(projectId, agentId), { recursive: true });
   mkdirSync(attachmentsDir(projectId, agentId), { recursive: true });
   mkdirSync(join(attachmentsDir(projectId, agentId), "outbox"), { recursive: true });
+  mkdirSync(claudeConfigDir(projectId, agentId), { recursive: true });
+  const settingsPath = claudeSettingsPath(projectId, agentId);
+  if (!existsSync(settingsPath)) {
+    writeFileSync(settingsPath, AGENT_CLAUDE_SETTINGS, "utf-8");
+  }
 }
 
 export function removeAgentDirSync(projectId: string, agentId: string): void {
