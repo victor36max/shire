@@ -48,7 +48,7 @@ import {
   useToggleSchedule,
   useRunScheduleNow,
 } from "../lib/hooks";
-import { timeAgo } from "../lib/time";
+import { parseUtcTimestamp, timeAgo } from "../lib/time";
 import { useSubscription } from "../lib/ws";
 
 interface ScheduleFormState extends CronFormFields {
@@ -84,7 +84,7 @@ function localToUtcIso(date: string, time: string): string {
 
 /** Convert a UTC ISO string to local date and time strings */
 function utcIsoToLocal(isoString: string): { date: string; time: string } {
-  const d = new Date(isoString);
+  const d = parseUtcTimestamp(isoString);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -257,7 +257,7 @@ export default function SchedulesPage() {
                       {task.scheduleType === "recurring" && task.cronExpression
                         ? describeCron(task.cronExpression)
                         : task.scheduledAt
-                          ? new Date(task.scheduledAt).toLocaleString()
+                          ? parseUtcTimestamp(task.scheduledAt).toLocaleString()
                           : "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
