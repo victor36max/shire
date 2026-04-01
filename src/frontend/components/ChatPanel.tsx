@@ -610,7 +610,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
             ref={fileInputRef}
             type="file"
             multiple
-            className="hidden"
+            className="absolute w-0 h-0 overflow-hidden opacity-0"
             onChange={handleFileSelect}
           />
           {uploadError && (
