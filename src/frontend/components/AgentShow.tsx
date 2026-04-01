@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Badge } from "./ui/badge";
 import { Button, buttonVariants } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import AppLayout from "./AppLayout";
-import { navigate } from "../lib/navigate";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import { ChevronLeft, MoreHorizontal, Pencil } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
@@ -38,6 +37,7 @@ const isRunning = (status: string) =>
   status === "active" || status === "starting" || status === "bootstrapping";
 
 export default function AgentShow() {
+  const navigate = useNavigate();
   const { agentName } = useParams<{ agentName: string }>();
   const { projectId, projectName } = useProjectId();
 

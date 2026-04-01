@@ -34,9 +34,11 @@ describe("ErrorBoundary", () => {
 
   it("calls window.location.reload when clicking Reload Page", () => {
     const reloadMock = mock(() => {});
+    const originalLocation = window.location;
     Object.defineProperty(window, "location", {
       value: { ...window.location, reload: reloadMock },
       writable: true,
+      configurable: true,
     });
 
     render(
@@ -46,5 +48,12 @@ describe("ErrorBoundary", () => {
     );
     fireEvent.click(screen.getByText("Reload Page"));
     expect(reloadMock).toHaveBeenCalled();
+
+    // Restore original location to avoid breaking other tests
+    Object.defineProperty(window, "location", {
+      value: originalLocation,
+      writable: true,
+      configurable: true,
+    });
   });
 });

@@ -5,5 +5,6 @@ export * from "./activity";
 export * from "./catalog";
 export * from "./settings";
 export * from "./shared-drive";
+export * from "./uploads";
 export * from "./schedules";
 export * from "./alert-channels";

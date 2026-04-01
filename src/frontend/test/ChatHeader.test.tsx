@@ -1,18 +1,11 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, mock } from "bun:test";
+import { http, HttpResponse } from "msw";
+import { server } from "./msw-server";
 import ChatHeader from "../components/ChatHeader";
 import { type AgentOverview } from "../components/types";
 import { renderWithProviders } from "./test-utils";
-import * as hooksModule from "../hooks";
-
-const clearMutate = mock(() => {});
-
-mock.module("../hooks", () => ({
-  ...hooksModule,
-  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-  useClearSession: () => ({ mutate: clearMutate, isPending: false }),
-}));
 
 const agent: AgentOverview = {
   id: "a1",
@@ -22,26 +15,51 @@ const agent: AgentOverview = {
   unreadCount: 0,
 };
 
+/**
+ * ChatHeader calls useProjectId() which reads projectName from useParams()
+ * and resolves the project id from GET /api/projects.
+ * We render at route "/projects/test-project" and let the default MSW handler
+ * return [{ id: "p1", name: "test-project", status: "running" }].
+ */
+function renderChatHeader(props?: { onMenuToggle?: () => void }) {
+  return renderWithProviders(<ChatHeader agent={agent} {...props} />, {
+    route: "/projects/test-project",
+    routePath: "/projects/:projectName",
+  });
+}
+
 describe("ChatHeader", () => {
   it("renders agent name and status", () => {
-    renderWithProviders(<ChatHeader agent={agent} />);
+    renderChatHeader();
     expect(screen.getByText("test-agent")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
   });
 
-  it("calls clearSession.mutate when Clear Session is clicked", async () => {
-    clearMutate.mockClear();
+  it("sends clear session request when Clear Session is clicked", async () => {
+    let clearCalled = false;
+    server.use(
+      http.post("*/api/projects/:id/agents/:aid/clear", () => {
+        clearCalled = true;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
     const user = userEvent.setup();
-    renderWithProviders(<ChatHeader agent={agent} />);
+    renderChatHeader();
+
+    // Wait for project data to load so projectId is resolved
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Agent options" })).toBeInTheDocument();
+    });
 
     await user.click(screen.getByRole("button", { name: "Agent options" }));
     await user.click(screen.getByText("Clear Session"));
 
-    expect(clearMutate).toHaveBeenCalledWith("a1");
+    await waitFor(() => expect(clearCalled).toBe(true));
   });
 
   it("renders mobile menu toggle when onMenuToggle is provided", () => {
-    renderWithProviders(<ChatHeader agent={agent} onMenuToggle={mock(() => {})} />);
+    renderChatHeader({ onMenuToggle: mock(() => {}) });
     expect(screen.getByRole("button", { name: "Open menu" })).toBeInTheDocument();
   });
 });

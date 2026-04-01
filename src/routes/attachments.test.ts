@@ -3,7 +3,7 @@ import { createTestDb } from "../test/setup";
 import { createApp } from "../server";
 import { ProjectManager } from "../runtime/project-manager";
 import { Scheduler } from "../runtime/scheduler";
-import { mkdirSync, writeFileSync, rmSync } from "fs";
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import * as workspace from "../services/workspace";
@@ -162,5 +162,104 @@ describe("GET /api/projects/:id/agents/:aid/attachments/:attId/:filename", () =>
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/gif");
+  });
+});
+
+function multipartUpload(path: string, file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return app.request(path, { method: "POST", body: formData });
+}
+
+describe("POST /api/projects/:id/agents/:aid/attachments", () => {
+  it("uploads a file and returns metadata", async () => {
+    const file = new File(["hello world"], "test.txt", { type: "text/plain" });
+    const res = await multipartUpload(
+      `/api/projects/${projectId}/agents/${agentId}/attachments`,
+      file,
+    );
+
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.filename).toBe("test.txt");
+    expect(data.content_type).toBe("text/plain");
+    expect(data.size).toBe(11);
+    expect(typeof data.id).toBe("string");
+
+    // Verify file written to disk
+    const attDir = workspace.attachmentDir(projectId, agentId, data.id as string);
+    expect(existsSync(join(attDir, "test.txt"))).toBe(true);
+    expect(readFileSync(join(attDir, "test.txt"), "utf-8")).toBe("hello world");
+  });
+
+  it("rejects request without file field", async () => {
+    const res = await app.request(`/api/projects/${projectId}/agents/${agentId}/attachments`, {
+      method: "POST",
+      body: new FormData(),
+    });
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.error).toBe("Missing file field");
+  });
+
+  it("rejects filename with path traversal", async () => {
+    const file = new File(["bad"], "../../etc/passwd", { type: "text/plain" });
+    const res = await multipartUpload(
+      `/api/projects/${projectId}/agents/${agentId}/attachments`,
+      file,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects path traversal in projectId", async () => {
+    const file = new File(["x"], "ok.txt", { type: "text/plain" });
+    const res = await multipartUpload(
+      `/api/projects/..%2F..%2Fetc/agents/${agentId}/attachments`,
+      file,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects path traversal in agentId", async () => {
+    const file = new File(["x"], "ok.txt", { type: "text/plain" });
+    const res = await multipartUpload(
+      `/api/projects/${projectId}/agents/..%2F..%2Fetc/attachments`,
+      file,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("resolves project by name", async () => {
+    const file = new File(["data"], "doc.pdf", { type: "application/pdf" });
+    const res = await multipartUpload(
+      `/api/projects/test-project/agents/${agentId}/attachments`,
+      file,
+    );
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.filename).toBe("doc.pdf");
+  });
+
+  it("creates unique attachment IDs for separate uploads", async () => {
+    const file1 = new File(["a"], "a.txt", { type: "text/plain" });
+    const file2 = new File(["b"], "b.txt", { type: "text/plain" });
+
+    const res1 = await multipartUpload(
+      `/api/projects/${projectId}/agents/${agentId}/attachments`,
+      file1,
+    );
+    const res2 = await multipartUpload(
+      `/api/projects/${projectId}/agents/${agentId}/attachments`,
+      file2,
+    );
+
+    const data1 = (await res1.json()) as Record<string, unknown>;
+    const data2 = (await res2.json()) as Record<string, unknown>;
+    expect(data1.id).not.toBe(data2.id);
+
+    // Both files exist on disk
+    const attDir = workspace.attachmentsDir(projectId, agentId);
+    const entries = readdirSync(attDir).filter((e) => e !== "outbox");
+    expect(entries.length).toBe(2);
   });
 });

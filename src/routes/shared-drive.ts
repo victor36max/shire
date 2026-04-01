@@ -124,26 +124,35 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       return c.json({ ok: true }, 201);
     },
   )
-  .post(
-    "/projects/:id/shared-drive/upload",
-    zValidator(
-      "json",
-      z.object({ name: z.string(), content: z.string(), path: z.string().optional() }),
-    ),
-    async (c) => {
-      const projectId = resolveProjectId(c.req.param("id"));
-      if (!projectId) return c.json({ error: "Project not found" }, 404);
+  .post("/projects/:id/shared-drive/upload", async (c) => {
+    const projectId = resolveProjectId(c.req.param("id"));
+    if (!projectId) return c.json({ error: "Project not found" }, 404);
 
-      const sharedRoot = workspace.sharedDir(projectId);
-      const { name, content, path: parentPath } = c.req.valid("json");
-      const fullPath = safePath(sharedRoot, join(parentPath ?? "/", name));
-      if (!fullPath) return c.json({ error: "Invalid path" }, 400);
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!(file instanceof File)) {
+      return c.json({ error: "Missing file field" }, 400);
+    }
 
-      const decoded = Buffer.from(content, "base64");
-      await writeFile(fullPath, decoded);
-      return c.json({ ok: true }, 201);
-    },
-  )
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      return c.json({ error: "File exceeds 50 MB limit" }, 413);
+    }
+
+    const safeName = basename(file.name);
+    if (!safeName || safeName !== file.name || file.name.includes("..")) {
+      return c.json({ error: "Invalid filename" }, 400);
+    }
+
+    const parentPath = typeof body.path === "string" ? body.path : "/";
+    const sharedRoot = workspace.sharedDir(projectId);
+    const fullPath = safePath(sharedRoot, join(parentPath, safeName));
+    if (!fullPath) return c.json({ error: "Invalid path" }, 400);
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await writeFile(fullPath, buffer);
+    return c.json({ ok: true }, 201);
+  })
   .delete("/projects/:id/shared-drive", zValidator("query", requiredPathQuery), async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);

@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Paperclip, Square, X, FileIcon, Download, Upload } from "lucide-react";
+import { useDropzone, type FileRejection } from "react-dropzone";
+import { Paperclip, Square, X, FileIcon, Download, Upload, Check, AlertCircle } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -15,6 +16,7 @@ import {
   useSendMessage,
   useInterruptAgent,
   useRestartAgent,
+  useUploadAttachment,
 } from "../hooks";
 import { messageTimeLabel, dateSeparatorLabel, isSameDay } from "../lib/time";
 import { useTickingClock } from "../lib/useTickingClock";
@@ -41,10 +43,13 @@ export interface Message {
 }
 
 interface PendingFile {
+  localId: string;
   name: string;
   size: number;
-  base64: string;
   content_type: string;
+  uploadId: string | null;
+  progress: number; // 0 = queued, 1-99 = uploading, 100 = done
+  error?: string;
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -254,6 +259,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     isFetchingNextPage,
   } = useMessages(projectId, agent.id);
   const sendMessage = useSendMessage(projectId ?? "");
+  const uploadAttachment = useUploadAttachment(projectId ?? "");
   const interruptAgent = useInterruptAgent(projectId ?? "");
   const restartAgent = useRestartAgent(projectId ?? "");
 
@@ -270,9 +276,6 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   const [streamingText, setStreamingText] = React.useState("");
   const [pendingFiles, setPendingFiles] = React.useState<PendingFile[]>([]);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
-  const [isDragging, setIsDragging] = React.useState(false);
-  const dragCounterRef = React.useRef(0);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -353,67 +356,88 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     }
   }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
-  const processFiles = React.useCallback((files: File[]) => {
-    const rejected: string[] = [];
-
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        rejected.push(`"${file.name}" exceeds the 50 MB limit`);
-        continue;
+  const onDrop = React.useCallback(
+    (accepted: File[], rejected: FileRejection[]) => {
+      if (rejected.length > 0) {
+        const msg = rejected
+          .map((r) => `"${r.file.name}": ${r.errors.map((e) => e.message).join(", ")}`)
+          .join("; ");
+        setUploadError((prev) => (prev ? `${prev}; ${msg}` : msg));
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        setPendingFiles((prev) => [
-          ...prev,
+      for (const file of accepted) {
+        const lid = crypto.randomUUID();
+        const pending: PendingFile = {
+          localId: lid,
+          name: file.name,
+          size: file.size,
+          content_type: file.type || "application/octet-stream",
+          uploadId: null,
+          progress: 0,
+        };
+        setPendingFiles((prev) => [...prev, pending]);
+
+        uploadAttachment.mutate(
           {
-            name: file.name,
-            size: file.size,
-            base64,
-            content_type: file.type || "application/octet-stream",
+            agentId: agent.id,
+            file,
+            onProgress: (percent) => {
+              setPendingFiles((prev) =>
+                prev.map((f) => (f.localId === lid ? { ...f, progress: percent } : f)),
+              );
+            },
           },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    }
-
-    if (rejected.length > 0) {
-      const msg = rejected.join(", ");
-      setUploadError((prev) => (prev ? `${prev}, ${msg}` : msg));
-    }
-  }, []);
-
-  const handleFileSelect = React.useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files) return;
-      processFiles(Array.from(files));
-      // Reset so the same file can be selected again
-      e.target.value = "";
+          {
+            onSuccess: (result) => {
+              setPendingFiles((prev) =>
+                prev.map((f) =>
+                  f.localId === lid ? { ...f, uploadId: result.id, progress: 100 } : f,
+                ),
+              );
+            },
+            onError: (err) => {
+              const errorMsg = err instanceof Error ? err.message : "Upload failed";
+              setPendingFiles((prev) =>
+                prev.map((f) => (f.localId === lid ? { ...f, error: errorMsg, progress: 0 } : f)),
+              );
+            },
+          },
+        );
+      }
     },
-    [processFiles],
+    [agent.id, uploadAttachment],
   );
+
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop,
+    multiple: true,
+    maxSize: MAX_FILE_SIZE,
+    noClick: true,
+    noKeyboard: true,
+    disabled: agent.status !== "active",
+  });
 
   const removePendingFile = React.useCallback((index: number) => {
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const anyPending = pendingFiles.some((f) => f.uploadId === null && !f.error);
+
   const handleSend = () => {
     const text = input.trim();
     if (!text && pendingFiles.length === 0) return;
+    if (anyPending) return;
 
-    const attachments =
-      pendingFiles.length > 0
-        ? pendingFiles.map((f) => ({
-            name: f.name,
-            content: f.base64,
-            content_type: f.content_type,
-          }))
-        : undefined;
+    const attachmentIds = pendingFiles
+      .filter((f) => f.uploadId !== null)
+      .map((f) => f.uploadId as string);
 
     markBusy();
     sendMessage.mutate(
-      { agentId: agent.id, text: text || "", attachments },
+      {
+        agentId: agent.id,
+        text: text || "",
+        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+      },
       {
         onSuccess: () => {
           setInput("");
@@ -429,57 +453,15 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     );
   };
 
-  // Drag-and-drop handlers
-  const handleDragEnter = React.useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      if (agent.status !== "active") return;
-      dragCounterRef.current += 1;
-      if (dragCounterRef.current === 1) setIsDragging(true);
-    },
-    [agent.status],
-  );
-
-  const handleDragLeave = React.useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      if (agent.status !== "active") return;
-      dragCounterRef.current -= 1;
-      if (dragCounterRef.current === 0) setIsDragging(false);
-    },
-    [agent.status],
-  );
-
-  const handleDragOver = React.useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-  }, []);
-
-  const handleDrop = React.useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      dragCounterRef.current = 0;
-      setIsDragging(false);
-      if (agent.status !== "active") return;
-      const files = Array.from(e.dataTransfer.files);
-      if (files.length > 0) processFiles(files);
-    },
-    [agent.status, processFiles],
-  );
-
   // Re-render every 60s so relative timestamps stay fresh
   useTickingClock(60_000);
 
   const hasMessages = messages.length > 0 || streamingText.length > 0;
 
   return (
-    <div
-      className="flex flex-col h-full relative"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      {isDragging && (
+    <div {...getRootProps()} className="flex flex-col h-full relative">
+      <input {...getInputProps()} />
+      {isDragActive && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg">
           <div className="flex flex-col items-center gap-2 text-primary">
             <Upload className="h-8 w-8" />
@@ -606,13 +588,6 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
       </div>
       {agent.status === "active" ? (
         <div className="border-t border-border p-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-          />
           {uploadError && (
             <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-destructive/10 text-destructive text-xs">
               <span className="flex-1">{uploadError}</span>
@@ -629,19 +604,35 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
             <div className="flex flex-wrap gap-2 mb-2">
               {pendingFiles.map((file, i) => (
                 <div
-                  key={`${file.name}-${i}`}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-muted/50 text-xs"
+                  key={file.localId}
+                  className="flex flex-col rounded-md border border-border bg-muted/50 text-xs overflow-hidden"
                 >
-                  <FileIcon className="h-3 w-3 text-muted-foreground" />
-                  <span className="truncate max-w-32">{file.name}</span>
-                  <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
-                  <button
-                    type="button"
-                    onClick={() => removePendingFile(i)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                  <div className="flex items-center gap-1.5 px-2 py-1">
+                    {file.error ? (
+                      <AlertCircle className="h-3 w-3 text-destructive shrink-0" />
+                    ) : file.progress === 100 ? (
+                      <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    ) : (
+                      <FileIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                    )}
+                    <span className="truncate max-w-32">{file.name}</span>
+                    <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+                    <button
+                      type="button"
+                      onClick={() => removePendingFile(i)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {file.progress > 0 && file.progress < 100 && (
+                    <div className="h-0.5 bg-muted">
+                      <div
+                        className="h-full bg-primary transition-all duration-200"
+                        style={{ width: `${file.progress}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -651,7 +642,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
               variant="ghost"
               size="icon"
               className="shrink-0"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={open}
               aria-label="Attach file"
             >
               <Paperclip className="h-4 w-4" />
@@ -684,7 +675,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
                 <Square className="h-4 w-4 fill-current" />
               </Button>
             ) : (
-              <Button onClick={handleSend} disabled={sendMessage.isPending}>
+              <Button onClick={handleSend} disabled={sendMessage.isPending || anyPending}>
                 Send
               </Button>
             )}

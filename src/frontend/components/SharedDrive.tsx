@@ -26,13 +26,13 @@ import Markdown from "./Markdown";
 import { ChevronLeft, Folder, File, X, Download } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
-import { navigate as navigateTo } from "../lib/navigate";
+import { useNavigate } from "react-router-dom";
 import {
   useProjectId,
   useSharedDrive,
   useCreateDirectory,
   useDeleteSharedFile,
-  useUploadFile,
+  useUploadSharedDriveFile,
   usePreviewFile,
 } from "../hooks";
 
@@ -206,6 +206,7 @@ function PreviewContent({
 }
 
 export default function SharedDrive() {
+  const navigateTo = useNavigate();
   const { projectId, projectName } = useProjectId();
   const [currentPath, setCurrentPath] = React.useState("/");
 
@@ -220,7 +221,8 @@ export default function SharedDrive() {
 
   const createDirectory = useCreateDirectory(projectId ?? "");
   const deleteSharedFile = useDeleteSharedFile(projectId ?? "");
-  const uploadFile = useUploadFile(projectId ?? "");
+  const uploadFile = useUploadSharedDriveFile(projectId ?? "");
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
   const previewFileMutation = usePreviewFile(projectId ?? "");
 
   const [newFolderOpen, setNewFolderOpen] = React.useState(false);
@@ -316,13 +318,22 @@ export default function SharedDrive() {
     }
 
     setUploadError(null);
+    setUploadProgress(0);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      uploadFile.mutate({ name: file.name, content: base64, path: currentPath });
-    };
-    reader.readAsDataURL(file);
+    uploadFile.mutate(
+      {
+        file,
+        path: currentPath,
+        onProgress: (percent) => setUploadProgress(percent),
+      },
+      {
+        onSuccess: () => setUploadProgress(null),
+        onError: (err) => {
+          setUploadProgress(null);
+          setUploadError(err instanceof Error ? err.message : "Upload failed");
+        },
+      },
+    );
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -367,6 +378,14 @@ export default function SharedDrive() {
         </div>
 
         {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
+        {uploadProgress !== null && (
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-200"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        )}
 
         {/* File Table + Preview Panel */}
         <div className="flex gap-4">

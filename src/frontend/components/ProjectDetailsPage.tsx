@@ -6,10 +6,11 @@ import { Label } from "./ui/label";
 import { ChevronLeft } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import AppLayout from "./AppLayout";
-import { navigate } from "../lib/navigate";
+import { useNavigate } from "react-router-dom";
 import { useProjectId, useProjectDoc, useRenameProject, useSaveProjectDoc } from "../hooks";
 
 export default function ProjectDetailsPage() {
+  const navigate = useNavigate();
   const { projectId, projectName } = useProjectId();
   const { data: projectDoc, isLoading: docLoading } = useProjectDoc(projectId);
   const renameProject = useRenameProject(projectId ?? "");

@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import AppLayout from "./AppLayout";
-import { navigate } from "../lib/navigate";
+import { useNavigate } from "react-router-dom";
 import { MoreHorizontal } from "lucide-react";
 import { PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
@@ -53,6 +53,7 @@ function projectStatusVariant(status: string): "default" | "secondary" | "destru
 const PROJECT_NAME_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
 export default function ProjectDashboard() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: projects = [], isLoading, isError, error, refetch } = useProjects();
   const createProject = useCreateProject();

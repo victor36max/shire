@@ -48,6 +48,7 @@
     "node-schedule": "^2.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-dropzone": "^15.0.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.0.0",
     "remark-gfm": "^4.0.1",
@@ -75,6 +76,7 @@
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "msw": "^2.12.14",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.7.0"

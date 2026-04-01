@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
+import { readdir, stat } from "fs/promises";
+import * as workspace from "../services/workspace";
+import { mimeFromPath } from "../utils/mime";
 import type { AppEnv } from "../types";
 
 const skillSchema = z.object({
@@ -105,15 +108,7 @@ export const agentRoutes = new Hono<AppEnv>()
       "json",
       z.object({
         text: z.string(),
-        attachments: z
-          .array(
-            z.object({
-              name: z.string().regex(/^[^/\\]+$/, "Filename must not contain path separators"),
-              content: z.string(),
-              content_type: z.string(),
-            }),
-          )
-          .optional(),
+        attachmentIds: z.array(z.string()).optional(),
       }),
     ),
     async (c) => {
@@ -121,11 +116,53 @@ export const agentRoutes = new Hono<AppEnv>()
       const coordinator = pm.getCoordinator(c.req.param("id"));
       if (!coordinator) return c.json({ error: "Project not found" }, 404);
 
-      const agent = coordinator.getAgent(c.req.param("aid"));
-      if (!agent) return c.json({ error: "Agent not found" }, 404);
+      const agentMgr = coordinator.getAgent(c.req.param("aid"));
+      if (!agentMgr) return c.json({ error: "Agent not found" }, 404);
 
-      const { text, attachments } = c.req.valid("json");
-      const result = await agent.sendMessage(text, "user", { attachments });
+      const { text, attachmentIds } = c.req.valid("json");
+
+      // Resolve attachment IDs to metadata — files are already on disk
+      const attachments: Array<{
+        id: string;
+        filename: string;
+        content_type: string;
+        size: number;
+      }> = [];
+
+      if (attachmentIds && attachmentIds.length > 0) {
+        const projectId = coordinator.projectId;
+        const agentId = c.req.param("aid");
+
+        for (const attId of attachmentIds) {
+          if (attId.includes("..") || attId.includes("/")) {
+            return c.json({ error: `Invalid attachment ID: ${attId}` }, 400);
+          }
+          const dir = workspace.attachmentDir(projectId, agentId, attId);
+          let files: string[];
+          try {
+            const entries = await readdir(dir);
+            files = entries.filter((f) => !f.startsWith("."));
+          } catch {
+            return c.json({ error: `Attachment not found: ${attId}` }, 404);
+          }
+          if (files.length === 0) {
+            return c.json({ error: `Attachment empty: ${attId}` }, 404);
+          }
+          const filename = files[0];
+          const filePath = workspace.attachmentPath(projectId, agentId, attId, filename);
+          const fileStat = await stat(filePath);
+          attachments.push({
+            id: attId,
+            filename,
+            content_type: mimeFromPath(filename),
+            size: fileStat.size,
+          });
+        }
+      }
+
+      const result = await agentMgr.sendMessage(text, "user", {
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
       if (!result.ok) return c.json({ error: result.error }, 422);
       return c.json({ ok: true, message: result.message });
     },
