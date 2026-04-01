@@ -1,6 +1,8 @@
 import { sqliteTable, text, integer, unique, index } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
+const utcNow = () => new Date().toISOString();
+
 export const projects = sqliteTable("projects", {
   id: text("id")
     .primaryKey()
@@ -8,10 +10,12 @@ export const projects = sqliteTable("projects", {
   name: text("name").notNull().unique(),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(datetime('now'))`)
+    .$defaultFn(utcNow),
   updatedAt: text("updated_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(datetime('now'))`)
+    .$defaultFn(utcNow),
 });
 
 export const agents = sqliteTable(
@@ -31,10 +35,12 @@ export const agents = sqliteTable(
     systemPrompt: text("system_prompt"),
     createdAt: text("created_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(sql`(datetime('now'))`)
+      .$defaultFn(utcNow),
     updatedAt: text("updated_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(sql`(datetime('now'))`)
+      .$defaultFn(utcNow),
   },
   (t) => [unique("agents_project_name").on(t.projectId, t.name)],
 );
@@ -53,7 +59,8 @@ export const messages = sqliteTable(
     content: text("content", { mode: "json" }).notNull().$type<Record<string, unknown>>(),
     createdAt: text("created_at")
       .notNull()
-      .default(sql`(datetime('now'))`),
+      .default(sql`(datetime('now'))`)
+      .$defaultFn(utcNow),
   },
   (t) => [index("idx_messages_agent").on(t.projectId, t.agentId, t.id)],
 );
@@ -77,10 +84,12 @@ export const scheduledTasks = sqliteTable("scheduled_tasks", {
   lastRunAt: text("last_run_at"),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(datetime('now'))`)
+    .$defaultFn(utcNow),
   updatedAt: text("updated_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(datetime('now'))`)
+    .$defaultFn(utcNow),
 });
 
 export type AlertSeverity = "info" | "success" | "warning" | "error";
@@ -107,10 +116,12 @@ export const alertChannels = sqliteTable("alert_channels", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(datetime('now'))`)
+    .$defaultFn(utcNow),
   updatedAt: text("updated_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(datetime('now'))`)
+    .$defaultFn(utcNow),
 });
 
 export type Project = typeof projects.$inferSelect;
