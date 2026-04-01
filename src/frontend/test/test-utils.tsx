@@ -72,8 +72,17 @@ export function renderHookWithProviders<Result, Props>(
 }
 
 /**
- * Poll-based waitFor for happy-dom, which doesn't support MutationObserver-based
- * change detection needed by testing-library's waitFor for async React Query updates.
+ * Poll-based alternative to testing-library's `waitFor`.
+ *
+ * Use this instead of `waitFor` when the expected UI depends on a **waterfall of
+ * multiple async queries** (e.g. projects query resolves → sets projectId → messages
+ * query fires → resolves → final render). In that scenario, happy-dom's
+ * MutationObserver doesn't fire reliably between React state updates, so
+ * testing-library's `waitFor` catches an intermediate DOM state, tries once,
+ * and gives up. This helper simply polls every 50ms with setTimeout.
+ *
+ * For tests that only need a single query to resolve, the standard `waitFor`
+ * from @testing-library/react works fine.
  */
 export async function waitForText(
   text: string | RegExp,
