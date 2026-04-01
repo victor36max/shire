@@ -85,12 +85,16 @@ export class OpenCodeHarness implements Harness {
     const client = await this.ensureClient();
     if (this.config?.resume) {
       const result = await client.session.get({ path: { id: this.config.resume } });
-      return result.data!.id;
+      const id = result.data?.id;
+      if (!id) throw new Error(`OpenCode session not found: ${this.config.resume}`);
+      return id;
     }
     const result = await client.session.create({
       query: { directory: this.config?.cwd },
     });
-    return result.data!.id;
+    const id = result.data?.id;
+    if (!id) throw new Error("Failed to create OpenCode session");
+    return id;
   }
 
   private async ensureEventStream(): Promise<void> {
@@ -199,10 +203,20 @@ export class OpenCodeHarness implements Harness {
         const { sessionID, error } = event.properties;
         if (sessionID && this.sessionId && sessionID !== this.sessionId) return;
 
-        const message =
-          error && error.name !== "MessageOutputLengthError"
-            ? error.data.message
-            : "Unknown OpenCode error";
+        let message = "Unknown OpenCode error";
+        if (error) {
+          switch (error.name) {
+            case "ProviderAuthError":
+            case "UnknownError":
+            case "MessageAbortedError":
+            case "APIError":
+              message = error.data.message;
+              break;
+            case "MessageOutputLengthError":
+              message = "Message output length exceeded";
+              break;
+          }
+        }
         this.emitEvent({ type: "error", payload: { message } });
         this.emitEvent({ type: "turn_complete", payload: {} });
         this.resolveTurn();
