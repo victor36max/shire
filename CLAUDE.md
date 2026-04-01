@@ -99,3 +99,10 @@ Platform-specific packages with standalone binaries (same pattern as esbuild/tur
 - **Formatting**: Prettier with double quotes, semicolons, trailing commas, 100 char width
 - **Agent/project names**: must be valid slugs (2-63 chars, lowercase, letters/numbers/hyphens)
 - **Single tsconfig** at project root — covers both backend and frontend
+
+## Database Migrations
+
+- **Never run `bun run db:generate` to change column defaults** — SQLite has no `ALTER COLUMN DEFAULT`, so Drizzle will generate a destructive DROP TABLE + CREATE TABLE migration. SQLite silently ignores `PRAGMA foreign_keys=OFF` inside transactions, so the DROP triggers `ON DELETE CASCADE` and **deletes all related data**.
+- For default-only changes, write manual UPDATE-only migrations instead.
+- Only use `db:generate` for actual structural schema changes (new columns, new tables, index changes).
+- Always review generated migration SQL before committing — look for `DROP TABLE` statements.
