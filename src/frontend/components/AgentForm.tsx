@@ -179,8 +179,18 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
               id="model"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="e.g. claude-sonnet-4-6"
+              placeholder={
+                harness === "opencode"
+                  ? "e.g. anthropic/claude-sonnet-4-6"
+                  : "e.g. claude-sonnet-4-6"
+              }
             />
+            {harness === "opencode" && (
+              <p className="text-xs text-muted-foreground">
+                OpenCode requires provider/model format (e.g. anthropic/claude-sonnet-4-6,
+                openrouter/google/gemini-2.5-pro)
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="system_prompt">System Prompt</Label>

@@ -86,6 +86,8 @@ export OPENAI_API_KEY=sk-...
 
 OpenCode auto-detects API keys from environment variables and `.env` files. Shire automatically manages the OpenCode server process — no manual `opencode serve` setup required.
 
+**Model format:** OpenCode requires the `provider/model` format (e.g. `anthropic/claude-sonnet-4-6`, `openrouter/google/gemini-2.5-pro`). This differs from the other harnesses which accept just the model name.
+
 See the [OpenCode provider docs](https://opencode.ai/docs/providers/) for the full list of supported providers and models.
 
 #### Pi Agent
