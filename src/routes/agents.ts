@@ -31,7 +31,7 @@ export const agentRoutes = new Hono<AppEnv>()
       z.object({
         name: z.string(),
         description: z.string().optional(),
-        harness: z.enum(["claude_code", "pi"]).optional(),
+        harness: z.enum(["claude_code", "pi", "opencode"]).optional(),
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
         skills: z.array(skillSchema).optional(),
@@ -64,7 +64,7 @@ export const agentRoutes = new Hono<AppEnv>()
       z.object({
         name: z.string().optional(),
         description: z.string().optional(),
-        harness: z.enum(["claude_code", "pi"]).optional(),
+        harness: z.enum(["claude_code", "pi", "opencode"]).optional(),
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
         skills: z.array(skillSchema).optional(),

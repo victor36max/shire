@@ -1,6 +1,6 @@
 import { describe, test, expect, mock } from "bun:test";
-import { PiHarness, type SessionLike } from "./pi-harness";
-import type { AgentSessionEvent } from "@mariozechner/pi-coding-agent";
+import { PiHarness } from "./pi-harness";
+import type { AgentSession, AgentSessionEvent } from "@mariozechner/pi-coding-agent";
 import type { AgentEvent, HarnessConfig } from "./types";
 
 const baseConfig: HarnessConfig = {
@@ -11,12 +11,13 @@ const baseConfig: HarnessConfig = {
 
 function createMockSession(sessionId = "pi-sess-1") {
   let subscriber: ((event: AgentSessionEvent) => void) | null = null;
-  const session: SessionLike & { fireEvent: (event: AgentSessionEvent) => void } = {
+  const session = {
     get sessionId() {
       return sessionId;
     },
     subscribe: mock((cb: (event: AgentSessionEvent) => void) => {
       subscriber = cb;
+      return () => {};
     }),
     prompt: mock(async (_text: string) => {
       if (subscriber) {
@@ -36,7 +37,7 @@ function createMockSession(sessionId = "pi-sess-1") {
       if (subscriber) subscriber(event);
     },
   };
-  return session;
+  return session as typeof session & AgentSession;
 }
 
 describe("PiHarness", () => {

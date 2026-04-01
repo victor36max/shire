@@ -328,7 +328,9 @@ export class AgentManager {
     if (!agent) throw new Error("Agent not found in DB");
 
     const harnessType: HarnessType =
-      agent.harness === "pi" || agent.harness === "claude_code" ? agent.harness : "claude_code";
+      agent.harness === "pi" || agent.harness === "claude_code" || agent.harness === "opencode"
+        ? agent.harness
+        : "claude_code";
     const model = agent.model ?? "claude-sonnet-4-6";
     const systemPrompt = agent.systemPrompt ?? "";
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
