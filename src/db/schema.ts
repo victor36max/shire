@@ -1,6 +1,10 @@
 import { sqliteTable, text, integer, unique, index } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
+// $defaultFn produces ISO 8601 with Z suffix (e.g. "2026-04-01T12:00:00.000Z").
+// .default(sql`...`) is the SQL-level fallback baked into the table DDL — Drizzle never
+// uses it (the JS $defaultFn always wins), but removing it would trigger a destructive
+// DROP/CREATE migration because SQLite has no ALTER COLUMN DEFAULT.
 const utcNow = () => new Date().toISOString();
 
 export const projects = sqliteTable("projects", {
