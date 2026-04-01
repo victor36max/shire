@@ -73,6 +73,17 @@ const messages: Message[] = [
   { id: 2, role: "agent", text: "Hello human", ts: "2026-03-17T00:00:01Z" },
 ];
 
+function createFile(name: string, size: number, type = "text/plain"): File {
+  const content = new Uint8Array(size);
+  return new File([content], name, { type });
+}
+
+function createDataTransfer(files: File[]): DataTransfer {
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  return dt;
+}
+
 describe("ChatPanel", () => {
   beforeEach(() => {
     mockMessages = [];
@@ -93,7 +104,10 @@ describe("ChatPanel", () => {
     const chip = screen.getByText("What can you help me with?");
     expect(chip).toBeInTheDocument();
     await userEvent.click(chip);
-    expect(sendMutate).toHaveBeenCalledWith({ agentId: "a1", text: "What can you help me with?" });
+    expect((sendMutate.mock.calls as unknown[][])[0][0]).toEqual({
+      agentId: "a1",
+      text: "What can you help me with?",
+    });
   });
 
   it("renders messages", () => {
@@ -125,7 +139,8 @@ describe("ChatPanel", () => {
     });
     await userEvent.click(screen.getByText("Send"));
 
-    expect(sendMutate).toHaveBeenCalledWith({
+    const calls = sendMutate.mock.calls as unknown[][];
+    expect(calls[0][0]).toEqual({
       agentId: "a1",
       text: "test message",
       attachments: undefined,
@@ -141,7 +156,8 @@ describe("ChatPanel", () => {
     });
     fireEvent.keyDown(screen.getByPlaceholderText("Type a message..."), { key: "Enter" });
 
-    expect(sendMutate).toHaveBeenCalledWith({
+    const calls = sendMutate.mock.calls as unknown[][];
+    expect(calls[0][0]).toEqual({
       agentId: "a1",
       text: "test message",
       attachments: undefined,
@@ -553,6 +569,93 @@ describe("ChatPanel", () => {
       renderWithProviders(<ChatPanel agent={activeAgent} />);
       expect(screen.getByText("read_file")).toBeInTheDocument();
       expect(screen.queryByText(/ago/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("multi-file upload", () => {
+    it("adds multiple files to pending list via file input", async () => {
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(input).toBeTruthy();
+      expect(input.multiple).toBe(true);
+
+      const files = [createFile("a.txt", 100), createFile("b.txt", 200)];
+      const dt = createDataTransfer(files);
+      Object.defineProperty(input, "files", { value: dt.files, configurable: true });
+      fireEvent.change(input);
+
+      await screen.findByText("a.txt");
+      expect(screen.getByText("b.txt")).toBeInTheDocument();
+    });
+
+    it("shows error when file exceeds 50 MB limit", async () => {
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      const bigFile = createFile("huge.bin", 51 * 1024 * 1024);
+      const dt = createDataTransfer([bigFile]);
+      Object.defineProperty(input, "files", { value: dt.files, configurable: true });
+      fireEvent.change(input);
+
+      await screen.findByText(/exceeds the 50 MB limit/);
+    });
+
+    it("preserves pending files when send fails", async () => {
+      const mockImpl = (...args: unknown[]) => {
+        const opts = args[1] as { onError: (e: Error) => void };
+        opts.onError(new Error("Network error"));
+      };
+      (sendMutate as { mockImplementation: (fn: typeof mockImpl) => void }).mockImplementation(
+        mockImpl,
+      );
+      renderWithProviders(<ChatPanel agent={activeAgent} />);
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      const dt = createDataTransfer([createFile("keep.txt", 10)]);
+      Object.defineProperty(input, "files", { value: dt.files, configurable: true });
+      fireEvent.change(input);
+
+      await screen.findByText("keep.txt");
+
+      await userEvent.click(screen.getByText("Send"));
+
+      // File should still be in pending list after error
+      expect(screen.getByText("keep.txt")).toBeInTheDocument();
+      expect(screen.getByText(/Failed to send/)).toBeInTheDocument();
+    });
+  });
+
+  describe("drag and drop", () => {
+    it("shows drop overlay on drag enter and hides on drag leave", () => {
+      const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />);
+      const root = container.firstElementChild as HTMLElement;
+
+      fireEvent.dragEnter(root, { dataTransfer: new DataTransfer() });
+      expect(screen.getByText("Drop files here")).toBeInTheDocument();
+
+      fireEvent.dragLeave(root, { dataTransfer: new DataTransfer() });
+      expect(screen.queryByText("Drop files here")).not.toBeInTheDocument();
+    });
+
+    it("adds dropped files to pending list", async () => {
+      const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />);
+      const root = container.firstElementChild as HTMLElement;
+
+      const dt = createDataTransfer([createFile("dropped.txt", 50)]);
+      fireEvent.dragEnter(root, { dataTransfer: dt });
+      fireEvent.drop(root, { dataTransfer: dt });
+
+      await screen.findByText("dropped.txt");
+      // Overlay should be gone after drop
+      expect(screen.queryByText("Drop files here")).not.toBeInTheDocument();
+    });
+
+    it("does not show drop overlay for inactive agent", () => {
+      const { container } = renderWithProviders(<ChatPanel agent={createdAgent} />);
+      const root = container.firstElementChild as HTMLElement;
+
+      fireEvent.dragEnter(root, { dataTransfer: new DataTransfer() });
+      expect(screen.queryByText("Drop files here")).not.toBeInTheDocument();
     });
   });
 
