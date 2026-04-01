@@ -1,33 +1,7 @@
+import type { OpencodeClient, GlobalEvent, Event as OpenCodeEvent } from "@opencode-ai/sdk";
 import type { AgentEvent, Harness, HarnessConfig, EventCallback } from "./types";
 
-export type ClientLike = {
-  session: {
-    create: (opts: { query?: { directory?: string } }) => Promise<{ data: { id: string } }>;
-    get: (opts: { path: { id: string } }) => Promise<{ data: { id: string } }>;
-    abort: (opts: { path: { id: string } }) => Promise<{ data: boolean }>;
-    promptAsync: (opts: {
-      path: { id: string };
-      body: {
-        parts: Array<{ type: "text"; text: string }>;
-        system?: string;
-        model?: { providerID: string; modelID: string };
-      };
-      query?: { directory?: string };
-    }) => Promise<{ data: undefined }>;
-  };
-  global: {
-    event: () => Promise<{
-      stream: AsyncGenerator<SSEEvent, unknown, unknown>;
-    }>;
-  };
-};
-
-type SSEEvent = {
-  type: string;
-  properties: Record<string, unknown>;
-};
-
-type ClientFactory = (config: HarnessConfig) => Promise<ClientLike>;
+type ClientFactory = (config: HarnessConfig) => Promise<OpencodeClient>;
 
 export class OpenCodeHarness implements Harness {
   private callback: EventCallback = () => {};
@@ -37,11 +11,11 @@ export class OpenCodeHarness implements Harness {
   private sessionPending: Promise<string> | null = null;
   private config: HarnessConfig | null = null;
   private clientFactory: ClientFactory | null = null;
-  private client: ClientLike | null = null;
+  private client: OpencodeClient | null = null;
   private serverClose: (() => void) | null = null;
   private sessionVersion = 0;
   private eventStreamActive = false;
-  private eventStream: AsyncGenerator<SSEEvent, unknown, unknown> | null = null;
+  private eventStream: AsyncGenerator<GlobalEvent, unknown, unknown> | null = null;
   private accumulatedText = "";
   private seenToolStates = new Map<string, string>();
   private turnResolve: (() => void) | null = null;
@@ -56,7 +30,7 @@ export class OpenCodeHarness implements Harness {
     this.sessionId = config.resume ?? null;
   }
 
-  private async ensureClient(): Promise<ClientLike> {
+  private async ensureClient(): Promise<OpencodeClient> {
     if (this.client) return this.client;
     if (!this.config) throw new Error("Harness not started");
 
@@ -78,7 +52,7 @@ export class OpenCodeHarness implements Harness {
     });
 
     this.serverClose = server.close;
-    this.client = client as unknown as ClientLike;
+    this.client = client;
     return this.client;
   }
 
@@ -106,12 +80,12 @@ export class OpenCodeHarness implements Harness {
     const client = await this.ensureClient();
     if (this.config?.resume) {
       const result = await client.session.get({ path: { id: this.config.resume } });
-      return result.data.id;
+      return result.data!.id;
     }
     const result = await client.session.create({
       query: { directory: this.config?.cwd },
     });
-    return result.data.id;
+    return result.data!.id;
   }
 
   private async ensureEventStream(): Promise<void> {
@@ -127,7 +101,7 @@ export class OpenCodeHarness implements Harness {
       try {
         for await (const event of stream) {
           if (this.stopped) break;
-          this.handleSSEEvent(event as SSEEvent);
+          this.handleSSEEvent(event.payload);
         }
       } catch {
         // Stream closed or errored
@@ -181,16 +155,17 @@ export class OpenCodeHarness implements Harness {
     }
   }
 
-  private handleSSEEvent(event: SSEEvent): void {
+  private handleSSEEvent(event: OpenCodeEvent): void {
     if (this.stopped) return;
 
-    const sessionId = (event.properties as { sessionID?: string }).sessionID;
+    const props = event.properties as Record<string, unknown>;
+    const sessionId = props.sessionID as string | undefined;
     // Only process events for our session
     if (sessionId && this.sessionId && sessionId !== this.sessionId) return;
 
     switch (event.type) {
       case "message.part.updated": {
-        const { part, delta } = event.properties as {
+        const { part, delta } = props as {
           part: { type: string; [key: string]: unknown };
           delta?: string;
         };
@@ -219,9 +194,7 @@ export class OpenCodeHarness implements Harness {
       }
 
       case "session.error": {
-        const error = event.properties.error as
-          | { name: string; data: { message: string } }
-          | undefined;
+        const error = props.error as { name: string; data: { message: string } } | undefined;
         const message = error?.data?.message ?? "Unknown OpenCode error";
         this.emitEvent({ type: "error", payload: { message } });
         this.emitEvent({ type: "turn_complete", payload: {} });

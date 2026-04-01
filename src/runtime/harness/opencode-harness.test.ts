@@ -1,5 +1,6 @@
 import { describe, test, expect, mock } from "bun:test";
-import { OpenCodeHarness, type ClientLike } from "./opencode-harness";
+import { OpenCodeHarness } from "./opencode-harness";
+import type { OpencodeClient } from "@opencode-ai/sdk";
 import type { AgentEvent, HarnessConfig } from "./types";
 
 const baseConfig: HarnessConfig = {
@@ -54,11 +55,15 @@ type SSEEvent =
       };
     };
 
+function wrapEvent(event: SSEEvent) {
+  return { directory: "/workspace", payload: event };
+}
+
 function createMockClient(sessionId = "oc-sess-1") {
   const events: SSEEvent[] = [];
   let eventResolve: (() => void) | null = null;
 
-  const client: ClientLike = {
+  const client = {
     session: {
       create: mock(async () => ({ data: { id: sessionId } })),
       get: mock(async () => ({ data: { id: sessionId } })),
@@ -70,7 +75,7 @@ function createMockClient(sessionId = "oc-sess-1") {
         stream: (async function* () {
           while (true) {
             if (events.length > 0) {
-              yield events.shift()!;
+              yield wrapEvent(events.shift()!);
             } else {
               await new Promise<void>((resolve) => {
                 eventResolve = resolve;
@@ -80,7 +85,7 @@ function createMockClient(sessionId = "oc-sess-1") {
         })(),
       })),
     },
-  };
+  } as unknown as OpencodeClient;
 
   function pushEvent(event: SSEEvent) {
     events.push(event);
@@ -128,7 +133,7 @@ function createSimpleClient(sessionId = "oc-sess-1") {
 
   let streamClosed = false;
 
-  const client: ClientLike = {
+  const client = {
     session: {
       create: mock(async () => ({ data: { id: sessionId } })),
       get: mock(async () => ({ data: { id: sessionId } })),
@@ -140,7 +145,7 @@ function createSimpleClient(sessionId = "oc-sess-1") {
         stream: (async function* () {
           for (const event of sseEvents) {
             if (streamClosed) return;
-            yield event;
+            yield wrapEvent(event);
           }
           // Keep alive until closed
           while (!streamClosed) {
@@ -149,7 +154,7 @@ function createSimpleClient(sessionId = "oc-sess-1") {
         })(),
       })),
     },
-  };
+  } as unknown as OpencodeClient;
 
   return {
     client,
@@ -327,7 +332,7 @@ describe("OpenCodeHarness", () => {
       { type: "session.idle", properties: { sessionID: sessionId } },
     ];
 
-    const client: ClientLike = {
+    const client = {
       session: {
         create: mock(async () => ({ data: { id: sessionId } })),
         get: mock(async () => ({ data: { id: sessionId } })),
@@ -337,13 +342,13 @@ describe("OpenCodeHarness", () => {
       global: {
         event: mock(async () => ({
           stream: (async function* () {
-            for (const event of sseEvents) yield event;
+            for (const event of sseEvents) yield wrapEvent(event);
             // Keep alive
             await new Promise<void>(() => {});
           })(),
         })),
       },
-    };
+    } as unknown as OpencodeClient;
 
     const harness = new OpenCodeHarness();
     const events: AgentEvent[] = [];
@@ -390,7 +395,7 @@ describe("OpenCodeHarness", () => {
       { type: "session.idle", properties: { sessionID: sessionId } },
     ];
 
-    const client: ClientLike = {
+    const client = {
       session: {
         create: mock(async () => ({ data: { id: sessionId } })),
         get: mock(async () => ({ data: { id: sessionId } })),
@@ -400,12 +405,12 @@ describe("OpenCodeHarness", () => {
       global: {
         event: mock(async () => ({
           stream: (async function* () {
-            for (const event of sseEvents) yield event;
+            for (const event of sseEvents) yield wrapEvent(event);
             await new Promise<void>(() => {});
           })(),
         })),
       },
-    };
+    } as unknown as OpencodeClient;
 
     const harness = new OpenCodeHarness();
     const events: AgentEvent[] = [];
@@ -504,7 +509,7 @@ describe("OpenCodeHarness", () => {
     const events: SSEEvent[] = [];
     let eventResolve: (() => void) | null = null;
 
-    const client: ClientLike = {
+    const client = {
       session: {
         create: mock(async () => ({ data: { id: `oc-sess-${++callCount}` } })),
         get: mock(async () => ({ data: { id: `oc-sess-${callCount}` } })),
@@ -516,7 +521,7 @@ describe("OpenCodeHarness", () => {
           stream: (async function* () {
             while (true) {
               if (events.length > 0) {
-                yield events.shift()!;
+                yield wrapEvent(events.shift()!);
               } else {
                 await new Promise<void>((resolve) => {
                   eventResolve = resolve;
@@ -526,7 +531,7 @@ describe("OpenCodeHarness", () => {
           })(),
         })),
       },
-    };
+    } as unknown as OpencodeClient;
 
     function pushEvent(event: SSEEvent) {
       events.push(event);
