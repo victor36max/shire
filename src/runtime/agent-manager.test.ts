@@ -470,52 +470,7 @@ describe("AgentManager", () => {
     });
   });
 
-  describe("buildInternalPrompt", () => {
-    it("includes file access boundary with correct paths", () => {
-      const mgr = createManager();
-      const prompt = (
-        mgr as unknown as { buildInternalPrompt: () => string }
-      ).buildInternalPrompt();
-      const projectRoot = workspace.root(projectId);
-      const agentPath = workspace.agentDir(projectId, agentId);
-      const sharedPath = workspace.sharedDir(projectId);
-      const projectDoc = workspace.projectDocPath(projectId);
-
-      expect(prompt).toContain("## File Access Boundary — MANDATORY");
-      expect(prompt).toContain(`Your project root is \`${projectRoot}\``);
-      expect(prompt).toContain("MUST NOT create, modify, move, copy, or delete");
-
-      // Write-allowed paths are listed correctly
-      expect(prompt).toContain(`Your own directory: \`${agentPath}\``);
-      expect(prompt).toContain(`The shared drive: \`${sharedPath}\``);
-      expect(prompt).toContain(`Project document: \`${projectDoc}\``);
-
-      // Read-only paths
-      expect(prompt).toContain(`${projectRoot}/agents/`);
-    });
-
-    it("restricts writing to other agents directories", () => {
-      const mgr = createManager();
-      const prompt = (
-        mgr as unknown as { buildInternalPrompt: () => string }
-      ).buildInternalPrompt();
-
-      expect(prompt).toContain("Writing to another agent's directory");
-      expect(prompt).toContain("Read-only paths");
-      expect(prompt).toContain("Other agents' directories");
-    });
-
-    it("requires agent-specific state in own directory", () => {
-      const mgr = createManager();
-      const prompt = (
-        mgr as unknown as { buildInternalPrompt: () => string }
-      ).buildInternalPrompt();
-
-      expect(prompt).toContain("Agent-specific state");
-      expect(prompt).toContain("rules, memory files, skills, or configuration");
-      expect(prompt).toContain("MUST be stored within your own directory");
-    });
-  });
+  // buildInternalPrompt tests have been moved to system-prompt.test.ts
 
   describe("workspace setup", () => {
     it("creates agent directories on start", async () => {
