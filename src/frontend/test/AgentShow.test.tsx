@@ -4,7 +4,7 @@ import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { type Agent } from "../components/types";
 import { renderWithProviders } from "./test-utils";
 import * as reactRouterDom from "react-router-dom";
-import * as hooksModule from "../lib/hooks";
+import * as hooksModule from "../hooks";
 
 const agent: Agent = {
   id: "a1",
@@ -32,7 +32,7 @@ mock.module("react-router-dom", () => ({
   useParams: () => ({ agentName: mockAgentName, projectName: "test-project" }),
 }));
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...hooksModule,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useAgents: () => ({

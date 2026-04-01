@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api } from "../lib/api";
 import { unwrap } from "./util";
-import type { AlertChannel, AlertChannelConfig } from "../../components/types";
+import type { AlertChannel, AlertChannelConfig } from "../components/types";
 
 export function useAlertChannel(projectId: string | undefined) {
   return useQuery<AlertChannel | null>({

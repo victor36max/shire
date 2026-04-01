@@ -5,7 +5,7 @@ import AgentSidebar from "../components/AgentSidebar";
 import { type AgentOverview, type Project } from "../components/types";
 import { renderWithProviders } from "./test-utils";
 import * as reactRouterDom from "react-router-dom";
-import * as hooksModule from "../lib/hooks";
+import * as hooksModule from "../hooks";
 
 const defaultAgents: AgentOverview[] = [
   {
@@ -45,7 +45,7 @@ mock.module("react-router-dom", () => ({
   useParams: () => ({ agentName: mockAgentName }),
 }));
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...hooksModule,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useProjects: () => ({ data: projects, isLoading: false }),

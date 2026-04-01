@@ -33,7 +33,7 @@ import { MoreHorizontal } from "lucide-react";
 import { PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
 import type { Project } from "./types";
-import { useProjects, useCreateProject, useDeleteProject, useRestartProject } from "../lib/hooks";
+import { useProjects, useCreateProject, useDeleteProject, useRestartProject } from "../hooks";
 import { useSubscription } from "../lib/ws";
 import { useQueryClient } from "@tanstack/react-query";
 

@@ -11,7 +11,7 @@ import {
   type CatalogAgentSummary,
   type CatalogCategory,
 } from "../components/types";
-import * as hooksModule from "../lib/hooks";
+import * as hooksModule from "../hooks";
 import * as wsModule from "../lib/ws";
 
 const agents: AgentOverview[] = [
@@ -39,7 +39,7 @@ let mockCatalogAgents: CatalogAgentSummary[] = [];
 let mockCatalogCategories: CatalogCategory[] = [];
 let mockCatalogSelectedAgent: Record<string, unknown> | undefined = undefined;
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...hooksModule,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useResolveProjectId: () => "p1",

@@ -32,7 +32,7 @@ import {
   useRestartAgent,
   useDeleteAgent,
   useUpdateAgent,
-} from "../lib/hooks";
+} from "../hooks";
 
 const isRunning = (status: string) =>
   status === "active" || status === "starting" || status === "bootstrapping";

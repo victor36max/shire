@@ -4,12 +4,12 @@ import { describe, it, expect, beforeEach, mock } from "bun:test";
 import SettingsPage from "../components/SettingsPage";
 import { renderWithProviders } from "./test-utils";
 import type { InterAgentMessage } from "../components/types";
-import * as actualHooks from "../lib/hooks";
+import * as actualHooks from "../hooks";
 
 let mockMessages: InterAgentMessage[] = [];
 let mockHasMore = false;
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...actualHooks,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useActivity: () => ({

@@ -47,7 +47,7 @@ import {
   useDeleteSchedule,
   useToggleSchedule,
   useRunScheduleNow,
-} from "../lib/hooks";
+} from "../hooks";
 import { parseUtcTimestamp, timeAgo } from "../lib/time";
 import { useSubscription } from "../lib/ws";
 

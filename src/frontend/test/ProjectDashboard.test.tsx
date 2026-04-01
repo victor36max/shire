@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, mock } from "bun:test";
 import ProjectDashboard from "../components/ProjectDashboard";
 import type { Project } from "../components/types";
 import { renderWithProviders } from "./test-utils";
-import * as actualHooks from "../lib/hooks";
+import * as actualHooks from "../hooks";
 
 const createMutate = mock(() => {});
 const deleteMutate = mock(() => {});
@@ -17,7 +17,7 @@ let mockProjectsError: {
   refetch: ReturnType<typeof mock>;
 } = { isError: false, error: null, refetch: mock(() => {}) };
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...actualHooks,
   useProjects: () => ({
     data: mockProjects,

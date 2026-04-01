@@ -4,11 +4,11 @@ import { describe, it, expect, mock } from "bun:test";
 import ChatHeader from "../components/ChatHeader";
 import { type AgentOverview } from "../components/types";
 import { renderWithProviders } from "./test-utils";
-import * as hooksModule from "../lib/hooks";
+import * as hooksModule from "../hooks";
 
 const clearMutate = mock(() => {});
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...hooksModule,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useClearSession: () => ({ mutate: clearMutate, isPending: false }),

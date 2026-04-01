@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api } from "../lib/api";
 import { unwrap } from "./util";
-import type { ScheduledTask } from "../../components/types";
+import type { ScheduledTask } from "../components/types";
 
 export function useSchedules(projectId: string | undefined) {
   return useQuery<ScheduledTask[]>({

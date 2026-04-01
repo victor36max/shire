@@ -8,7 +8,7 @@ import ThemeSelector from "./ThemeSelector";
 import { navigate } from "../lib/navigate";
 import ActivityLog from "./ActivityLog";
 import AlertChannelTab from "./AlertChannelTab";
-import { useProjectId, useActivity } from "../lib/hooks";
+import { useProjectId, useActivity } from "../hooks";
 import { useSubscription } from "../lib/ws";
 import { useQueryClient } from "@tanstack/react-query";
 import type { InterAgentMessage } from "./types";

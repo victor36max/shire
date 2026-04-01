@@ -22,7 +22,7 @@ import {
   useUpsertAlertChannel,
   useDeleteAlertChannel,
   useTestAlertChannel,
-} from "../lib/hooks";
+} from "../hooks";
 import {
   channelTypeLabel,
   type AlertChannel,

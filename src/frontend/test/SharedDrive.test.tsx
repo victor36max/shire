@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, mock } from "bun:test";
 import SharedDrive from "../components/SharedDrive";
 import type { SharedDriveFile } from "../components/SharedDrive";
 import { renderWithProviders } from "./test-utils";
-import * as actualHooks from "../lib/hooks";
+import * as actualHooks from "../hooks";
 
 const createDirMutate = mock(() => {});
 const deleteFileMutate = mock(() => {});
@@ -23,7 +23,7 @@ let mockSharedDriveError: {
   refetch: ReturnType<typeof mock>;
 } = { isError: false, error: null, refetch: mock(() => {}) };
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...actualHooks,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useSharedDrive: () => ({
