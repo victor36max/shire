@@ -3,6 +3,7 @@ import { Button } from "./ui/button";
 import { Clock, Info } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import type { InterAgentMessage } from "./types";
+import { parseUtcTimestamp } from "../lib/time";
 
 interface ActivityLogProps {
   messages: InterAgentMessage[];
@@ -93,7 +94,7 @@ export default function ActivityLog({
                   </>
                 )}
               </span>
-              <time>{new Date(msg.ts).toLocaleString()}</time>
+              <time>{parseUtcTimestamp(msg.ts).toLocaleString()}</time>
             </div>
             <p className="text-sm whitespace-pre-wrap">{displayText}</p>
             {isLong && (

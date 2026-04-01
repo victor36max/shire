@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { timeAgo, messageTimeLabel, dateSeparatorLabel, isSameDay } from "../lib/time";
+import {
+  parseUtcTimestamp,
+  timeAgo,
+  messageTimeLabel,
+  dateSeparatorLabel,
+  isSameDay,
+} from "../lib/time";
 
 // Pin "now" to 2026-03-31 14:30:00 local time for deterministic tests
 const NOW = new Date(2026, 2, 31, 14, 30, 0).getTime();
@@ -12,6 +18,28 @@ beforeEach(() => {
 
 afterEach(() => {
   Date.now = origDateNow;
+});
+
+describe("parseUtcTimestamp", () => {
+  it("appends Z to bare SQLite timestamps", () => {
+    const d = parseUtcTimestamp("2026-04-01 12:00:00");
+    expect(d.toISOString()).toBe("2026-04-01T12:00:00.000Z");
+  });
+
+  it("handles ISO strings with Z suffix unchanged", () => {
+    const d = parseUtcTimestamp("2026-04-01T12:00:00.000Z");
+    expect(d.toISOString()).toBe("2026-04-01T12:00:00.000Z");
+  });
+
+  it("handles ISO strings with timezone offset", () => {
+    const d = parseUtcTimestamp("2026-04-01T12:00:00+05:00");
+    expect(d.toISOString()).toBe("2026-04-01T07:00:00.000Z");
+  });
+
+  it("handles T-separated strings without timezone", () => {
+    const d = parseUtcTimestamp("2026-04-01T12:00:00");
+    expect(d.toISOString()).toBe("2026-04-01T12:00:00.000Z");
+  });
 });
 
 describe("timeAgo", () => {
@@ -33,6 +61,13 @@ describe("timeAgo", () => {
   it("returns days ago", () => {
     const ts = new Date(NOW - 2 * 86_400_000).toISOString();
     expect(timeAgo(ts)).toBe("2d ago");
+  });
+
+  it("handles bare SQLite UTC timestamp", () => {
+    // 5 minutes ago in UTC, formatted as bare SQLite string
+    const fiveMinAgo = new Date(NOW - 5 * 60_000);
+    const bare = fiveMinAgo.toISOString().replace("T", " ").replace(".000Z", "");
+    expect(timeAgo(bare)).toBe("5m ago");
   });
 });
 
