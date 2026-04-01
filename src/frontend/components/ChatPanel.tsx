@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Paperclip, Square, X, FileIcon, Download } from "lucide-react";
+import { Paperclip, Square, X, FileIcon, Download, Upload } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -269,6 +269,9 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   const [input, setInput] = React.useState("");
   const [streamingText, setStreamingText] = React.useState("");
   const [pendingFiles, setPendingFiles] = React.useState<PendingFile[]>([]);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const dragCounterRef = React.useRef(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -350,13 +353,13 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     }
   }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
-  const handleFileSelect = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
+  const processFiles = React.useCallback((files: File[]) => {
+    const rejected: string[] = [];
 
-    Array.from(files).forEach((file) => {
+    for (const file of files) {
       if (file.size > MAX_FILE_SIZE) {
-        return;
+        rejected.push(`"${file.name}" exceeds the 50 MB limit`);
+        continue;
       }
       const reader = new FileReader();
       reader.onload = () => {
@@ -372,11 +375,24 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
         ]);
       };
       reader.readAsDataURL(file);
-    });
+    }
 
-    // Reset so the same file can be selected again
-    e.target.value = "";
+    if (rejected.length > 0) {
+      const msg = rejected.join(", ");
+      setUploadError((prev) => (prev ? `${prev}, ${msg}` : msg));
+    }
   }, []);
+
+  const handleFileSelect = React.useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files) return;
+      processFiles(Array.from(files));
+      // Reset so the same file can be selected again
+      e.target.value = "";
+    },
+    [processFiles],
+  );
 
   const removePendingFile = React.useCallback((index: number) => {
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
@@ -396,13 +412,59 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
         : undefined;
 
     markBusy();
-    sendMessage.mutate({ agentId: agent.id, text: text || "", attachments });
-    setInput("");
-    setPendingFiles([]);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+    sendMessage.mutate(
+      { agentId: agent.id, text: text || "", attachments },
+      {
+        onSuccess: () => {
+          setInput("");
+          setPendingFiles([]);
+          if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+          }
+        },
+        onError: (err) => {
+          setUploadError(`Failed to send: ${err instanceof Error ? err.message : "unknown error"}`);
+        },
+      },
+    );
   };
+
+  // Drag-and-drop handlers
+  const handleDragEnter = React.useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (agent.status !== "active") return;
+      dragCounterRef.current += 1;
+      if (dragCounterRef.current === 1) setIsDragging(true);
+    },
+    [agent.status],
+  );
+
+  const handleDragLeave = React.useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (agent.status !== "active") return;
+      dragCounterRef.current -= 1;
+      if (dragCounterRef.current === 0) setIsDragging(false);
+    },
+    [agent.status],
+  );
+
+  const handleDragOver = React.useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  const handleDrop = React.useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+      if (agent.status !== "active") return;
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) processFiles(files);
+    },
+    [agent.status, processFiles],
+  );
 
   // Re-render every 60s so relative timestamps stay fresh
   useTickingClock(60_000);
@@ -410,7 +472,21 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   const hasMessages = messages.length > 0 || streamingText.length > 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg">
+          <div className="flex flex-col items-center gap-2 text-primary">
+            <Upload className="h-8 w-8" />
+            <span className="text-sm font-medium">Drop files here</span>
+          </div>
+        </div>
+      )}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
@@ -537,6 +613,18 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
             className="hidden"
             onChange={handleFileSelect}
           />
+          {uploadError && (
+            <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-destructive/10 text-destructive text-xs">
+              <span className="flex-1">{uploadError}</span>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                className="hover:text-destructive/80"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           {pendingFiles.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               {pendingFiles.map((file, i) => (

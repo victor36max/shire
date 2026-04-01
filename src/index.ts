@@ -57,6 +57,7 @@ export async function startServer(opts: StartOptions = {}) {
   const server = Bun.serve<WsData>({
     port,
     development: DEV,
+    maxRequestBodySize: 100 * 1024 * 1024, // 100 MB — supports multi-file upload with base64-encoded attachments
     routes: {
       "/api/*": {
         GET: (req: Request) => app.fetch(req),
