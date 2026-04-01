@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useDropzone } from "react-dropzone";
 import { Paperclip, Square, X, FileIcon, Download, Upload } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import { Badge } from "./ui/badge";
@@ -270,9 +271,6 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   const [streamingText, setStreamingText] = React.useState("");
   const [pendingFiles, setPendingFiles] = React.useState<PendingFile[]>([]);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
-  const [isDragging, setIsDragging] = React.useState(false);
-  const dragCounterRef = React.useRef(0);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -353,14 +351,12 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     }
   }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
-  const processFiles = React.useCallback((files: File[]) => {
-    const rejected: string[] = [];
-
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        rejected.push(`"${file.name}" exceeds the 50 MB limit`);
-        continue;
-      }
+  const onDrop = React.useCallback((accepted: File[], rejected: { file: File }[]) => {
+    if (rejected.length > 0) {
+      const msg = rejected.map((r) => `"${r.file.name}" exceeds the 50 MB limit`).join(", ");
+      setUploadError((prev) => (prev ? `${prev}, ${msg}` : msg));
+    }
+    for (const file of accepted) {
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = reader.result as string;
@@ -376,23 +372,16 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
       };
       reader.readAsDataURL(file);
     }
-
-    if (rejected.length > 0) {
-      const msg = rejected.join(", ");
-      setUploadError((prev) => (prev ? `${prev}, ${msg}` : msg));
-    }
   }, []);
 
-  const handleFileSelect = React.useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files) return;
-      processFiles(Array.from(files));
-      // Reset so the same file can be selected again
-      e.target.value = "";
-    },
-    [processFiles],
-  );
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop,
+    multiple: true,
+    maxSize: MAX_FILE_SIZE,
+    noClick: true,
+    noKeyboard: true,
+    disabled: agent.status !== "active",
+  });
 
   const removePendingFile = React.useCallback((index: number) => {
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
@@ -429,57 +418,15 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     );
   };
 
-  // Drag-and-drop handlers
-  const handleDragEnter = React.useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      if (agent.status !== "active") return;
-      dragCounterRef.current += 1;
-      if (dragCounterRef.current === 1) setIsDragging(true);
-    },
-    [agent.status],
-  );
-
-  const handleDragLeave = React.useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      if (agent.status !== "active") return;
-      dragCounterRef.current -= 1;
-      if (dragCounterRef.current === 0) setIsDragging(false);
-    },
-    [agent.status],
-  );
-
-  const handleDragOver = React.useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-  }, []);
-
-  const handleDrop = React.useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      dragCounterRef.current = 0;
-      setIsDragging(false);
-      if (agent.status !== "active") return;
-      const files = Array.from(e.dataTransfer.files);
-      if (files.length > 0) processFiles(files);
-    },
-    [agent.status, processFiles],
-  );
-
   // Re-render every 60s so relative timestamps stay fresh
   useTickingClock(60_000);
 
   const hasMessages = messages.length > 0 || streamingText.length > 0;
 
   return (
-    <div
-      className="flex flex-col h-full relative"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      {isDragging && (
+    <div {...getRootProps()} className="flex flex-col h-full relative">
+      <input {...getInputProps()} />
+      {isDragActive && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg">
           <div className="flex flex-col items-center gap-2 text-primary">
             <Upload className="h-8 w-8" />
@@ -606,13 +553,6 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
       </div>
       {agent.status === "active" ? (
         <div className="border-t border-border p-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="absolute w-0 h-0 overflow-hidden opacity-0"
-            onChange={handleFileSelect}
-          />
           {uploadError && (
             <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-destructive/10 text-destructive text-xs">
               <span className="flex-1">{uploadError}</span>
@@ -651,7 +591,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
               variant="ghost"
               size="icon"
               className="shrink-0"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={open}
               aria-label="Attach file"
             >
               <Paperclip className="h-4 w-4" />
