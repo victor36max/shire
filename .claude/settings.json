@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-test-files.sh",
+            "timeout": 30,
+            "statusMessage": "Checking for missing test files..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-coverage.sh",
+            "timeout": 120,
+            "statusMessage": "Running test coverage check..."
+          }
+        ]
+      }
+    ]
+  }
+}
