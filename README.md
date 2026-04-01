@@ -34,7 +34,7 @@ Most AI agent tools follow the same pattern — you give an instruction, an agen
 | Backend | Hono, Drizzle ORM, SQLite |
 | Frontend | React 19, React Router 7, shadcn/ui (Radix), Tailwind CSS 4, TanStack Query |
 | Bundler | Bun (fullstack dev server + production builds) |
-| Agent Harnesses | Claude Code SDK, Pi Agent SDK |
+| Agent Harnesses | Claude Code SDK, OpenCode SDK, Pi Agent SDK |
 | Scheduling | node-schedule (cron-based) |
 | Testing | Bun test + Testing Library + happy-dom |
 | Validation | Zod, TypeScript strict mode |
@@ -70,6 +70,24 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export CLAUDE_CODE_OAUTH_KEY=...
 ```
 
+#### OpenCode
+
+Install [OpenCode](https://opencode.ai) and set the API key for the provider you want to use:
+
+```bash
+# Install OpenCode
+npm install -g opencode
+
+# Set an API key (same environment variables as Pi Agent)
+export ANTHROPIC_API_KEY=sk-ant-...
+# or
+export OPENAI_API_KEY=sk-...
+```
+
+OpenCode auto-detects API keys from environment variables and `.env` files. Shire automatically manages the OpenCode server process — no manual `opencode serve` setup required.
+
+See the [OpenCode provider docs](https://opencode.ai/docs/providers/) for the full list of supported providers and models.
+
 #### Pi Agent
 
 The [Pi Agent](https://github.com/badlogic/pi-mono) harness uses the `@mariozechner/pi-coding-agent` SDK, which supports a wide range of AI providers. Set the API key for the provider you want to use as an environment variable:
@@ -101,6 +119,7 @@ See the [Pi Agent docs](https://github.com/badlogic/pi-mono/blob/main/packages/c
 
 - [Bun](https://bun.sh) (v1.3.11+)
 - [Claude Code](https://claude.ai/download) (only if using the `claude_code` harness)
+- [OpenCode](https://opencode.ai) (only if using the `opencode` harness)
 
 ### Quick Start
 

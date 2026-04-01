@@ -160,7 +160,7 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
             <Select
               value={harness}
               onValueChange={(v) => {
-                if (v === "claude_code" || v === "pi") setHarness(v);
+                if (v === "claude_code" || v === "pi" || v === "opencode") setHarness(v);
               }}
             >
               <SelectTrigger>
@@ -168,6 +168,7 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="claude_code">Claude Code</SelectItem>
+                <SelectItem value="opencode">OpenCode</SelectItem>
                 <SelectItem value="pi">Pi</SelectItem>
               </SelectContent>
             </Select>
