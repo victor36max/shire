@@ -1,4 +1,9 @@
-import type { OpencodeClient, GlobalEvent, Event as OpenCodeEvent } from "@opencode-ai/sdk";
+import type {
+  OpencodeClient,
+  GlobalEvent,
+  Event as OpenCodeEvent,
+  ToolPart,
+} from "@opencode-ai/sdk";
 import type { AgentEvent, Harness, HarnessConfig, EventCallback } from "./types";
 
 type ClientFactory = (config: HarnessConfig) => Promise<OpencodeClient>;
@@ -158,17 +163,11 @@ export class OpenCodeHarness implements Harness {
   private handleSSEEvent(event: OpenCodeEvent): void {
     if (this.stopped) return;
 
-    const props = event.properties as Record<string, unknown>;
-    const sessionId = props.sessionID as string | undefined;
-    // Only process events for our session
-    if (sessionId && this.sessionId && sessionId !== this.sessionId) return;
-
     switch (event.type) {
       case "message.part.updated": {
-        const { part, delta } = props as {
-          part: { type: string; [key: string]: unknown };
-          delta?: string;
-        };
+        const { part, delta } = event.properties;
+        const sessionId = part.sessionID;
+        if (sessionId && this.sessionId && sessionId !== this.sessionId) return;
 
         if (part.type === "text") {
           if (delta) {
@@ -176,12 +175,15 @@ export class OpenCodeHarness implements Harness {
             this.emitEvent({ type: "text_delta", payload: { delta } });
           }
         } else if (part.type === "tool") {
-          this.handleToolPartUpdate(part as Record<string, unknown>);
+          this.handleToolPartUpdate(part);
         }
         break;
       }
 
       case "session.idle": {
+        const { sessionID } = event.properties;
+        if (sessionID && this.sessionId && sessionID !== this.sessionId) return;
+
         if (this.accumulatedText) {
           this.emitEvent({ type: "text", payload: { text: this.accumulatedText } });
         }
@@ -194,8 +196,13 @@ export class OpenCodeHarness implements Harness {
       }
 
       case "session.error": {
-        const error = props.error as { name: string; data: { message: string } } | undefined;
-        const message = error?.data?.message ?? "Unknown OpenCode error";
+        const { sessionID, error } = event.properties;
+        if (sessionID && this.sessionId && sessionID !== this.sessionId) return;
+
+        const message =
+          error && error.name !== "MessageOutputLengthError"
+            ? error.data.message
+            : "Unknown OpenCode error";
         this.emitEvent({ type: "error", payload: { message } });
         this.emitEvent({ type: "turn_complete", payload: {} });
         this.resolveTurn();
@@ -204,63 +211,44 @@ export class OpenCodeHarness implements Harness {
     }
   }
 
-  private handleToolPartUpdate(part: Record<string, unknown>): void {
-    const callID = part.callID as string;
-    const tool = part.tool as string;
-    const state = part.state as { status: string; [key: string]: unknown };
+  private handleToolPartUpdate(part: ToolPart): void {
+    const { callID, tool, state } = part;
     const prevStatus = this.seenToolStates.get(callID);
 
-    if (state.status === "running" && prevStatus !== "running") {
-      this.seenToolStates.set(callID, "running");
+    const emitToolUse = () => {
       this.emitEvent({
         type: "tool_use",
         payload: {
           tool,
           tool_use_id: callID,
-          input: (state.input as Record<string, unknown>) ?? {},
+          input: state.input,
           status: "started",
         },
       });
+    };
+
+    if (state.status === "running" && prevStatus !== "running") {
+      this.seenToolStates.set(callID, "running");
+      emitToolUse();
     } else if (state.status === "completed" && prevStatus !== "completed") {
       this.seenToolStates.set(callID, "completed");
-      // Emit tool_use if we haven't seen running
-      if (!prevStatus) {
-        this.emitEvent({
-          type: "tool_use",
-          payload: {
-            tool,
-            tool_use_id: callID,
-            input: (state.input as Record<string, unknown>) ?? {},
-            status: "started",
-          },
-        });
-      }
+      if (!prevStatus) emitToolUse();
       this.emitEvent({
         type: "tool_result",
         payload: {
           tool_use_id: callID,
-          output: (state.output as string) ?? "",
+          output: state.output,
           is_error: false,
         },
       });
     } else if (state.status === "error" && prevStatus !== "error") {
       this.seenToolStates.set(callID, "error");
-      if (!prevStatus) {
-        this.emitEvent({
-          type: "tool_use",
-          payload: {
-            tool,
-            tool_use_id: callID,
-            input: (state.input as Record<string, unknown>) ?? {},
-            status: "started",
-          },
-        });
-      }
+      if (!prevStatus) emitToolUse();
       this.emitEvent({
         type: "tool_result",
         payload: {
           tool_use_id: callID,
-          output: (state.error as string) ?? "Tool error",
+          output: state.error,
           is_error: true,
         },
       });
