@@ -597,7 +597,7 @@ describe("ChatPanel", () => {
       Object.defineProperty(input, "files", { value: dt.files, configurable: true });
       fireEvent.change(input);
 
-      await screen.findByText(/exceeds the 50 MB limit/);
+      await screen.findByText(/File is larger than/);
     });
 
     it("preserves pending files when send fails", async () => {

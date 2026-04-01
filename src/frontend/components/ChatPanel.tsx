@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import { Paperclip, Square, X, FileIcon, Download, Upload } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import { Badge } from "./ui/badge";
@@ -351,10 +351,12 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     }
   }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
-  const onDrop = React.useCallback((accepted: File[], rejected: { file: File }[]) => {
+  const onDrop = React.useCallback((accepted: File[], rejected: FileRejection[]) => {
     if (rejected.length > 0) {
-      const msg = rejected.map((r) => `"${r.file.name}" exceeds the 50 MB limit`).join(", ");
-      setUploadError((prev) => (prev ? `${prev}, ${msg}` : msg));
+      const msg = rejected
+        .map((r) => `"${r.file.name}": ${r.errors.map((e) => e.message).join(", ")}`)
+        .join("; ");
+      setUploadError((prev) => (prev ? `${prev}; ${msg}` : msg));
     }
     for (const file of accepted) {
       const reader = new FileReader();
@@ -369,6 +371,10 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
             content_type: file.type || "application/octet-stream",
           },
         ]);
+      };
+      reader.onerror = () => {
+        const msg = `Failed to read "${file.name}"`;
+        setUploadError((prev) => (prev ? `${prev}, ${msg}` : msg));
       };
       reader.readAsDataURL(file);
     }
