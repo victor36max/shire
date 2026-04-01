@@ -102,7 +102,7 @@ Platform-specific packages with standalone binaries (same pattern as esbuild/tur
 
 ## Database Migrations
 
-- **Never run `bun run db:generate` to change column defaults** — SQLite has no `ALTER COLUMN DEFAULT`, so Drizzle will generate a destructive DROP TABLE + CREATE TABLE migration. SQLite silently ignores `PRAGMA foreign_keys=OFF` inside transactions, so the DROP triggers `ON DELETE CASCADE` and **deletes all related data**.
-- For default-only changes, write manual UPDATE-only migrations instead.
-- Only use `db:generate` for actual structural schema changes (new columns, new tables, index changes).
-- Always review generated migration SQL before committing — look for `DROP TABLE` statements.
+- **Foreign keys are disabled before `migrate()` runs** (`src/index.ts`, `src/test/setup.ts`) — SQLite ignores `PRAGMA foreign_keys=OFF` inside transactions, and Drizzle wraps migrations in a transaction, so the guard must be set at the connection level before `migrate()` is called. This prevents `DROP TABLE` from triggering `ON DELETE CASCADE`.
+- **Strip `PRAGMA foreign_keys` lines from generated migrations** — the outer guard handles it. In-migration PRAGMAs are no-ops inside Drizzle's transaction and would conflict if Drizzle ever changes its transaction handling.
+- Always review generated migration SQL before committing — look for `DROP TABLE` statements and verify data is copied via `INSERT INTO ... SELECT`.
+- `bun run db:generate` is safe for any schema change (including column defaults) as long as the FK guard is in place.
