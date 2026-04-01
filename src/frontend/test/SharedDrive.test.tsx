@@ -33,7 +33,7 @@ mock.module("../hooks", () => ({
   }),
   useCreateDirectory: () => ({ mutate: createDirMutate, isPending: false }),
   useDeleteSharedFile: () => ({ mutate: deleteFileMutate, isPending: false }),
-  useUploadFile: () => ({ mutate: uploadFileMutate, isPending: false }),
+  useUploadSharedDriveFile: () => ({ mutate: uploadFileMutate, isPending: false }),
   usePreviewFile: () => ({
     mutate: previewFileMutate,
     isPending: false,

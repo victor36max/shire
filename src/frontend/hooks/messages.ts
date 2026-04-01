@@ -44,20 +44,16 @@ export function useSendMessage(projectId: string) {
     mutationFn: async ({
       agentId,
       text,
-      attachments,
+      attachmentIds,
     }: {
       agentId: string;
       text: string;
-      attachments?: Array<{
-        name: string;
-        content: string;
-        content_type: string;
-      }>;
+      attachmentIds?: string[];
     }) =>
       unwrap(
         await api.projects[":id"].agents[":aid"].message.$post({
           param: { id: projectId, aid: agentId },
-          json: { text, attachments },
+          json: { text, attachmentIds },
         }),
       ),
     onSuccess: (_data, { agentId }) =>

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
-import { Paperclip, Square, X, FileIcon, Download, Upload } from "lucide-react";
+import { Paperclip, Square, X, FileIcon, Download, Upload, Check, AlertCircle } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -16,6 +16,7 @@ import {
   useSendMessage,
   useInterruptAgent,
   useRestartAgent,
+  useUploadAttachment,
 } from "../hooks";
 import { messageTimeLabel, dateSeparatorLabel, isSameDay } from "../lib/time";
 import { useTickingClock } from "../lib/useTickingClock";
@@ -42,10 +43,13 @@ export interface Message {
 }
 
 interface PendingFile {
+  localId: string;
   name: string;
   size: number;
-  base64: string;
   content_type: string;
+  uploadId: string | null;
+  progress: number; // 0 = queued, 1-99 = uploading, 100 = done
+  error?: string;
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -255,6 +259,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     isFetchingNextPage,
   } = useMessages(projectId, agent.id);
   const sendMessage = useSendMessage(projectId ?? "");
+  const uploadAttachment = useUploadAttachment(projectId ?? "");
   const interruptAgent = useInterruptAgent(projectId ?? "");
   const restartAgent = useRestartAgent(projectId ?? "");
 
@@ -351,34 +356,56 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     }
   }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
-  const onDrop = React.useCallback((accepted: File[], rejected: FileRejection[]) => {
-    if (rejected.length > 0) {
-      const msg = rejected
-        .map((r) => `"${r.file.name}": ${r.errors.map((e) => e.message).join(", ")}`)
-        .join("; ");
-      setUploadError((prev) => (prev ? `${prev}; ${msg}` : msg));
-    }
-    for (const file of accepted) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        setPendingFiles((prev) => [
-          ...prev,
+  const onDrop = React.useCallback(
+    (accepted: File[], rejected: FileRejection[]) => {
+      if (rejected.length > 0) {
+        const msg = rejected
+          .map((r) => `"${r.file.name}": ${r.errors.map((e) => e.message).join(", ")}`)
+          .join("; ");
+        setUploadError((prev) => (prev ? `${prev}; ${msg}` : msg));
+      }
+      for (const file of accepted) {
+        const lid = crypto.randomUUID();
+        const pending: PendingFile = {
+          localId: lid,
+          name: file.name,
+          size: file.size,
+          content_type: file.type || "application/octet-stream",
+          uploadId: null,
+          progress: 0,
+        };
+        setPendingFiles((prev) => [...prev, pending]);
+
+        uploadAttachment.mutate(
           {
-            name: file.name,
-            size: file.size,
-            base64,
-            content_type: file.type || "application/octet-stream",
+            agentId: agent.id,
+            file,
+            onProgress: (percent) => {
+              setPendingFiles((prev) =>
+                prev.map((f) => (f.localId === lid ? { ...f, progress: percent } : f)),
+              );
+            },
           },
-        ]);
-      };
-      reader.onerror = () => {
-        const msg = `Failed to read "${file.name}"`;
-        setUploadError((prev) => (prev ? `${prev}, ${msg}` : msg));
-      };
-      reader.readAsDataURL(file);
-    }
-  }, []);
+          {
+            onSuccess: (result) => {
+              setPendingFiles((prev) =>
+                prev.map((f) =>
+                  f.localId === lid ? { ...f, uploadId: result.id, progress: 100 } : f,
+                ),
+              );
+            },
+            onError: (err) => {
+              const errorMsg = err instanceof Error ? err.message : "Upload failed";
+              setPendingFiles((prev) =>
+                prev.map((f) => (f.localId === lid ? { ...f, error: errorMsg, progress: 0 } : f)),
+              );
+            },
+          },
+        );
+      }
+    },
+    [agent.id, uploadAttachment],
+  );
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
@@ -393,22 +420,24 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const anyPending = pendingFiles.some((f) => f.uploadId === null && !f.error);
+
   const handleSend = () => {
     const text = input.trim();
     if (!text && pendingFiles.length === 0) return;
+    if (anyPending) return;
 
-    const attachments =
-      pendingFiles.length > 0
-        ? pendingFiles.map((f) => ({
-            name: f.name,
-            content: f.base64,
-            content_type: f.content_type,
-          }))
-        : undefined;
+    const attachmentIds = pendingFiles
+      .filter((f) => f.uploadId !== null)
+      .map((f) => f.uploadId as string);
 
     markBusy();
     sendMessage.mutate(
-      { agentId: agent.id, text: text || "", attachments },
+      {
+        agentId: agent.id,
+        text: text || "",
+        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+      },
       {
         onSuccess: () => {
           setInput("");
@@ -575,19 +604,35 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
             <div className="flex flex-wrap gap-2 mb-2">
               {pendingFiles.map((file, i) => (
                 <div
-                  key={`${file.name}-${i}`}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-muted/50 text-xs"
+                  key={file.localId}
+                  className="flex flex-col rounded-md border border-border bg-muted/50 text-xs overflow-hidden"
                 >
-                  <FileIcon className="h-3 w-3 text-muted-foreground" />
-                  <span className="truncate max-w-32">{file.name}</span>
-                  <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
-                  <button
-                    type="button"
-                    onClick={() => removePendingFile(i)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                  <div className="flex items-center gap-1.5 px-2 py-1">
+                    {file.error ? (
+                      <AlertCircle className="h-3 w-3 text-destructive shrink-0" />
+                    ) : file.progress === 100 ? (
+                      <Check className="h-3 w-3 text-green-500 shrink-0" />
+                    ) : (
+                      <FileIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                    )}
+                    <span className="truncate max-w-32">{file.name}</span>
+                    <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+                    <button
+                      type="button"
+                      onClick={() => removePendingFile(i)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {file.progress > 0 && file.progress < 100 && (
+                    <div className="h-0.5 bg-muted">
+                      <div
+                        className="h-full bg-primary transition-all duration-200"
+                        style={{ width: `${file.progress}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -630,7 +675,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
                 <Square className="h-4 w-4 fill-current" />
               </Button>
             ) : (
-              <Button onClick={handleSend} disabled={sendMessage.isPending}>
+              <Button onClick={handleSend} disabled={sendMessage.isPending || anyPending}>
                 Send
               </Button>
             )}

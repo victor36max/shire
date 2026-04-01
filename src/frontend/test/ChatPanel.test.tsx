@@ -20,6 +20,11 @@ const createdAgent: AgentOverview = {
 };
 
 const sendMutate = mock(() => {});
+const uploadAttachmentMutate = mock(
+  (_payload: unknown, opts?: { onSuccess?: (result: { id: string }) => void }) => {
+    opts?.onSuccess?.({ id: `upload-${Date.now()}` });
+  },
+);
 const interruptMutate = mock(() => {});
 const restartMutate = mock(() => {});
 const fetchNextPageMock = mock(() => {});
@@ -41,6 +46,7 @@ mock.module("../hooks", () => ({
     isFetchingNextPage: false,
   }),
   useSendMessage: () => ({ mutate: sendMutate, isPending: false }),
+  useUploadAttachment: () => ({ mutate: uploadAttachmentMutate, isPending: false }),
   useInterruptAgent: () => ({ mutate: interruptMutate, isPending: false }),
   useRestartAgent: () => ({ mutate: restartMutate, isPending: false }),
 }));
@@ -143,7 +149,7 @@ describe("ChatPanel", () => {
     expect(calls[0][0]).toEqual({
       agentId: "a1",
       text: "test message",
-      attachments: undefined,
+      attachmentIds: undefined,
     });
   });
 
@@ -160,7 +166,7 @@ describe("ChatPanel", () => {
     expect(calls[0][0]).toEqual({
       agentId: "a1",
       text: "test message",
-      attachments: undefined,
+      attachmentIds: undefined,
     });
   });
 

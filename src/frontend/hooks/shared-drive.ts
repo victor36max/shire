@@ -56,20 +56,6 @@ export function useDeleteSharedFile(projectId: string) {
   });
 }
 
-export function useUploadFile(projectId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ name, content, path }: { name: string; content: string; path: string }) =>
-      unwrap(
-        await api.projects[":id"]["shared-drive"].upload.$post({
-          param: { id: projectId },
-          json: { name, content, path },
-        }),
-      ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["shared-drive", projectId] }),
-  });
-}
-
 export function usePreviewFile(projectId: string) {
   return useMutation({
     mutationFn: async (path: string) =>

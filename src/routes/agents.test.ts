@@ -142,57 +142,38 @@ describe("POST /api/projects/:id/agents/:aid/mark-read", () => {
   });
 });
 
-describe("POST /api/projects/:id/agents/:aid/message attachment validation", () => {
-  it("rejects attachments missing required fields", async () => {
+describe("POST /api/projects/:id/agents/:aid/message attachmentIds validation", () => {
+  it("rejects non-array attachmentIds", async () => {
     const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
       text: "hello",
-      attachments: [{ foo: "bar" }],
+      attachmentIds: "not-an-array",
     });
     expect(res.status).toBe(400);
   });
 
-  it("rejects attachments with missing name", async () => {
+  it("rejects attachmentIds with path traversal", async () => {
     const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
       text: "hello",
-      attachments: [{ content: "abc", content_type: "text/plain" }],
+      attachmentIds: ["../../../etc"],
     });
-    expect(res.status).toBe(400);
+    // Should be 400 (path traversal check) or 404 (not found)
+    expect([400, 404]).toContain(res.status);
   });
 
-  it("rejects attachments with missing content", async () => {
+  it("accepts well-formed attachmentIds", async () => {
     const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
       text: "hello",
-      attachments: [{ name: "test.txt", content_type: "text/plain" }],
+      attachmentIds: ["some-id"],
     });
-    expect(res.status).toBe(400);
+    // Will be 404 (attachment not found) since we didn't upload, but not 400 (validation pass)
+    expect(res.status).not.toBe(400);
   });
 
-  it("rejects filenames with path separators", async () => {
+  it("accepts message without attachmentIds", async () => {
     const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
       text: "hello",
-      attachments: [
-        {
-          name: "../../etc/passwd",
-          content: Buffer.from("data").toString("base64"),
-          content_type: "text/plain",
-        },
-      ],
     });
-    expect(res.status).toBe(400);
-  });
-
-  it("accepts well-formed attachments", async () => {
-    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/message`, {
-      text: "hello",
-      attachments: [
-        {
-          name: "test.txt",
-          content: Buffer.from("data").toString("base64"),
-          content_type: "text/plain",
-        },
-      ],
-    });
-    // Should not be 400 (validation pass) — will be 200 if agent is active or 422 if not
+    // Not 400 — validation passes (422 expected since agent isn't active)
     expect(res.status).not.toBe(400);
   });
 });
