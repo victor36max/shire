@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { api } from "../api";
+import { api } from "../lib/api";
 import { unwrap } from "./util";
-import type { InterAgentMessage } from "../../components/types";
+import type { InterAgentMessage } from "../components/types";
 
 interface ActivityResponse {
   messages: InterAgentMessage[];

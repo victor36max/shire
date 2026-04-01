@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api } from "../lib/api";
 import { unwrap } from "./util";
 
 /** Shape returned by the messages API endpoint. */

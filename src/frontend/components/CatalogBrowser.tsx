@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card";
 import { Spinner } from "./ui/spinner";
-import { useCatalogAgents, useCatalogCategories } from "../lib/hooks";
+import { useCatalogAgents, useCatalogCategories } from "../hooks";
 
 interface CatalogBrowserProps {
   open: boolean;

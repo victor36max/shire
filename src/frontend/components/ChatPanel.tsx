@@ -15,7 +15,7 @@ import {
   useSendMessage,
   useInterruptAgent,
   useRestartAgent,
-} from "../lib/hooks";
+} from "../hooks";
 import { messageTimeLabel, dateSeparatorLabel, isSameDay } from "../lib/time";
 import { useTickingClock } from "../lib/useTickingClock";
 

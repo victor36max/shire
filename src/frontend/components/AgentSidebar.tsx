@@ -22,7 +22,7 @@ import { Spinner } from "./ui/spinner";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { navigate } from "../lib/navigate";
 import { type AgentOverview, type AgentStatus } from "./types";
-import { useProjectId, useProjects, useAgents, useDeleteAgent } from "../lib/hooks";
+import { useProjectId, useProjects, useAgents, useDeleteAgent } from "../hooks";
 
 function statusDotColor(status: AgentStatus): string {
   switch (status) {

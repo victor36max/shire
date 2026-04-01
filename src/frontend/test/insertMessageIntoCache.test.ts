@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { QueryClient, type InfiniteData } from "@tanstack/react-query";
-import type { MessagesResponse } from "../lib/hooks/messages";
+import type { MessagesResponse } from "../hooks/messages";
 import type { WsSerializedMessage } from "../lib/ws";
 import { insertMessageIntoCache } from "../lib/insertMessageIntoCache";
 

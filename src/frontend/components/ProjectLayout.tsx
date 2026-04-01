@@ -12,7 +12,7 @@ import {
   useCreateAgent,
   useUpdateAgent,
   useCatalogAgent,
-} from "../lib/hooks";
+} from "../hooks";
 import { useSubscription, type AgentListWsEvent } from "../lib/ws";
 import {
   ProjectLayoutProvider,

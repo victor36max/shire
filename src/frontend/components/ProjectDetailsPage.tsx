@@ -7,7 +7,7 @@ import { ChevronLeft } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import AppLayout from "./AppLayout";
 import { navigate } from "../lib/navigate";
-import { useProjectId, useProjectDoc, useRenameProject, useSaveProjectDoc } from "../lib/hooks";
+import { useProjectId, useProjectDoc, useRenameProject, useSaveProjectDoc } from "../hooks";
 
 export default function ProjectDetailsPage() {
   const { projectId, projectName } = useProjectId();

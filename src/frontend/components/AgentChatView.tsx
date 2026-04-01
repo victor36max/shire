@@ -7,7 +7,7 @@ import { ErrorState } from "./ui/error-state";
 import ChatHeader from "./ChatHeader";
 import ChatPanel from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
-import { useAgents, useMessages, useMarkRead } from "../lib/hooks";
+import { useAgents, useMessages, useMarkRead } from "../hooks";
 import { useSubscription, type AgentWsEvent } from "../lib/ws";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 import { insertMessageIntoCache } from "../lib/insertMessageIntoCache";

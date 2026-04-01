@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, mock } from "bun:test";
 import SchedulesPage from "../components/SchedulesPage";
 import type { ScheduledTask } from "../components/types";
 import { renderWithProviders } from "./test-utils";
-import * as actualHooks from "../lib/hooks";
+import * as actualHooks from "../hooks";
 
 const createMutate = mock(() => {});
 const updateMutate = mock(() => {});
@@ -23,7 +23,7 @@ let mockAgents: { id: string; name: string }[] = [
   { id: "a2", name: "Bob" },
 ];
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...actualHooks,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useAgents: () => ({ data: mockAgents, isLoading: false }),

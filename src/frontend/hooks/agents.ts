@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api } from "../lib/api";
 import { unwrap } from "./util";
-import type { AgentOverview, Agent, Skill } from "../../components/types";
+import type { AgentOverview, Agent, Skill } from "../components/types";
 
 export function useAgents(projectId: string | undefined) {
   return useQuery<AgentOverview[]>({

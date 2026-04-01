@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, mock, afterEach } from "bun:test";
 import ChatPanel, { type Message } from "../components/ChatPanel";
 import { type AgentOverview } from "../components/types";
 import { renderWithProviders } from "./test-utils";
-import * as actualHooks from "../lib/hooks";
+import * as actualHooks from "../hooks";
 
 const activeAgent: AgentOverview = {
   id: "a1",
@@ -27,7 +27,7 @@ const fetchNextPageMock = mock(() => {});
 let mockMessages: Array<Record<string, unknown>> = [];
 let mockHasMore = false;
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...actualHooks,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useMessages: () => ({

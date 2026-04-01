@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { type AgentOverview, statusVariant } from "./types";
-import { useProjectId, useClearSession } from "../lib/hooks";
+import { useProjectId, useClearSession } from "../hooks";
 
 interface ChatHeaderProps {
   agent: AgentOverview;

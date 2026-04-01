@@ -34,9 +34,9 @@ import {
   useDeleteSharedFile,
   useUploadFile,
   usePreviewFile,
-} from "../lib/hooks";
+} from "../hooks";
 
-import type { SharedDriveFile } from "../lib/hooks/shared-drive";
+import type { SharedDriveFile } from "../hooks/shared-drive";
 export type { SharedDriveFile };
 
 type PreviewType = "markdown" | "text" | "image" | "pdf" | "unsupported";

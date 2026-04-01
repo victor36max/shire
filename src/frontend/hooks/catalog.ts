@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../api";
+import { api } from "../lib/api";
 import { unwrap } from "./util";
-import type { CatalogAgent, CatalogAgentSummary, CatalogCategory } from "../../components/types";
+import type { CatalogAgent, CatalogAgentSummary, CatalogCategory } from "../components/types";
 
 export function useCatalogAgents(enabled = false) {
   return useQuery<CatalogAgentSummary[]>({

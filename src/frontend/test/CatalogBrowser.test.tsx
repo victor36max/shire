@@ -4,7 +4,7 @@ import { describe, it, expect, mock, beforeEach } from "bun:test";
 import CatalogBrowser from "../components/CatalogBrowser";
 import type { CatalogAgentSummary, CatalogCategory } from "../components/types";
 import { renderWithProviders } from "./test-utils";
-import * as hooksModule from "../lib/hooks";
+import * as hooksModule from "../hooks";
 
 const agents: CatalogAgentSummary[] = [
   {
@@ -58,7 +58,7 @@ let mockCatalogAgents: CatalogAgentSummary[] = agents;
 let mockCatalogAgentsLoading = false;
 let mockCatalogCategoriesLoading = false;
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...hooksModule,
   useCatalogAgents: () => ({ data: mockCatalogAgents, isLoading: mockCatalogAgentsLoading }),
   useCatalogCategories: () => ({ data: categories, isLoading: mockCatalogCategoriesLoading }),

@@ -3,14 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import ProjectDetailsPage from "../components/ProjectDetailsPage";
 import { renderWithProviders } from "./test-utils";
-import * as actualHooks from "../lib/hooks";
+import * as actualHooks from "../hooks";
 
 const renameMutate = mock(() => {});
 const saveDocMutate = mock(() => {});
 
 let mockProjectDoc = "# My Project\n\nSome content here.";
 
-mock.module("../lib/hooks", () => ({
+mock.module("../hooks", () => ({
   ...actualHooks,
   useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
   useProjectDoc: () => ({ data: { content: mockProjectDoc }, isLoading: false }),

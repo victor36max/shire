@@ -1,5 +1,5 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
-import type { MessagesResponse } from "./hooks/messages";
+import type { MessagesResponse } from "../hooks/messages";
 import type { WsSerializedMessage } from "./ws";
 
 /** Convert a WsSerializedMessage to the API row format and append it to the query cache. */
