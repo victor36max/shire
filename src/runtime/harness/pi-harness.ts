@@ -1,21 +1,14 @@
-import type { AgentSessionEvent, AgentSessionEventListener } from "@mariozechner/pi-coding-agent";
+import type { AgentSession, AgentSessionEvent } from "@mariozechner/pi-coding-agent";
 import type { AgentEvent, Harness, HarnessConfig, EventCallback } from "./types";
 
-export type SessionLike = {
-  subscribe: (cb: AgentSessionEventListener) => void;
-  prompt: (text: string) => Promise<void>;
-  abort: () => Promise<void>;
-  readonly sessionId: string;
-};
-
-type SessionFactory = (config: HarnessConfig) => Promise<SessionLike>;
+type SessionFactory = (config: HarnessConfig) => Promise<AgentSession>;
 
 export class PiHarness implements Harness {
   private callback: EventCallback = () => {};
   private processing = false;
   private stopped = false;
-  private session: SessionLike | null = null;
-  private sessionPending: Promise<SessionLike> | null = null;
+  private session: AgentSession | null = null;
+  private sessionPending: Promise<AgentSession> | null = null;
   private config: HarnessConfig | null = null;
   private sessionFactory: SessionFactory | null = null;
   private skipContinue = false;
@@ -30,7 +23,7 @@ export class PiHarness implements Harness {
     this.stopped = false;
   }
 
-  private async ensureSession(): Promise<SessionLike> {
+  private async ensureSession(): Promise<AgentSession> {
     if (this.stopped) throw new Error("Harness is stopped");
     if (this.session) return this.session;
     if (!this.config) throw new Error("Harness not started");
@@ -96,7 +89,7 @@ export class PiHarness implements Harness {
     return this.session?.sessionId ?? null;
   }
 
-  private async createSession(config: HarnessConfig): Promise<SessionLike> {
+  private async createSession(config: HarnessConfig): Promise<AgentSession> {
     if (this.sessionFactory) return this.sessionFactory(config);
 
     const {
@@ -163,7 +156,7 @@ export class PiHarness implements Harness {
     return session;
   }
 
-  private subscribeToSession(session: SessionLike): void {
+  private subscribeToSession(session: AgentSession): void {
     console.error("[pi-harness] subscribed to session events");
     session.subscribe((event: AgentSessionEvent) => {
       console.error(`[pi-harness] session event: ${event.type}`);

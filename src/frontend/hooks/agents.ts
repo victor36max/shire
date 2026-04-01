@@ -30,7 +30,7 @@ export function useAgentDetail(projectId: string | undefined, agentId: string | 
 interface AgentMutationData {
   name: string;
   description?: string;
-  harness?: "claude_code" | "pi";
+  harness?: "claude_code" | "pi" | "opencode";
   model?: string;
   systemPrompt?: string;
   skills?: Skill[];

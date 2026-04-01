@@ -237,6 +237,17 @@ export default function SharedDrive() {
   const [previewError, setPreviewError] = React.useState<string | null>(null);
   const currentPreviewPath = React.useRef<string | null>(null);
 
+  // Lock body scroll on mobile when lightbox is open
+  React.useEffect(() => {
+    if (!previewFile) return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    if (!mq.matches) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [previewFile]);
+
   const navigate = (path: string) => {
     setUploadError(null);
     setPreviewFile(null);
@@ -339,7 +350,7 @@ export default function SharedDrive() {
   }
 
   return (
-    <AppLayout>
+    <AppLayout maxWidth={previewFile ? "wide" : "default"}>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <Button
@@ -378,8 +389,10 @@ export default function SharedDrive() {
 
         {/* File Table + Preview Panel */}
         <div className="flex gap-4">
-          {/* File Table */}
-          <div className={`rounded-md border ${previewFile ? "w-1/2" : "w-full"} min-w-0`}>
+          {/* File Table — hidden on mobile when preview is open */}
+          <div
+            className={`rounded-md border ${previewFile ? "hidden md:block md:w-1/3" : "w-full"} min-w-0`}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -474,9 +487,9 @@ export default function SharedDrive() {
             </Table>
           </div>
 
-          {/* Preview Panel */}
+          {/* Preview Panel: fullscreen lightbox on mobile, inline side-by-side on desktop */}
           {previewFile && (
-            <div className="w-1/2 min-w-0 rounded-md border flex flex-col max-h-[calc(100vh-12rem)]">
+            <div className="fixed inset-0 z-50 bg-background flex flex-col md:static md:inset-auto md:z-auto md:bg-transparent md:w-2/3 md:min-w-0 md:rounded-md md:border md:max-h-[calc(100vh-12rem)]">
               <div className="flex items-center justify-between border-b px-4 py-2">
                 <span className="text-sm font-medium truncate">{previewFile.name}</span>
                 <div className="flex items-center gap-1">
@@ -501,7 +514,10 @@ export default function SharedDrive() {
                     size="icon"
                     className="h-7 w-7"
                     aria-label="Close preview"
-                    onClick={() => setPreviewFile(null)}
+                    onClick={() => {
+                      setPreviewFile(null);
+                      currentPreviewPath.current = null;
+                    }}
                   >
                     <X className="h-4 w-4" />
                   </Button>
