@@ -46,13 +46,9 @@ export class OpenCodeHarness implements Harness {
 
     const { createOpencode } = await import("@opencode-ai/sdk");
 
-    const model = this.config.model.includes("/")
-      ? this.config.model
-      : `anthropic/${this.config.model}`;
-
     const { client, server } = await createOpencode({
       config: {
-        model,
+        model: this.config.model,
       },
     });
 
@@ -135,7 +131,6 @@ export class OpenCodeHarness implements Harness {
       this.turnResolve = resolve;
     });
 
-    const [providerID, modelID] = this.parseModel(this.config.model);
     const systemParts = [this.config.internalSystemPrompt, this.config.systemPrompt].filter(
       Boolean,
     );
@@ -148,7 +143,6 @@ export class OpenCodeHarness implements Harness {
         body: {
           parts: [{ type: "text", text: content }],
           system,
-          model: { providerID, modelID },
         },
         query: { directory: this.config.cwd },
       });
@@ -322,15 +316,6 @@ export class OpenCodeHarness implements Harness {
 
   getSessionId(): string | null {
     return this.sessionId;
-  }
-
-  private parseModel(model: string): [string, string] {
-    if (model.includes("/")) {
-      const [providerID, ...rest] = model.split("/");
-      return [providerID, rest.join("/")];
-    }
-    // Default to anthropic if no provider prefix
-    return ["anthropic", model];
   }
 
   private emitEvent(event: AgentEvent): void {
