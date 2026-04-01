@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, mock } from "bun:test";
+import { screen } from "@testing-library/react";
+import { describe, it, expect } from "bun:test";
 import ProjectSwitcher from "../components/ProjectSwitcher";
 import type { Project } from "../components/types";
+import { renderWithProviders } from "./test-utils";
 
 const projects: Project[] = [
   { id: "p1", name: "test-project", status: "running" },
@@ -10,25 +11,12 @@ const projects: Project[] = [
 
 describe("ProjectSwitcher", () => {
   it("renders with current project selected", () => {
-    render(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
+    renderWithProviders(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
     expect(screen.getByText("test-project")).toBeInTheDocument();
   });
 
   it("renders as a select trigger", () => {
-    render(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
-    expect(screen.getByRole("combobox")).toBeInTheDocument();
-  });
-
-  it("navigates to / when All Projects is selected", async () => {
-    const assignMock = mock(() => {});
-    Object.defineProperty(window, "location", {
-      value: { assign: assignMock },
-      writable: true,
-    });
-
-    render(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
-    // The select component renders the current value; full interaction testing
-    // of Radix Select in jsdom is limited, so we verify the component renders
+    renderWithProviders(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
     expect(screen.getByRole("combobox")).toBeInTheDocument();
   });
 });

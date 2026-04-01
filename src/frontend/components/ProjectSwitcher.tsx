@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { navigate } from "../lib/navigate";
+import { useNavigate } from "react-router-dom";
 import type { Project } from "./types";
 
 interface ProjectSwitcherProps {
@@ -8,6 +8,7 @@ interface ProjectSwitcherProps {
 }
 
 export default function ProjectSwitcher({ projects, currentProjectName }: ProjectSwitcherProps) {
+  const navigate = useNavigate();
   return (
     <Select
       value={currentProjectName}

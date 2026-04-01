@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button, buttonVariants } from "./ui/button";
 import {
   DropdownMenu,
@@ -20,7 +20,6 @@ import {
 import { FileText, Settings, FolderOpen, Clock } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import ProjectSwitcher from "./ProjectSwitcher";
-import { navigate } from "../lib/navigate";
 import { type AgentOverview, type AgentStatus } from "./types";
 import { useProjectId, useProjects, useAgents, useDeleteAgent } from "../hooks";
 
@@ -44,6 +43,7 @@ interface AgentSidebarProps {
 }
 
 export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSidebarProps) {
+  const navigate = useNavigate();
   const { agentName } = useParams<{ agentName: string }>();
   const { projectId, projectName } = useProjectId();
   const { data: projects = [] } = useProjects();

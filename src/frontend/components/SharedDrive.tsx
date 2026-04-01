@@ -26,7 +26,7 @@ import Markdown from "./Markdown";
 import { ChevronLeft, Folder, File, X, Download } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
-import { navigate as navigateTo } from "../lib/navigate";
+import { useNavigate } from "react-router-dom";
 import {
   useProjectId,
   useSharedDrive,
@@ -206,6 +206,7 @@ function PreviewContent({
 }
 
 export default function SharedDrive() {
+  const navigateTo = useNavigate();
   const { projectId, projectName } = useProjectId();
   const [currentPath, setCurrentPath] = React.useState("/");
 

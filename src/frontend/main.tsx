@@ -1,8 +1,7 @@
-import { StrictMode, Suspense, lazy, useEffect } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { setNavigate } from "./lib/navigate";
 import { Toaster, toast } from "sonner";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -33,16 +32,6 @@ const queryClient = new QueryClient({
   },
 });
 
-function NavigateBridge() {
-  const nav = useNavigate();
-  useEffect(() => {
-    setNavigate((href, opts) => {
-      nav(href, { replace: opts?.replace });
-    });
-  }, [nav]);
-  return null;
-}
-
 function ConnectionToastManager() {
   useConnectionToast();
   return null;
@@ -56,7 +45,6 @@ function App() {
           <Toaster position="bottom-right" richColors />
           <ConnectionToastManager />
           <BrowserRouter>
-            <NavigateBridge />
             <Suspense
               fallback={
                 <div className="flex items-center justify-center h-screen">

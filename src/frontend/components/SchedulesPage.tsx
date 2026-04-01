@@ -28,7 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { ChevronLeft, Plus, Play, Pencil, Trash2 } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
-import { navigate } from "../lib/navigate";
+import { useNavigate } from "react-router-dom";
 import {
   DAY_LABELS,
   buildCronExpression,
@@ -96,6 +96,7 @@ function utcIsoToLocal(isoString: string): { date: string; time: string } {
 // Props interface removed — component now owns its data fetching
 
 export default function SchedulesPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { projectId, projectName } = useProjectId();
 

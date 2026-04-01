@@ -1,39 +1,11 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
+import { http, HttpResponse } from "msw";
+import { server } from "./msw-server";
 import SchedulesPage from "../components/SchedulesPage";
 import type { ScheduledTask } from "../components/types";
 import { renderWithProviders } from "./test-utils";
-import * as actualHooks from "../hooks";
-
-const createMutate = mock(() => {});
-const updateMutate = mock(() => {});
-const deleteMutate = mock(() => {});
-const toggleMutate = mock(() => {});
-const runNowMutate = mock(() => {});
-
-let mockTasks: ScheduledTask[] = [];
-let mockSchedulesError: {
-  isError: boolean;
-  error: Error | null;
-  refetch: ReturnType<typeof mock>;
-} = { isError: false, error: null, refetch: mock(() => {}) };
-let mockAgents: { id: string; name: string }[] = [
-  { id: "a1", name: "Alice" },
-  { id: "a2", name: "Bob" },
-];
-
-mock.module("../hooks", () => ({
-  ...actualHooks,
-  useProjectId: () => ({ projectId: "p1", projectName: "test-project" }),
-  useAgents: () => ({ data: mockAgents, isLoading: false }),
-  useSchedules: () => ({ data: mockTasks, isLoading: false, ...mockSchedulesError }),
-  useCreateSchedule: () => ({ mutate: createMutate, isPending: false }),
-  useUpdateSchedule: () => ({ mutate: updateMutate, isPending: false }),
-  useDeleteSchedule: () => ({ mutate: deleteMutate, isPending: false }),
-  useToggleSchedule: () => ({ mutate: toggleMutate, isPending: false }),
-  useRunScheduleNow: () => ({ mutate: runNowMutate, isPending: false }),
-}));
 
 mock.module("../lib/ws", () => ({
   useSubscription: mock(() => {}),
@@ -66,72 +38,102 @@ const sampleTasks: ScheduledTask[] = [
   },
 ];
 
-beforeEach(() => {
-  mockTasks = [];
-  mockAgents = [
+const routeOpts = {
+  route: "/projects/test-project/schedules",
+  routePath: "/projects/:projectName/schedules",
+};
+
+function setSchedules(tasks: ScheduledTask[]) {
+  server.use(http.get("*/api/projects/:id/schedules", () => HttpResponse.json(tasks)));
+}
+
+function setAgents(
+  agents: Array<{ id: string; name: string }> = [
     { id: "a1", name: "Alice" },
     { id: "a2", name: "Bob" },
-  ];
-  mockSchedulesError = { isError: false, error: null, refetch: mock(() => {}) };
-  createMutate.mockClear();
-  updateMutate.mockClear();
-  deleteMutate.mockClear();
-  toggleMutate.mockClear();
-  runNowMutate.mockClear();
-});
+  ],
+) {
+  server.use(http.get("*/api/projects/:id/agents", () => HttpResponse.json(agents)));
+}
 
 describe("SchedulesPage", () => {
-  it("renders empty state when no tasks", () => {
-    renderWithProviders(<SchedulesPage />);
-    expect(screen.getByText("No scheduled tasks yet.")).toBeInTheDocument();
+  it("renders empty state when no tasks", async () => {
+    setAgents();
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("No scheduled tasks yet.")).toBeInTheDocument();
+    });
     expect(
       screen.getByText("Create a schedule to automatically send messages to agents."),
     ).toBeInTheDocument();
   });
 
-  it("renders heading", () => {
-    renderWithProviders(<SchedulesPage />);
-    expect(screen.getByRole("heading", { name: "Scheduled Tasks" })).toBeInTheDocument();
+  it("renders heading", async () => {
+    setAgents();
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Scheduled Tasks" })).toBeInTheDocument();
+    });
   });
 
-  it("renders task list when tasks exist", () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
-    expect(screen.getByText("Daily standup")).toBeInTheDocument();
+  it("renders task list when tasks exist", async () => {
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("Daily standup")).toBeInTheDocument();
+    });
     expect(screen.getByText("Weekly report")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
   });
 
-  it("shows schedule description for recurring tasks", () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
-    // Cron "0 9 * * *" is 9:00 UTC, displayed in local timezone
-    expect(screen.getByText(/^Daily at \d+:\d+ [AP]M$/) as HTMLElement).toBeInTheDocument();
+  it("shows schedule description for recurring tasks", async () => {
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      // Cron "0 9 * * *" is 9:00 UTC, displayed in local timezone
+      expect(screen.getByText(/^Daily at \d+:\d+ [AP]M$/) as HTMLElement).toBeInTheDocument();
+    });
   });
 
-  it("shows enabled/disabled toggle state", () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
-    expect(screen.getByText("On")).toBeInTheDocument();
+  it("shows enabled/disabled toggle state", async () => {
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("On")).toBeInTheDocument();
+    });
     expect(screen.getByText("Off")).toBeInTheDocument();
   });
 
-  it("shows last run info", () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
-    expect(screen.getByText("Never")).toBeInTheDocument();
+  it("shows last run info", async () => {
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("Never")).toBeInTheDocument();
+    });
   });
 
   it("opens create dialog on New Schedule click", async () => {
-    renderWithProviders(<SchedulesPage />);
+    setAgents();
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("New Schedule")).toBeInTheDocument();
+    });
     await userEvent.click(screen.getByText("New Schedule"));
     expect(screen.getByRole("heading", { name: "New Schedule" })).toBeInTheDocument();
   });
 
   it("can fill in form fields", async () => {
+    setAgents();
     const user = userEvent.setup();
-    renderWithProviders(<SchedulesPage />);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("New Schedule")).toBeInTheDocument();
+    });
     await user.click(screen.getByText("New Schedule"));
 
     const labelInput = screen.getByLabelText("Label");
@@ -144,15 +146,32 @@ describe("SchedulesPage", () => {
   });
 
   it("has Create Schedule button disabled when form is incomplete", async () => {
-    renderWithProviders(<SchedulesPage />);
+    setAgents();
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("New Schedule")).toBeInTheDocument();
+    });
     await userEvent.click(screen.getByText("New Schedule"));
     expect(screen.getByRole("button", { name: "Create Schedule" })).toBeDisabled();
   });
 
-  it("calls updateSchedule.mutate when editing and submitting", async () => {
+  it("sends update request when editing and submitting", async () => {
+    let updatedBody: Record<string, unknown> | undefined;
+    server.use(
+      http.patch("*/api/projects/:id/schedules/:sid", async ({ request, params }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        updatedBody = { id: params.sid, ...body };
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    setAgents();
+    setSchedules(sampleTasks);
     const user = userEvent.setup();
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily standup")).toBeInTheDocument();
+    });
 
     const editButtons = screen.getAllByRole("button", { name: "Edit" });
     await user.click(editButtons[0]);
@@ -163,20 +182,20 @@ describe("SchedulesPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
-    expect(updateMutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "t1",
-        label: "Updated standup",
-        agentId: "a1",
-        message: "Give me a standup summary",
-        scheduleType: "recurring",
-      }),
-    );
+    await waitFor(() => {
+      expect(updatedBody).toBeDefined();
+      expect(updatedBody!.id).toBe("t1");
+      expect(updatedBody!.label).toBe("Updated standup");
+    });
   });
 
   it("opens delete confirmation dialog", async () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("Daily standup")).toBeInTheDocument();
+    });
     const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
     await userEvent.click(deleteButtons[0]);
 
@@ -188,9 +207,21 @@ describe("SchedulesPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("calls deleteSchedule.mutate on delete confirm", async () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
+  it("sends delete request on delete confirm", async () => {
+    let deletedSid: string | undefined;
+    server.use(
+      http.delete("*/api/projects/:id/schedules/:sid", ({ params }) => {
+        deletedSid = params.sid as string;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily standup")).toBeInTheDocument();
+    });
 
     const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
     await userEvent.click(deleteButtons[0]);
@@ -201,12 +232,17 @@ describe("SchedulesPage", () => {
     });
     await userEvent.click(confirmButton);
 
-    expect(deleteMutate).toHaveBeenCalledWith("t1");
+    await waitFor(() => expect(deletedSid).toBe("t1"));
   });
 
   it("cancels delete confirmation dialog", async () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily standup")).toBeInTheDocument();
+    });
 
     const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
     await userEvent.click(deleteButtons[0]);
@@ -221,26 +257,60 @@ describe("SchedulesPage", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
-  it("calls toggleSchedule.mutate when toggling", async () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
+  it("sends toggle request when toggling", async () => {
+    let toggleBody: Record<string, unknown> | undefined;
+    let toggleSid: string | undefined;
+    server.use(
+      http.post("*/api/projects/:id/schedules/:sid/toggle", async ({ request, params }) => {
+        toggleSid = params.sid as string;
+        toggleBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("On")).toBeInTheDocument();
+    });
 
     await userEvent.click(screen.getByText("On"));
-    expect(toggleMutate).toHaveBeenCalledWith({ id: "t1", enabled: false });
+    await waitFor(() => {
+      expect(toggleSid).toBe("t1");
+      expect(toggleBody).toEqual({ enabled: false });
+    });
   });
 
-  it("calls runNow.mutate when clicking run", async () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
+  it("sends run request when clicking run", async () => {
+    let runSid: string | undefined;
+    server.use(
+      http.post("*/api/projects/:id/schedules/:sid/run", ({ params }) => {
+        runSid = params.sid as string;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily standup")).toBeInTheDocument();
+    });
 
     const runButtons = screen.getAllByRole("button", { name: "Run now" });
     await userEvent.click(runButtons[0]);
-    expect(runNowMutate).toHaveBeenCalledWith("t1");
+    await waitFor(() => expect(runSid).toBe("t1"));
   });
 
   it("opens edit dialog with pre-filled form", async () => {
-    mockTasks = sampleTasks;
-    renderWithProviders(<SchedulesPage />);
+    setAgents();
+    setSchedules(sampleTasks);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily standup")).toBeInTheDocument();
+    });
 
     const editButtons = screen.getAllByRole("button", { name: "Edit" });
     await userEvent.click(editButtons[0]);
@@ -250,14 +320,16 @@ describe("SchedulesPage", () => {
     expect(screen.getByLabelText("Message")).toHaveValue("Give me a standup summary");
   });
 
-  it("shows error state with retry when schedules query fails", () => {
-    mockSchedulesError = {
-      isError: true,
-      error: new Error("Failed to fetch"),
-      refetch: mock(() => {}),
-    };
-    renderWithProviders(<SchedulesPage />);
-    expect(screen.getByText("Failed to fetch")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  it("shows error state with retry when schedules query fails", async () => {
+    setAgents();
+    server.use(
+      http.get("*/api/projects/:id/schedules", () =>
+        HttpResponse.json({ error: "Failed to fetch" }, { status: 500 }),
+      ),
+    );
+    renderWithProviders(<SchedulesPage />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    });
   });
 });

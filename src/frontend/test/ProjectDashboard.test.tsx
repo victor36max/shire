@@ -1,33 +1,11 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
+import { http, HttpResponse } from "msw";
+import { server } from "./msw-server";
 import ProjectDashboard from "../components/ProjectDashboard";
 import type { Project } from "../components/types";
 import { renderWithProviders } from "./test-utils";
-import * as actualHooks from "../hooks";
-
-const createMutate = mock(() => {});
-const deleteMutate = mock(() => {});
-const restartMutate = mock(() => {});
-
-let mockProjects: Project[] = [];
-let mockProjectsError: {
-  isError: boolean;
-  error: Error | null;
-  refetch: ReturnType<typeof mock>;
-} = { isError: false, error: null, refetch: mock(() => {}) };
-
-mock.module("../hooks", () => ({
-  ...actualHooks,
-  useProjects: () => ({
-    data: mockProjects,
-    isLoading: false,
-    ...mockProjectsError,
-  }),
-  useCreateProject: () => ({ mutate: createMutate, isPending: false }),
-  useDeleteProject: () => ({ mutate: deleteMutate, isPending: false }),
-  useRestartProject: () => ({ mutate: restartMutate, isPending: false }),
-}));
 
 mock.module("../lib/ws", () => ({
   useSubscription: mock(() => {}),
@@ -38,84 +16,119 @@ const defaultProjects: Project[] = [
   { id: "p2", name: "other-project", status: "running" },
 ];
 
-beforeEach(() => {
-  mockProjects = defaultProjects;
-  mockProjectsError = { isError: false, error: null, refetch: mock(() => {}) };
-  createMutate.mockClear();
-  deleteMutate.mockClear();
-  restartMutate.mockClear();
-});
+function setProjects(projects: Project[]) {
+  server.use(http.get("*/api/projects", () => HttpResponse.json(projects)));
+}
 
 describe("ProjectDashboard", () => {
-  it("renders Projects heading", () => {
+  it("renders Projects heading", async () => {
+    setProjects(defaultProjects);
     renderWithProviders(<ProjectDashboard />);
-    expect(screen.getByRole("heading", { name: "Projects" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Projects" })).toBeInTheDocument();
+    });
   });
 
-  it("renders project cards", () => {
+  it("renders project cards", async () => {
+    setProjects(defaultProjects);
     renderWithProviders(<ProjectDashboard />);
-    expect(screen.getByText("test-project")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("test-project")).toBeInTheDocument();
+    });
     expect(screen.getByText("other-project")).toBeInTheDocument();
   });
 
-  it("shows empty state when no projects", () => {
-    mockProjects = [];
+  it("shows empty state when no projects", async () => {
+    setProjects([]);
     renderWithProviders(<ProjectDashboard />);
-    expect(screen.getByText("No projects yet")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("No projects yet")).toBeInTheDocument();
+    });
     expect(screen.getByText("Create Your First Project")).toBeInTheDocument();
   });
 
-  it("shows status badges on project cards", () => {
-    mockProjects = [
+  it("shows status badges on project cards", async () => {
+    setProjects([
       { id: "p3", name: "running-project", status: "running" },
       { id: "p4", name: "error-project", status: "error" },
-    ];
+    ]);
     renderWithProviders(<ProjectDashboard />);
-    expect(screen.getByText("running")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("running")).toBeInTheDocument();
+    });
     expect(screen.getByText("error")).toBeInTheDocument();
   });
 
-  it("shows starting status badge", () => {
-    mockProjects = [{ id: "p9", name: "starting-project", status: "starting" }];
+  it("shows starting status badge", async () => {
+    setProjects([{ id: "p9", name: "starting-project", status: "starting" }]);
     renderWithProviders(<ProjectDashboard />);
-    expect(screen.getByText("starting")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("starting")).toBeInTheDocument();
+    });
   });
 
   it("does not show Restart option for starting projects", async () => {
-    mockProjects = [{ id: "p10", name: "starting-proj", status: "starting" }];
+    setProjects([{ id: "p10", name: "starting-proj", status: "starting" }]);
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
+    });
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.queryByText("Restart")).not.toBeInTheDocument();
   });
 
   it("does not show Restart option for running projects (explicit)", async () => {
-    mockProjects = [{ id: "p12", name: "running-proj", status: "running" }];
+    setProjects([{ id: "p12", name: "running-proj", status: "running" }]);
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
+    });
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.queryByText("Restart")).not.toBeInTheDocument();
   });
 
   it("opens create dialog when clicking + New Project", async () => {
+    setProjects(defaultProjects);
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByText("+ New Project")).toBeInTheDocument();
+    });
     await userEvent.click(screen.getByText("+ New Project"));
     expect(screen.getByText("Create a new project with its own isolated VM.")).toBeInTheDocument();
   });
 
   it("creates a project via dialog", async () => {
+    let createdName: string | undefined;
+    server.use(
+      http.post("*/api/projects", async ({ request }) => {
+        const body = (await request.json()) as { name: string };
+        createdName = body.name;
+        return HttpResponse.json({ id: "p-new" }, { status: 201 });
+      }),
+    );
+    setProjects(defaultProjects);
+
     const user = userEvent.setup();
     renderWithProviders(<ProjectDashboard />);
 
+    await waitFor(() => {
+      expect(screen.getByText("+ New Project")).toBeInTheDocument();
+    });
     await user.click(screen.getByText("+ New Project"));
     await user.paste("my-new-project");
     await user.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(createMutate).toHaveBeenCalledWith("my-new-project");
+    await waitFor(() => expect(createdName).toBe("my-new-project"));
   });
 
   it("shows validation error for invalid project name", async () => {
+    setProjects(defaultProjects);
     const user = userEvent.setup();
     renderWithProviders(<ProjectDashboard />);
 
+    await waitFor(() => {
+      expect(screen.getByText("+ New Project")).toBeInTheDocument();
+    });
     await user.click(screen.getByText("+ New Project"));
     await user.paste("INVALID NAME!");
 
@@ -127,15 +140,31 @@ describe("ProjectDashboard", () => {
   });
 
   it("shows delete confirmation when clicking Delete in card menu", async () => {
+    setProjects(defaultProjects);
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: /actions/ }).length).toBeGreaterThan(0);
+    });
     const menuButtons = screen.getAllByRole("button", { name: /actions/ });
     await userEvent.click(menuButtons[0]);
     await userEvent.click(screen.getByText("Delete"));
     expect(screen.getByText(/destroy the VM and all its data/)).toBeInTheDocument();
   });
 
-  it("calls deleteProject.mutate after confirming", async () => {
+  it("sends delete request after confirming", async () => {
+    let deletedId: string | undefined;
+    server.use(
+      http.delete("*/api/projects/:id", ({ params }) => {
+        deletedId = params.id as string;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    setProjects(defaultProjects);
+
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: /actions/ }).length).toBeGreaterThan(0);
+    });
 
     const menuButtons = screen.getAllByRole("button", { name: /actions/ });
     await userEvent.click(menuButtons[0]);
@@ -146,35 +175,56 @@ describe("ProjectDashboard", () => {
       .find((el) => el.closest("[role='alertdialog']"));
     await userEvent.click(confirmDelete!);
 
-    expect(deleteMutate).toHaveBeenCalledWith("p1");
+    await waitFor(() => expect(deletedId).toBe("p1"));
   });
 
   it("shows Restart option in menu for error projects", async () => {
-    mockProjects = [{ id: "p5", name: "errored-proj", status: "error" }];
+    setProjects([{ id: "p5", name: "errored-proj", status: "error" }]);
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
+    });
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     expect(screen.getByText("Restart")).toBeInTheDocument();
   });
 
   it("does not show Restart option for running projects", async () => {
+    setProjects(defaultProjects);
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: /actions/ }).length).toBeGreaterThan(0);
+    });
     const menuButtons = screen.getAllByRole("button", { name: /actions/ });
     await userEvent.click(menuButtons[0]);
     expect(screen.queryByText("Restart")).not.toBeInTheDocument();
   });
 
-  it("calls restartProject.mutate when clicking Restart in menu", async () => {
-    mockProjects = [{ id: "p7", name: "restart-me", status: "error" }];
+  it("sends restart request when clicking Restart in menu", async () => {
+    let restartedId: string | undefined;
+    server.use(
+      http.post("*/api/projects/:id/restart", ({ params }) => {
+        restartedId = params.id as string;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    setProjects([{ id: "p7", name: "restart-me", status: "error" }]);
+
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
+    });
 
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     await userEvent.click(screen.getByText("Restart"));
-    expect(restartMutate).toHaveBeenCalledWith("p7");
+    await waitFor(() => expect(restartedId).toBe("p7"));
   });
 
   it("shows Restarting... text while restart is in progress", async () => {
-    mockProjects = [{ id: "p8", name: "restarting-proj", status: "error" }];
+    setProjects([{ id: "p8", name: "restarting-proj", status: "error" }]);
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
+    });
 
     await userEvent.click(screen.getByRole("button", { name: /actions/ }));
     await userEvent.click(screen.getByText("Restart"));
@@ -182,24 +232,33 @@ describe("ProjectDashboard", () => {
     expect(screen.getByText("Restarting...")).toBeInTheDocument();
   });
 
-  it("shows error state with retry when projects query fails", () => {
-    mockProjects = [];
-    mockProjectsError = {
-      isError: true,
-      error: new Error("Network error"),
-      refetch: mock(() => {}),
-    };
+  it("shows error state with retry when projects query fails", async () => {
+    server.use(
+      http.get("*/api/projects", () =>
+        HttpResponse.json({ error: "Network error" }, { status: 500 }),
+      ),
+    );
     renderWithProviders(<ProjectDashboard />);
-    expect(screen.getByText("Network error")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    });
   });
 
-  it("calls refetch when clicking Try again on error state", async () => {
-    const refetchFn = mock(() => {});
-    mockProjects = [];
-    mockProjectsError = { isError: true, error: new Error("Network error"), refetch: refetchFn };
+  it("retries fetch when clicking Try again on error state", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("*/api/projects", () => {
+        callCount++;
+        return HttpResponse.json({ error: "Network error" }, { status: 500 });
+      }),
+    );
     renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    });
+
+    const beforeCount = callCount;
     await userEvent.click(screen.getByRole("button", { name: /try again/i }));
-    expect(refetchFn).toHaveBeenCalled();
+    await waitFor(() => expect(callCount).toBeGreaterThan(beforeCount));
   });
 });

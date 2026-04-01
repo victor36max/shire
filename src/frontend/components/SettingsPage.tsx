@@ -5,7 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { PageLoader } from "./ui/spinner";
 import AppLayout from "./AppLayout";
 import ThemeSelector from "./ThemeSelector";
-import { navigate } from "../lib/navigate";
+import { useNavigate } from "react-router-dom";
 import ActivityLog from "./ActivityLog";
 import AlertChannelTab from "./AlertChannelTab";
 import { useProjectId, useActivity } from "../hooks";
@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { InterAgentMessage } from "./types";
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { projectId, projectName } = useProjectId();
 
