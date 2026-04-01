@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { sql } from "drizzle-orm";
 import { createApp, handleWsMessage, handleWsClose, type AppContext } from "./server";
 import { ProjectManager } from "./runtime/project-manager";
 import { Scheduler } from "./runtime/scheduler";
@@ -23,13 +24,19 @@ export async function startServer(opts: StartOptions = {}) {
   const migrationsDir = join(root, "drizzle");
 
   // 1. Init database + run migrations
+  // Disable foreign keys before migrating — SQLite ignores PRAGMA foreign_keys=OFF
+  // inside transactions, and Drizzle wraps migrations in a transaction. Without this,
+  // any migration that recreates a table (DROP TABLE) will cascade-delete related data.
   const db = getDb();
   try {
+    db.run(sql`PRAGMA foreign_keys = OFF`);
     migrate(db, { migrationsFolder: migrationsDir });
     console.log("Database migrations applied");
   } catch (err) {
     console.error("Migration error:", err);
     process.exit(1);
+  } finally {
+    db.run(sql`PRAGMA foreign_keys = ON`);
   }
 
   // 2. Boot project manager
