@@ -14,4 +14,18 @@ describe("AppLayout", () => {
     expect(main.className).toContain("safe-area-inset-top");
     expect(main.className).toContain("safe-area-inset-bottom");
   });
+
+  it("uses max-w-5xl by default", () => {
+    const { container } = render(<AppLayout>content</AppLayout>);
+    const inner = container.querySelector("main > div") as HTMLElement;
+    expect(inner.className).toContain("max-w-5xl");
+    expect(inner.className).not.toContain("max-w-7xl");
+  });
+
+  it("uses max-w-7xl when maxWidth is wide", () => {
+    const { container } = render(<AppLayout maxWidth="wide">content</AppLayout>);
+    const inner = container.querySelector("main > div") as HTMLElement;
+    expect(inner.className).toContain("max-w-7xl");
+    expect(inner.className).not.toContain("max-w-5xl");
+  });
 });
