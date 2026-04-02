@@ -6,7 +6,7 @@ import * as projectsService from "../services/projects";
 import { mimeFromPath } from "../utils/mime";
 import type { AppEnv } from "../types";
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const MAX_FILE_SIZE = 128 * 1024 * 1024; // 128 MB
 
 function randomSuffix(): string {
   return Math.random().toString(36).slice(2, 8);
@@ -37,7 +37,7 @@ export const attachmentRoutes = new Hono<AppEnv>()
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      return c.json({ error: "File exceeds 50 MB limit" }, 413);
+      return c.json({ error: "File exceeds 128 MB limit" }, 413);
     }
 
     const safeName = basename(file.name);

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useDropzone } from "react-dropzone";
 import { Button, buttonVariants } from "./ui/button";
 import { Input } from "./ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -23,7 +24,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import AppLayout from "./AppLayout";
 import Markdown from "./Markdown";
-import { ChevronLeft, Folder, File, X, Download } from "lucide-react";
+import { ChevronLeft, Folder, File, X, Download, Upload } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
 import { useNavigate } from "react-router-dom";
@@ -101,6 +102,8 @@ function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+const MAX_UPLOAD_SIZE = 128 * 1024 * 1024; // 128 MB
 
 function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
   const segments = path.split("/").filter(Boolean);
@@ -223,13 +226,13 @@ export default function SharedDrive() {
   const deleteSharedFile = useDeleteSharedFile(projectId ?? "");
   const uploadFile = useUploadSharedDriveFile(projectId ?? "");
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
+  const fileProgressRef = React.useRef<Map<string, number>>(new Map());
   const previewFileMutation = usePreviewFile(projectId ?? "");
 
   const [newFolderOpen, setNewFolderOpen] = React.useState(false);
   const [newFolderName, setNewFolderName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [previewFile, setPreviewFile] = React.useState<SharedDriveFile | null>(null);
   const [previewContent, setPreviewContent] = React.useState<string | null>(null);
@@ -303,42 +306,74 @@ export default function SharedDrive() {
     }
   };
 
-  const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50 MB
+  const uploadFiles = React.useCallback(
+    (files: File[]) => {
+      const errors: string[] = [];
+      const valid: File[] = [];
+      for (const file of files) {
+        if (file.size > MAX_UPLOAD_SIZE) {
+          errors.push(
+            `"${file.name}" is too large (${formatSize(file.size)}). Max ${formatSize(MAX_UPLOAD_SIZE)}.`,
+          );
+        } else {
+          valid.push(file);
+        }
+      }
+      if (errors.length > 0) {
+        setUploadError(errors.join(" "));
+      } else {
+        setUploadError(null);
+      }
+      if (valid.length === 0) return;
 
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+      setUploadProgress(0);
 
-    if (file.size > MAX_UPLOAD_SIZE) {
-      setUploadError(
-        `File is too large (${formatSize(file.size)}). Maximum upload size is ${formatSize(MAX_UPLOAD_SIZE)}.`,
-      );
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    setUploadError(null);
-    setUploadProgress(0);
-
-    uploadFile.mutate(
-      {
-        file,
-        path: currentPath,
-        onProgress: (percent) => setUploadProgress(percent),
-      },
-      {
-        onSuccess: () => setUploadProgress(null),
-        onError: (err) => {
+      const updateAggregateProgress = () => {
+        const values = [...fileProgressRef.current.values()];
+        if (values.length === 0) {
           setUploadProgress(null);
-          setUploadError(err instanceof Error ? err.message : "Upload failed");
-        },
-      },
-    );
+          return;
+        }
+        setUploadProgress(Math.round(values.reduce((a, b) => a + b, 0) / values.length));
+      };
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
+      for (const file of valid) {
+        const key = `${file.name}-${crypto.randomUUID()}`;
+        fileProgressRef.current.set(key, 0);
+
+        uploadFile.mutate(
+          {
+            file,
+            path: currentPath,
+            onProgress: (percent) => {
+              fileProgressRef.current.set(key, percent);
+              updateAggregateProgress();
+            },
+          },
+          {
+            onSuccess: () => {
+              fileProgressRef.current.delete(key);
+              updateAggregateProgress();
+            },
+            onError: (err) => {
+              fileProgressRef.current.delete(key);
+              updateAggregateProgress();
+              setUploadError(err instanceof Error ? err.message : "Upload failed");
+            },
+          },
+        );
+      }
+    },
+    [currentPath, uploadFile],
+  );
+
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop: (accepted) => uploadFiles(accepted),
+    multiple: true,
+    noClick: true,
+    noKeyboard: true,
+    useFsAccessApi: false,
+  });
 
   const sortedFiles = [...files].sort((a, b) => {
     if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
@@ -351,7 +386,16 @@ export default function SharedDrive() {
 
   return (
     <AppLayout maxWidth={previewFile ? "wide" : "default"}>
-      <div className="space-y-4">
+      <div {...getRootProps()} className="space-y-4 relative">
+        <input {...getInputProps()} />
+        {isDragActive && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg">
+            <div className="flex flex-col items-center gap-2 text-primary">
+              <Upload className="h-8 w-8" />
+              <span className="text-sm font-medium">Drop files here</span>
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -367,8 +411,7 @@ export default function SharedDrive() {
         <div className="flex items-center justify-between">
           <Breadcrumbs path={currentPath} onNavigate={navigate} />
           <div className="flex items-center gap-2">
-            <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <Button variant="outline" size="sm" onClick={open}>
               Upload File
             </Button>
             <Button variant="outline" size="sm" onClick={() => setNewFolderOpen(true)}>

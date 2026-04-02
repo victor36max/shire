@@ -733,7 +733,7 @@ describe("ChatPanel", () => {
       expect(screen.getByText("b.txt")).toBeInTheDocument();
     });
 
-    it("shows error when file exceeds 50 MB limit", async () => {
+    it("shows error when file exceeds 128 MB limit", async () => {
       renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
 
       await waitFor(() => {
@@ -742,7 +742,7 @@ describe("ChatPanel", () => {
 
       const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
-      const bigFile = createFile("huge.bin", 51 * 1024 * 1024);
+      const bigFile = createFile("huge.bin", 129 * 1024 * 1024);
       const dt = createDataTransfer([bigFile]);
       Object.defineProperty(input, "files", { value: dt.files, configurable: true });
       fireEvent.change(input);
@@ -779,16 +779,8 @@ describe("ChatPanel", () => {
     });
   });
 
-  describe("drag and drop", () => {
-    it("renders dropzone root with role=presentation", async () => {
-      const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
-      await waitFor(() => {
-        const root = container.firstElementChild as HTMLElement;
-        expect(root.getAttribute("role")).toBe("presentation");
-      });
-    });
-
-    it("renders hidden file input with multiple attribute from dropzone", async () => {
+  describe("file input", () => {
+    it("renders hidden file input with multiple attribute", async () => {
       renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
       await waitFor(() => {
         const input = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -797,7 +789,7 @@ describe("ChatPanel", () => {
       });
     });
 
-    it("processes files dropped via dropzone input", async () => {
+    it("processes files selected via file input", async () => {
       renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
 
       await waitFor(() => {
@@ -806,12 +798,12 @@ describe("ChatPanel", () => {
 
       const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
-      const files = [createFile("via-drop.txt", 100)];
+      const files = [createFile("via-input.txt", 100)];
       const dt = createDataTransfer(files);
       Object.defineProperty(input, "files", { value: dt.files, configurable: true });
       fireEvent.change(input);
 
-      await screen.findByText("via-drop.txt");
+      await screen.findByText("via-input.txt");
     });
   });
 

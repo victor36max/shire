@@ -134,9 +134,9 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       return c.json({ error: "Missing file field" }, 400);
     }
 
-    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    const MAX_FILE_SIZE = 128 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
-      return c.json({ error: "File exceeds 50 MB limit" }, 413);
+      return c.json({ error: "File exceeds 128 MB limit" }, 413);
     }
 
     const safeName = basename(file.name);
