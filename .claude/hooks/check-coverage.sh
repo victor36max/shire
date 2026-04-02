@@ -20,8 +20,8 @@ if [ -z "$COVERAGE_LINE" ]; then
   exit 2
 fi
 
-# Extract first percentage (line coverage): "All files | 85.71% | ..."
-LINE_COVERAGE=$(echo "$COVERAGE_LINE" | awk -F'|' '{print $2}' | tr -d ' %')
+# Extract line coverage (third column): "All files | % Funcs | % Lines | ..."
+LINE_COVERAGE=$(echo "$COVERAGE_LINE" | awk -F'|' '{print $3}' | tr -d ' %')
 
 # Validate that the parsed value is numeric
 if ! [[ "$LINE_COVERAGE" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
