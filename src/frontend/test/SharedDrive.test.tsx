@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "bun:test";
 import { http, HttpResponse } from "msw";
@@ -341,6 +341,60 @@ describe("SharedDrive", () => {
 
       await waitFor(() => {
         expect(screen.queryByText("Actions")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("file upload", () => {
+    function createFile(name: string, size: number, type = "text/plain"): File {
+      const content = new Uint8Array(size);
+      return new File([content], name, { type });
+    }
+
+    function createDataTransfer(files: File[]): DataTransfer {
+      const dt = new DataTransfer();
+      for (const f of files) dt.items.add(f);
+      return dt;
+    }
+
+    it("dismisses progress bar after all concurrent uploads complete", async () => {
+      renderWithProviders(<SharedDrive />, routeOpts);
+
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Shared Drive" })).toBeInTheDocument();
+      });
+
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(input).toBeTruthy();
+
+      const files = [createFile("a.txt", 10), createFile("b.txt", 20), createFile("c.txt", 30)];
+      const dt = createDataTransfer(files);
+      Object.defineProperty(input, "files", { value: dt.files, configurable: true });
+      fireEvent.change(input);
+
+      // Progress bar should appear then dismiss after all uploads complete
+      await waitFor(() => {
+        const progressBar = document.querySelector(".bg-primary.transition-all");
+        expect(progressBar).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows error for oversized files without blocking valid ones", async () => {
+      renderWithProviders(<SharedDrive />, routeOpts);
+
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Shared Drive" })).toBeInTheDocument();
+      });
+
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      const files = [createFile("ok.txt", 100), createFile("huge.bin", 129 * 1024 * 1024)];
+      const dt = createDataTransfer(files);
+      Object.defineProperty(input, "files", { value: dt.files, configurable: true });
+      fireEvent.change(input);
+
+      await waitFor(() => {
+        expect(screen.getByText(/too large/)).toBeInTheDocument();
       });
     });
   });
