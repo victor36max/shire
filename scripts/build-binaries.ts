@@ -3,35 +3,16 @@
  * Build standalone binaries for all supported platforms.
  *
  * Usage:
- *   bun run scripts/build-binaries.ts          # Build all platforms
- *   bun run scripts/build-binaries.ts local     # Build for current platform only
+ *   bun run scripts/build-binaries.ts                          # Build all platforms
+ *   bun run scripts/build-binaries.ts local                    # Build for current platform only
+ *   bun run scripts/build-binaries.ts --target bun-windows-x64 # Build a specific target (cross-compile)
  */
 import tailwind from "bun-plugin-tailwind";
 import { cpSync, mkdirSync } from "fs";
 import { join } from "path";
+import { type Target, TARGETS, getTargetByBunTarget, getCurrentTarget } from "./build-targets";
 
 const ROOT = join(import.meta.dirname, "..");
-
-interface Target {
-  bunTarget: string;
-  npmDir: string;
-  binaryName: string;
-}
-
-const TARGETS: Target[] = [
-  { bunTarget: "bun-darwin-arm64", npmDir: "darwin-arm64", binaryName: "shire" },
-  { bunTarget: "bun-darwin-x64", npmDir: "darwin-x64", binaryName: "shire" },
-  { bunTarget: "bun-linux-x64", npmDir: "linux-x64", binaryName: "shire" },
-  { bunTarget: "bun-linux-arm64", npmDir: "linux-arm64", binaryName: "shire" },
-  { bunTarget: "bun-windows-x64", npmDir: "win32-x64", binaryName: "shire.exe" },
-];
-
-function getCurrentTarget(): Target | undefined {
-  const platform = process.platform;
-  const arch = process.arch;
-  const key = `${platform}-${arch}`;
-  return TARGETS.find((t) => t.npmDir === key);
-}
 
 async function buildBinary(target: Target): Promise<void> {
   const outDir = join(ROOT, "npm", target.npmDir);
@@ -72,9 +53,23 @@ async function buildBinary(target: Target): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const targetIndex = process.argv.indexOf("--target");
   const localOnly = process.argv.includes("local");
 
-  if (localOnly) {
+  if (targetIndex !== -1) {
+    const bunTarget = process.argv[targetIndex + 1];
+    if (!bunTarget) {
+      console.error("Missing value for --target");
+      process.exit(1);
+    }
+    const target = getTargetByBunTarget(bunTarget);
+    if (!target) {
+      console.error(`Unknown target: ${bunTarget}`);
+      console.error(`Valid targets: ${TARGETS.map((t) => t.bunTarget).join(", ")}`);
+      process.exit(1);
+    }
+    await buildBinary(target);
+  } else if (localOnly) {
     const current = getCurrentTarget();
     if (!current) {
       console.error(`No target for current platform: ${process.platform}-${process.arch}`);
