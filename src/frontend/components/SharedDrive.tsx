@@ -341,27 +341,24 @@ export default function SharedDrive() {
         const key = `${file.name}-${crypto.randomUUID()}`;
         fileProgressRef.current.set(key, 0);
 
-        uploadFile.mutate(
-          {
+        uploadFile
+          .mutateAsync({
             file,
             path: currentPath,
             onProgress: (percent) => {
               fileProgressRef.current.set(key, percent);
               updateAggregateProgress();
             },
-          },
-          {
-            onSuccess: () => {
-              fileProgressRef.current.delete(key);
-              updateAggregateProgress();
-            },
-            onError: (err) => {
-              fileProgressRef.current.delete(key);
-              updateAggregateProgress();
-              setUploadError(err instanceof Error ? err.message : "Upload failed");
-            },
-          },
-        );
+          })
+          .then(() => {
+            fileProgressRef.current.delete(key);
+            updateAggregateProgress();
+          })
+          .catch((err: unknown) => {
+            fileProgressRef.current.delete(key);
+            updateAggregateProgress();
+            setUploadError(err instanceof Error ? err.message : "Upload failed");
+          });
       }
     },
     [currentPath, uploadFile],

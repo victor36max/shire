@@ -750,6 +750,42 @@ describe("ChatPanel", () => {
       await screen.findByText(/File is larger than/);
     });
 
+    it("completes all concurrent uploads (not just the last one)", async () => {
+      let uploadCount = 0;
+      server.use(
+        http.post("*/api/projects/:id/agents/:aid/attachments", () => {
+          uploadCount += 1;
+          return HttpResponse.json(
+            {
+              id: `att-${uploadCount}`,
+              filename: `file${uploadCount}.txt`,
+              content_type: "text/plain",
+              size: 100,
+            },
+            { status: 201 },
+          );
+        }),
+      );
+
+      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+
+      await waitFor(() => {
+        expect(document.querySelector('input[type="file"]')).toBeTruthy();
+      });
+
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const files = [createFile("x.txt", 10), createFile("y.txt", 20), createFile("z.txt", 30)];
+      const dt = createDataTransfer(files);
+      Object.defineProperty(input, "files", { value: dt.files, configurable: true });
+      fireEvent.change(input);
+
+      // All three files should show as completed (check icon appears for each)
+      await waitFor(() => {
+        const checks = document.querySelectorAll("svg.lucide-check");
+        expect(checks.length).toBe(3);
+      });
+    });
+
     it("preserves pending files when send fails", async () => {
       server.use(
         http.post("*/api/projects/:id/agents/:aid/message", () =>
