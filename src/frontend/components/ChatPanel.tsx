@@ -380,8 +380,8 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
         };
         setPendingFiles((prev) => [...prev, pending]);
 
-        uploadAttachment.mutate(
-          {
+        uploadAttachment
+          .mutateAsync({
             agentId: agent.id,
             file,
             onProgress: (percent) => {
@@ -389,23 +389,20 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
                 prev.map((f) => (f.localId === lid ? { ...f, progress: percent } : f)),
               );
             },
-          },
-          {
-            onSuccess: (result) => {
-              setPendingFiles((prev) =>
-                prev.map((f) =>
-                  f.localId === lid ? { ...f, uploadId: result.id, progress: 100 } : f,
-                ),
-              );
-            },
-            onError: (err) => {
-              const errorMsg = err instanceof Error ? err.message : "Upload failed";
-              setPendingFiles((prev) =>
-                prev.map((f) => (f.localId === lid ? { ...f, error: errorMsg, progress: 0 } : f)),
-              );
-            },
-          },
-        );
+          })
+          .then((result) => {
+            setPendingFiles((prev) =>
+              prev.map((f) =>
+                f.localId === lid ? { ...f, uploadId: result.id, progress: 100 } : f,
+              ),
+            );
+          })
+          .catch((err: unknown) => {
+            const errorMsg = err instanceof Error ? err.message : "Upload failed";
+            setPendingFiles((prev) =>
+              prev.map((f) => (f.localId === lid ? { ...f, error: errorMsg, progress: 0 } : f)),
+            );
+          });
       }
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
