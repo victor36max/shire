@@ -169,3 +169,64 @@ describe("catalog search", () => {
     expect(results.length).toBe(0);
   });
 });
+
+describe("catalog real functions", () => {
+  // These test the actual exported functions which read from disk.
+  // The catalog dir may or may not exist; we handle both cases.
+
+  it("listCategories returns an array", async () => {
+    const { listCategories } = await import("./catalog");
+    const categories = await listCategories();
+    expect(Array.isArray(categories)).toBe(true);
+  });
+
+  it("listAgents returns an array", async () => {
+    const { listAgents } = await import("./catalog");
+    const agents = await listAgents();
+    expect(Array.isArray(agents)).toBe(true);
+  });
+
+  it("listAgents with category filter returns subset", async () => {
+    const { listAgents } = await import("./catalog");
+    const all = await listAgents();
+    if (all.length > 0) {
+      const category = all[0].category;
+      const filtered = await listAgents(category);
+      expect(filtered.length).toBeLessThanOrEqual(all.length);
+      for (const a of filtered) {
+        expect(a.category).toBe(category);
+      }
+    }
+  });
+
+  it("getAgent returns null for nonexistent agent", async () => {
+    const { getAgent } = await import("./catalog");
+    const agent = await getAgent("nonexistent-agent-xyz-12345");
+    expect(agent).toBeNull();
+  });
+
+  it("searchAgents returns empty for nonsense query", async () => {
+    const { searchAgents } = await import("./catalog");
+    const results = await searchAgents("zzzzxyznonexistent99999");
+    expect(results).toHaveLength(0);
+  });
+
+  it("getAgent returns agent for known name (if catalog exists)", async () => {
+    const { listAgents, getAgent } = await import("./catalog");
+    const all = await listAgents();
+    if (all.length > 0) {
+      const result = await getAgent(all[0].name);
+      expect(result).not.toBeNull();
+      expect(result!.name).toBe(all[0].name);
+    }
+  });
+
+  it("searchAgents matches by tag (if catalog exists)", async () => {
+    const { listAgents, searchAgents } = await import("./catalog");
+    const all = await listAgents();
+    if (all.length > 0 && all[0].tags.length > 0) {
+      const results = await searchAgents(all[0].tags[0]);
+      expect(results.length).toBeGreaterThan(0);
+    }
+  });
+});

@@ -7,6 +7,8 @@ import {
   utcHourToLocal,
   getDayShift,
   getReverseDayShift,
+  getTzOffsetHours,
+  formatTime,
   type CronFormFields,
 } from "./cron-utils";
 
@@ -173,6 +175,169 @@ describe("parseCronToForm — reverses day shift", () => {
   test("UTC+0: no shift", () => {
     const result = parseCronToForm("42 4 * * TUE,WED,THU,FRI,SAT", 0);
     expect(result.daysOfWeek?.sort()).toEqual([2, 3, 4, 5, 6]);
+  });
+});
+
+describe("getTzOffsetHours", () => {
+  test("returns a number", () => {
+    expect(typeof getTzOffsetHours()).toBe("number");
+  });
+});
+
+describe("formatTime", () => {
+  test("formats AM time correctly", () => {
+    expect(formatTime(9, 5)).toBe("9:05 AM");
+  });
+
+  test("formats PM time correctly", () => {
+    expect(formatTime(14, 30)).toBe("2:30 PM");
+  });
+
+  test("formats noon as 12 PM", () => {
+    expect(formatTime(12, 0)).toBe("12:00 PM");
+  });
+
+  test("formats midnight as 12 AM", () => {
+    expect(formatTime(0, 0)).toBe("12:00 AM");
+  });
+
+  test("formats 1 AM correctly", () => {
+    expect(formatTime(1, 0)).toBe("1:00 AM");
+  });
+});
+
+describe("buildCronExpression — non-weekly frequencies", () => {
+  test("every_n_minutes uses default 30", () => {
+    const form: CronFormFields = {
+      frequency: "every_n_minutes",
+      minute: "0",
+      hour: "9",
+      daysOfWeek: [],
+      dayOfMonth: "1",
+      intervalMinutes: "",
+    };
+    expect(buildCronExpression(form, 0)).toBe("*/30 * * * *");
+  });
+
+  test("every_n_minutes uses specified interval", () => {
+    const form: CronFormFields = {
+      frequency: "every_n_minutes",
+      minute: "0",
+      hour: "9",
+      daysOfWeek: [],
+      dayOfMonth: "1",
+      intervalMinutes: "15",
+    };
+    expect(buildCronExpression(form, 0)).toBe("*/15 * * * *");
+  });
+
+  test("hourly uses minute field", () => {
+    const form: CronFormFields = {
+      frequency: "hourly",
+      minute: "15",
+      hour: "9",
+      daysOfWeek: [],
+      dayOfMonth: "1",
+      intervalMinutes: "30",
+    };
+    expect(buildCronExpression(form, 0)).toBe("15 * * * *");
+  });
+
+  test("monthly uses dayOfMonth", () => {
+    const form: CronFormFields = {
+      frequency: "monthly",
+      minute: "0",
+      hour: "10",
+      daysOfWeek: [],
+      dayOfMonth: "15",
+      intervalMinutes: "30",
+    };
+    expect(buildCronExpression(form, 0)).toBe("0 10 15 * *");
+  });
+
+  test("weekly with empty daysOfWeek falls back to daily", () => {
+    const form: CronFormFields = {
+      frequency: "weekly",
+      minute: "0",
+      hour: "9",
+      daysOfWeek: [],
+      dayOfMonth: "1",
+      intervalMinutes: "30",
+    };
+    expect(buildCronExpression(form, 0)).toBe("0 9 * * *");
+  });
+
+  test("unknown frequency falls back to daily", () => {
+    const form: CronFormFields = {
+      frequency: "unknown" as CronFormFields["frequency"],
+      minute: "0",
+      hour: "9",
+      daysOfWeek: [],
+      dayOfMonth: "1",
+      intervalMinutes: "30",
+    };
+    expect(buildCronExpression(form, 0)).toBe("0 9 * * *");
+  });
+});
+
+describe("describeCron — additional formats", () => {
+  test("every N minutes", () => {
+    expect(describeCron("*/15 * * * *", 0)).toBe("Every 15 minutes");
+  });
+
+  test("hourly at specific minute", () => {
+    expect(describeCron("30 * * * *", 0)).toBe("Hourly at :30");
+  });
+
+  test("monthly cron", () => {
+    expect(describeCron("0 10 15 * *", 0)).toBe("Monthly on day 15 at 10:00 AM");
+  });
+
+  test("invalid cron returns raw string", () => {
+    expect(describeCron("not a cron")).toBe("not a cron");
+  });
+
+  test("unknown day name falls back to capitalized form", () => {
+    expect(describeCron("0 10 * * XDAY", 0)).toBe("Xday at 10:00 AM");
+  });
+});
+
+describe("parseCronToForm — additional formats", () => {
+  test("every_n_minutes cron", () => {
+    const result = parseCronToForm("*/10 * * * *", 0);
+    expect(result.frequency).toBe("every_n_minutes");
+    expect(result.intervalMinutes).toBe("10");
+  });
+
+  test("hourly cron", () => {
+    const result = parseCronToForm("30 * * * *", 0);
+    expect(result.frequency).toBe("hourly");
+    expect(result.minute).toBe("30");
+  });
+
+  test("monthly cron", () => {
+    const result = parseCronToForm("0 10 15 * *", 0);
+    expect(result.frequency).toBe("monthly");
+    expect(result.hour).toBe("10");
+    expect(result.dayOfMonth).toBe("15");
+  });
+
+  test("daily cron", () => {
+    const result = parseCronToForm("0 9 * * *", 0);
+    expect(result.frequency).toBe("daily");
+    expect(result.hour).toBe("9");
+    expect(result.minute).toBe("0");
+  });
+
+  test("invalid cron returns empty", () => {
+    const result = parseCronToForm("bad");
+    expect(result).toEqual({});
+  });
+
+  test("weekly cron with unknown day returns empty daysOfWeek for unknown", () => {
+    const result = parseCronToForm("0 10 * * XDAY", 0);
+    expect(result.frequency).toBe("weekly");
+    expect(result.daysOfWeek).toEqual([]);
   });
 });
 

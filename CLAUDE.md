@@ -12,8 +12,8 @@ Shire is an AI agent orchestration platform. Users create projects, add agents (
 - **Backend**: Hono (HTTP framework) + Drizzle ORM + SQLite
 - **Frontend**: React 19 + React Router 7 + Radix UI/shadcn + Tailwind CSS 4 + TanStack Query
 - **Bundler**: Bun fullstack (dev server with HMR) + bun-plugin-tailwind
-- **Agent harnesses**: Claude Code SDK (`@anthropic-ai/claude-agent-sdk`), Pi Agent SDK
-- **Testing**: Bun test + Testing Library + happy-dom (unified for backend and frontend)
+- **Agent harnesses**: Claude Code SDK (`@anthropic-ai/claude-agent-sdk`), OpenCode SDK (`@opencode-ai/sdk`), Pi Agent SDK
+- **Testing**: Bun test + Testing Library + happy-dom + MSW (unified for backend and frontend)
 - **Validation**: Zod (API input), TypeScript strict mode throughout
 
 ## Commands
@@ -50,15 +50,16 @@ bun run catalog:sync       # Sync agent catalog from community repo
 ### Runtime Layer (`src/runtime/`)
 
 Three-tier orchestration hierarchy:
+
 1. **ProjectManager** — boots all projects, creates one Coordinator per project
 2. **Coordinator** — per-project: manages AgentManagers, routes inter-agent messages, maintains peers.yaml
 3. **AgentManager** — per-agent: manages harness process lifecycle, message queue (inbox/outbox), streaming, auto-restart (up to 3 times)
 
-Harnesses (`src/runtime/harness/`) are adapters for different AI backends (Claude Code, Pi). They implement a common interface: `start`, `sendMessage`, `interrupt`, `clearSession`, `isProcessing`.
+Harnesses (`src/runtime/harness/`) are adapters for different AI backends (Claude Code, OpenCode, Pi). They implement a common interface: `start`, `sendMessage`, `interrupt`, `clearSession`, `isProcessing`.
 
 ### Data Layer (`src/db/schema.ts`, `src/services/`)
 
-Four tables: `projects`, `agents`, `messages`, `scheduled_tasks`. Services are pure functions that take a Drizzle DB instance — backend tests use in-memory SQLite with `useTestDb()`.
+Five tables: `projects`, `agents`, `messages`, `scheduled_tasks`, `alert_channels`. Services are pure functions that take a Drizzle DB instance — backend tests use in-memory SQLite with `useTestDb()`.
 
 ### API Layer (`src/routes/`)
 
@@ -85,7 +86,9 @@ Platform-specific packages with standalone binaries (same pattern as esbuild/tur
     ├── agents/{agentId}/
     │   ├── inbox/           # Incoming inter-agent messages
     │   ├── outbox/          # Outgoing inter-agent messages
-    │   └── attachments/     # File attachments
+    │   ├── attachments/     # File attachments
+    │   ├── .claude/skills/  # Skills (Claude Code harness)
+    │   └── .agents/skills/  # Skills (OpenCode/Pi harnesses)
     ├── shared/              # Cross-agent shared drive
     ├── peers.yaml           # Agent discovery registry
     └── PROJECT.md           # Project documentation

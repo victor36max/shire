@@ -1,14 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { createTestDb } from "../test/setup";
 import { AgentManager } from "./agent-manager";
 import * as agentsService from "../services/agents";
 import * as projects from "../services/projects";
 import * as workspace from "../services/workspace";
 import { bus, type BusEvent } from "../events";
-import { existsSync, rmSync } from "fs";
+import { existsSync, rmSync, writeFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { mkdir, writeFile } from "fs/promises";
+import yaml from "js-yaml";
 let testDir: string;
 let projectId: string;
 let agentId: string;
@@ -367,6 +368,560 @@ describe("AgentManager", () => {
   });
 
   // buildInternalPrompt tests have been moved to system-prompt.test.ts
+
+  describe("autoRestart", () => {
+    it("returns true for the first few attempts", () => {
+      const mgr = createManager();
+      // autoRestart calls start() internally, which will fail since
+      // workspace isn't set up, but it should return true for the first 3 attempts
+      expect(mgr.autoRestart()).toBe(true);
+      expect(mgr.autoRestart()).toBe(true);
+      expect(mgr.autoRestart()).toBe(true);
+    });
+
+    it("returns false after max retries (3)", () => {
+      const mgr = createManager();
+      mgr.autoRestart();
+      mgr.autoRestart();
+      mgr.autoRestart();
+      expect(mgr.autoRestart()).toBe(false);
+    });
+  });
+
+  describe("sendMessage with system prefix", () => {
+    let sentMessages: string[];
+
+    function createActiveManager(): AgentManager {
+      const mgr = createManager();
+      const mockHarness = {
+        start: async () => {},
+        sendMessage: async (text: string) => {
+          sentMessages.push(text);
+        },
+        interrupt: async () => {},
+        clearSession: async () => {},
+        stop: async () => {},
+        onEvent: () => {},
+        isProcessing: () => false,
+        getSessionId: () => null,
+      };
+      (mgr as unknown as Record<string, unknown>).harness = mockHarness;
+      (mgr as unknown as Record<string, unknown>).status = "active";
+      return mgr;
+    }
+
+    beforeEach(async () => {
+      sentMessages = [];
+      await workspace.ensureProjectDirs(projectId);
+      await workspace.ensureAgentDirs(projectId, agentId);
+    });
+
+    it("prepends [System] prefix for system messages", async () => {
+      const mgr = createActiveManager();
+      const result = await mgr.sendMessage("check this", "system");
+      expect(result.ok).toBe(true);
+      expect(sentMessages[0]).toBe("[System] check this");
+    });
+
+    it("does not persist system messages to DB", async () => {
+      const mgr = createActiveManager();
+      const result = await mgr.sendMessage("system only", "system");
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // System messages should not create a user message in DB
+      expect(result.message).toBeNull();
+    });
+
+    it("persists user messages to DB", async () => {
+      const mgr = createActiveManager();
+      const result = await mgr.sendMessage("user msg", "user");
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.message).not.toBeNull();
+      expect(result.message!.role).toBe("user");
+    });
+  });
+
+  describe("clearSession", () => {
+    it("clears session via harness and creates system message", async () => {
+      await workspace.ensureProjectDirs(projectId);
+      await workspace.ensureAgentDirs(projectId, agentId);
+
+      const mgr = createManager();
+      const mockHarness = {
+        start: async () => {},
+        sendMessage: async () => {},
+        interrupt: async () => {},
+        clearSession: async () => {},
+        stop: async () => {},
+        onEvent: () => {},
+        isProcessing: () => false,
+        getSessionId: () => null,
+      };
+      (mgr as unknown as Record<string, unknown>).harness = mockHarness;
+      (mgr as unknown as Record<string, unknown>).status = "active";
+
+      const result = await mgr.clearSession();
+      expect(result).toBe(true);
+
+      // Should have created a "Session cleared" message
+      const { messages } = agentsService.listMessages(projectId, agentId);
+      const systemMsg = messages.find(
+        (m) =>
+          m.role === "system" && (m.content as Record<string, unknown>).text === "Session cleared",
+      );
+      expect(systemMsg).toBeDefined();
+    });
+  });
+
+  describe("interrupt", () => {
+    it("returns true when active and harness exists", async () => {
+      await workspace.ensureProjectDirs(projectId);
+      await workspace.ensureAgentDirs(projectId, agentId);
+
+      const mgr = createManager();
+      const mockHarness = {
+        start: async () => {},
+        sendMessage: async () => {},
+        interrupt: async () => {},
+        clearSession: async () => {},
+        stop: async () => {},
+        onEvent: () => {},
+        isProcessing: () => false,
+        getSessionId: () => null,
+      };
+      (mgr as unknown as Record<string, unknown>).harness = mockHarness;
+      (mgr as unknown as Record<string, unknown>).status = "active";
+
+      const result = await mgr.interrupt();
+      expect(result).toBe(true);
+    });
+  });
+
+  describe("stop", () => {
+    it("sets status to idle", async () => {
+      const mgr = createManager();
+      await mgr.stop();
+      expect(mgr.status).toBe("idle");
+    });
+  });
+
+  describe("event broadcasting", () => {
+    it("emits agent_busy events on sendMessage", async () => {
+      await workspace.ensureProjectDirs(projectId);
+      await workspace.ensureAgentDirs(projectId, agentId);
+
+      const mgr = createManager();
+      const mockHarness = {
+        start: async () => {},
+        sendMessage: async () => {},
+        interrupt: async () => {},
+        clearSession: async () => {},
+        stop: async () => {},
+        onEvent: () => {},
+        isProcessing: () => false,
+        getSessionId: () => null,
+      };
+      (mgr as unknown as Record<string, unknown>).harness = mockHarness;
+      (mgr as unknown as Record<string, unknown>).status = "active";
+
+      const { events, unsub } = collectEvents(`project:${projectId}:agents`);
+      await mgr.sendMessage("test");
+
+      unsub();
+      const busyEvents = events.filter((e) => e.type === "agent_busy");
+      expect(busyEvents.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("start with mocked harness", () => {
+    it("starts harness and transitions to active", async () => {
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: () => {},
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+      expect(mgr.status).toBe("active");
+      await mgr.stop();
+    });
+
+    it("restart re-reads agent from DB and starts fresh", async () => {
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: () => {},
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+      expect(mgr.status).toBe("active");
+      await mgr.restart();
+      expect(mgr.status).toBe("active");
+      await mgr.stop();
+    });
+  });
+
+  describe("harness event handling via onEvent callback", () => {
+    it("processes text_delta events and accumulates streaming", async () => {
+      let eventCallback: ((e: { type: string; payload: Record<string, unknown> }) => void) | null =
+        null;
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: (cb: typeof eventCallback) => {
+            eventCallback = cb;
+          },
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+
+      const { events, unsub } = collectEvents(`project:${projectId}:agent:${agentId}`);
+
+      // Fire text_delta event
+      eventCallback!({ type: "text_delta", payload: { delta: "Hello " } });
+      eventCallback!({ type: "text_delta", payload: { delta: "World" } });
+
+      // Flush via turn_complete
+      eventCallback!({ type: "turn_complete", payload: { session_id: "s1" } });
+
+      unsub();
+      const deltaEvents = events.filter((e) => e.type === "text_delta");
+      expect(deltaEvents.length).toBe(2);
+
+      // Should have created a text message from the accumulated streaming
+      const textEvents = events.filter((e) => e.type === "text");
+      expect(textEvents.length).toBe(1);
+
+      await mgr.stop();
+    });
+
+    it("processes text event (no streaming)", async () => {
+      let eventCallback: ((e: { type: string; payload: Record<string, unknown> }) => void) | null =
+        null;
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: (cb: typeof eventCallback) => {
+            eventCallback = cb;
+          },
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+
+      const { events, unsub } = collectEvents(`project:${projectId}:agent:${agentId}`);
+
+      eventCallback!({ type: "text", payload: { text: "Full text response" } });
+
+      unsub();
+      const textEvents = events.filter((e) => e.type === "text");
+      expect(textEvents.length).toBe(1);
+
+      // Verify DB record was created
+      const { messages } = agentsService.listMessages(projectId, agentId);
+      const agentMsgs = messages.filter((m) => m.role === "agent");
+      expect(agentMsgs.length).toBe(1);
+
+      await mgr.stop();
+    });
+
+    it("processes tool_use started event", async () => {
+      let eventCallback: ((e: { type: string; payload: Record<string, unknown> }) => void) | null =
+        null;
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: (cb: typeof eventCallback) => {
+            eventCallback = cb;
+          },
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+
+      eventCallback!({
+        type: "tool_use",
+        payload: {
+          tool: "Read",
+          tool_use_id: "tu-test-1",
+          input: { path: "/foo" },
+          status: "started",
+        },
+      });
+
+      const { messages } = agentsService.listMessages(projectId, agentId);
+      const toolMsgs = messages.filter((m) => m.role === "tool_use");
+      expect(toolMsgs.length).toBe(1);
+
+      await mgr.stop();
+    });
+
+    it("processes tool_use input_ready event", async () => {
+      let eventCallback: ((e: { type: string; payload: Record<string, unknown> }) => void) | null =
+        null;
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: (cb: typeof eventCallback) => {
+            eventCallback = cb;
+          },
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+
+      // First create the tool_use with started
+      eventCallback!({
+        type: "tool_use",
+        payload: {
+          tool: "Read",
+          tool_use_id: "tu-input",
+          input: {},
+          status: "started",
+        },
+      });
+
+      // Then send input_ready with updated input
+      eventCallback!({
+        type: "tool_use",
+        payload: {
+          tool: "Read",
+          tool_use_id: "tu-input",
+          input: { path: "/updated" },
+          status: "input_ready",
+        },
+      });
+
+      const { messages } = agentsService.listMessages(projectId, agentId);
+      const toolMsg = messages.find((m) => m.role === "tool_use");
+      expect(toolMsg).toBeDefined();
+      expect((toolMsg!.content as Record<string, unknown>).input).toEqual({ path: "/updated" });
+
+      await mgr.stop();
+    });
+
+    it("processes tool_result event", async () => {
+      let eventCallback: ((e: { type: string; payload: Record<string, unknown> }) => void) | null =
+        null;
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: (cb: typeof eventCallback) => {
+            eventCallback = cb;
+          },
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+
+      eventCallback!({
+        type: "tool_use",
+        payload: {
+          tool: "Read",
+          tool_use_id: "tu-result",
+          input: {},
+          status: "started",
+        },
+      });
+
+      eventCallback!({
+        type: "tool_result",
+        payload: {
+          tool_use_id: "tu-result",
+          output: "file contents",
+          is_error: false,
+        },
+      });
+
+      const { messages } = agentsService.listMessages(projectId, agentId);
+      const toolMsg = messages.find((m) => m.role === "tool_use");
+      expect(toolMsg).toBeDefined();
+      expect((toolMsg!.content as Record<string, unknown>).output).toBe("file contents");
+
+      await mgr.stop();
+    });
+
+    it("processes error event", async () => {
+      let eventCallback: ((e: { type: string; payload: Record<string, unknown> }) => void) | null =
+        null;
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: (cb: typeof eventCallback) => {
+            eventCallback = cb;
+          },
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+
+      eventCallback!({
+        type: "error",
+        payload: { message: "Something went wrong" },
+      });
+
+      const { messages } = agentsService.listMessages(projectId, agentId);
+      const systemMsgs = messages.filter(
+        (m) =>
+          m.role === "system" &&
+          ((m.content as Record<string, unknown>).text as string).includes("Error:"),
+      );
+      expect(systemMsgs.length).toBe(1);
+
+      await mgr.stop();
+    });
+  });
+
+  describe("outbox processing", () => {
+    it("processes outbox yaml files and emits outbox events", async () => {
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async () => {},
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: () => {},
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+
+      // Write an outbox file
+      const outboxDir = workspace.outboxDir(projectId, agentId);
+      const envelope = { to: "other-agent", text: "hello there" };
+      writeFileSync(join(outboxDir, `${Date.now()}-test.yaml`), yaml.dump(envelope));
+
+      // Trigger outbox watcher by waiting briefly
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Outbox file should have been consumed
+      const remaining = readdirSync(outboxDir).filter(
+        (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
+      );
+      expect(remaining.length).toBe(0);
+
+      await mgr.stop();
+    });
+  });
+
+  describe("inbox processing", () => {
+    it("processes inbox user_message envelope", async () => {
+      let sentMessages: string[] = [];
+      mock.module("./harness", () => ({
+        createHarness: () => ({
+          start: async () => {},
+          sendMessage: async (text: string) => {
+            sentMessages.push(text);
+          },
+          interrupt: async () => {},
+          clearSession: async () => {},
+          stop: async () => {},
+          onEvent: () => {},
+          isProcessing: () => false,
+          getSessionId: () => null,
+        }),
+      }));
+
+      await workspace.ensureProjectDirs(projectId);
+      const mgr = createManager();
+      await mgr.start();
+      // Wait for initial inbox processing
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Write an inbox file while busy=false
+      const inboxDir = workspace.inboxDir(projectId, agentId);
+      const envelope = {
+        ts: Date.now(),
+        type: "user_message",
+        from: "user",
+        payload: { text: "inbox hello" },
+      };
+      writeFileSync(join(inboxDir, `${Date.now()}-test.yaml`), yaml.dump(envelope));
+
+      await new Promise((r) => setTimeout(r, 1000));
+
+      // File should be consumed
+      const remaining = readdirSync(inboxDir).filter(
+        (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
+      );
+      expect(remaining.length).toBe(0);
+
+      await mgr.stop();
+    });
+  });
 
   describe("workspace setup", () => {
     it("creates agent directories on start", async () => {

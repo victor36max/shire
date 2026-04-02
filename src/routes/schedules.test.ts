@@ -180,4 +180,114 @@ describe("POST /api/projects/:id/schedules/:sid/toggle", () => {
     const toggled = (await toggleRes.json()) as { enabled: boolean };
     expect(toggled.enabled).toBe(false);
   });
+
+  it("returns 404 for nonexistent schedule", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/schedules/nonexistent/toggle`, {
+      enabled: false,
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("PATCH /api/projects/:id/schedules/:sid", () => {
+  it("updates label of an existing schedule", async () => {
+    const agentRes = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "patch-agent",
+    });
+    const agent = (await agentRes.json()) as Record<string, string>;
+
+    await request("POST", `/api/projects/${projectId}/schedules`, {
+      agentId: agent.id,
+      label: "original-label",
+      message: "hi",
+      scheduleType: "recurring",
+      cronExpression: "0 9 * * *",
+    });
+
+    const listRes = await request("GET", `/api/projects/${projectId}/schedules`);
+    const tasks = (await listRes.json()) as Array<Record<string, string>>;
+    const taskId = tasks[0].id;
+
+    const res = await request("PATCH", `/api/projects/${projectId}/schedules/${taskId}`, {
+      label: "updated-label",
+    });
+    expect(res.status).toBe(200);
+    const updated = (await res.json()) as Record<string, unknown>;
+    expect(updated.label).toBe("updated-label");
+  });
+
+  it("returns 404 for nonexistent schedule", async () => {
+    const res = await request("PATCH", `/api/projects/${projectId}/schedules/nonexistent`, {
+      label: "nope",
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects invalid cron in update", async () => {
+    const res = await request("PATCH", `/api/projects/${projectId}/schedules/any-id`, {
+      cronExpression: "bad",
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("DELETE /api/projects/:id/schedules/:sid", () => {
+  it("deletes an existing schedule", async () => {
+    const agentRes = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "del-agent",
+    });
+    const agent = (await agentRes.json()) as Record<string, string>;
+
+    await request("POST", `/api/projects/${projectId}/schedules`, {
+      agentId: agent.id,
+      label: "to-delete",
+      message: "bye",
+      scheduleType: "recurring",
+      cronExpression: "0 9 * * *",
+    });
+
+    const listRes = await request("GET", `/api/projects/${projectId}/schedules`);
+    const tasks = (await listRes.json()) as Array<Record<string, string>>;
+    const taskId = tasks[0].id;
+
+    const res = await request("DELETE", `/api/projects/${projectId}/schedules/${taskId}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, boolean>;
+    expect(data.ok).toBe(true);
+
+    // Verify it's gone
+    const listRes2 = await request("GET", `/api/projects/${projectId}/schedules`);
+    const tasks2 = (await listRes2.json()) as Array<Record<string, unknown>>;
+    expect(tasks2.find((t) => t.id === taskId)).toBeUndefined();
+  });
+});
+
+describe("POST /api/projects/:id/schedules/:sid/run", () => {
+  it("manually runs a schedule", async () => {
+    const agentRes = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "run-agent",
+    });
+    const agent = (await agentRes.json()) as Record<string, string>;
+
+    await request("POST", `/api/projects/${projectId}/schedules`, {
+      agentId: agent.id,
+      label: "manual-run",
+      message: "do it now",
+      scheduleType: "recurring",
+      cronExpression: "0 9 * * *",
+    });
+
+    const listRes = await request("GET", `/api/projects/${projectId}/schedules`);
+    const tasks = (await listRes.json()) as Array<Record<string, string>>;
+    const taskId = tasks[0].id;
+
+    const res = await request("POST", `/api/projects/${projectId}/schedules/${taskId}/run`);
+    // Agent might return 422 because mock harness can't actually send, or 200 if sendMessage queues
+    expect([200, 422]).toContain(res.status);
+  });
+
+  it("returns 404 for nonexistent schedule", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/schedules/nonexistent/run`);
+    expect(res.status).toBe(404);
+  });
 });

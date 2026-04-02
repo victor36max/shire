@@ -254,4 +254,190 @@ describe("PiHarness", () => {
     await harness.stop();
     await expect(harness.sendMessage("too late")).rejects.toThrow("Harness is stopped");
   });
+
+  test("isProcessing() returns false initially", () => {
+    const harness = new PiHarness();
+    expect(harness.isProcessing()).toBe(false);
+  });
+
+  test("interrupt() does nothing when session is null", async () => {
+    const harness = new PiHarness();
+    await harness.start(baseConfig);
+    // Should not throw
+    await harness.interrupt();
+  });
+
+  test("message_end with non-assistant role is ignored", async () => {
+    const harness = new PiHarness();
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    const mockSession = createMockSession();
+    mockSession.prompt = mock(async () => {
+      mockSession.fireEvent({
+        type: "message_end",
+        message: { role: "user", content: [{ type: "text", text: "user text" }] },
+      } as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
+    });
+    harness._setSessionFactory(async () => mockSession);
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const textEvents = events.filter((e) => e.type === "text");
+    expect(textEvents).toHaveLength(0);
+  });
+
+  test("message_end with string content produces text event", async () => {
+    const harness = new PiHarness();
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    const mockSession = createMockSession();
+    mockSession.prompt = mock(async () => {
+      mockSession.fireEvent({
+        type: "message_end",
+        message: { role: "assistant", content: "Simple string response" },
+      } as unknown as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
+    });
+    harness._setSessionFactory(async () => mockSession);
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const textEvents = events.filter((e) => e.type === "text");
+    expect(textEvents).toHaveLength(1);
+    expect(textEvents[0].payload.text).toBe("Simple string response");
+  });
+
+  test("tool_execution_end with object result serializes to JSON", async () => {
+    const harness = new PiHarness();
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    const mockSession = createMockSession();
+    mockSession.prompt = mock(async () => {
+      mockSession.fireEvent({
+        type: "tool_execution_start",
+        toolName: "read",
+        toolCallId: "tc-json",
+        args: {},
+      } as AgentSessionEvent);
+      mockSession.fireEvent({
+        type: "tool_execution_end",
+        toolName: "read",
+        toolCallId: "tc-json",
+        result: { content: [{ type: "text", text: "file data" }] },
+        isError: false,
+      } as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
+    });
+    harness._setSessionFactory(async () => mockSession);
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const resultEvents = events.filter((e) => e.type === "tool_result");
+    expect(resultEvents.length).toBe(1);
+    // Non-string result should be JSON.stringified
+    expect(resultEvents[0].payload.output).toContain("file data");
+  });
+
+  test("message_end with empty content array produces empty text", async () => {
+    const harness = new PiHarness();
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    const mockSession = createMockSession();
+    mockSession.prompt = mock(async () => {
+      mockSession.fireEvent({
+        type: "message_end",
+        message: { role: "assistant", content: [] },
+      } as unknown as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
+    });
+    harness._setSessionFactory(async () => mockSession);
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const textEvents = events.filter((e) => e.type === "text");
+    expect(textEvents).toHaveLength(1);
+    expect(textEvents[0].payload.text).toBe("");
+  });
+
+  test("message_end with non-text content blocks produces empty text", async () => {
+    const harness = new PiHarness();
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    const mockSession = createMockSession();
+    mockSession.prompt = mock(async () => {
+      mockSession.fireEvent({
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t1", name: "Read", input: {} }],
+        },
+      } as unknown as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
+    });
+    harness._setSessionFactory(async () => mockSession);
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const textEvents = events.filter((e) => e.type === "text");
+    expect(textEvents).toHaveLength(1);
+    expect(textEvents[0].payload.text).toBe("");
+  });
+
+  test("tool_execution_end with string result passes directly", async () => {
+    const harness = new PiHarness();
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    const mockSession = createMockSession();
+    mockSession.prompt = mock(async () => {
+      mockSession.fireEvent({
+        type: "tool_execution_start",
+        toolName: "bash",
+        toolCallId: "tc-str",
+      } as AgentSessionEvent);
+      mockSession.fireEvent({
+        type: "tool_execution_end",
+        toolName: "bash",
+        toolCallId: "tc-str",
+        result: "direct string output",
+        isError: true,
+      } as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
+    });
+    harness._setSessionFactory(async () => mockSession);
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const resultEvents = events.filter((e) => e.type === "tool_result");
+    expect(resultEvents.length).toBe(1);
+    expect(resultEvents[0].payload.output).toBe("direct string output");
+    expect(resultEvents[0].payload.is_error).toBe(true);
+  });
+
+  test("message_end with array of text content blocks joins text", async () => {
+    const harness = new PiHarness();
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    const mockSession = createMockSession();
+    mockSession.prompt = mock(async () => {
+      mockSession.fireEvent({
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "text", text: "Hello " },
+            { type: "text", text: "World" },
+          ],
+        },
+      } as unknown as AgentSessionEvent);
+      mockSession.fireEvent({ type: "agent_end" } as AgentSessionEvent);
+    });
+    harness._setSessionFactory(async () => mockSession);
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const textEvents = events.filter((e) => e.type === "text");
+    expect(textEvents).toHaveLength(1);
+    expect(textEvents[0].payload.text).toBe("Hello World");
+  });
 });

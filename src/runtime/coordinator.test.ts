@@ -349,6 +349,155 @@ describe("routeMessage (inter-agent)", () => {
   });
 });
 
+describe("restartAgent", () => {
+  it("returns false for nonexistent agent", async () => {
+    const result = await coordinator.restartAgent("nonexistent");
+    expect(result).toBe(false);
+  });
+
+  it("restarts an existing agent", async () => {
+    const createResult = await coordinator.createAgent({ name: "restart-me" });
+    expect(createResult.ok).toBe(true);
+    if (!createResult.ok) return;
+
+    const result = await coordinator.restartAgent(createResult.agentId);
+    expect(result).toBe(true);
+  });
+});
+
+describe("restartAllAgents", () => {
+  it("restarts all agents", async () => {
+    await coordinator.createAgent({ name: "restart-all-a" });
+    await coordinator.createAgent({ name: "restart-all-b" });
+
+    await coordinator.restartAllAgents();
+
+    const statuses = coordinator.listAgentStatuses();
+    expect(statuses.length).toBe(2);
+    for (const s of statuses) {
+      expect(s.status).toBe("active");
+    }
+  });
+});
+
+describe("stopAll", () => {
+  it("stops all agents and clears state", async () => {
+    await coordinator.createAgent({ name: "stop-all-a" });
+    await coordinator.createAgent({ name: "stop-all-b" });
+    expect(coordinator.listAgentStatuses().length).toBe(2);
+
+    await coordinator.stopAll();
+    expect(coordinator.listAgentStatuses()).toEqual([]);
+  });
+});
+
+describe("system command handling", () => {
+  it("handles system_alert command", async () => {
+    const senderResult = await coordinator.createAgent({ name: "alerter" });
+    expect(senderResult.ok).toBe(true);
+    if (!senderResult.ok) return;
+
+    // Stop the sender so its inbox watcher doesn't consume files
+    const proc = coordinator.getAgent(senderResult.agentId);
+    await proc?.stop();
+
+    bus.emit(`project:${projectId}:outbox`, {
+      type: "outbox_message",
+      payload: {
+        fromAgentId: senderResult.agentId,
+        fromAgentName: "alerter",
+        toAgentName: "system_alert",
+        text: "Alert title",
+        extra: { title: "Test Alert", body: "Alert body", severity: "info" },
+      },
+    });
+
+    // Wait for async processing
+    await new Promise((r) => setTimeout(r, 200));
+    // No error thrown means the handler executed
+  });
+
+  it("sends error for unknown system command", async () => {
+    const senderResult = await coordinator.createAgent({ name: "bad-sys" });
+    expect(senderResult.ok).toBe(true);
+    if (!senderResult.ok) return;
+
+    const proc = coordinator.getAgent(senderResult.agentId);
+    await proc?.stop();
+
+    bus.emit(`project:${projectId}:outbox`, {
+      type: "outbox_message",
+      payload: {
+        fromAgentId: senderResult.agentId,
+        fromAgentName: "bad-sys",
+        toAgentName: "system_unknown",
+        text: "Something",
+      },
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const inboxDir = workspace.inboxDir(projectId, senderResult.agentId);
+    const errorFile = readdirSync(inboxDir).find((f) => f.endsWith("-error.yaml"));
+    expect(errorFile).toBeDefined();
+  });
+
+  it("sends error for invalid alert severity", async () => {
+    const senderResult = await coordinator.createAgent({ name: "bad-severity" });
+    expect(senderResult.ok).toBe(true);
+    if (!senderResult.ok) return;
+
+    const proc = coordinator.getAgent(senderResult.agentId);
+    await proc?.stop();
+
+    bus.emit(`project:${projectId}:outbox`, {
+      type: "outbox_message",
+      payload: {
+        fromAgentId: senderResult.agentId,
+        fromAgentName: "bad-severity",
+        toAgentName: "system_alert",
+        text: "Alert",
+        extra: { severity: "critical" },
+      },
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const inboxDir = workspace.inboxDir(projectId, senderResult.agentId);
+    const errorFile = readdirSync(inboxDir).find((f) => f.endsWith("-error.yaml"));
+    expect(errorFile).toBeDefined();
+  });
+});
+
+describe("updateAgent edge cases", () => {
+  it("rejects duplicate name on rename", async () => {
+    await coordinator.createAgent({ name: "agent-alpha" });
+    const secondResult = await coordinator.createAgent({ name: "agent-beta" });
+    if (!secondResult.ok) return;
+
+    const result = await coordinator.updateAgent(secondResult.agentId, {
+      name: "agent-alpha",
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("returns error for nonexistent agent", async () => {
+    const result = await coordinator.updateAgent("nonexistent", { description: "hi" });
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("deployAndScan", () => {
+  it("is idempotent (second call is a no-op)", async () => {
+    agentsService.createAgent(projectId, { name: "idempotent" });
+    await coordinator.deployAndScan();
+    // Second call should not re-deploy
+    await coordinator.deployAndScan();
+    const statuses = coordinator.listAgentStatuses();
+    expect(statuses.length).toBe(1);
+  });
+});
+
 describe("peers.yaml", () => {
   it("writes peers.yaml after agent creation", async () => {
     await coordinator.deployAndScan();

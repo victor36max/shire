@@ -177,3 +177,197 @@ describe("POST /api/projects/:id/agents/:aid/message attachmentIds validation", 
     expect(res.status).not.toBe(400);
   });
 });
+
+describe("GET /api/projects/:id/agents", () => {
+  it("lists agents for a project", async () => {
+    const res = await request("GET", `/api/projects/${projectId}/agents`);
+    expect(res.status).toBe(200);
+    const agents = (await res.json()) as Array<Record<string, unknown>>;
+    expect(agents.length).toBeGreaterThanOrEqual(1);
+    const found = agents.find((a) => a.id === agentId);
+    expect(found).toBeDefined();
+    expect(found?.name).toBe("test-agent");
+    expect(found?.status).toBeDefined();
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("GET", "/api/projects/nonexistent/agents");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/projects/:id/agents", () => {
+  it("creates a new agent and returns its id", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "new-agent",
+      description: "A new agent",
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as Record<string, string>;
+    expect(data.id).toBeDefined();
+    expect(typeof data.id).toBe("string");
+  });
+
+  it("returns 422 for duplicate agent name", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "test-agent",
+    });
+    expect(res.status).toBe(422);
+    const data = (await res.json()) as Record<string, string>;
+    expect(data.error).toContain("already exists");
+  });
+
+  it("returns 422 for invalid agent name", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "A",
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("POST", "/api/projects/nonexistent/agents", {
+      name: "some-agent",
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /api/projects/:id/agents/:aid", () => {
+  it("returns agent detail", async () => {
+    const res = await request("GET", `/api/projects/${projectId}/agents/${agentId}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.id).toBe(agentId);
+    expect(data.name).toBe("test-agent");
+  });
+
+  it("returns 404 for unknown agent", async () => {
+    const res = await request("GET", `/api/projects/${projectId}/agents/nonexistent`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("GET", `/api/projects/nonexistent/agents/${agentId}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("PATCH /api/projects/:id/agents/:aid", () => {
+  it("updates agent description", async () => {
+    const res = await request("PATCH", `/api/projects/${projectId}/agents/${agentId}`, {
+      description: "Updated description",
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, boolean>;
+    expect(data.ok).toBe(true);
+  });
+
+  it("updates agent name", async () => {
+    const res = await request("PATCH", `/api/projects/${projectId}/agents/${agentId}`, {
+      name: "renamed-agent",
+    });
+    expect(res.status).toBe(200);
+
+    // Verify the rename took effect
+    const detailRes = await request("GET", `/api/projects/${projectId}/agents/${agentId}`);
+    const detail = (await detailRes.json()) as Record<string, unknown>;
+    expect(detail.name).toBe("renamed-agent");
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("PATCH", `/api/projects/nonexistent/agents/${agentId}`, {
+      description: "nope",
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 422 for unknown agent", async () => {
+    const res = await request("PATCH", `/api/projects/${projectId}/agents/nonexistent`, {
+      description: "nope",
+    });
+    expect(res.status).toBe(422);
+  });
+});
+
+describe("DELETE /api/projects/:id/agents/:aid", () => {
+  it("deletes an agent", async () => {
+    // Create an agent to delete
+    const createRes = await request("POST", `/api/projects/${projectId}/agents`, {
+      name: "to-delete",
+    });
+    const created = (await createRes.json()) as Record<string, string>;
+
+    const res = await request("DELETE", `/api/projects/${projectId}/agents/${created.id}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, boolean>;
+    expect(data.ok).toBe(true);
+
+    // Verify it's gone
+    const detailRes = await request("GET", `/api/projects/${projectId}/agents/${created.id}`);
+    expect(detailRes.status).toBe(404);
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("DELETE", `/api/projects/nonexistent/agents/${agentId}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/projects/:id/agents/:aid/restart", () => {
+  it("restarts an existing agent", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/restart`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, boolean>;
+    expect(data.ok).toBe(true);
+  });
+
+  it("returns 404 for unknown agent", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/nonexistent/restart`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("POST", `/api/projects/nonexistent/agents/${agentId}/restart`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/projects/:id/agents/:aid/interrupt", () => {
+  it("returns 200 when agent is active (mock harness)", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/interrupt`);
+    // Mock harness starts successfully, so agent status is "active" and interrupt succeeds
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, boolean>;
+    expect(data.ok).toBe(true);
+  });
+
+  it("returns 404 for unknown agent", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/nonexistent/interrupt`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("POST", `/api/projects/nonexistent/agents/${agentId}/interrupt`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/projects/:id/agents/:aid/clear", () => {
+  it("returns 200 when agent is active (mock harness)", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/clear`);
+    // Mock harness starts successfully, so agent status is "active" and clearSession succeeds
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, boolean>;
+    expect(data.ok).toBe(true);
+  });
+
+  it("returns 404 for unknown agent", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/agents/nonexistent/clear`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("POST", `/api/projects/nonexistent/agents/${agentId}/clear`);
+    expect(res.status).toBe(404);
+  });
+});

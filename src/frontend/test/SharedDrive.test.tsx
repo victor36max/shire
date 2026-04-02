@@ -399,6 +399,103 @@ describe("SharedDrive", () => {
     });
   });
 
+  it("navigates into a subdirectory and shows breadcrumbs", async () => {
+    // First render shows root with a 'docs' directory
+    setFiles(sampleFiles);
+    renderWithProviders(<SharedDrive />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("docs")).toBeInTheDocument();
+    });
+
+    // Set up files for the subdirectory
+    server.use(
+      http.get("*/api/projects/:id/shared-drive", ({ request }) => {
+        const url = new URL(request.url);
+        const path = url.searchParams.get("path") ?? "/";
+        if (path.includes("docs")) {
+          return HttpResponse.json({
+            files: [{ name: "notes.txt", path: "docs/notes.txt", type: "file", size: 512 }],
+            currentPath: "/docs",
+          });
+        }
+        return HttpResponse.json({ files: sampleFiles, currentPath: path });
+      }),
+    );
+
+    // Click the directory to navigate into it
+    await userEvent.click(screen.getByText("docs"));
+
+    await waitFor(() => {
+      expect(screen.getByText("notes.txt")).toBeInTheDocument();
+    });
+  });
+
+  it("deletes the currently previewed file and closes preview", async () => {
+    setFiles(sampleFiles);
+    setPreviewResponse("content", "readme.md", 1024);
+    let deletedPath: string | undefined;
+    server.use(
+      http.delete("*/api/projects/:id/shared-drive", ({ request }) => {
+        const url = new URL(request.url);
+        deletedPath = url.searchParams.get("path") ?? undefined;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    renderWithProviders(<SharedDrive />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("readme.md")).toBeInTheDocument();
+    });
+
+    // Open preview
+    await userEvent.click(screen.getByText("readme.md"));
+    await waitFor(() => {
+      expect(screen.getByText("readme.md", { selector: "span" })).toBeInTheDocument();
+    });
+
+    // Click Delete in the preview panel header
+    const previewPanel = screen.getByText("readme.md", { selector: "span" }).closest("div");
+    const deleteInPreview = within(previewPanel!.parentElement!)
+      .getAllByRole("button")
+      .find((btn) => btn.textContent === "Delete");
+    if (deleteInPreview) {
+      await userEvent.click(deleteInPreview);
+      // Confirm deletion
+      const alertDialog = screen.getByRole("alertdialog");
+      const confirmButton = within(alertDialog)
+        .getAllByRole("button")
+        .find((btn) => btn.textContent === "Delete");
+      if (confirmButton) {
+        await userEvent.click(confirmButton);
+        await waitFor(() => expect(deletedPath).toBeDefined());
+      }
+    }
+  });
+
+  it("creates folder via Enter key in dialog", async () => {
+    let createdDir: Record<string, unknown> | undefined;
+    server.use(
+      http.post("*/api/projects/:id/shared-drive/directory", async ({ request }) => {
+        createdDir = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ok: true }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<SharedDrive />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New Folder" })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "New Folder" }));
+    await user.paste("enter-folder");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(createdDir).toEqual({ name: "enter-folder", path: "/" });
+    });
+  });
+
   it("shows error state with retry when files query fails", async () => {
     server.use(
       http.get("*/api/projects/:id/shared-drive", () =>

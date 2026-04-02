@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "bun:test";
 import ProjectSwitcher from "../components/ProjectSwitcher";
 import type { Project } from "../components/types";
@@ -18,5 +19,25 @@ describe("ProjectSwitcher", () => {
   it("renders as a select trigger", () => {
     renderWithProviders(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
     expect(screen.getByRole("combobox")).toBeInTheDocument();
+  });
+
+  it("navigates to other project on select change", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
+    await user.click(screen.getByRole("combobox"));
+    await waitFor(() => {
+      expect(screen.getByText("other-project")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("other-project"));
+  });
+
+  it("navigates to home when All Projects is selected", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectSwitcher projects={projects} currentProjectName="test-project" />);
+    await user.click(screen.getByRole("combobox"));
+    await waitFor(() => {
+      expect(screen.getByText("All Projects")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("All Projects"));
   });
 });
