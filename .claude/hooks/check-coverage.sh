@@ -18,6 +18,8 @@ SKIP_FILES=(
   "src/frontend/lib/ws.ts"               # globally mocked in all frontend tests
   "src/frontend/components/AgentChatView.tsx"   # ws subscription callbacks unreachable
   "src/frontend/components/ProjectLayout.tsx"   # ws subscription callbacks unreachable
+  "src/frontend/components/Markdown.tsx"         # rehype plugin callbacks
+  "src/server.ts"                                # Bun.serve() + WebSocket handlers
 )
 
 # Run tests with coverage
