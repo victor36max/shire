@@ -733,7 +733,7 @@ describe("ChatPanel", () => {
       expect(screen.getByText("b.txt")).toBeInTheDocument();
     });
 
-    it("shows error when file exceeds 50 MB limit", async () => {
+    it("shows error when file exceeds 128 MB limit", async () => {
       renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
 
       await waitFor(() => {
@@ -742,7 +742,7 @@ describe("ChatPanel", () => {
 
       const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
-      const bigFile = createFile("huge.bin", 51 * 1024 * 1024);
+      const bigFile = createFile("huge.bin", 129 * 1024 * 1024);
       const dt = createDataTransfer([bigFile]);
       Object.defineProperty(input, "files", { value: dt.files, configurable: true });
       fireEvent.change(input);

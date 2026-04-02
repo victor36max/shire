@@ -103,7 +103,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50 MB
+const MAX_UPLOAD_SIZE = 128 * 1024 * 1024; // 128 MB
 
 function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
   const segments = path.split("/").filter(Boolean);
