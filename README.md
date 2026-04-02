@@ -18,26 +18,28 @@ https://github.com/user-attachments/assets/04056f61-d2e7-4eb8-b0e4-48a342b298d3
 
 Most AI agent tools follow the same pattern — you give an instruction, an agent executes it, you get the output. The agent disappears. Next time, you start from scratch. Shire is different. Your agents persist between sessions. They communicate with each other autonomously. They build on yesterday's work. You give feedback, iterate, adjust direction — like working with a real team.
 
-- **Works with any model** — Not locked to one AI provider. Supports Claude Code, Pi Agent, and more coming soon. Shire is the infrastructure layer — bring whatever model fits your workflow.
+- **Works with any model** — Not locked to one AI provider. Supports Claude Code, OpenCode, and Pi Agent. Shire is the infrastructure layer — bring whatever model fits your workflow.
 - **Autonomous agent communication** — Agents discover peers and collaborate on their own — no orchestrator required. Direct messaging, shared context, real teamwork between agents.
 - **Community catalog** — Browse and deploy from a community-maintained library of pre-built agent templates. Powered by [agency-agents](https://github.com/msitarzewski/agency-agents). Get a capable team running in seconds.
 - **Shared drive** — A communal filesystem across all agents for collaborative work on shared artifacts.
 - **Scheduled tasks** — Automate agent work with one-time or recurring scheduled messages. Set custom intervals and let agents run on autopilot.
+- **Alert channels** — Get notified when agents need attention. Send alerts to Discord, Slack, or Telegram — configured per project.
+- **Agent skills** — Upload custom tools and instructions that extend what your agents can do. Skills persist per-agent across sessions.
 - **Multi-project architecture** — Organize agents into projects, each with its own shared drive, settings, and environment.
 - **Real-time dashboard** — Monitor, chat with, and manage agents from a live web UI with streaming updates.
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Runtime | [Bun](https://bun.sh) |
-| Backend | Hono, Drizzle ORM, SQLite |
-| Frontend | React 19, React Router 7, shadcn/ui (Radix), Tailwind CSS 4, TanStack Query |
-| Bundler | Bun (fullstack dev server + production builds) |
-| Agent Harnesses | Claude Code SDK, OpenCode SDK, Pi Agent SDK |
-| Scheduling | node-schedule (cron-based) |
-| Testing | Bun test + Testing Library + happy-dom |
-| Validation | Zod, TypeScript strict mode |
+| Layer           | Technology                                                                  |
+| --------------- | --------------------------------------------------------------------------- |
+| Runtime         | [Bun](https://bun.sh)                                                       |
+| Backend         | Hono, Drizzle ORM, SQLite                                                   |
+| Frontend        | React 19, React Router 7, shadcn/ui (Radix), Tailwind CSS 4, TanStack Query |
+| Bundler         | Bun (fullstack dev server + production builds)                              |
+| Agent Harnesses | Claude Code SDK, OpenCode SDK, Pi Agent SDK                                 |
+| Scheduling      | node-schedule (cron-based)                                                  |
+| Testing         | Bun test + Testing Library + happy-dom + MSW                                |
+| Validation      | Zod, TypeScript strict mode                                                 |
 
 ## Installation
 
@@ -94,14 +96,14 @@ See the [OpenCode provider docs](https://opencode.ai/docs/providers/) for the fu
 
 The [Pi Agent](https://github.com/badlogic/pi-mono) harness uses the `@mariozechner/pi-coding-agent` SDK, which supports a wide range of AI providers. Set the API key for the provider you want to use as an environment variable:
 
-| Provider | Environment Variable |
-|----------|---------------------|
-| Anthropic | `ANTHROPIC_API_KEY` |
-| OpenAI | `OPENAI_API_KEY` |
-| Google | `GOOGLE_API_KEY` |
-| Groq | `GROQ_API_KEY` |
-| xAI | `XAI_API_KEY` |
-| Mistral | `MISTRAL_API_KEY` |
+| Provider   | Environment Variable |
+| ---------- | -------------------- |
+| Anthropic  | `ANTHROPIC_API_KEY`  |
+| OpenAI     | `OPENAI_API_KEY`     |
+| Google     | `GOOGLE_API_KEY`     |
+| Groq       | `GROQ_API_KEY`       |
+| xAI        | `XAI_API_KEY`        |
+| Mistral    | `MISTRAL_API_KEY`    |
 | OpenRouter | `OPENROUTER_API_KEY` |
 
 You can also store keys in `~/.pi/agent/auth.json` (takes precedence over env vars):
@@ -140,13 +142,13 @@ By default, Shire uses **SQLite** for storage. Agents run as local processes on 
 <details>
 <summary><strong>Environment Variables</strong></summary>
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8080` | HTTP server port |
-| `NODE_ENV` | — | Set to `production` for production mode |
-| `SHIRE_DATA_DIR` | `~/.shire` | Database and data storage root |
-| `SHIRE_PROJECTS_DIR` | `~/.shire/projects` | Project workspace root |
-| `ALLOWED_ORIGINS` | — | Comma-separated CORS origins (production) |
+| Variable             | Default             | Description                               |
+| -------------------- | ------------------- | ----------------------------------------- |
+| `PORT`               | `8080`              | HTTP server port                          |
+| `NODE_ENV`           | —                   | Set to `production` for production mode   |
+| `SHIRE_DATA_DIR`     | `~/.shire`          | Database and data storage root            |
+| `SHIRE_PROJECTS_DIR` | `~/.shire/projects` | Project workspace root                    |
+| `ALLOWED_ORIGINS`    | —                   | Comma-separated CORS origins (production) |
 
 </details>
 
@@ -215,6 +217,7 @@ git push origin v0.2.0
 ```
 
 This builds platform-specific binaries and publishes:
+
 - `@agents-shire/cli-darwin-arm64` (macOS Apple Silicon)
 - `@agents-shire/cli-darwin-x64` (macOS Intel)
 - `@agents-shire/cli-linux-x64` (Linux x64)

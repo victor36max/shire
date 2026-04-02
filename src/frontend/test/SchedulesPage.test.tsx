@@ -320,6 +320,93 @@ describe("SchedulesPage", () => {
     expect(screen.getByLabelText("Message")).toHaveValue("Give me a standup summary");
   });
 
+  it("shows one-time schedule date and time in task list", async () => {
+    setAgents();
+    const onceTask: ScheduledTask = {
+      id: "t3",
+      label: "One-time task",
+      agentId: "a1",
+      agentName: "Alice",
+      message: "Do this once",
+      scheduleType: "once",
+      cronExpression: null,
+      scheduledAt: "2026-06-15T14:00:00Z",
+      enabled: true,
+      lastRunAt: null,
+    };
+    setSchedules([onceTask]);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("One-time task")).toBeInTheDocument();
+    });
+  });
+
+  it("switches to once schedule type in the form", async () => {
+    setAgents();
+    const user = userEvent.setup();
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("New Schedule")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("New Schedule"));
+
+    // Switch to "Once"
+    await user.click(screen.getByRole("button", { name: "Once" }));
+
+    // Date and time inputs should appear (labels aren't linked with htmlFor)
+    await waitFor(() => {
+      expect(screen.getByText("Date")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Time")).toBeInTheDocument();
+  });
+
+  it("edits a one-time schedule task", async () => {
+    setAgents();
+    const onceTask: ScheduledTask = {
+      id: "t3",
+      label: "One-time task",
+      agentId: "a1",
+      agentName: "Alice",
+      message: "Do this once",
+      scheduleType: "once",
+      cronExpression: null,
+      scheduledAt: "2026-06-15T14:00:00Z",
+      enabled: true,
+      lastRunAt: null,
+    };
+    setSchedules([onceTask]);
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("One-time task")).toBeInTheDocument();
+    });
+
+    const editButtons = screen.getAllByRole("button", { name: "Edit" });
+    await userEvent.click(editButtons[0]);
+
+    expect(screen.getByRole("heading", { name: "Edit Schedule" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Label")).toHaveValue("One-time task");
+  });
+
+  it("shows weekly frequency controls when selected", async () => {
+    setAgents();
+    setSchedules(sampleTasks);
+    const user = userEvent.setup();
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Daily standup")).toBeInTheDocument();
+    });
+
+    const editButtons = screen.getAllByRole("button", { name: "Edit" });
+    // Edit the weekly report task
+    await user.click(editButtons[1]);
+
+    expect(screen.getByRole("heading", { name: "Edit Schedule" })).toBeInTheDocument();
+  });
+
   it("shows error state with retry when schedules query fails", async () => {
     setAgents();
     server.use(
@@ -331,5 +418,52 @@ describe("SchedulesPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
     });
+  });
+
+  it("toggles day-of-week buttons in recurring schedule form", async () => {
+    setAgents();
+    const user = userEvent.setup();
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /new schedule/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /new schedule/i }));
+
+    // Switch frequency to "weekly" so day buttons appear
+    await waitFor(() => {
+      expect(screen.getByLabelText("Label")).toBeInTheDocument();
+    });
+    // Find and click the frequency select, switch to "Weekly"
+    const freqTrigger = screen.getAllByRole("combobox")[1]; // second combobox is frequency
+    await user.click(freqTrigger);
+    await waitFor(() => {
+      expect(screen.getByText("Weekly")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Weekly"));
+
+    // Day buttons should now be visible
+    await waitFor(() => {
+      expect(screen.getByText("Mon")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Mon"));
+    await user.click(screen.getByText("Mon"));
+  });
+
+  it("switches to one-time schedule type", async () => {
+    setAgents();
+    const user = userEvent.setup();
+    renderWithProviders(<SchedulesPage />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /new schedule/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /new schedule/i }));
+
+    // Click the "Once" button to switch schedule type
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Once" })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "Once" }));
   });
 });

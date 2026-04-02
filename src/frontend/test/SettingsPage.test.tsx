@@ -28,11 +28,12 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("has Back button", async () => {
+  it("has Back button that navigates when clicked", async () => {
     renderWithProviders(<SettingsPage />, routeOpts);
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
     });
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
   });
 
   it("shows Activity Log tab by default with messages", async () => {

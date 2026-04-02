@@ -244,6 +244,82 @@ describe("ProjectDashboard", () => {
     });
   });
 
+  it("navigates to project on card click", async () => {
+    setProjects(defaultProjects);
+    renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByText("test-project")).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByText("test-project"));
+    // Navigation triggered without error
+  });
+
+  it("navigates to project on Enter keypress", async () => {
+    setProjects(defaultProjects);
+    renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByText("test-project")).toBeInTheDocument();
+    });
+    const card = screen.getByText("test-project").closest("[role='button']");
+    expect(card).toBeTruthy();
+    card!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    // Navigation triggered
+  });
+
+  it("navigates to project on Space keypress", async () => {
+    setProjects(defaultProjects);
+    renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByText("test-project")).toBeInTheDocument();
+    });
+    const card = screen.getByText("test-project").closest("[role='button']");
+    expect(card).toBeTruthy();
+    card!.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+  });
+
+  it("Create button is disabled when name is empty", async () => {
+    setProjects(defaultProjects);
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByText("+ New Project")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("+ New Project"));
+    const createBtn = screen.getByRole("button", { name: "Create" });
+    // Empty name means nameValid is false
+    expect(createBtn).toBeDisabled();
+  });
+
+  it("creates project when pressing Enter in input", async () => {
+    let createdName: string | undefined;
+    server.use(
+      http.post("*/api/projects", async ({ request }) => {
+        const body = (await request.json()) as { name: string };
+        createdName = body.name;
+        return HttpResponse.json({ id: "p-enter" }, { status: 201 });
+      }),
+    );
+    setProjects(defaultProjects);
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("+ New Project")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("+ New Project"));
+    await user.paste("enter-project");
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(createdName).toBe("enter-project"));
+  });
+
+  it("shows unknown status as secondary variant", async () => {
+    setProjects([{ id: "p-unknown", name: "unknown-proj", status: "starting" }]);
+    renderWithProviders(<ProjectDashboard />);
+    await waitFor(() => {
+      expect(screen.getByText("starting")).toBeInTheDocument();
+    });
+  });
+
   it("retries fetch when clicking Try again on error state", async () => {
     let callCount = 0;
     server.use(

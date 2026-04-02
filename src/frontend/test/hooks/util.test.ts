@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import { unwrap } from "../../hooks/util";
+import { unwrap, type SuccessData } from "../../hooks/util";
+import type { ClientResponse } from "hono/client";
 
 describe("unwrap", () => {
   it("returns parsed JSON on 200", async () => {
@@ -34,5 +35,27 @@ describe("unwrap", () => {
     const response = new Response("", { status: 422 });
 
     await expect(unwrap(response as never)).rejects.toThrow("422");
+  });
+
+  it("throws with status code fallback when .text() rejects", async () => {
+    const response = {
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      text: () => Promise.reject(new Error("read failed")),
+      json: () => Promise.reject(new Error("json failed")),
+    };
+
+    await expect(unwrap(response as never)).rejects.toThrow("Service Unavailable");
+  });
+});
+
+describe("SuccessData type", () => {
+  it("extracts type from successful response", () => {
+    // Type-level test: just verify it compiles
+    type TestResponse = ClientResponse<{ name: string }, 200, "json">;
+    type Result = SuccessData<TestResponse>;
+    const _check: Result = { name: "test" };
+    expect(_check.name).toBe("test");
   });
 });

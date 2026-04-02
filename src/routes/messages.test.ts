@@ -60,6 +60,72 @@ async function request(method: string, path: string, body?: unknown) {
   return app.request(path, opts);
 }
 
+describe("GET /api/projects/:id/agents/:aid/messages", () => {
+  it("returns messages for agent", async () => {
+    agentsService.createMessage({
+      projectId,
+      agentId,
+      role: "agent",
+      content: { text: "Hello world" },
+    });
+
+    const res = await request("GET", `/api/projects/${projectId}/agents/${agentId}/messages`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { messages: Record<string, unknown>[]; hasMore: boolean };
+    expect(data.messages).toHaveLength(1);
+    expect(data.hasMore).toBe(false);
+  });
+
+  it("supports pagination with before and limit", async () => {
+    for (let i = 1; i <= 5; i++) {
+      agentsService.createMessage({
+        projectId,
+        agentId,
+        role: "agent",
+        content: { text: `msg-${i}` },
+      });
+    }
+
+    const res1 = await request(
+      "GET",
+      `/api/projects/${projectId}/agents/${agentId}/messages?limit=2`,
+    );
+    const page1 = (await res1.json()) as {
+      messages: { id: number }[];
+      hasMore: boolean;
+    };
+    expect(page1.messages).toHaveLength(2);
+    expect(page1.hasMore).toBe(true);
+
+    const oldestId = page1.messages[page1.messages.length - 1].id;
+    const res2 = await request(
+      "GET",
+      `/api/projects/${projectId}/agents/${agentId}/messages?before=${oldestId}&limit=10`,
+    );
+    const page2 = (await res2.json()) as {
+      messages: { id: number }[];
+      hasMore: boolean;
+    };
+    expect(page2.messages.length).toBeGreaterThan(0);
+  });
+
+  it("returns 400 for invalid before parameter", async () => {
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/agents/${agentId}/messages?before=abc`,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for invalid limit parameter", async () => {
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/agents/${agentId}/messages?limit=-1`,
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("GET /api/projects/:id/activity", () => {
   it("transforms inter_agent messages to flat shape", async () => {
     agentsService.createMessage({

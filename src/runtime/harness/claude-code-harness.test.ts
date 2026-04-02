@@ -396,4 +396,114 @@ describe("ClaudeCodeHarness", () => {
     resolveGenerator!();
     await sendPromise;
   });
+
+  test("isProcessing() returns false initially", () => {
+    const harness = new ClaudeCodeHarness(createMockQuery([]));
+    expect(harness.isProcessing()).toBe(false);
+  });
+
+  test("interrupt() does nothing when no active query", async () => {
+    const harness = new ClaudeCodeHarness(createMockQuery([]));
+    await harness.start(baseConfig);
+    // Should not throw
+    await harness.interrupt();
+  });
+
+  test("handleMessage processes assistant message with tool_use blocks", async () => {
+    const assistantMsg = msg({
+      type: "assistant",
+      message: {
+        content: [{ type: "tool_use", id: "tu-1", name: "Read", input: { path: "/foo" } }],
+      },
+      uuid: "00000000-0000-0000-0000-000000000005",
+      session_id: "s1",
+    });
+    const mockQuery = createMockQuery([assistantMsg, resultSuccess("done", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const toolEvents = events.filter((e) => e.type === "tool_use");
+    expect(toolEvents.length).toBeGreaterThan(0);
+    expect(toolEvents[0].payload.status).toBe("input_ready");
+    expect(toolEvents[0].payload.tool).toBe("Read");
+  });
+
+  test("handleMessage processes user message with tool_result blocks", async () => {
+    const userMsg = msg({
+      type: "user",
+      message: {
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tu-1",
+            content: [{ type: "text", text: "file content here" }],
+            is_error: false,
+          },
+        ],
+      },
+      uuid: "00000000-0000-0000-0000-000000000006",
+      session_id: "s1",
+    });
+    const mockQuery = createMockQuery([userMsg, resultSuccess("done", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const resultEvents = events.filter((e) => e.type === "tool_result");
+    expect(resultEvents.length).toBeGreaterThan(0);
+    expect(resultEvents[0].payload.output).toBe("file content here");
+    expect(resultEvents[0].payload.is_error).toBe(false);
+  });
+
+  test("handleMessage processes user message with string tool_result content", async () => {
+    const userMsg = msg({
+      type: "user",
+      message: {
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tu-2",
+            content: "direct string output",
+            is_error: true,
+          },
+        ],
+      },
+      uuid: "00000000-0000-0000-0000-000000000007",
+      session_id: "s1",
+    });
+    const mockQuery = createMockQuery([userMsg, resultSuccess("done", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    const events: AgentEvent[] = [];
+    harness.onEvent((e) => events.push(e));
+    await harness.start(baseConfig);
+    await harness.sendMessage("test");
+
+    const resultEvents = events.filter((e) => e.type === "tool_result");
+    expect(resultEvents.length).toBeGreaterThan(0);
+    expect(resultEvents[0].payload.output).toBe("direct string output");
+    expect(resultEvents[0].payload.is_error).toBe(true);
+  });
+
+  test("sendMessage combines internalSystemPrompt and systemPrompt", async () => {
+    const config: HarnessConfig = {
+      model: "claude-sonnet-4-6",
+      systemPrompt: "You are a helper.",
+      internalSystemPrompt: "Internal instructions here.",
+      cwd: "/workspace",
+    };
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+    await harness.start(config);
+    await harness.sendMessage("Hello");
+
+    const params = calls(mockQuery)[0][0];
+    expect(params.options?.systemPrompt).toContain("Internal instructions here.");
+    expect(params.options?.systemPrompt).toContain("You are a helper.");
+  });
 });

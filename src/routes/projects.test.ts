@@ -79,6 +79,25 @@ describe("DELETE /api/projects/:id", () => {
   });
 });
 
+describe("POST /api/projects/:id/restart", () => {
+  it("restarts a project", async () => {
+    const createRes = await request("POST", "/api/projects", { name: "restart-me" });
+    const { id } = (await createRes.json()) as Record<string, string>;
+
+    const res = await request("POST", `/api/projects/${id}/restart`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.ok).toBe(true);
+  });
+});
+
+describe("PATCH /api/projects/:id", () => {
+  it("returns 404 for non-existent project", async () => {
+    const res = await request("PATCH", "/api/projects/nonexistent-id", { name: "new-name" });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("GET /api/health", () => {
   it("returns ok", async () => {
     const res = await request("GET", "/api/health");

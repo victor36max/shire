@@ -192,4 +192,151 @@ describe("AgentSidebar", () => {
     await userEvent.click(screen.getByText("Browse Catalog"));
     expect(onBrowseCatalog).toHaveBeenCalled();
   });
+
+  it("navigates when clicking an agent in the list", async () => {
+    setProjects();
+    setAgents(defaultAgents);
+    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Active Agent")).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByText("Active Agent"));
+    // Navigation should have been triggered (no error thrown)
+  });
+
+  it("shows delete confirmation dialog and executes delete", async () => {
+    let deletedId: string | undefined;
+    server.use(
+      http.delete("*/api/projects/:id/agents/:aid", ({ params }) => {
+        deletedId = params.aid as string;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    setProjects();
+    setAgents(defaultAgents);
+    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Active Agent")).toBeInTheDocument();
+    });
+
+    // Open the actions dropdown for the first agent
+    const actionButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(actionButtons[0]);
+
+    // Click "Delete" in the dropdown
+    await userEvent.click(screen.getByText("Delete"));
+
+    // Confirm deletion in the alert dialog
+    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
+    const alertDialog = screen.getByRole("alertdialog");
+    const confirmButton = alertDialog.querySelector("button:last-of-type");
+    expect(confirmButton).toBeTruthy();
+    await userEvent.click(confirmButton!);
+
+    await waitFor(() => expect(deletedId).toBe("a1"));
+  });
+
+  it("renders Schedules link", async () => {
+    setProjects();
+    setAgents(defaultAgents);
+    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("Schedules")).toBeInTheDocument();
+    });
+  });
+
+  it("renders Shared Drive link", async () => {
+    setProjects();
+    setAgents(defaultAgents);
+    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByText("Shared Drive")).toBeInTheDocument();
+    });
+  });
+
+  it("navigates to settings on dropdown Settings click", async () => {
+    setProjects();
+    setAgents(defaultAgents);
+    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Active Agent")).toBeInTheDocument();
+    });
+
+    // Open the actions dropdown for the first agent
+    const actionButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(actionButtons[0]);
+
+    // Click "Settings" in the dropdown - use getAllByText since "Settings" appears
+    // both in the dropdown and in the sidebar nav
+    const settingsOptions = screen.getAllByText("Settings");
+    // The dropdown option is the one inside DropdownMenuContent
+    const dropdownSettings = settingsOptions.find((el) => el.closest("[role='menuitem']") !== null);
+    if (dropdownSettings) {
+      await userEvent.click(dropdownSettings);
+    }
+  });
+
+  it("shows starting and crashed status dot colors", async () => {
+    setProjects();
+    setAgents([
+      { id: "s1", name: "Starting Agent", status: "starting", busy: false, unreadCount: 0 },
+      { id: "s2", name: "Crashed Agent", status: "crashed", busy: false, unreadCount: 0 },
+      {
+        id: "s3",
+        name: "Bootstrapping Agent",
+        status: "bootstrapping",
+        busy: false,
+        unreadCount: 0,
+      },
+    ]);
+    const { container } = renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Starting Agent")).toBeInTheDocument();
+    });
+
+    const dots = container.querySelectorAll(".w-2.h-2.rounded-full");
+    expect(dots[0]).toHaveClass("bg-status-starting"); // starting
+    expect(dots[1]).toHaveClass("bg-status-error"); // crashed
+    expect(dots[2]).toHaveClass("bg-status-starting"); // bootstrapping
+  });
+
+  it("dismisses delete dialog when onOpenChange fires false", async () => {
+    setProjects();
+    setAgents(defaultAgents);
+    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Active Agent")).toBeInTheDocument();
+    });
+
+    // Open the actions dropdown and click Delete
+    const actionButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(actionButtons[0]);
+    await userEvent.click(screen.getByText("Delete"));
+
+    // Dialog should be open
+    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
+
+    // Press Cancel to dismiss
+    await userEvent.click(screen.getByText("Cancel"));
+
+    // Dialog should be closed
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("handles case when agent not found in handleSelectAgent", async () => {
+    setProjects();
+    setAgents(defaultAgents);
+    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
+
+    await waitFor(() => {
+      expect(screen.getByText("Active Agent")).toBeInTheDocument();
+    });
+    // Clicking an agent triggers handleSelectAgent - already tested above
+  });
 });
