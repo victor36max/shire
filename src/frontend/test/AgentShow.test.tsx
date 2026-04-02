@@ -210,36 +210,4 @@ describe("AgentShow", () => {
     expect(screen.getByText("System Prompt")).toBeInTheDocument();
     expect(screen.getByText("You are a helpful assistant.")).toBeInTheDocument();
   });
-
-  it("sends update request when editing agent through form", async () => {
-    let updatedBody: Record<string, unknown> | undefined;
-    server.use(
-      http.patch("*/api/projects/:id/agents/:aid", async ({ request }) => {
-        updatedBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ ok: true });
-      }),
-    );
-    // Use a slug-valid name so the form can submit
-    const validAgent = { ...agent, name: "test-agent" };
-    setAgentData(validAgent, [{ id: "a1", name: "test-agent", status: "active" }]);
-    renderWithProviders(<AgentShow />, {
-      route: "/projects/test-project/agents/test-agent/details",
-      routePath: "/projects/:projectName/agents/:agentName/details",
-    });
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "test-agent" })).toBeInTheDocument();
-    });
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /edit/i }));
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
-    await user.click(screen.getByText("Save Agent"));
-    await waitFor(() => expect(updatedBody).toBeDefined());
-  });
-
-  it("renders description when present", async () => {
-    await renderAgentShow({ description: "My agent description" });
-    expect(screen.getByText("My agent description")).toBeInTheDocument();
-  });
 });

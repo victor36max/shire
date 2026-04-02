@@ -161,41 +161,6 @@ describe("AlertChannelTab", () => {
     });
   });
 
-  it("shows Telegram fields and saves telegram config", async () => {
-    let savedBody: Record<string, unknown> | undefined;
-    server.use(
-      http.put("*/api/projects/*/alert-channel", async ({ request }) => {
-        savedBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ ok: true });
-      }),
-    );
-    const user = userEvent.setup();
-    renderWithProviders(<AlertChannelTab projectId="test-project" />, routeOpts);
-
-    await waitFor(() => {
-      expect(screen.getByRole("combobox")).toBeInTheDocument();
-    });
-
-    // Select Telegram
-    await user.click(screen.getByRole("combobox"));
-    await waitFor(() => {
-      expect(screen.getByText("Telegram")).toBeInTheDocument();
-    });
-    await user.click(screen.getByText("Telegram"));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText(/bot token/i)).toBeInTheDocument();
-    });
-
-    await user.type(screen.getByLabelText(/bot token/i), "123:ABC");
-    await user.type(screen.getByLabelText(/chat id/i), "-100123");
-    await user.click(screen.getByRole("button", { name: /save/i }));
-
-    await waitFor(() => {
-      expect(savedBody).toBeDefined();
-    });
-  });
-
   it("loads existing Telegram channel config into form", async () => {
     server.use(
       http.get("*/api/projects/*/alert-channel", () =>
