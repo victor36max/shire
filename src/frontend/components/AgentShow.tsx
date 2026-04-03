@@ -41,7 +41,8 @@ export default function AgentShow() {
   const { agentName } = useParams<{ agentName: string }>();
   const { projectId, projectName } = useProjectId();
 
-  const { data: agentList = [] } = useAgents(projectId);
+  const { data: agentData } = useAgents(projectId);
+  const agentList = agentData?.agents ?? [];
   const selectedAgent = agentList.find((a) => a.name === agentName);
   const agentId = selectedAgent?.id;
 

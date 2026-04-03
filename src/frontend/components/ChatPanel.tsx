@@ -244,10 +244,15 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   const { projectId, projectName } = useProjectId();
   const queryClient = useQueryClient();
 
-  type AgentList = NonNullable<ReturnType<typeof useAgents>["data"]>;
+  type AgentListData = NonNullable<ReturnType<typeof useAgents>["data"]>;
   const markBusy = () =>
-    queryClient.setQueryData<AgentList>(["agents", projectId], (prev) =>
-      prev?.map((a) => (a.id === agent.id ? { ...a, busy: true } : a)),
+    queryClient.setQueryData<AgentListData>(["agents", projectId], (prev) =>
+      prev
+        ? {
+            ...prev,
+            agents: prev.agents.map((a) => (a.id === agent.id ? { ...a, busy: true } : a)),
+          }
+        : prev,
     );
 
   const {

@@ -12,10 +12,13 @@ import {
   useRestartAgent,
 } from "../../hooks/agents";
 
-const agents = [
-  { id: "a1", name: "agent-one", status: "running" },
-  { id: "a2", name: "agent-two", status: "idle" },
-];
+const agentListResponse = {
+  agents: [
+    { id: "a1", name: "agent-one", status: "running", lastUserMessageAt: null },
+    { id: "a2", name: "agent-two", status: "idle", lastUserMessageAt: null },
+  ],
+  defaultAgentId: null,
+};
 
 const agentDetail = {
   id: "a1",
@@ -27,10 +30,10 @@ const agentDetail = {
 
 describe("useAgents", () => {
   it("fetches when projectId provided", async () => {
-    server.use(http.get("*/api/projects/:id/agents", () => HttpResponse.json(agents)));
+    server.use(http.get("*/api/projects/:id/agents", () => HttpResponse.json(agentListResponse)));
     const { result } = renderHookWithProviders(() => useAgents("p1"));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toMatchObject(agents);
+    expect(result.current.data).toMatchObject(agentListResponse);
   });
 
   it("does not fetch when projectId undefined", () => {

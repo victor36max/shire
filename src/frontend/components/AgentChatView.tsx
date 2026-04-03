@@ -11,17 +11,18 @@ import { useAgents, useMessages, useMarkRead } from "../hooks";
 import { useSubscription, type AgentWsEvent } from "../lib/ws";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 import { insertMessageIntoCache } from "../lib/insertMessageIntoCache";
-
-type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
+import type { AgentListResponse, AgentOverview } from "./types";
 
 function updateAgentCache(
   queryClient: ReturnType<typeof useQueryClient>,
   projectId: string,
   agentId: string,
-  patch: Partial<AgentData[number]>,
+  patch: Partial<AgentOverview>,
 ) {
-  queryClient.setQueryData<AgentData>(["agents", projectId], (prev) =>
-    prev?.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
+  queryClient.setQueryData<AgentListResponse>(["agents", projectId], (prev) =>
+    prev
+      ? { ...prev, agents: prev.agents.map((a) => (a.id === agentId ? { ...a, ...patch } : a)) }
+      : prev,
   );
 }
 
@@ -32,13 +33,16 @@ export default function AgentChatView() {
   const queryClient = useQueryClient();
 
   const {
-    data: agentList = [],
+    data: agentData,
     isLoading: agentsLoading,
     isError: agentsError,
     error: agentsErrorObj,
     refetch: refetchAgents,
   } = useAgents(projectId);
-  const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
+  const agentList = agentData?.agents ?? [];
+  const selectedAgent = agentName
+    ? agentList.find((a) => a.name === agentName)
+    : (agentList.find((a) => a.id === agentData?.defaultAgentId) ?? agentList[0]);
   const selectedAgentId = selectedAgent?.id;
 
   const { data: messagesData } = useMessages(projectId, selectedAgentId);

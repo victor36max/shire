@@ -152,6 +152,15 @@ export function latestAgentMessageId(agentId: string): number | null {
   return row?.maxId ?? null;
 }
 
+export function latestUserMessageAt(agentId: string): string | null {
+  const row = getDb()
+    .select({ latest: sql<string>`max(${messages.createdAt})` })
+    .from(messages)
+    .where(and(eq(messages.agentId, agentId), eq(messages.role, "user")))
+    .get();
+  return row?.latest ?? null;
+}
+
 export function unreadCounts(
   agentIds: string[],
   lastReadIds: Map<string, number | null>,

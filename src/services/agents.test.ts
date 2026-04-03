@@ -213,6 +213,51 @@ describe("agents service", () => {
     });
   });
 
+  describe("latestUserMessageAt", () => {
+    it("returns null when no user messages exist", () => {
+      expect(agents.latestUserMessageAt(agentId)).toBeNull();
+    });
+
+    it("returns null when only non-user messages exist", () => {
+      agents.createMessage({ projectId, agentId, role: "agent", content: { text: "response" } });
+      agents.createMessage({
+        projectId,
+        agentId,
+        role: "inter_agent",
+        content: { text: "peer msg", from_agent: "other" },
+      });
+      expect(agents.latestUserMessageAt(agentId)).toBeNull();
+    });
+
+    it("returns the timestamp of the latest user message", () => {
+      const m1 = agents.createMessage({
+        projectId,
+        agentId,
+        role: "user",
+        content: { text: "first" },
+      });
+      expect(agents.latestUserMessageAt(agentId)).toBe(m1.createdAt);
+
+      const m2 = agents.createMessage({
+        projectId,
+        agentId,
+        role: "user",
+        content: { text: "second" },
+      });
+      expect(agents.latestUserMessageAt(agentId)).toBe(m2.createdAt);
+    });
+
+    it("ignores messages from other agents", () => {
+      agents.createMessage({
+        projectId,
+        agentId: agent2Id,
+        role: "user",
+        content: { text: "hello" },
+      });
+      expect(agents.latestUserMessageAt(agentId)).toBeNull();
+    });
+  });
+
   describe("getMessage / updateMessage", () => {
     it("gets and updates a message", () => {
       const msg = agents.createMessage({

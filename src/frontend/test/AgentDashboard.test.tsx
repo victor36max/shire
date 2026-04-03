@@ -32,7 +32,11 @@ const agents: AgentOverview[] = [
 ];
 
 function setAgents(agentList: AgentOverview[]) {
-  server.use(http.get("*/api/projects/:id/agents", () => HttpResponse.json(agentList)));
+  server.use(
+    http.get("*/api/projects/:id/agents", () =>
+      HttpResponse.json({ agents: agentList, defaultAgentId: agentList[0]?.id ?? null }),
+    ),
+  );
 }
 
 function renderWithLayout(route = "/projects/test-project") {

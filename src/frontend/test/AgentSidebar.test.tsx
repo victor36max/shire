@@ -37,7 +37,11 @@ const projects: Project[] = [
 ];
 
 function setAgents(agents: AgentOverview[]) {
-  server.use(http.get("*/api/projects/:id/agents", () => HttpResponse.json(agents)));
+  server.use(
+    http.get("*/api/projects/:id/agents", () =>
+      HttpResponse.json({ agents, defaultAgentId: agents[0]?.id ?? null }),
+    ),
+  );
 }
 
 function setProjects(projectList: Project[] = projects) {

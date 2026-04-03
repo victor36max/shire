@@ -5,7 +5,7 @@ import { Spinner } from "./ui/spinner";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
-import { type Agent } from "./types";
+import { type Agent, type AgentListResponse, type AgentOverview } from "./types";
 import {
   useResolveProjectId,
   useAgents,
@@ -19,16 +19,16 @@ import {
   type ProjectLayoutContextValue,
 } from "../providers/ProjectLayoutProvider";
 
-type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
-
 function updateAgentCache(
   queryClient: ReturnType<typeof useQueryClient>,
   projectId: string,
   agentId: string,
-  patch: Partial<AgentData[number]>,
+  patch: Partial<AgentOverview>,
 ) {
-  queryClient.setQueryData<AgentData>(["agents", projectId], (prev) =>
-    prev?.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
+  queryClient.setQueryData<AgentListResponse>(["agents", projectId], (prev) =>
+    prev
+      ? { ...prev, agents: prev.agents.map((a) => (a.id === agentId ? { ...a, ...patch } : a)) }
+      : prev,
   );
 }
 
@@ -37,8 +37,12 @@ export default function ProjectLayout() {
   const queryClient = useQueryClient();
   const projectId = useResolveProjectId(projectName);
 
-  const { data: agentList = [] } = useAgents(projectId);
-  const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
+  const { data: agentData } = useAgents(projectId);
+  const agentList = agentData?.agents ?? [];
+  const defaultAgentId = agentData?.defaultAgentId;
+  const selectedAgent = agentName
+    ? agentList.find((a) => a.name === agentName)
+    : (agentList.find((a) => a.id === defaultAgentId) ?? agentList[0]);
   const selectedAgentId = selectedAgent?.id;
 
   const createAgent = useCreateAgent(projectId ?? "");
@@ -76,6 +80,7 @@ export default function ProjectLayout() {
         status: "idle",
         busy: false,
         unreadCount: 0,
+        lastUserMessageAt: null,
       });
       setEditingAgent(null);
       setFormTitle("New Agent from Catalog");
@@ -103,8 +108,9 @@ export default function ProjectLayout() {
             queryKey: ["messages", projectId, selectedAgentId],
           });
         } else {
-          const cached = queryClient.getQueryData<AgentData>(["agents", projectId]);
-          const current = cached?.find((a) => a.id === event.payload.agentId)?.unreadCount ?? 0;
+          const cached = queryClient.getQueryData<AgentListResponse>(["agents", projectId]);
+          const current =
+            cached?.agents.find((a) => a.id === event.payload.agentId)?.unreadCount ?? 0;
           updateAgentCache(queryClient, projectId!, event.payload.agentId, {
             unreadCount: current + 1,
           });

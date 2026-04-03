@@ -1,15 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { unwrap } from "./util";
-import type { AgentOverview, Agent, Skill } from "../components/types";
+import type { AgentListResponse, Agent, Skill } from "../components/types";
 
 export function useAgents(projectId: string | undefined) {
-  return useQuery<AgentOverview[]>({
+  return useQuery<AgentListResponse>({
     queryKey: ["agents", projectId],
     queryFn: async () =>
       unwrap(
         await api.projects[":id"].agents.$get({ param: { id: projectId! } }),
-      ) as unknown as AgentOverview[],
+      ) as unknown as AgentListResponse,
     enabled: !!projectId,
   });
 }

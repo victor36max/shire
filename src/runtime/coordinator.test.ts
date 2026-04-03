@@ -56,7 +56,7 @@ describe("deployAndScan", () => {
     await coordinator.deployAndScan();
     const elapsed = Date.now() - start;
 
-    const statuses = coordinator.listAgentStatuses();
+    const { agents: statuses } = coordinator.listAgentStatuses();
     expect(statuses.length).toBe(3);
     for (const s of statuses) {
       expect(s.status).toBe("active");
@@ -81,7 +81,7 @@ describe("deployAndScan", () => {
     await coordinator.deployAndScan();
     const elapsed = Date.now() - start;
 
-    const statuses = coordinator.listAgentStatuses();
+    const { agents: statuses } = coordinator.listAgentStatuses();
     expect(statuses[0].status).toBe("active");
     expect(elapsed).toBeLessThan(2000);
   });
@@ -97,7 +97,7 @@ describe("deployAndScan", () => {
     await coordinator.deployAndScan();
 
     // The good agent should still be active
-    const statuses = coordinator.listAgentStatuses();
+    const { agents: statuses } = coordinator.listAgentStatuses();
     const good = statuses.find((s) => s.name === "good-agent");
     expect(good).toBeDefined();
     expect(good!.status).toBe("active");
@@ -177,21 +177,85 @@ describe("deleteAgent", () => {
 
 describe("listAgentStatuses", () => {
   it("returns empty list when no agents", () => {
-    expect(coordinator.listAgentStatuses()).toEqual([]);
+    const { agents, defaultAgentId } = coordinator.listAgentStatuses();
+    expect(agents).toEqual([]);
+    expect(defaultAgentId).toBeNull();
   });
 
   it("returns agents with status", async () => {
     await coordinator.createAgent({ name: "agent-one" });
     await coordinator.createAgent({ name: "agent-two" });
 
-    const statuses = coordinator.listAgentStatuses();
+    const { agents: statuses } = coordinator.listAgentStatuses();
     expect(statuses.length).toBe(2);
     const names = statuses.map((s) => s.name);
     expect(names).toContain("agent-one");
     expect(names).toContain("agent-two");
     for (const s of statuses) {
       expect(s.status).toBeTruthy();
+      expect(s.lastUserMessageAt).toBeNull();
     }
+  });
+
+  it("sorts agents with unread messages first", async () => {
+    const r1 = await coordinator.createAgent({ name: "alpha" });
+    const r2 = await coordinator.createAgent({ name: "bravo" });
+    if (!r1.ok || !r2.ok) return;
+
+    // Create an agent message for bravo so it has unread count
+    agentsService.createMessage({
+      projectId,
+      agentId: r2.agentId,
+      role: "agent",
+      content: { text: "response" },
+    });
+
+    const { agents } = coordinator.listAgentStatuses();
+    // Bravo has unread, should come first
+    expect(agents[0].name).toBe("bravo");
+    expect(agents[1].name).toBe("alpha");
+  });
+
+  it("sorts by lastUserMessageAt within non-unread group", async () => {
+    const r1 = await coordinator.createAgent({ name: "alpha" });
+    const r2 = await coordinator.createAgent({ name: "bravo" });
+    if (!r1.ok || !r2.ok) return;
+
+    // Send user message to alpha first, then bravo
+    const proc1 = coordinator.getAgent(r1.agentId)!;
+    const proc2 = coordinator.getAgent(r2.agentId)!;
+    await proc1.sendMessage("hi alpha", "user");
+    // Small delay to ensure different timestamps
+    await new Promise((r) => setTimeout(r, 10));
+    await proc2.sendMessage("hi bravo", "user");
+
+    const { agents, defaultAgentId } = coordinator.listAgentStatuses();
+    // Bravo was messaged more recently, should come first
+    expect(agents[0].name).toBe("bravo");
+    expect(agents[1].name).toBe("alpha");
+    expect(defaultAgentId).toBe(r2.agentId);
+  });
+
+  it("defaults to alphabetical when no user messages exist", async () => {
+    await coordinator.createAgent({ name: "charlie" });
+    await coordinator.createAgent({ name: "alpha" });
+    await coordinator.createAgent({ name: "bravo" });
+
+    const { agents, defaultAgentId } = coordinator.listAgentStatuses();
+    expect(agents.map((a) => a.name)).toEqual(["alpha", "bravo", "charlie"]);
+    expect(defaultAgentId).toBeNull();
+  });
+
+  it("sets defaultAgentId to most recently messaged agent", async () => {
+    const r1 = await coordinator.createAgent({ name: "alpha" });
+    const r2 = await coordinator.createAgent({ name: "bravo" });
+    if (!r1.ok || !r2.ok) return;
+
+    const proc1 = coordinator.getAgent(r1.agentId)!;
+    await proc1.sendMessage("hello", "user");
+
+    const { defaultAgentId } = coordinator.listAgentStatuses();
+    expect(defaultAgentId).toBe(r1.agentId);
   });
 });
 
@@ -372,7 +436,7 @@ describe("restartAllAgents", () => {
 
     await coordinator.restartAllAgents();
 
-    const statuses = coordinator.listAgentStatuses();
+    const { agents: statuses } = coordinator.listAgentStatuses();
     expect(statuses.length).toBe(2);
     for (const s of statuses) {
       expect(s.status).toBe("active");
@@ -384,10 +448,10 @@ describe("stopAll", () => {
   it("stops all agents and clears state", async () => {
     await coordinator.createAgent({ name: "stop-all-a" });
     await coordinator.createAgent({ name: "stop-all-b" });
-    expect(coordinator.listAgentStatuses().length).toBe(2);
+    expect(coordinator.listAgentStatuses().agents.length).toBe(2);
 
     await coordinator.stopAll();
-    expect(coordinator.listAgentStatuses()).toEqual([]);
+    expect(coordinator.listAgentStatuses().agents).toEqual([]);
   });
 });
 
@@ -493,7 +557,7 @@ describe("deployAndScan", () => {
     await coordinator.deployAndScan();
     // Second call should not re-deploy
     await coordinator.deployAndScan();
-    const statuses = coordinator.listAgentStatuses();
+    const { agents: statuses } = coordinator.listAgentStatuses();
     expect(statuses.length).toBe(1);
   });
 });
