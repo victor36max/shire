@@ -29,11 +29,6 @@ export interface AgentOverview {
   lastUserMessageAt?: string | null;
 }
 
-export interface AgentListResponse {
-  agents: AgentOverview[];
-  defaultAgentId: string | null;
-}
-
 export interface Agent extends AgentOverview {
   description?: string;
   model?: string;

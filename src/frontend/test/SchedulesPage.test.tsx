@@ -53,11 +53,7 @@ function setAgents(
     { id: "a2", name: "Bob" },
   ],
 ) {
-  server.use(
-    http.get("*/api/projects/:id/agents", () =>
-      HttpResponse.json({ agents, defaultAgentId: agents[0]?.id ?? null }),
-    ),
-  );
+  server.use(http.get("*/api/projects/:id/agents", () => HttpResponse.json(agents)));
 }
 
 describe("SchedulesPage", () => {

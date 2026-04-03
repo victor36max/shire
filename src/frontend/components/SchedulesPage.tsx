@@ -107,8 +107,7 @@ export default function SchedulesPage() {
     error: schedulesErrorObj,
     refetch: refetchSchedules,
   } = useSchedules(projectId);
-  const { data: agentData } = useAgents(projectId);
-  const agentList = agentData?.agents ?? [];
+  const { data: agentList = [] } = useAgents(projectId);
   const createScheduleMut = useCreateSchedule(projectId ?? "");
   const updateScheduleMut = useUpdateSchedule(projectId ?? "");
   const deleteScheduleMut = useDeleteSchedule(projectId ?? "");

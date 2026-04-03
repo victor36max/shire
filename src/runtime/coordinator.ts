@@ -233,18 +233,15 @@ export class Coordinator {
     return this.agents.get(agentId);
   }
 
-  listAgentStatuses(): {
-    agents: Array<{
-      id: string;
-      name: string;
-      status: AgentStatus;
-      busy: boolean;
-      unreadCount: number;
-      lastReadMessageId: number | null;
-      lastUserMessageAt: string | null;
-    }>;
-    defaultAgentId: string | null;
-  } {
+  listAgentStatuses(): Array<{
+    id: string;
+    name: string;
+    status: AgentStatus;
+    busy: boolean;
+    unreadCount: number;
+    lastReadMessageId: number | null;
+    lastUserMessageAt: string | null;
+  }> {
     const agentIds = [...this.agents.keys()];
     const lastReadIds = new Map<string, number | null>();
     for (const [id, proc] of this.agents) {
@@ -273,16 +270,6 @@ export class Coordinator {
       });
     }
 
-    // Default agent: most recently interacted (highest lastUserMessageAt)
-    let defaultAgentId: string | null = null;
-    let latestTs: string | null = null;
-    for (const agent of result) {
-      if (agent.lastUserMessageAt && (!latestTs || agent.lastUserMessageAt > latestTs)) {
-        latestTs = agent.lastUserMessageAt;
-        defaultAgentId = agent.id;
-      }
-    }
-
     // Sort: unread pinned first, then by lastUserMessageAt desc (nulls last), then alphabetical
     result.sort((a, b) => {
       const aUnread = a.unreadCount > 0 ? 1 : 0;
@@ -298,7 +285,7 @@ export class Coordinator {
       return a.name.localeCompare(b.name);
     });
 
-    return { agents: result, defaultAgentId };
+    return result;
   }
 
   async getAgentDetail(agentId: string): Promise<Record<string, unknown> | null> {

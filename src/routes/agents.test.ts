@@ -81,9 +81,7 @@ describe("POST /api/projects/:id/agents/:aid/mark-read", () => {
 
     // Verify there are unread messages
     const listRes = await request("GET", `/api/projects/${projectId}/agents`);
-    const agents = ((await listRes.json()) as Record<string, unknown>).agents as Array<
-      Record<string, unknown>
-    >;
+    const agents = (await listRes.json()) as Array<Record<string, unknown>>;
     const agent = agents.find((a) => a.id === agentId);
     expect(agent?.unreadCount).toBeGreaterThan(0);
 
@@ -97,9 +95,7 @@ describe("POST /api/projects/:id/agents/:aid/mark-read", () => {
 
     // Verify unread count is now 0
     const listRes2 = await request("GET", `/api/projects/${projectId}/agents`);
-    const agents2 = ((await listRes2.json()) as Record<string, unknown>).agents as Array<
-      Record<string, unknown>
-    >;
+    const agents2 = (await listRes2.json()) as Array<Record<string, unknown>>;
     const agent2 = agents2.find((a) => a.id === agentId);
     expect(agent2?.unreadCount).toBe(0);
   });
@@ -126,9 +122,7 @@ describe("POST /api/projects/:id/agents/:aid/mark-read", () => {
 
     // Second message should still be unread
     const listRes = await request("GET", `/api/projects/${projectId}/agents`);
-    const agents = ((await listRes.json()) as Record<string, unknown>).agents as Array<
-      Record<string, unknown>
-    >;
+    const agents = (await listRes.json()) as Array<Record<string, unknown>>;
     const agent = agents.find((a) => a.id === agentId);
     expect(agent?.unreadCount).toBe(1);
   });
@@ -188,9 +182,7 @@ describe("GET /api/projects/:id/agents", () => {
   it("lists agents for a project", async () => {
     const res = await request("GET", `/api/projects/${projectId}/agents`);
     expect(res.status).toBe(200);
-    const agents = ((await res.json()) as Record<string, unknown>).agents as Array<
-      Record<string, unknown>
-    >;
+    const agents = (await res.json()) as Array<Record<string, unknown>>;
     expect(agents.length).toBeGreaterThanOrEqual(1);
     const found = agents.find((a) => a.id === agentId);
     expect(found).toBeDefined();

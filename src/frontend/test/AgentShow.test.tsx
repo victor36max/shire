@@ -33,9 +33,7 @@ function setAgentData(
   const merged = { ...agent, ...detail };
   const agents = agentsList ?? [{ id: merged.id, name: merged.name, status: merged.status }];
   server.use(
-    http.get("*/api/projects/:id/agents", () =>
-      HttpResponse.json({ agents, defaultAgentId: agents[0]?.id ?? null }),
-    ),
+    http.get("*/api/projects/:id/agents", () => HttpResponse.json(agents)),
     http.get("*/api/projects/:id/agents/:aid", () => HttpResponse.json(merged)),
   );
 }

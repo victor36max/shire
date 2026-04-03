@@ -15,9 +15,7 @@ export const defaultHandlers = [
   http.patch("*/api/projects/:id", () => HttpResponse.json({ ok: true })),
 
   // --- Agents ---
-  http.get("*/api/projects/:id/agents", () =>
-    HttpResponse.json({ agents: [], defaultAgentId: null }),
-  ),
+  http.get("*/api/projects/:id/agents", () => HttpResponse.json([])),
   http.post("*/api/projects/:id/agents", () => HttpResponse.json({ id: "a-new" }, { status: 201 })),
   http.get("*/api/projects/:id/agents/:aid", () =>
     HttpResponse.json({

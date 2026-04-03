@@ -47,8 +47,7 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
   const { agentName } = useParams<{ agentName: string }>();
   const { projectId, projectName } = useProjectId();
   const { data: projects = [] } = useProjects();
-  const { data: agentData, isLoading: agentsLoading } = useAgents(projectId);
-  const agents = agentData?.agents ?? [];
+  const { data: agents = [], isLoading: agentsLoading } = useAgents(projectId);
   const deleteAgentMut = useDeleteAgent(projectId ?? "");
 
   const selectedAgentId = agentName ? (agents.find((a) => a.name === agentName)?.id ?? null) : null;

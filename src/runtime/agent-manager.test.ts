@@ -68,6 +68,22 @@ describe("AgentManager", () => {
       const mgr = createManager();
       expect(mgr.getLastReadMessageId()).toBe(m2.id);
     });
+
+    it("initializes lastUserMessageAt as null when no user messages", () => {
+      const mgr = createManager();
+      expect(mgr.getLastUserMessageAt()).toBeNull();
+    });
+
+    it("initializes lastUserMessageAt from existing user messages", () => {
+      const msg = agentsService.createMessage({
+        projectId,
+        agentId,
+        role: "user",
+        content: { text: "hello" },
+      });
+      const mgr = createManager();
+      expect(mgr.getLastUserMessageAt()).toBe(msg.createdAt);
+    });
   });
 
   describe("markRead", () => {

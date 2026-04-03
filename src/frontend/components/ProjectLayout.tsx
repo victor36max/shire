@@ -5,7 +5,7 @@ import { Spinner } from "./ui/spinner";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
-import { type Agent, type AgentListResponse } from "./types";
+import { type Agent, type AgentOverview } from "./types";
 import {
   useResolveProjectId,
   useAgents,
@@ -13,6 +13,7 @@ import {
   useUpdateAgent,
   useUpdateAgentCache,
   useCatalogAgent,
+  findDefaultAgent,
 } from "../hooks";
 import { useSubscription, type AgentListWsEvent } from "../lib/ws";
 import {
@@ -26,12 +27,10 @@ export default function ProjectLayout() {
   const projectId = useResolveProjectId(projectName);
   const updateAgentCache = useUpdateAgentCache(projectId);
 
-  const { data: agentData } = useAgents(projectId);
-  const agentList = agentData?.agents ?? [];
-  const defaultAgentId = agentData?.defaultAgentId;
+  const { data: agentList = [] } = useAgents(projectId);
   const selectedAgent = agentName
     ? agentList.find((a) => a.name === agentName)
-    : (agentList.find((a) => a.id === defaultAgentId) ?? agentList[0]);
+    : (findDefaultAgent(agentList) ?? agentList[0]);
   const selectedAgentId = selectedAgent?.id;
 
   const createAgent = useCreateAgent(projectId ?? "");
@@ -97,9 +96,8 @@ export default function ProjectLayout() {
             queryKey: ["messages", projectId, selectedAgentId],
           });
         } else {
-          const cached = queryClient.getQueryData<AgentListResponse>(["agents", projectId]);
-          const current =
-            cached?.agents.find((a) => a.id === event.payload.agentId)?.unreadCount ?? 0;
+          const cached = queryClient.getQueryData<AgentOverview[]>(["agents", projectId]);
+          const current = cached?.find((a) => a.id === event.payload.agentId)?.unreadCount ?? 0;
           updateAgentCache(event.payload.agentId, {
             unreadCount: current + 1,
           });

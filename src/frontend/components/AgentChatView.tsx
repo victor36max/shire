@@ -7,7 +7,13 @@ import { ErrorState } from "./ui/error-state";
 import ChatHeader from "./ChatHeader";
 import ChatPanel from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
-import { useAgents, useMessages, useMarkRead, useUpdateAgentCache } from "../hooks";
+import {
+  useAgents,
+  useMessages,
+  useMarkRead,
+  useUpdateAgentCache,
+  findDefaultAgent,
+} from "../hooks";
 import { useSubscription, type AgentWsEvent } from "../lib/ws";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 import { insertMessageIntoCache } from "../lib/insertMessageIntoCache";
@@ -20,16 +26,15 @@ export default function AgentChatView() {
   const updateAgentCache = useUpdateAgentCache(projectId);
 
   const {
-    data: agentData,
+    data: agentList = [],
     isLoading: agentsLoading,
     isError: agentsError,
     error: agentsErrorObj,
     refetch: refetchAgents,
   } = useAgents(projectId);
-  const agentList = agentData?.agents ?? [];
   const selectedAgent = agentName
     ? agentList.find((a) => a.name === agentName)
-    : (agentList.find((a) => a.id === agentData?.defaultAgentId) ?? agentList[0]);
+    : (findDefaultAgent(agentList) ?? agentList[0]);
   const selectedAgentId = selectedAgent?.id;
 
   const { data: messagesData } = useMessages(projectId, selectedAgentId);
