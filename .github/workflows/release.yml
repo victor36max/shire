@@ -12,28 +12,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-14
-            target: bun-darwin-arm64
+          - target: bun-darwin-arm64
             npm-dir: darwin-arm64
-            binary: shire
-          - runner: macos-15
-            target: bun-darwin-x64
+          - target: bun-darwin-x64
             npm-dir: darwin-x64
-            binary: shire
-          - runner: ubuntu-latest
-            target: bun-linux-x64
+          - target: bun-linux-x64
             npm-dir: linux-x64
-            binary: shire
-          - runner: ubuntu-24.04-arm
-            target: bun-linux-arm64
+          - target: bun-linux-arm64
             npm-dir: linux-arm64
-            binary: shire
-          - runner: windows-latest
-            target: bun-windows-x64
+          - target: bun-windows-x64
             npm-dir: win32-x64
-            binary: shire.exe
 
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +32,12 @@ jobs:
         with:
           bun-version: "1.3.11"
 
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
+
       - uses: actions/setup-node@v4
         with:
           registry-url: "https://registry.npmjs.org"
@@ -49,7 +45,7 @@ jobs:
       - run: bun install --frozen-lockfile
 
       - name: Build binary and assets
-        run: bun run scripts/build-binaries.ts local
+        run: bun run scripts/build-binaries.ts --target ${{ matrix.target }}
 
       - name: Set version in package.json
         shell: bash
