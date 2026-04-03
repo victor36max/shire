@@ -75,6 +75,7 @@ export function useInterruptAgent(projectId: string) {
 }
 
 export function useMarkRead(projectId: string) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ agentId, messageId }: { agentId: string; messageId: number }) =>
       unwrap(
@@ -83,6 +84,7 @@ export function useMarkRead(projectId: string) {
           json: { messageId },
         }),
       ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agents", projectId] }),
   });
 }
 

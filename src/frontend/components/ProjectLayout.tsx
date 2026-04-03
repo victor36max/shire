@@ -5,7 +5,7 @@ import { Spinner } from "./ui/spinner";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
-import { type Agent, type AgentOverview } from "./types";
+import { type Agent } from "./types";
 import {
   useResolveProjectId,
   useAgents,
@@ -95,13 +95,8 @@ export default function ProjectLayout() {
           queryClient.invalidateQueries({
             queryKey: ["messages", projectId, selectedAgentId],
           });
-        } else {
-          const cached = queryClient.getQueryData<AgentOverview[]>(["agents", projectId]);
-          const current = cached?.find((a) => a.id === event.payload.agentId)?.unreadCount ?? 0;
-          updateAgentCache(event.payload.agentId, {
-            unreadCount: current + 1,
-          });
         }
+        queryClient.invalidateQueries({ queryKey: ["agents", projectId] });
         break;
       case "agent_created":
       case "agent_deleted":
