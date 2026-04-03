@@ -191,7 +191,55 @@ describe("listAgentStatuses", () => {
     expect(names).toContain("agent-two");
     for (const s of statuses) {
       expect(s.status).toBeTruthy();
+      expect(s.lastUserMessageAt).toBeNull();
     }
+  });
+
+  it("sorts agents with unread messages first", async () => {
+    const r1 = await coordinator.createAgent({ name: "alpha" });
+    const r2 = await coordinator.createAgent({ name: "bravo" });
+    if (!r1.ok || !r2.ok) return;
+
+    // Create an agent message for bravo so it has unread count
+    agentsService.createMessage({
+      projectId,
+      agentId: r2.agentId,
+      role: "agent",
+      content: { text: "response" },
+    });
+
+    const statuses = coordinator.listAgentStatuses();
+    // Bravo has unread, should come first
+    expect(statuses[0].name).toBe("bravo");
+    expect(statuses[1].name).toBe("alpha");
+  });
+
+  it("sorts by lastUserMessageAt within non-unread group", async () => {
+    const r1 = await coordinator.createAgent({ name: "alpha" });
+    const r2 = await coordinator.createAgent({ name: "bravo" });
+    if (!r1.ok || !r2.ok) return;
+
+    // Send user message to alpha first, then bravo
+    const proc1 = coordinator.getAgent(r1.agentId)!;
+    const proc2 = coordinator.getAgent(r2.agentId)!;
+    await proc1.sendMessage("hi alpha", "user");
+    // Small delay to ensure different timestamps
+    await new Promise((r) => setTimeout(r, 10));
+    await proc2.sendMessage("hi bravo", "user");
+
+    const statuses = coordinator.listAgentStatuses();
+    // Bravo was messaged more recently, should come first
+    expect(statuses[0].name).toBe("bravo");
+    expect(statuses[1].name).toBe("alpha");
+  });
+
+  it("defaults to alphabetical when no user messages exist", async () => {
+    await coordinator.createAgent({ name: "charlie" });
+    await coordinator.createAgent({ name: "alpha" });
+    await coordinator.createAgent({ name: "bravo" });
+
+    const statuses = coordinator.listAgentStatuses();
+    expect(statuses.map((a) => a.name)).toEqual(["alpha", "bravo", "charlie"]);
   });
 });
 

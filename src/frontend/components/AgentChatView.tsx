@@ -7,29 +7,23 @@ import { ErrorState } from "./ui/error-state";
 import ChatHeader from "./ChatHeader";
 import ChatPanel from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
-import { useAgents, useMessages, useMarkRead } from "../hooks";
+import {
+  useAgents,
+  useMessages,
+  useMarkRead,
+  useUpdateAgentCache,
+  findDefaultAgent,
+} from "../hooks";
 import { useSubscription, type AgentWsEvent } from "../lib/ws";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 import { insertMessageIntoCache } from "../lib/insertMessageIntoCache";
-
-type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
-
-function updateAgentCache(
-  queryClient: ReturnType<typeof useQueryClient>,
-  projectId: string,
-  agentId: string,
-  patch: Partial<AgentData[number]>,
-) {
-  queryClient.setQueryData<AgentData>(["agents", projectId], (prev) =>
-    prev?.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
-  );
-}
 
 export default function AgentChatView() {
   const { agentName } = useParams();
   const { projectId, sidebarOpen, setSidebarOpen, onNewAgent, onBrowseCatalog } =
     useProjectLayout();
   const queryClient = useQueryClient();
+  const updateAgentCache = useUpdateAgentCache(projectId);
 
   const {
     data: agentList = [],
@@ -38,7 +32,9 @@ export default function AgentChatView() {
     error: agentsErrorObj,
     refetch: refetchAgents,
   } = useAgents(projectId);
-  const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
+  const selectedAgent = agentName
+    ? agentList.find((a) => a.name === agentName)
+    : (findDefaultAgent(agentList) ?? agentList[0]);
   const selectedAgentId = selectedAgent?.id;
 
   const { data: messagesData } = useMessages(projectId, selectedAgentId);
@@ -118,8 +114,8 @@ export default function AgentChatView() {
   React.useEffect(() => {
     if (!projectId || !selectedAgentId || !lastMessageId) return;
     markReadRef.current.mutate({ agentId: selectedAgentId, messageId: lastMessageId });
-    updateAgentCache(queryClient, projectId, selectedAgentId, { unreadCount: 0 });
-  }, [projectId, selectedAgentId, lastMessageId, queryClient]);
+    updateAgentCache(selectedAgentId, { unreadCount: 0 });
+  }, [projectId, selectedAgentId, lastMessageId, updateAgentCache]);
 
   if (selectedAgent) {
     return (

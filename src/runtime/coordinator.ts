@@ -240,6 +240,7 @@ export class Coordinator {
     busy: boolean;
     unreadCount: number;
     lastReadMessageId: number | null;
+    lastUserMessageAt: string | null;
   }> {
     const agentIds = [...this.agents.keys()];
     const lastReadIds = new Map<string, number | null>();
@@ -255,6 +256,7 @@ export class Coordinator {
       busy: boolean;
       unreadCount: number;
       lastReadMessageId: number | null;
+      lastUserMessageAt: string | null;
     }> = [];
     for (const [id, proc] of this.agents) {
       result.push({
@@ -264,9 +266,26 @@ export class Coordinator {
         busy: proc.busy,
         unreadCount: unreads.get(id) ?? 0,
         lastReadMessageId: proc.getLastReadMessageId(),
+        lastUserMessageAt: proc.getLastUserMessageAt(),
       });
     }
-    return result.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Sort: unread pinned first, then by lastUserMessageAt desc (nulls last), then alphabetical
+    result.sort((a, b) => {
+      const aUnread = a.unreadCount > 0 ? 1 : 0;
+      const bUnread = b.unreadCount > 0 ? 1 : 0;
+      if (aUnread !== bUnread) return bUnread - aUnread;
+
+      if (a.lastUserMessageAt && b.lastUserMessageAt) {
+        return b.lastUserMessageAt.localeCompare(a.lastUserMessageAt);
+      }
+      if (a.lastUserMessageAt && !b.lastUserMessageAt) return -1;
+      if (!a.lastUserMessageAt && b.lastUserMessageAt) return 1;
+
+      return a.name.localeCompare(b.name);
+    });
+
+    return result;
   }
 
   async getAgentDetail(agentId: string): Promise<Record<string, unknown> | null> {

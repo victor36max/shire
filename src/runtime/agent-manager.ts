@@ -90,6 +90,7 @@ export class AgentManager {
   private toolUseIds = new Map<string, number>();
   private autoRestartCount = 0;
   private lastReadMessageId: number | null = null;
+  private lastUserMessageAt: string | null = null;
   busy = false;
 
   // Peers
@@ -106,11 +107,16 @@ export class AgentManager {
     this.agentId = opts.agentId;
     this.agentName = opts.agentName;
     this.initLastRead();
+    this.initLastUserMessage();
   }
 
   private initLastRead(): void {
     const id = agentsService.latestAgentMessageId(this.agentId);
     if (id !== null) this.lastReadMessageId = id;
+  }
+
+  private initLastUserMessage(): void {
+    this.lastUserMessageAt = agentsService.latestUserMessageAt(this.agentId);
   }
 
   // --- Lifecycle ---
@@ -215,6 +221,7 @@ export class AgentManager {
         role: "user",
         content: savedAttachments.length > 0 ? { text, attachments: savedAttachments } : { text },
       });
+      this.lastUserMessageAt = msg.createdAt;
     }
 
     // Send directly to harness (no inbox file needed for direct messages)
@@ -276,6 +283,10 @@ export class AgentManager {
 
   getLastReadMessageId(): number | null {
     return this.lastReadMessageId;
+  }
+
+  getLastUserMessageAt(): string | null {
+    return this.lastUserMessageAt;
   }
 
   // --- Harness setup ---

@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { unwrap } from "./util";
@@ -12,6 +13,31 @@ export function useAgents(projectId: string | undefined) {
       ) as unknown as AgentOverview[],
     enabled: !!projectId,
   });
+}
+
+export function useUpdateAgentCache(projectId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (agentId: string, patch: Partial<AgentOverview>) => {
+      queryClient.setQueryData<AgentOverview[]>(["agents", projectId], (prev) =>
+        prev?.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
+      );
+    },
+    [queryClient, projectId],
+  );
+}
+
+export function findDefaultAgent(agents: AgentOverview[]): AgentOverview | undefined {
+  let best: AgentOverview | undefined;
+  for (const agent of agents) {
+    if (
+      agent.lastUserMessageAt &&
+      (!best?.lastUserMessageAt || agent.lastUserMessageAt > best.lastUserMessageAt)
+    ) {
+      best = agent;
+    }
+  }
+  return best;
 }
 
 export function useAgentDetail(projectId: string | undefined, agentId: string | undefined) {

@@ -11,7 +11,9 @@ import {
   useAgents,
   useCreateAgent,
   useUpdateAgent,
+  useUpdateAgentCache,
   useCatalogAgent,
+  findDefaultAgent,
 } from "../hooks";
 import { useSubscription, type AgentListWsEvent } from "../lib/ws";
 import {
@@ -19,26 +21,16 @@ import {
   type ProjectLayoutContextValue,
 } from "../providers/ProjectLayoutProvider";
 
-type AgentData = NonNullable<ReturnType<typeof useAgents>["data"]>;
-
-function updateAgentCache(
-  queryClient: ReturnType<typeof useQueryClient>,
-  projectId: string,
-  agentId: string,
-  patch: Partial<AgentData[number]>,
-) {
-  queryClient.setQueryData<AgentData>(["agents", projectId], (prev) =>
-    prev?.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
-  );
-}
-
 export default function ProjectLayout() {
   const { projectName, agentName } = useParams();
   const queryClient = useQueryClient();
   const projectId = useResolveProjectId(projectName);
+  const updateAgentCache = useUpdateAgentCache(projectId);
 
   const { data: agentList = [] } = useAgents(projectId);
-  const selectedAgent = agentName ? agentList.find((a) => a.name === agentName) : agentList[0];
+  const selectedAgent = agentName
+    ? agentList.find((a) => a.name === agentName)
+    : (findDefaultAgent(agentList) ?? agentList[0]);
   const selectedAgentId = selectedAgent?.id;
 
   const createAgent = useCreateAgent(projectId ?? "");
@@ -76,6 +68,7 @@ export default function ProjectLayout() {
         status: "idle",
         busy: false,
         unreadCount: 0,
+        lastUserMessageAt: null,
       });
       setEditingAgent(null);
       setFormTitle("New Agent from Catalog");
@@ -88,12 +81,12 @@ export default function ProjectLayout() {
   useSubscription<AgentListWsEvent>(projectId ? `project:${projectId}:agents` : null, (event) => {
     switch (event.type) {
       case "agent_busy":
-        updateAgentCache(queryClient, projectId!, event.payload.agentId, {
+        updateAgentCache(event.payload.agentId, {
           busy: event.payload.active,
         });
         break;
       case "agent_status":
-        updateAgentCache(queryClient, projectId!, event.payload.agentId, {
+        updateAgentCache(event.payload.agentId, {
           status: event.payload.status,
         });
         break;
@@ -102,13 +95,8 @@ export default function ProjectLayout() {
           queryClient.invalidateQueries({
             queryKey: ["messages", projectId, selectedAgentId],
           });
-        } else {
-          const cached = queryClient.getQueryData<AgentData>(["agents", projectId]);
-          const current = cached?.find((a) => a.id === event.payload.agentId)?.unreadCount ?? 0;
-          updateAgentCache(queryClient, projectId!, event.payload.agentId, {
-            unreadCount: current + 1,
-          });
         }
+        queryClient.invalidateQueries({ queryKey: ["agents", projectId] });
         break;
       case "agent_created":
       case "agent_deleted":

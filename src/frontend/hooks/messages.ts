@@ -56,8 +56,10 @@ export function useSendMessage(projectId: string) {
           json: { text, attachmentIds },
         }),
       ),
-    onSuccess: (_data, { agentId }) =>
-      qc.invalidateQueries({ queryKey: ["messages", projectId, agentId] }),
+    onSuccess: (_data, { agentId }) => {
+      qc.invalidateQueries({ queryKey: ["messages", projectId, agentId] });
+      qc.invalidateQueries({ queryKey: ["agents", projectId] });
+    },
   });
 }
 
@@ -73,6 +75,7 @@ export function useInterruptAgent(projectId: string) {
 }
 
 export function useMarkRead(projectId: string) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ agentId, messageId }: { agentId: string; messageId: number }) =>
       unwrap(
@@ -81,6 +84,7 @@ export function useMarkRead(projectId: string) {
           json: { messageId },
         }),
       ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agents", projectId] }),
   });
 }
 

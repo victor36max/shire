@@ -10,7 +10,9 @@ import {
   useUpdateAgent,
   useDeleteAgent,
   useRestartAgent,
+  findDefaultAgent,
 } from "../../hooks/agents";
+import type { AgentOverview } from "../../components/types";
 
 const agents = [
   { id: "a1", name: "agent-one", status: "running" },
@@ -82,5 +84,38 @@ describe("useRestartAgent", () => {
     const { result } = renderHookWithProviders(() => useRestartAgent("p1"));
     act(() => result.current.mutate("a1"));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+});
+
+describe("findDefaultAgent", () => {
+  const base: AgentOverview = { id: "", name: "", status: "idle", busy: false, unreadCount: 0 };
+
+  it("returns undefined for empty list", () => {
+    expect(findDefaultAgent([])).toBeUndefined();
+  });
+
+  it("returns undefined when no agents have user messages", () => {
+    const list = [
+      { ...base, id: "a1", name: "alpha" },
+      { ...base, id: "a2", name: "bravo" },
+    ];
+    expect(findDefaultAgent(list)).toBeUndefined();
+  });
+
+  it("returns the agent with the most recent lastUserMessageAt", () => {
+    const list = [
+      { ...base, id: "a1", name: "alpha", lastUserMessageAt: "2026-01-01T00:00:00Z" },
+      { ...base, id: "a2", name: "bravo", lastUserMessageAt: "2026-01-02T00:00:00Z" },
+      { ...base, id: "a3", name: "charlie" },
+    ];
+    expect(findDefaultAgent(list)?.id).toBe("a2");
+  });
+
+  it("returns the only agent with a user message", () => {
+    const list = [
+      { ...base, id: "a1", name: "alpha" },
+      { ...base, id: "a2", name: "bravo", lastUserMessageAt: "2026-01-01T00:00:00Z" },
+    ];
+    expect(findDefaultAgent(list)?.id).toBe("a2");
   });
 });

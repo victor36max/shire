@@ -26,6 +26,7 @@ export interface AgentOverview {
   status: AgentStatus;
   busy: boolean;
   unreadCount: number;
+  lastUserMessageAt?: string | null;
 }
 
 export interface Agent extends AgentOverview {
