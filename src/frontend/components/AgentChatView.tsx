@@ -7,30 +7,17 @@ import { ErrorState } from "./ui/error-state";
 import ChatHeader from "./ChatHeader";
 import ChatPanel from "./ChatPanel";
 import WelcomePanel from "./WelcomePanel";
-import { useAgents, useMessages, useMarkRead } from "../hooks";
+import { useAgents, useMessages, useMarkRead, useUpdateAgentCache } from "../hooks";
 import { useSubscription, type AgentWsEvent } from "../lib/ws";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 import { insertMessageIntoCache } from "../lib/insertMessageIntoCache";
-import type { AgentListResponse, AgentOverview } from "./types";
-
-function updateAgentCache(
-  queryClient: ReturnType<typeof useQueryClient>,
-  projectId: string,
-  agentId: string,
-  patch: Partial<AgentOverview>,
-) {
-  queryClient.setQueryData<AgentListResponse>(["agents", projectId], (prev) =>
-    prev
-      ? { ...prev, agents: prev.agents.map((a) => (a.id === agentId ? { ...a, ...patch } : a)) }
-      : prev,
-  );
-}
 
 export default function AgentChatView() {
   const { agentName } = useParams();
   const { projectId, sidebarOpen, setSidebarOpen, onNewAgent, onBrowseCatalog } =
     useProjectLayout();
   const queryClient = useQueryClient();
+  const updateAgentCache = useUpdateAgentCache(projectId);
 
   const {
     data: agentData,
@@ -122,8 +109,8 @@ export default function AgentChatView() {
   React.useEffect(() => {
     if (!projectId || !selectedAgentId || !lastMessageId) return;
     markReadRef.current.mutate({ agentId: selectedAgentId, messageId: lastMessageId });
-    updateAgentCache(queryClient, projectId, selectedAgentId, { unreadCount: 0 });
-  }, [projectId, selectedAgentId, lastMessageId, queryClient]);
+    updateAgentCache(selectedAgentId, { unreadCount: 0 });
+  }, [projectId, selectedAgentId, lastMessageId, updateAgentCache]);
 
   if (selectedAgent) {
     return (

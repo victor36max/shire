@@ -5,12 +5,13 @@ import { Spinner } from "./ui/spinner";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
-import { type Agent, type AgentListResponse, type AgentOverview } from "./types";
+import { type Agent, type AgentListResponse } from "./types";
 import {
   useResolveProjectId,
   useAgents,
   useCreateAgent,
   useUpdateAgent,
+  useUpdateAgentCache,
   useCatalogAgent,
 } from "../hooks";
 import { useSubscription, type AgentListWsEvent } from "../lib/ws";
@@ -19,23 +20,11 @@ import {
   type ProjectLayoutContextValue,
 } from "../providers/ProjectLayoutProvider";
 
-function updateAgentCache(
-  queryClient: ReturnType<typeof useQueryClient>,
-  projectId: string,
-  agentId: string,
-  patch: Partial<AgentOverview>,
-) {
-  queryClient.setQueryData<AgentListResponse>(["agents", projectId], (prev) =>
-    prev
-      ? { ...prev, agents: prev.agents.map((a) => (a.id === agentId ? { ...a, ...patch } : a)) }
-      : prev,
-  );
-}
-
 export default function ProjectLayout() {
   const { projectName, agentName } = useParams();
   const queryClient = useQueryClient();
   const projectId = useResolveProjectId(projectName);
+  const updateAgentCache = useUpdateAgentCache(projectId);
 
   const { data: agentData } = useAgents(projectId);
   const agentList = agentData?.agents ?? [];
@@ -93,12 +82,12 @@ export default function ProjectLayout() {
   useSubscription<AgentListWsEvent>(projectId ? `project:${projectId}:agents` : null, (event) => {
     switch (event.type) {
       case "agent_busy":
-        updateAgentCache(queryClient, projectId!, event.payload.agentId, {
+        updateAgentCache(event.payload.agentId, {
           busy: event.payload.active,
         });
         break;
       case "agent_status":
-        updateAgentCache(queryClient, projectId!, event.payload.agentId, {
+        updateAgentCache(event.payload.agentId, {
           status: event.payload.status,
         });
         break;
@@ -111,7 +100,7 @@ export default function ProjectLayout() {
           const cached = queryClient.getQueryData<AgentListResponse>(["agents", projectId]);
           const current =
             cached?.agents.find((a) => a.id === event.payload.agentId)?.unreadCount ?? 0;
-          updateAgentCache(queryClient, projectId!, event.payload.agentId, {
+          updateAgentCache(event.payload.agentId, {
             unreadCount: current + 1,
           });
         }

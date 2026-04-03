@@ -7,15 +7,14 @@ import { Textarea } from "./ui/textarea";
 import Markdown from "./Markdown";
 import { CopyButton } from "./CopyButton";
 import { type AgentOverview } from "./types";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useProjectId,
-  useAgents,
   useMessages,
   useSendMessage,
   useInterruptAgent,
   useRestartAgent,
   useUploadAttachment,
+  useUpdateAgentCache,
 } from "../hooks";
 import { messageTimeLabel, dateSeparatorLabel, isSameDay } from "../lib/time";
 import { useTickingClock } from "../lib/useTickingClock";
@@ -242,18 +241,9 @@ interface ChatPanelProps {
 
 export default function ChatPanel({ agent, streamingText: externalStreamingText }: ChatPanelProps) {
   const { projectId, projectName } = useProjectId();
-  const queryClient = useQueryClient();
+  const updateAgentCache = useUpdateAgentCache(projectId);
 
-  type AgentListData = NonNullable<ReturnType<typeof useAgents>["data"]>;
-  const markBusy = () =>
-    queryClient.setQueryData<AgentListData>(["agents", projectId], (prev) =>
-      prev
-        ? {
-            ...prev,
-            agents: prev.agents.map((a) => (a.id === agent.id ? { ...a, busy: true } : a)),
-          }
-        : prev,
-    );
+  const markBusy = () => updateAgentCache(agent.id, { busy: true });
 
   const {
     data: messagesData,

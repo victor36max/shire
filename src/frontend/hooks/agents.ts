@@ -1,7 +1,8 @@
+import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { unwrap } from "./util";
-import type { AgentListResponse, Agent, Skill } from "../components/types";
+import type { AgentListResponse, AgentOverview, Agent, Skill } from "../components/types";
 
 export function useAgents(projectId: string | undefined) {
   return useQuery<AgentListResponse>({
@@ -12,6 +13,23 @@ export function useAgents(projectId: string | undefined) {
       ) as unknown as AgentListResponse,
     enabled: !!projectId,
   });
+}
+
+export function useUpdateAgentCache(projectId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (agentId: string, patch: Partial<AgentOverview>) => {
+      queryClient.setQueryData<AgentListResponse>(["agents", projectId], (prev) =>
+        prev
+          ? {
+              ...prev,
+              agents: prev.agents.map((a) => (a.id === agentId ? { ...a, ...patch } : a)),
+            }
+          : prev,
+      );
+    },
+    [queryClient, projectId],
+  );
 }
 
 export function useAgentDetail(projectId: string | undefined, agentId: string | undefined) {
