@@ -1,0 +1,3 @@
+#!/bin/bash
+# Git pre-commit hook: enforce test coverage thresholds
+exec "$(git rev-parse --show-toplevel)/.claude/hooks/check-coverage.sh"
