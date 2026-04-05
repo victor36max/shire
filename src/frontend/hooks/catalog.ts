@@ -31,3 +31,9 @@ export function useCatalogAgent(name: string | undefined) {
     enabled: !!name,
   });
 }
+
+export async function fetchCatalogAgent(name: string): Promise<CatalogAgent> {
+  return unwrap(
+    await api.catalog.agents[":name"].$get({ param: { name } }),
+  ) as unknown as CatalogAgent;
+}

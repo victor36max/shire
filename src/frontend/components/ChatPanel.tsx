@@ -266,8 +266,9 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   const hasMore = hasNextPage ?? false;
   const loadingMore = isFetchingNextPage;
 
+  const streamingText = externalStreamingText ?? "";
+
   const [input, setInput] = React.useState("");
-  const [streamingText, setStreamingText] = React.useState("");
   const [pendingFiles, setPendingFiles] = React.useState<PendingFile[]>([]);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -277,18 +278,12 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
   const prevScrollHeightRef = React.useRef(0);
   const initialScrollDone = React.useRef(false);
 
-  // Reset state when switching agents
+  // Reset scroll tracking when switching agents
   React.useEffect(() => {
-    setStreamingText("");
     initialScrollDone.current = false;
     prevMessagesLengthRef.current = 0;
     prevScrollHeightRef.current = 0;
   }, [agent.id]);
-
-  // Sync streaming text from parent (via WebSocket subscription)
-  React.useEffect(() => {
-    setStreamingText(externalStreamingText ?? "");
-  }, [externalStreamingText]);
 
   // Auto-scroll to bottom on initial load and new messages
   React.useEffect(() => {

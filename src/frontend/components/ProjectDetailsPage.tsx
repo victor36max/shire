@@ -21,20 +21,23 @@ export default function ProjectDetailsPage() {
   const isSavingDoc = saveDoc.isPending;
 
   const [nameValue, setNameValue] = React.useState(projectName);
+  const [prevProjectName, setPrevProjectName] = React.useState(projectName);
+  if (projectName !== prevProjectName) {
+    setPrevProjectName(projectName);
+    setNameValue(projectName);
+  }
+
   const [docValue, setDocValue] = React.useState(project_doc);
+  const [prevProjectDoc, setPrevProjectDoc] = React.useState(project_doc);
+  if (project_doc !== prevProjectDoc) {
+    setPrevProjectDoc(project_doc);
+    setDocValue(project_doc);
+  }
 
   const slugRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
   const isValidSlug = nameValue.length >= 1 && nameValue.length <= 63 && slugRegex.test(nameValue);
   const nameDirty = nameValue !== projectName;
   const docDirty = docValue !== project_doc;
-
-  React.useEffect(() => {
-    setNameValue(projectName);
-  }, [projectName]);
-
-  React.useEffect(() => {
-    setDocValue(project_doc);
-  }, [project_doc]);
 
   const handleRename = () => {
     renameProject.mutate(nameValue);

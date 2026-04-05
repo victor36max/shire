@@ -69,10 +69,6 @@ export default function ProjectDashboard() {
   const [deleteTarget, setDeleteTarget] = React.useState<Project | null>(null);
   const [restartingId, setRestartingId] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    setRestartingId(null);
-  }, [projects]);
-
   const nameValid = PROJECT_NAME_REGEX.test(projectName);
 
   const handleCreate = () => {
@@ -163,7 +159,9 @@ export default function ProjectDashboard() {
                               disabled={restartingId === project.id}
                               onClick={() => {
                                 setRestartingId(project.id);
-                                restartProject.mutate(project.id);
+                                restartProject.mutate(project.id, {
+                                  onSettled: () => setRestartingId(null),
+                                });
                               }}
                             >
                               {restartingId === project.id ? "Restarting..." : "Restart"}
