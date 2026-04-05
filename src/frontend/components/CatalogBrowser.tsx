@@ -22,12 +22,14 @@ export default function CatalogBrowser({ open, onClose, onAdd }: CatalogBrowserP
   const [search, setSearch] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setSearch("");
       setSelectedCategory(null);
     }
-  }, [open]);
+  }
 
   const filteredAgents = React.useMemo(() => {
     let result = agents;

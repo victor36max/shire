@@ -220,6 +220,12 @@ describe("ProjectDashboard", () => {
   });
 
   it("shows Restarting... text while restart is in progress", async () => {
+    // Keep the restart request pending so onSettled doesn't fire before assertion
+    server.use(
+      http.post("*/api/projects/:id/restart", () => {
+        return new Promise(() => {});
+      }),
+    );
     setProjects([{ id: "p8", name: "restarting-proj", status: "error" }]);
     renderWithProviders(<ProjectDashboard />);
     await waitFor(() => {

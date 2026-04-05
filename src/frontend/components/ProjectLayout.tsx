@@ -12,7 +12,7 @@ import {
   useCreateAgent,
   useUpdateAgent,
   useUpdateAgentCache,
-  useCatalogAgent,
+  fetchCatalogAgent,
   findDefaultAgent,
 } from "../hooks";
 import { useSubscription, type AgentListWsEvent } from "../lib/ws";
@@ -43,27 +43,25 @@ export default function ProjectLayout() {
   const [currentAgent, setCurrentAgent] = React.useState<Agent | null>(null);
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
-  const [selectedCatalogName, setSelectedCatalogName] = React.useState<string | undefined>(
-    undefined,
-  );
-
-  const { data: catalogSelectedAgent } = useCatalogAgent(selectedCatalogName);
 
   // Close mobile sidebar when agent changes
-  React.useEffect(() => {
+  const [prevSelectedAgentId, setPrevSelectedAgentId] = React.useState(selectedAgentId);
+  if (selectedAgentId !== prevSelectedAgentId) {
+    setPrevSelectedAgentId(selectedAgentId);
     setSidebarOpen(false);
-  }, [selectedAgentId]);
+  }
 
-  React.useEffect(() => {
-    if (catalogSelectedAgent) {
-      setCatalogOpen(false);
+  const handleCatalogAdd = async (name: string) => {
+    setCatalogOpen(false);
+    try {
+      const agent = await fetchCatalogAgent(name);
       setCurrentAgent({
         id: "",
-        name: catalogSelectedAgent.name,
-        description: catalogSelectedAgent.description,
-        harness: catalogSelectedAgent.harness,
-        model: catalogSelectedAgent.model,
-        systemPrompt: catalogSelectedAgent.systemPrompt,
+        name: agent.name,
+        description: agent.description,
+        harness: agent.harness,
+        model: agent.model,
+        systemPrompt: agent.systemPrompt,
         skills: [],
         status: "idle",
         busy: false,
@@ -73,9 +71,10 @@ export default function ProjectLayout() {
       setEditingAgent(null);
       setFormTitle("New Agent from Catalog");
       setFormOpen(true);
-      setSelectedCatalogName(undefined);
+    } catch {
+      setCatalogOpen(true);
     }
-  }, [catalogSelectedAgent]);
+  };
 
   // Subscribe to project-level agent list updates
   useSubscription<AgentListWsEvent>(projectId ? `project:${projectId}:agents` : null, (event) => {
@@ -177,7 +176,7 @@ export default function ProjectLayout() {
       <CatalogBrowser
         open={catalogOpen}
         onClose={() => setCatalogOpen(false)}
-        onAdd={(name) => setSelectedCatalogName(name)}
+        onAdd={handleCatalogAdd}
       />
     </div>
   );
