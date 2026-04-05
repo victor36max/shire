@@ -1,10 +1,10 @@
 #!/bin/bash
-# PreToolUse hook: block git commit if coverage thresholds are not met.
+# Enforce test coverage thresholds (used by pre-commit hook, CI, and Claude hooks).
 # - Overall function and line coverage must be >= 80%
 # - Per-file line coverage must be >= 80% (except skipped files)
 set -euo pipefail
 
-cd "$CLAUDE_PROJECT_DIR"
+cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
 
 THRESHOLD=80
 
@@ -28,7 +28,7 @@ trap 'rm -f "$TMPFILE"' EXIT
 NO_COLOR=1 bun test --coverage > "$TMPFILE" 2>&1 || true
 
 # Strip ANSI escape codes
-sed -i '' 's/\x1b\[[0-9;]*m//g' "$TMPFILE" 2>/dev/null || sed -i 's/\x1b\[[0-9;]*m//g' "$TMPFILE"
+perl -pi -e 's/\x1b\[[0-9;]*m//g' "$TMPFILE"
 
 # Verify the coverage table exists
 if ! grep -q "All files" "$TMPFILE"; then

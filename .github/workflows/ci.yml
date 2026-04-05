@@ -23,7 +23,8 @@ jobs:
 
       - run: bun run typecheck
 
-      - run: bun test
+      - name: Run tests with coverage check
+        run: bash .claude/hooks/check-coverage.sh
 
       - name: Verify binary compilation
         run: bun build src/cli.ts --compile --outfile /tmp/shire-test

@@ -14,6 +14,7 @@
     "db:migrate": "bunx drizzle-kit migrate",
     "db:studio": "bunx drizzle-kit studio",
     "catalog:sync": "bun run src/scripts/catalog-sync.ts",
+    "prepare": "git config core.hooksPath .githooks",
     "test": "bun test",
     "test:watch": "bun test --watch src/",
     "lint": "eslint src/",
