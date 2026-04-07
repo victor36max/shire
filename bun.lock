@@ -8,7 +8,6 @@
         "@anthropic-ai/claude-agent-sdk": "^0.2.85",
         "@hono/zod-validator": "^0.7.6",
         "@lexical/code": "^0.42.0",
-        "@lexical/code-prism": "^0.42.0",
         "@lexical/link": "^0.42.0",
         "@lexical/list": "^0.42.0",
         "@lexical/markdown": "^0.42.0",

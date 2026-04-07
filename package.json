@@ -60,7 +60,6 @@
     "yaml": "^2.8.2",
     "lexical": "^0.42.0",
     "@lexical/code": "^0.42.0",
-    "@lexical/code-prism": "^0.42.0",
     "@lexical/link": "^0.42.0",
     "@lexical/list": "^0.42.0",
     "@lexical/markdown": "^0.42.0",
