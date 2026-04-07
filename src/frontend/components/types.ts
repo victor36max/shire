@@ -4,7 +4,7 @@ export interface Project {
   status: "starting" | "running" | "error";
 }
 
-export type HarnessType = "pi" | "claude_code" | "opencode";
+export type HarnessType = "pi" | "claude_code" | "opencode" | "codex";
 
 export type AgentStatus = "created" | "starting" | "bootstrapping" | "active" | "idle" | "crashed";
 
@@ -141,5 +141,7 @@ export const harnessLabel = (harness: HarnessType): string => {
       return "Pi";
     case "opencode":
       return "OpenCode";
+    case "codex":
+      return "Codex";
   }
 };

@@ -12,7 +12,7 @@ Shire is an AI agent orchestration platform. Users create projects, add agents (
 - **Backend**: Hono (HTTP framework) + Drizzle ORM + SQLite
 - **Frontend**: React 19 + React Router 7 + Radix UI/shadcn + Tailwind CSS 4 + TanStack Query
 - **Bundler**: Bun fullstack (dev server with HMR) + bun-plugin-tailwind
-- **Agent harnesses**: Claude Code SDK (`@anthropic-ai/claude-agent-sdk`), OpenCode SDK (`@opencode-ai/sdk`), Pi Agent SDK
+- **Agent harnesses**: Claude Code SDK (`@anthropic-ai/claude-agent-sdk`), OpenCode SDK (`@opencode-ai/sdk`), Pi Agent SDK, Codex SDK (`@openai/codex-sdk`)
 - **Testing**: Bun test + Testing Library + happy-dom + MSW (unified for backend and frontend)
 - **Validation**: Zod (API input), TypeScript strict mode throughout
 
@@ -55,7 +55,7 @@ Three-tier orchestration hierarchy:
 2. **Coordinator** — per-project: manages AgentManagers, routes inter-agent messages, maintains peers.yaml
 3. **AgentManager** — per-agent: manages harness process lifecycle, message queue (inbox/outbox), streaming, auto-restart (up to 3 times)
 
-Harnesses (`src/runtime/harness/`) are adapters for different AI backends (Claude Code, OpenCode, Pi). They implement a common interface: `start`, `sendMessage`, `interrupt`, `clearSession`, `isProcessing`.
+Harnesses (`src/runtime/harness/`) are adapters for different AI backends (Claude Code, OpenCode, Pi, Codex). They implement a common interface: `start`, `sendMessage`, `interrupt`, `clearSession`, `isProcessing`.
 
 ### Data Layer (`src/db/schema.ts`, `src/services/`)
 

@@ -296,7 +296,10 @@ export class AgentManager {
     if (!agent) throw new Error("Agent not found in DB");
 
     const harnessType: HarnessType =
-      agent.harness === "pi" || agent.harness === "claude_code" || agent.harness === "opencode"
+      agent.harness === "pi" ||
+      agent.harness === "claude_code" ||
+      agent.harness === "opencode" ||
+      agent.harness === "codex"
         ? agent.harness
         : "claude_code";
     const model = agent.model ?? "claude-sonnet-4-6";

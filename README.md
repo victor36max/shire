@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/04056f61-d2e7-4eb8-b0e4-48a342b298d3
 
 Most AI agent tools follow the same pattern — you give an instruction, an agent executes it, you get the output. The agent disappears. Next time, you start from scratch. Shire is different. Your agents persist between sessions. They communicate with each other autonomously. They build on yesterday's work. You give feedback, iterate, adjust direction — like working with a real team.
 
-- **Works with any model** — Not locked to one AI provider. Supports Claude Code, OpenCode, and Pi Agent. Shire is the infrastructure layer — bring whatever model fits your workflow.
+- **Works with any model** — Not locked to one AI provider. Supports Claude Code, OpenCode, Pi Agent, and Codex. Shire is the infrastructure layer — bring whatever model fits your workflow.
 - **Autonomous agent communication** — Agents discover peers and collaborate on their own — no orchestrator required. Direct messaging, shared context, real teamwork between agents.
 - **Community catalog** — Browse and deploy from a community-maintained library of pre-built agent templates. Powered by [agency-agents](https://github.com/msitarzewski/agency-agents). Get a capable team running in seconds.
 - **Shared drive** — A communal filesystem across all agents for collaborative work on shared artifacts.
@@ -36,7 +36,7 @@ Most AI agent tools follow the same pattern — you give an instruction, an agen
 | Backend         | Hono, Drizzle ORM, SQLite                                                   |
 | Frontend        | React 19, React Router 7, shadcn/ui (Radix), Tailwind CSS 4, TanStack Query |
 | Bundler         | Bun (fullstack dev server + production builds)                              |
-| Agent Harnesses | Claude Code SDK, OpenCode SDK, Pi Agent SDK                                 |
+| Agent Harnesses | Claude Code SDK, OpenCode SDK, Pi Agent SDK, Codex SDK                      |
 | Scheduling      | node-schedule (cron-based)                                                  |
 | Testing         | Bun test + Testing Library + happy-dom + MSW                                |
 | Validation      | Zod, TypeScript strict mode                                                 |
@@ -117,6 +117,20 @@ You can also store keys in `~/.pi/agent/auth.json` (takes precedence over env va
 
 See the [Pi Agent docs](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/providers.md) for the full list of supported providers and subscription services.
 
+#### Codex
+
+Install the [Codex CLI](https://github.com/openai/codex) and set your OpenAI API key:
+
+```bash
+# Install Codex
+npm install -g @openai/codex
+
+# Set the API key
+export OPENAI_API_KEY=sk-...
+```
+
+Codex uses OpenAI models (e.g. `o4-mini`, `gpt-4.1`, `codex-mini`). See the [Codex docs](https://developers.openai.com/codex/cli) for more details.
+
 ## Getting Started (Development)
 
 ### Prerequisites
@@ -124,6 +138,7 @@ See the [Pi Agent docs](https://github.com/badlogic/pi-mono/blob/main/packages/c
 - [Bun](https://bun.sh) (v1.3.11+)
 - [Claude Code](https://claude.ai/download) (only if using the `claude_code` harness)
 - [OpenCode](https://opencode.ai) (only if using the `opencode` harness)
+- [Codex CLI](https://github.com/openai/codex) (only if using the `codex` harness)
 
 ### Quick Start
 
