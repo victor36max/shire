@@ -1,3 +1,4 @@
+import "prismjs";
 import { $isCodeNode, $isCodeHighlightNode } from "@lexical/code";
 import {
   registerCodeHighlighting,
