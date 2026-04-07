@@ -1,4 +1,9 @@
 #!/usr/bin/env bun
+
+// Must run before @lexical/code-prism is loaded (it reads globalThis.Prism at init time)
+import Prism from "prismjs";
+(globalThis as Record<string, unknown>).Prism = Prism;
+
 import { spawn } from "child_process";
 import { mkdirSync, openSync } from "fs";
 import {
