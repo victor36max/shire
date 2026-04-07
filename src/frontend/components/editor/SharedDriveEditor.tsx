@@ -216,7 +216,10 @@ export default function SharedDriveEditor({
           <EditorRefCapture editorRef={editorRef} />
           <RichTextPlugin
             contentEditable={
-              <div className="prose prose-sm max-w-none relative p-4" ref={setAnchorElement}>
+              <div
+                className="prose prose-sm dark:prose-invert max-w-none relative p-4"
+                ref={setAnchorElement}
+              >
                 <ContentEditable
                   aria-placeholder="Start writing..."
                   className="shire-content-root outline-none"
