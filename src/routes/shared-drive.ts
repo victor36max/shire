@@ -153,6 +153,34 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
     await writeFile(fullPath, buffer);
     return c.json({ ok: true }, 201);
   })
+  .put(
+    "/projects/:id/shared-drive/content",
+    zValidator("json", z.object({ path: z.string(), content: z.string() })),
+    async (c) => {
+      const projectId = resolveProjectId(c.req.param("id"));
+      if (!projectId) return c.json({ error: "Project not found" }, 404);
+
+      const sharedRoot = workspace.sharedDir(projectId);
+      const { path, content } = c.req.valid("json");
+
+      const fullPath = safePath(sharedRoot, path);
+      if (!fullPath) return c.json({ error: "Invalid path" }, 400);
+
+      const MAX_CONTENT_SIZE = 1024 * 1024;
+      if (Buffer.byteLength(content, "utf-8") > MAX_CONTENT_SIZE) {
+        return c.json({ error: "Content exceeds 1 MB limit" }, 413);
+      }
+
+      try {
+        const s = await stat(fullPath).catch(() => null);
+        if (!s || s.isDirectory()) return c.json({ error: "File not found" }, 404);
+        await writeFile(fullPath, content, "utf-8");
+        return c.json({ ok: true });
+      } catch {
+        return c.json({ error: "Failed to write file" }, 500);
+      }
+    },
+  )
   .delete("/projects/:id/shared-drive", zValidator("query", requiredPathQuery), async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);

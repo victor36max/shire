@@ -21,9 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import AppLayout from "./AppLayout";
-import Markdown from "./Markdown";
 import { ChevronLeft, Folder, File, X, Download, Upload } from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
@@ -37,6 +35,7 @@ import {
   usePreviewFile,
 } from "../hooks";
 
+import { SharedDriveEditor } from "./editor";
 import type { SharedDriveFile } from "../hooks/shared-drive";
 export type { SharedDriveFile };
 
@@ -135,12 +134,14 @@ function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: st
 
 function PreviewContent({
   file,
+  projectId,
   projectName,
   content,
   loading,
   error,
 }: {
   file: SharedDriveFile;
+  projectId: string;
   projectName: string;
   content: string | null;
   loading: boolean;
@@ -160,20 +161,12 @@ function PreviewContent({
   switch (type) {
     case "markdown":
       return content !== null ? (
-        <Tabs defaultValue="preview">
-          <TabsList>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-            <TabsTrigger value="source">Source</TabsTrigger>
-          </TabsList>
-          <TabsContent value="preview" className="overflow-auto">
-            <Markdown>{content}</Markdown>
-          </TabsContent>
-          <TabsContent value="source" className="overflow-auto">
-            <pre className="text-sm font-mono whitespace-pre-wrap bg-muted rounded p-4">
-              {content}
-            </pre>
-          </TabsContent>
-        </Tabs>
+        <SharedDriveEditor
+          key={file.path}
+          initialMarkdown={content}
+          projectId={projectId}
+          filePath={file.path}
+        />
       ) : null;
 
     case "text":
@@ -566,6 +559,7 @@ export default function SharedDrive() {
               <div className="flex-1 overflow-auto p-4">
                 <PreviewContent
                   file={previewFile}
+                  projectId={projectId}
                   projectName={projectName}
                   content={previewContent}
                   loading={previewLoading}

@@ -177,7 +177,7 @@ describe("SharedDrive", () => {
       });
     });
 
-    it("renders markdown content with Preview/Source tabs", async () => {
+    it("renders markdown file in the rich text editor", async () => {
       setFiles(sampleFiles);
       setPreviewResponse("# Hello World", "readme.md", 1024);
       renderWithProviders(<SharedDrive />, routeOpts);
@@ -189,9 +189,26 @@ describe("SharedDrive", () => {
       await userEvent.click(screen.getByText("readme.md"));
 
       await waitFor(() => {
-        expect(screen.getByRole("tab", { name: "Preview" })).toBeInTheDocument();
+        expect(screen.getByRole("textbox")).toBeInTheDocument();
       });
-      expect(screen.getByRole("tab", { name: "Source" })).toBeInTheDocument();
+    });
+
+    it("shows save status indicator for markdown editor", async () => {
+      setFiles(sampleFiles);
+      setPreviewResponse("# Hello World", "readme.md", 1024);
+      renderWithProviders(<SharedDrive />, routeOpts);
+
+      await waitFor(() => {
+        expect(screen.getByText("readme.md")).toBeInTheDocument();
+      });
+
+      await userEvent.click(screen.getByText("readme.md"));
+
+      await waitFor(() => {
+        expect(screen.getByRole("textbox")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Saved")).toBeInTheDocument();
     });
 
     it("closes preview when clicking X button", async () => {

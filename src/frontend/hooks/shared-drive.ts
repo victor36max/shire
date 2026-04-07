@@ -67,3 +67,15 @@ export function usePreviewFile(projectId: string) {
       ),
   });
 }
+
+export function useSaveFileContent(projectId: string) {
+  return useMutation({
+    mutationFn: async ({ path, content }: { path: string; content: string }) =>
+      unwrap(
+        await api.projects[":id"]["shared-drive"].content.$put({
+          param: { id: projectId },
+          json: { path, content },
+        }),
+      ),
+  });
+}
