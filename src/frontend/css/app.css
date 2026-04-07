@@ -288,6 +288,15 @@ th:focus-within .shire-table-cell-action-button {
   background-color: rgb(255 255 255 / 0.2);
 }
 
+.shire-attr { color: rgb(152, 195, 121); }
+.shire-property { color: rgb(209, 154, 102); }
+.shire-selector { color: rgb(224, 108, 117); }
+.shire-function { color: rgb(97, 175, 239); }
+.shire-comment { color: rgb(92, 99, 112); }
+.shire-variable { color: rgb(198, 120, 221); }
+.shire-operator { color: rgb(97, 175, 239); }
+.shire-punctuation { color: rgb(171, 178, 191); }
+.shire-keyword { color: rgb(198, 120, 221); }
 
 @layer base {
   * {

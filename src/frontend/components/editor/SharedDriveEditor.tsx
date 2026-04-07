@@ -10,7 +10,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { TableNode, TableCellNode, TableRowNode } from "@lexical/table";
-import { CodeNode } from "@lexical/code";
+import { CodeHighlightNode, CodeNode } from "@lexical/code";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
@@ -32,6 +32,7 @@ import { InsertTableMenuPlugin } from "./plugins/InsertTableMenuPlugin";
 import { InsertImagePlugin } from "./plugins/InsertImagePlugin";
 import { TableActionMenuPlugin } from "./plugins/TableActionMenuPlugin";
 import { TableCellActionPlugin } from "./plugins/TableCellActionPlugin";
+import CodeHighlightPrismPlugin from "./plugins/CodeHighlightPrismPlugin";
 import { MARKDOWN_TRANSFORMERS } from "./markdownTransformers";
 import { ImageNode } from "./nodes/ImageNode";
 import { TableCellActionNode } from "./nodes/TableCellActionNode";
@@ -54,6 +55,41 @@ const editorTheme = {
     bold: "font-semibold",
     italic: "italic",
     underline: "underline",
+  },
+  codeHighlight: {
+    atrule: "shire-keyword",
+    attr: "shire-attr",
+    "attr-name": "shire-property",
+    "attr-value": "shire-attr",
+    boolean: "shire-property",
+    builtin: "shire-attr",
+    cdata: "shire-comment",
+    char: "shire-attr",
+    class: "shire-function",
+    "class-name": "shire-function",
+    comment: "shire-comment",
+    constant: "shire-property",
+    deleted: "shire-property",
+    doctype: "shire-comment",
+    entity: "shire-operator",
+    function: "shire-function",
+    important: "shire-variable",
+    inserted: "shire-attr",
+    keyword: "shire-keyword",
+    namespace: "shire-variable",
+    number: "shire-property",
+    operator: "shire-operator",
+    prolog: "shire-comment",
+    property: "shire-property",
+    punctuation: "shire-punctuation",
+    regex: "shire-variable",
+    selector: "shire-selector",
+    string: "shire-attr",
+    symbol: "shire-property",
+    tag: "shire-selector",
+    url: "shire-operator",
+    variable: "shire-variable",
+    def: "shire-property",
   },
 };
 
@@ -165,6 +201,7 @@ export default function SharedDriveEditor({
               CodeNode,
               HeadingNode,
               QuoteNode,
+              CodeHighlightNode,
               ImageNode,
             ],
             theme: editorTheme,
@@ -210,6 +247,7 @@ export default function SharedDriveEditor({
           <TableCellActionPlugin />
           <TableActionMenuPlugin anchorElement={anchorElement} />
           <LinkPlugin />
+          <CodeHighlightPrismPlugin anchorElement={anchorElement} />
           <HorizontalRulePlugin />
           <ClickableLinkPlugin />
         </LexicalComposer>

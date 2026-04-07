@@ -60,6 +60,7 @@
     "yaml": "^2.8.2",
     "lexical": "^0.42.0",
     "@lexical/code": "^0.42.0",
+    "@lexical/code-prism": "^0.42.0",
     "@lexical/link": "^0.42.0",
     "@lexical/list": "^0.42.0",
     "@lexical/markdown": "^0.42.0",
@@ -69,6 +70,7 @@
     "@lexical/table": "^0.42.0",
     "@lexical/utils": "^0.42.0",
     "use-debounce": "^10.0.0",
+    "prismjs": "^1.30.0",
     "react-hotkeys-hook": "^5.0.0",
     "zod": "^4.3.6"
   },
@@ -79,6 +81,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/bun": "^1.2.0",
     "@types/js-yaml": "^4.0.9",
+    "@types/prismjs": "^1.26.6",
     "@types/node-schedule": "^2.1.7",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
