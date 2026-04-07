@@ -1,3 +1,7 @@
+// Must run before @lexical/code-prism is loaded (it reads globalThis.Prism at init time)
+import Prism from "prismjs";
+(globalThis as Record<string, unknown>).Prism = Prism;
+
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";

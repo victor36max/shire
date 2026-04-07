@@ -1,10 +1,11 @@
-import { $isCodeNode, $isCodeHighlightNode } from "@lexical/code";
 import {
+  $isCodeNode,
+  $isCodeHighlightNode,
   registerCodeHighlighting,
   getCodeLanguages,
   normalizeCodeLanguage,
   getLanguageFriendlyName,
-} from "@lexical/code-prism";
+} from "@lexical/code";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { mergeRegister } from "@lexical/utils";
 import { $getNodeByKey, $getSelection, $isRangeSelection, LexicalNode } from "lexical";
