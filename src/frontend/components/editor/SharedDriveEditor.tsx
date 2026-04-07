@@ -23,6 +23,7 @@ import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/m
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import { toast } from "sonner";
+import { Save } from "lucide-react";
 import type { EditorState, LexicalEditor } from "lexical";
 
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin";
@@ -162,12 +163,26 @@ export default function SharedDriveEditor({
 
   return (
     <div className="flex flex-col h-full" onKeyDown={handleKeyDown}>
-      <div className="flex items-center justify-end px-2 py-1 border-b border-border">
+      <div className="flex items-center justify-end gap-2 px-2 py-1 border-b border-border">
         <span className="text-xs text-muted-foreground" aria-live="polite">
           {saveStatus === "saved" && "Saved"}
           {saveStatus === "saving" && "Saving..."}
           {saveStatus === "unsaved" && "Unsaved changes"}
         </span>
+        <button
+          type="button"
+          disabled={saveStatus === "saved" || saveStatus === "saving"}
+          onClick={() => {
+            debouncedSave.cancel();
+            if (editorRef.current) {
+              doSave(editorRef.current.getEditorState());
+            }
+          }}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <Save className="w-3 h-3" />
+          Save
+        </button>
       </div>
       <div className="flex-1 overflow-auto">
         <LexicalComposer
