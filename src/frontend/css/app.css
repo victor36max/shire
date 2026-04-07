@@ -192,6 +192,51 @@ div[contenteditable] {
   border-width: 0 0.1em 0.1em 0;
 }
 
+/* Editor: table styles */
+.shire-content-root table {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+  border: 1px solid var(--border);
+  background-color: var(--background);
+}
+
+.shire-content-root th {
+  vertical-align: bottom;
+}
+
+.shire-content-root td,
+.shire-content-root th {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  position: relative;
+  vertical-align: top;
+}
+
+.shire-content-root td h1,
+.shire-content-root td h2,
+.shire-content-root td h3,
+.shire-content-root td h4,
+.shire-content-root td h5,
+.shire-content-root td h6,
+.shire-content-root td p,
+.shire-content-root td ul,
+.shire-content-root td ol,
+.shire-content-root td pre,
+.shire-content-root th p {
+  margin: 0;
+}
+
+.shire-content-root tr:first-of-type > th,
+.shire-content-root tr:first-of-type > td {
+  background-color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
 /* Editor: table cell action button */
 .shire-table-cell-action {
   position: absolute;
