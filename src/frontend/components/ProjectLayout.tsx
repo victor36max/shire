@@ -166,6 +166,7 @@ export default function ProjectLayout() {
       </div>
 
       <AgentForm
+        key={currentAgent?.id ?? "new"}
         open={formOpen}
         title={formTitle}
         agent={currentAgent}

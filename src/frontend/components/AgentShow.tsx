@@ -166,6 +166,7 @@ export default function AgentShow() {
       </div>
 
       <AgentForm
+        key={agent?.id ?? "new"}
         open={editOpen}
         title="Edit Agent"
         agent={agent}

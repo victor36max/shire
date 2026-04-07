@@ -35,23 +35,14 @@ interface AgentFormProps {
 const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
 export default function AgentForm({ open, title, agent, onSave, onClose }: AgentFormProps) {
-  const [name, setName] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [model, setModel] = React.useState("");
-  const [systemPrompt, setSystemPrompt] = React.useState("");
-  const [harness, setHarness] = React.useState<HarnessType>("claude_code");
-  const [skills, setSkills] = React.useState<Skill[]>([]);
+  const [name, setName] = React.useState(agent?.name || "");
+  const [description, setDescription] = React.useState(agent?.description || "");
+  const [model, setModel] = React.useState(agent?.model || "");
+  const [systemPrompt, setSystemPrompt] = React.useState(agent?.systemPrompt || "");
+  const [harness, setHarness] = React.useState<HarnessType>(agent?.harness || "claude_code");
+  const [skills, setSkills] = React.useState<Skill[]>(agent?.skills || []);
 
   const nameValid = name === "" || SLUG_REGEX.test(name);
-
-  React.useEffect(() => {
-    setName(agent?.name || "");
-    setDescription(agent?.description || "");
-    setModel(agent?.model || "");
-    setSystemPrompt(agent?.systemPrompt || "");
-    setHarness(agent?.harness || "claude_code");
-    setSkills(agent?.skills || []);
-  }, [agent]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
