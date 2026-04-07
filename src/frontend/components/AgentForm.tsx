@@ -160,7 +160,8 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
             <Select
               value={harness}
               onValueChange={(v) => {
-                if (v === "claude_code" || v === "pi" || v === "opencode") setHarness(v);
+                if (v === "claude_code" || v === "pi" || v === "opencode" || v === "codex")
+                  setHarness(v);
               }}
             >
               <SelectTrigger>
@@ -168,6 +169,7 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="claude_code">Claude Code</SelectItem>
+                <SelectItem value="codex">Codex</SelectItem>
                 <SelectItem value="opencode">OpenCode</SelectItem>
                 <SelectItem value="pi">Pi</SelectItem>
               </SelectContent>
@@ -182,13 +184,20 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
               placeholder={
                 harness === "opencode"
                   ? "e.g. anthropic/claude-sonnet-4-6"
-                  : "e.g. claude-sonnet-4-6"
+                  : harness === "codex"
+                    ? "e.g. o4-mini"
+                    : "e.g. claude-sonnet-4-6"
               }
             />
             {harness === "opencode" && (
               <p className="text-xs text-muted-foreground">
                 OpenCode requires provider/model format (e.g. anthropic/claude-sonnet-4-6,
                 openrouter/google/gemini-2.5-pro)
+              </p>
+            )}
+            {harness === "codex" && (
+              <p className="text-xs text-muted-foreground">
+                Codex uses OpenAI models (e.g. o4-mini, gpt-4.1, codex-mini)
               </p>
             )}
           </div>
