@@ -51,7 +51,9 @@ const TABLE: MultilineElementTransformer = {
       if (rowIndex === 0) {
         colCount = cellTexts.length;
       }
-      lines.push(`| ${cellTexts.join(" | ")} |`);
+      const normalized = cellTexts.slice(0, colCount);
+      while (normalized.length < colCount) normalized.push("");
+      lines.push(`| ${normalized.join(" | ")} |`);
       if (rowIndex === 0) {
         lines.push(`| ${cellTexts.map(() => "---").join(" | ")} |`);
       }
@@ -79,7 +81,7 @@ const TABLE: MultilineElementTransformer = {
     }
 
     if (tableLines.length < 2) {
-      return null;
+      return [false, startLineIndex];
     }
 
     const dataRows = tableLines.filter((line) => !TABLE_ROW_DIVIDER_REG_EXP.test(line));
