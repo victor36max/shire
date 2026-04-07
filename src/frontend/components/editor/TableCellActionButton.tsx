@@ -32,7 +32,7 @@ export const TableCellActionButton = ({
   return (
     <button
       type="button"
-      className="fw-table-cell-action-button"
+      className="shire-table-cell-action-button"
       contentEditable={false}
       tabIndex={-1}
       aria-label="Table actions"

@@ -42,7 +42,7 @@ export class TableCellActionNode extends DecoratorNode<React.JSX.Element> {
 
   createDOM(): HTMLElement {
     const dom = document.createElement("span");
-    dom.className = "fw-table-cell-action";
+    dom.className = "shire-table-cell-action";
     dom.setAttribute("contenteditable", "false");
     return dom;
   }

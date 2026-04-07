@@ -148,7 +148,7 @@ div[contenteditable] {
 }
 
 /* Editor: checklist styles */
-.fw-checklist-item {
+.shire-checklist-item {
   list-style: none;
   position: relative;
   margin-left: 0.25rem;
@@ -156,7 +156,7 @@ div[contenteditable] {
   outline: none;
 }
 
-.fw-checklist-item:not(:has(ul)):not(:has(ol))::before {
+.shire-checklist-item:not(:has(ul)):not(:has(ol))::before {
   content: "";
   width: 1rem;
   height: 1rem;
@@ -168,16 +168,16 @@ div[contenteditable] {
   cursor: pointer;
 }
 
-.fw-checklist-item.fw-checked {
+.shire-checklist-item.shire-checked {
   text-decoration: line-through;
 }
 
-.fw-checklist-item.fw-checked::before {
+.shire-checklist-item.shire-checked::before {
   background-color: var(--primary);
   border-color: var(--primary);
 }
 
-.fw-checklist-item.fw-checked::after {
+.shire-checklist-item.shire-checked::after {
   content: "";
   cursor: pointer;
   border-color: var(--primary-foreground);
@@ -193,14 +193,14 @@ div[contenteditable] {
 }
 
 /* Editor: table cell action button */
-.fw-table-cell-action {
+.shire-table-cell-action {
   position: absolute;
   top: 0.25rem;
   right: 0.25rem;
   pointer-events: auto;
 }
 
-.fw-table-cell-action-button {
+.shire-table-cell-action-button {
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 0.375rem;
@@ -214,21 +214,21 @@ div[contenteditable] {
   pointer-events: none;
 }
 
-.fw-table-cell-action-button:hover {
+.shire-table-cell-action-button:hover {
   background-color: var(--accent);
 }
 
-td:hover .fw-table-cell-action-button,
-th:hover .fw-table-cell-action-button,
-td:focus-within .fw-table-cell-action-button,
-th:focus-within .fw-table-cell-action-button {
+td:hover .shire-table-cell-action-button,
+th:hover .shire-table-cell-action-button,
+td:focus-within .shire-table-cell-action-button,
+th:focus-within .shire-table-cell-action-button {
   opacity: 1;
   pointer-events: auto;
   cursor: pointer;
 }
 
 /* Editor: code syntax highlighting */
-.fw-content-root > code {
+.shire-content-root > code {
   margin: 1rem 0;
   font-size: 0.875rem;
   background-color: var(--code-background);
@@ -239,19 +239,19 @@ th:focus-within .fw-table-cell-action-button {
   caret-color: white;
 }
 
-.fw-content-root > code::selection {
+.shire-content-root > code::selection {
   background-color: rgb(255 255 255 / 0.2);
 }
 
-.fw-attr { color: rgb(152, 195, 121); }
-.fw-property { color: rgb(209, 154, 102); }
-.fw-selector { color: rgb(224, 108, 117); }
-.fw-function { color: rgb(97, 175, 239); }
-.fw-comment { color: rgb(92, 99, 112); }
-.fw-variable { color: rgb(198, 120, 221); }
-.fw-operator { color: rgb(97, 175, 239); }
-.fw-punctuation { color: rgb(171, 178, 191); }
-.fw-keyword { color: rgb(198, 120, 221); }
+.shire-attr { color: rgb(152, 195, 121); }
+.shire-property { color: rgb(209, 154, 102); }
+.shire-selector { color: rgb(224, 108, 117); }
+.shire-function { color: rgb(97, 175, 239); }
+.shire-comment { color: rgb(92, 99, 112); }
+.shire-variable { color: rgb(198, 120, 221); }
+.shire-operator { color: rgb(97, 175, 239); }
+.shire-punctuation { color: rgb(171, 178, 191); }
+.shire-keyword { color: rgb(198, 120, 221); }
 
 @layer base {
   * {

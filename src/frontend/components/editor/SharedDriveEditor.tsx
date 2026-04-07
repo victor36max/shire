@@ -48,8 +48,8 @@ interface SharedDriveEditorProps {
 
 const editorTheme = {
   list: {
-    listitemChecked: "fw-checklist-item fw-checked",
-    listitemUnchecked: "fw-checklist-item",
+    listitemChecked: "shire-checklist-item shire-checked",
+    listitemUnchecked: "shire-checklist-item",
   },
   text: {
     bold: "font-semibold",
@@ -57,39 +57,39 @@ const editorTheme = {
     underline: "underline",
   },
   codeHighlight: {
-    atrule: "fw-keyword",
-    attr: "fw-attr",
-    "attr-name": "fw-property",
-    "attr-value": "fw-attr",
-    boolean: "fw-property",
-    builtin: "fw-attr",
-    cdata: "fw-comment",
-    char: "fw-attr",
-    class: "fw-function",
-    "class-name": "fw-function",
-    comment: "fw-comment",
-    constant: "fw-property",
-    deleted: "fw-property",
-    doctype: "fw-comment",
-    entity: "fw-operator",
-    function: "fw-function",
-    important: "fw-variable",
-    inserted: "fw-attr",
-    keyword: "fw-keyword",
-    namespace: "fw-variable",
-    number: "fw-property",
-    operator: "fw-operator",
-    prolog: "fw-comment",
-    property: "fw-property",
-    punctuation: "fw-punctuation",
-    regex: "fw-variable",
-    selector: "fw-selector",
-    string: "fw-attr",
-    symbol: "fw-property",
-    tag: "fw-selector",
-    url: "fw-operator",
-    variable: "fw-variable",
-    def: "fw-property",
+    atrule: "shire-keyword",
+    attr: "shire-attr",
+    "attr-name": "shire-property",
+    "attr-value": "shire-attr",
+    boolean: "shire-property",
+    builtin: "shire-attr",
+    cdata: "shire-comment",
+    char: "shire-attr",
+    class: "shire-function",
+    "class-name": "shire-function",
+    comment: "shire-comment",
+    constant: "shire-property",
+    deleted: "shire-property",
+    doctype: "shire-comment",
+    entity: "shire-operator",
+    function: "shire-function",
+    important: "shire-variable",
+    inserted: "shire-attr",
+    keyword: "shire-keyword",
+    namespace: "shire-variable",
+    number: "shire-property",
+    operator: "shire-operator",
+    prolog: "shire-comment",
+    property: "shire-property",
+    punctuation: "shire-punctuation",
+    regex: "shire-variable",
+    selector: "shire-selector",
+    string: "shire-attr",
+    symbol: "shire-property",
+    tag: "shire-selector",
+    url: "shire-operator",
+    variable: "shire-variable",
+    def: "shire-property",
   },
 };
 
@@ -219,7 +219,7 @@ export default function SharedDriveEditor({
               <div className="prose prose-sm max-w-none relative p-4" ref={setAnchorElement}>
                 <ContentEditable
                   aria-placeholder="Start writing..."
-                  className="fw-content-root outline-none"
+                  className="shire-content-root outline-none"
                   placeholder={() => (
                     <p className="text-muted-foreground absolute top-4 left-4 pointer-events-none -z-10">
                       Start writing, or press &quot;/&quot; for formatting options.
