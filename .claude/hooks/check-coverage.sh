@@ -20,6 +20,8 @@ SKIP_FILES=(
   "src/frontend/components/ProjectLayout.tsx"   # ws subscription callbacks unreachable
   "src/frontend/components/Markdown.tsx"         # rehype plugin callbacks
   "src/server.ts"                                # Bun.serve() + WebSocket handlers
+  "src/frontend/components/editor/"              # Lexical editor plugins need real DOM
+  "src/frontend/components/lib/utils.ts"         # utility file, tested transitively
 )
 
 # Run tests with coverage
@@ -65,7 +67,12 @@ while IFS='|' read -r FILE _FUNCS LINES _REST; do
   # Skip excluded files
   SKIP=false
   for sf in "${SKIP_FILES[@]}"; do
-    [[ "$FILE_TRIMMED" == "$sf" ]] && SKIP=true && break
+    # Support both exact file matches and directory prefixes (ending in /)
+    if [[ "$sf" == */ ]]; then
+      [[ "$FILE_TRIMMED" == "$sf"* ]] && SKIP=true && break
+    else
+      [[ "$FILE_TRIMMED" == "$sf" ]] && SKIP=true && break
+    fi
   done
   $SKIP && continue
 

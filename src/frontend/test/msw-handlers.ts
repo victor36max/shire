@@ -87,6 +87,7 @@ export const defaultHandlers = [
   http.get("*/api/projects/:id/shared-drive/preview", () =>
     HttpResponse.json({ content: "", contentType: "text/plain" }),
   ),
+  http.put("*/api/projects/:id/shared-drive/content", () => HttpResponse.json({ ok: true })),
 
   // --- Alert Channels ---
   http.get("*/api/projects/:id/alert-channel", () => new HttpResponse(null, { status: 404 })),

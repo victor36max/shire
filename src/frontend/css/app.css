@@ -135,6 +135,124 @@
   --terminal-fg: oklch(0.9 0 0);
 }
 
+/* Editor: code block color variables */
+:root {
+  --code-background: rgb(40, 44, 52);
+  --code-foreground: rgb(171, 178, 191);
+}
+
+/* Editor: contenteditable styles */
+div[contenteditable] {
+  caret-color: var(--primary);
+  outline: none;
+}
+
+/* Editor: checklist styles */
+.shire-checklist-item {
+  list-style: none;
+  position: relative;
+  margin-left: 0.25rem;
+  padding-left: 1.5rem;
+  outline: none;
+}
+
+.shire-checklist-item:not(:has(ul)):not(:has(ol))::before {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.125rem;
+  position: absolute;
+  left: 0;
+  top: 0.25rem;
+  cursor: pointer;
+}
+
+.shire-checklist-item.shire-checked {
+  text-decoration: line-through;
+}
+
+.shire-checklist-item.shire-checked::before {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.shire-checklist-item.shire-checked::after {
+  content: "";
+  cursor: pointer;
+  border-color: var(--primary-foreground);
+  border-style: solid;
+  position: absolute;
+  display: block;
+  top: 10px;
+  width: 5px;
+  left: 5px;
+  height: 10px;
+  transform: translateY(-50%) rotate(45deg);
+  border-width: 0 0.1em 0.1em 0;
+}
+
+/* Editor: table cell action button */
+.shire-table-cell-action {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  pointer-events: auto;
+}
+
+.shire-table-cell-action-button {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shire-table-cell-action-button:hover {
+  background-color: var(--accent);
+}
+
+td:hover .shire-table-cell-action-button,
+th:hover .shire-table-cell-action-button,
+td:focus-within .shire-table-cell-action-button,
+th:focus-within .shire-table-cell-action-button {
+  opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Editor: code syntax highlighting */
+.shire-content-root > code {
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  background-color: var(--code-background);
+  color: var(--code-foreground);
+  display: block;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  caret-color: white;
+}
+
+.shire-content-root > code::selection {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.shire-attr { color: rgb(152, 195, 121); }
+.shire-property { color: rgb(209, 154, 102); }
+.shire-selector { color: rgb(224, 108, 117); }
+.shire-function { color: rgb(97, 175, 239); }
+.shire-comment { color: rgb(92, 99, 112); }
+.shire-variable { color: rgb(198, 120, 221); }
+.shire-operator { color: rgb(97, 175, 239); }
+.shire-punctuation { color: rgb(171, 178, 191); }
+.shire-keyword { color: rgb(198, 120, 221); }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -360,6 +360,65 @@ describe("shared-drive routes", () => {
     expect(res.status).toBe(400);
   });
 
+  it("PUT /api/projects/:id/shared-drive/content saves file content", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    mkdirSync(sharedRoot, { recursive: true });
+    writeFileSync(join(sharedRoot, "doc.md"), "old content");
+
+    const res = await request("PUT", `/api/projects/${projectId}/shared-drive/content`, {
+      path: "doc.md",
+      content: "# Updated\n\nNew content here.",
+    });
+    expect(res.status).toBe(200);
+
+    // Verify content was written
+    const previewRes = await request(
+      "GET",
+      `/api/projects/${projectId}/shared-drive/preview?path=doc.md`,
+    );
+    const data = (await previewRes.json()) as { content: string };
+    expect(data.content).toBe("# Updated\n\nNew content here.");
+  });
+
+  it("PUT /api/projects/:id/shared-drive/content returns 404 for unknown project", async () => {
+    const res = await request("PUT", "/api/projects/nonexistent/shared-drive/content", {
+      path: "doc.md",
+      content: "test",
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("PUT /api/projects/:id/shared-drive/content returns 400 for traversal", async () => {
+    const res = await request("PUT", `/api/projects/${projectId}/shared-drive/content`, {
+      path: "../../etc/passwd",
+      content: "evil",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("PUT /api/projects/:id/shared-drive/content returns 413 for large content", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    mkdirSync(sharedRoot, { recursive: true });
+    writeFileSync(join(sharedRoot, "big.md"), "");
+
+    const res = await request("PUT", `/api/projects/${projectId}/shared-drive/content`, {
+      path: "big.md",
+      content: "x".repeat(1024 * 1024 + 1),
+    });
+    expect(res.status).toBe(413);
+  });
+
+  it("PUT /api/projects/:id/shared-drive/content returns 404 for non-existent file", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    mkdirSync(sharedRoot, { recursive: true });
+
+    const res = await request("PUT", `/api/projects/${projectId}/shared-drive/content`, {
+      path: "does-not-exist.md",
+      content: "should fail",
+    });
+    expect(res.status).toBe(404);
+  });
+
   it("resolves project by name as well as by id", async () => {
     const res = await request("GET", "/api/projects/sd-test/shared-drive");
     expect(res.status).toBe(200);
