@@ -40,6 +40,7 @@
         "lexical": "^0.42.0",
         "lucide-react": "^0.577.0",
         "node-schedule": "^2.1.1",
+        "prismjs": "^1.30.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "react-dropzone": "^15.0.0",
