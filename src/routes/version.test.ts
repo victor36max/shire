@@ -65,13 +65,16 @@ describe("GET /api/version", () => {
         current: string;
         latest: string | null;
         updateAvailable: boolean;
-        upgradeCommand: string;
+        upgradeCommands: string[];
       };
       expect(data.current).toBe(CURRENT_VERSION);
       expect(data.latest).toBe("99.0.0");
       // Dev versions (containing "-") never report updateAvailable
       expect(data.updateAvailable).toBe(!CURRENT_VERSION.includes("-"));
-      expect(data.upgradeCommand).toBe("npm install -g agents-shire@latest");
+      expect(data.upgradeCommands).toEqual([
+        "npm install -g agents-shire@latest",
+        "bun install -g agents-shire@latest",
+      ]);
     } finally {
       globalThis.fetch = originalFetch;
     }

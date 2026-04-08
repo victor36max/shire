@@ -104,7 +104,7 @@ export const defaultHandlers = [
       current: "0.1.0-dev",
       latest: null,
       updateAvailable: false,
-      upgradeCommand: "npm install -g agents-shire@latest",
+      upgradeCommands: ["npm install -g agents-shire@latest", "bun install -g agents-shire@latest"],
     }),
   ),
 

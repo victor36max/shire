@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { FileText, Settings, FolderOpen, Clock, ArrowUpCircle } from "lucide-react";
+import { CopyButton } from "./CopyButton";
 import { Spinner } from "./ui/spinner";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import ProjectSwitcher from "./ProjectSwitcher";
@@ -52,9 +53,15 @@ function VersionFooter() {
             <ArrowUpCircle className="h-3 w-3" />
             Update Available
           </PopoverTrigger>
-          <PopoverContent side="top" align="end" className="w-auto p-2.5 text-[10px]">
+          <PopoverContent side="top" align="end" className="w-auto p-3 text-xs space-y-2">
             <p className="font-medium">v{data.latest} available</p>
-            <code className="text-muted-foreground">{data.upgradeCommand}</code>
+            {data.upgradeCommands.map((cmd, i) => (
+              <div key={cmd} className="flex items-center gap-1.5">
+                {i > 0 && <span className="text-muted-foreground text-[10px]">or</span>}
+                <code className="text-muted-foreground text-[10px]">{cmd}</code>
+                <CopyButton text={cmd} />
+              </div>
+            ))}
           </PopoverContent>
         </Popover>
       )}
