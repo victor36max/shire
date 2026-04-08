@@ -88,7 +88,7 @@ function getFileExtension(name: string): string {
 
 function getPreviewType(name: string): PreviewType {
   const ext = getFileExtension(name);
-  if (ext === "md") return "markdown";
+  if (ext === "md" || ext === "mdx") return "markdown";
   if (TEXT_EXTENSIONS.has(ext)) return "text";
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
   if (ext === "pdf") return "pdf";
