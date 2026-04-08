@@ -50,14 +50,19 @@ function VersionFooter() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-1 text-[10px] text-amber-500 cursor-default">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 transition-colors"
+                onClick={() => navigator.clipboard.writeText(data.upgradeCommand)}
+              >
                 <ArrowUpCircle className="h-3 w-3" />
                 Update Available
-              </span>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="top" align="end" className="text-[10px]">
               <p className="font-medium">v{data.latest} available</p>
               <code className="text-muted-foreground">{data.upgradeCommand}</code>
+              <p className="text-muted-foreground mt-0.5">Click to copy</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
