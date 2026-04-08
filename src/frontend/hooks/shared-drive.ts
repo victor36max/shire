@@ -42,6 +42,20 @@ export function useCreateDirectory(projectId: string) {
   });
 }
 
+export function useCreateFile(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, path }: { name: string; path: string }) =>
+      unwrap(
+        await api.projects[":id"]["shared-drive"].file.$post({
+          param: { id: projectId },
+          json: { name, path },
+        }),
+      ) as unknown as { ok: boolean; path: string },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shared-drive", projectId] }),
+  });
+}
+
 export function useDeleteSharedFile(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
