@@ -22,7 +22,17 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import AppLayout from "./AppLayout";
-import { ChevronLeft, Folder, File, X, Download, Upload } from "lucide-react";
+import {
+  ChevronLeft,
+  Folder,
+  File,
+  X,
+  Download,
+  Upload,
+  FolderPlus,
+  FileText,
+  Trash2,
+} from "lucide-react";
 import { Spinner, PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
 import { useNavigate } from "react-router-dom";
@@ -431,14 +441,24 @@ export default function SharedDrive() {
         <div className="flex items-center justify-between">
           <Breadcrumbs path={currentPath} onNavigate={navigate} />
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={open}>
-              Upload File
+            <Button variant="outline" size="icon" aria-label="Upload File" onClick={open}>
+              <Upload className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setNewMarkdownOpen(true)}>
-              New Markdown
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="New Markdown"
+              onClick={() => setNewMarkdownOpen(true)}
+            >
+              <FileText className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setNewFolderOpen(true)}>
-              New Folder
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="New Folder"
+              onClick={() => setNewFolderOpen(true)}
+            >
+              <FolderPlus className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -526,22 +546,24 @@ export default function SharedDrive() {
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             {file.type === "file" && (
-                              <Button variant="ghost" size="sm" asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                                 <a
                                   href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(file.path)}`}
                                   download
+                                  aria-label="Download"
                                 >
-                                  Download
+                                  <Download className="h-4 w-4" />
                                 </a>
                               </Button>
                             )}
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              aria-label="Delete"
                               onClick={() => setDeleteTarget(file)}
                             >
-                              Delete
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -559,21 +581,23 @@ export default function SharedDrive() {
               <div className="flex items-center justify-between border-b px-4 py-2">
                 <span className="text-sm font-medium truncate">{previewFile.name}</span>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
                     <a
                       href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(previewFile.path)}`}
                       download
+                      aria-label="Download"
                     >
                       <Download className="h-4 w-4" />
                     </a>
                   </Button>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:text-destructive"
+                    aria-label="Delete"
                     onClick={() => setDeleteTarget(previewFile)}
                   >
-                    Delete
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"

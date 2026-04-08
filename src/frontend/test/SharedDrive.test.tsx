@@ -87,6 +87,15 @@ describe("SharedDrive", () => {
     expect(screen.getByText("Create a new folder in the shared drive.")).toBeInTheDocument();
   });
 
+  it("opens new markdown dialog", async () => {
+    renderWithProviders(<SharedDrive />, routeOpts);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New Markdown" })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole("button", { name: "New Markdown" }));
+    expect(screen.getByText("Create a new markdown file in the shared drive.")).toBeInTheDocument();
+  });
+
   it("creates a folder via dialog", async () => {
     let createdDir: Record<string, unknown> | undefined;
     server.use(
@@ -475,7 +484,7 @@ describe("SharedDrive", () => {
     const previewPanel = screen.getByText("readme.md", { selector: "span" }).closest("div");
     const deleteInPreview = within(previewPanel!.parentElement!)
       .getAllByRole("button")
-      .find((btn) => btn.textContent === "Delete");
+      .find((btn) => btn.getAttribute("aria-label") === "Delete" || btn.textContent === "Delete");
     if (deleteInPreview) {
       await userEvent.click(deleteInPreview);
       // Confirm deletion
