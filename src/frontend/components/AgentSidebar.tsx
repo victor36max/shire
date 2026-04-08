@@ -19,6 +19,7 @@ import {
 } from "./ui/alert-dialog";
 import { FileText, Settings, FolderOpen, Clock, ArrowUpCircle } from "lucide-react";
 import { Spinner } from "./ui/spinner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { type AgentOverview, type AgentStatus } from "./types";
 import { useProjectId, useProjects, useAgents, useDeleteAgent, useVersionCheck } from "../hooks";
@@ -43,15 +44,23 @@ function VersionFooter() {
   if (!data) return null;
 
   return (
-    <div className="border-t border-border px-3 py-1.5 flex items-center gap-1.5">
+    <div className="border-t border-border px-3 py-1.5 flex items-center justify-between">
       <span className="text-[10px] text-muted-foreground">v{data.current}</span>
       {data.updateAvailable && (
-        <span
-          className="inline-flex items-center gap-1 text-[10px] text-amber-500 cursor-default"
-          title={data.upgradeCommand}
-        >
-          <ArrowUpCircle className="h-3 w-3" />v{data.latest}
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-1 text-[10px] text-amber-500 cursor-default">
+                <ArrowUpCircle className="h-3 w-3" />
+                Update Available
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="end" className="text-[10px]">
+              <p className="font-medium">v{data.latest} available</p>
+              <code className="text-muted-foreground">{data.upgradeCommand}</code>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </div>
   );
