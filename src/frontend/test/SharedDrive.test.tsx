@@ -202,6 +202,25 @@ describe("SharedDrive", () => {
       });
     });
 
+    it("renders mdx file in the rich text editor", async () => {
+      const filesWithMdx: SharedDriveFile[] = [
+        { name: "article.mdx", path: "article.mdx", type: "file", size: 512 },
+      ];
+      setFiles(filesWithMdx);
+      setPreviewResponse("# MDX Content", "article.mdx", 512);
+      renderWithProviders(<SharedDrive />, routeOpts);
+
+      await waitFor(() => {
+        expect(screen.getByText("article.mdx")).toBeInTheDocument();
+      });
+
+      await userEvent.click(screen.getByText("article.mdx"));
+
+      await waitFor(() => {
+        expect(screen.getByRole("textbox")).toBeInTheDocument();
+      });
+    });
+
     it("shows save status indicator for markdown editor", async () => {
       setFiles(sampleFiles);
       setPreviewResponse("# Hello World", "readme.md", 1024);
