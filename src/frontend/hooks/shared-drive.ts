@@ -23,7 +23,7 @@ export function useSharedDrive(projectId: string | undefined, path: string) {
           param: { id: projectId! },
           query: { path },
         }),
-      ) as unknown as SharedDriveResponse,
+      ),
     enabled: !!projectId,
   });
 }
@@ -51,7 +51,7 @@ export function useCreateFile(projectId: string) {
           param: { id: projectId },
           json: { name, path },
         }),
-      ) as unknown as { ok: boolean; path: string },
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shared-drive", projectId] }),
   });
 }
