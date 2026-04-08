@@ -17,8 +17,9 @@ const ROOT = join(import.meta.dirname, "..");
 async function buildBinary(target: Target): Promise<void> {
   const outDir = join(ROOT, "npm", target.npmDir);
   const outFile = join(outDir, target.binaryName);
+  const version = (process.env.SHIRE_VERSION || "0.1.0-dev").replace(/^v/, "");
 
-  console.log(`Building ${target.bunTarget} → npm/${target.npmDir}/${target.binaryName}`);
+  console.log(`Building ${target.bunTarget} → npm/${target.npmDir}/${target.binaryName} (v${version})`);
 
   const result = await Bun.build({
     entrypoints: [join(ROOT, "src", "cli.ts")],
@@ -29,6 +30,7 @@ async function buildBinary(target: Target): Promise<void> {
     minify: true,
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
+      __SHIRE_VERSION__: JSON.stringify(version),
     },
     plugins: [tailwind],
   });

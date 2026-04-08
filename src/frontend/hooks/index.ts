@@ -8,3 +8,4 @@ export * from "./shared-drive";
 export * from "./uploads";
 export * from "./schedules";
 export * from "./alert-channels";
+export * from "./version";

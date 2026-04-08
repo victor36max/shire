@@ -17,9 +17,9 @@ import {
   logFilePath,
 } from "./daemon";
 import { startServer } from "./index";
-import pkg from "../package.json";
 
-const VERSION = pkg.version;
+declare const __SHIRE_VERSION__: string;
+const VERSION = typeof __SHIRE_VERSION__ !== "undefined" ? __SHIRE_VERSION__ : "0.1.0-dev";
 
 interface ParsedArgs {
   command: string;
