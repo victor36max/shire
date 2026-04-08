@@ -173,7 +173,7 @@ export const SelectionMenuPlugin = ({
 
   const renderFormattingMenu = () => {
     return (
-      <div className="flex flex-row border border-border rounded-lg">
+      <div className="flex flex-row border border-border rounded-lg bg-background">
         <FormatButton
           active={isBold}
           onClick={() => handleFormat("bold")}
