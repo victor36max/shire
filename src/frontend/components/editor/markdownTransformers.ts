@@ -1,6 +1,7 @@
 import { DEFAULT_TRANSFORMERS } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import type { MultilineElementTransformer, TextMatchTransformer } from "@lexical/markdown";
-import { $createParagraphNode, $createTextNode } from "lexical";
+import { $convertFromMarkdownString } from "@lexical/markdown";
+import { $createParagraphNode } from "lexical";
 import {
   $createTableCellNode,
   $createTableNode,
@@ -28,7 +29,7 @@ function parseCells(row: string): string[] {
 
 const TABLE: MultilineElementTransformer = {
   dependencies: [TableNode, TableRowNode, TableCellNode],
-  export: (node) => {
+  export: (node, traverseChildren) => {
     if (!$isTableNode(node)) {
       return null;
     }
@@ -46,7 +47,7 @@ const TABLE: MultilineElementTransformer = {
       const cellTexts: string[] = [];
       for (const cell of cells) {
         if (!$isTableCellNode(cell)) continue;
-        cellTexts.push(cell.getTextContent());
+        cellTexts.push(traverseChildren(cell));
       }
       if (rowIndex === 0) {
         colCount = cellTexts.length;
@@ -101,8 +102,8 @@ const TABLE: MultilineElementTransformer = {
           isHeader ? TableCellHeaderStates.ROW : TableCellHeaderStates.NO_STATUS,
         );
         const paragraph = $createParagraphNode();
-        paragraph.append($createTextNode(cellText));
         cellNode.append(paragraph);
+        $convertFromMarkdownString(cellText, MARKDOWN_TRANSFORMERS, paragraph);
         rowNode.append(cellNode);
       }
 
