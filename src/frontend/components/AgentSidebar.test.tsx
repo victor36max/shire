@@ -51,7 +51,7 @@ describe("VersionFooter", () => {
     await waitFor(() => {
       expect(screen.getByText("v1.0.20")).toBeInTheDocument();
     });
-    expect(screen.getByText(/v1\.0\.22/)).toBeInTheDocument();
+    expect(screen.getByText("Update Available")).toBeInTheDocument();
   });
 
   it("does not show upgrade indicator when no update available", async () => {
@@ -66,7 +66,6 @@ describe("VersionFooter", () => {
     await waitFor(() => {
       expect(screen.getByText("v1.0.22")).toBeInTheDocument();
     });
-    // Only one version element should exist (the current version)
-    expect(screen.queryByTitle("npm install -g agents-shire@latest")).not.toBeInTheDocument();
+    expect(screen.queryByText("Update Available")).not.toBeInTheDocument();
   });
 });
