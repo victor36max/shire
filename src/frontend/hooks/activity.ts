@@ -14,9 +14,7 @@ export function useActivity(projectId: string | undefined) {
     queryFn: async ({ pageParam }) => {
       const query: Record<string, string> = {};
       if (pageParam != null) query.before = String(pageParam);
-      return unwrap(
-        await api.projects[":id"].activity.$get({ param: { id: projectId! }, query }),
-      ) as unknown as ActivityResponse;
+      return unwrap(await api.projects[":id"].activity.$get({ param: { id: projectId! }, query }));
     },
     enabled: !!projectId,
     initialPageParam: undefined satisfies number | undefined,
