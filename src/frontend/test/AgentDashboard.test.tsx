@@ -104,6 +104,16 @@ describe("ProjectLayout + AgentChatView", () => {
     expect(screen.getByText("Create a new agent to get started.")).toBeInTheDocument();
   });
 
+  it("shows feature highlights in welcome panel when no agents", async () => {
+    setAgents([]);
+    renderWithLayout();
+    await waitFor(() => {
+      expect(screen.getByText("Chat with agents directly")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Agents collaborate autonomously")).toBeInTheDocument();
+    expect(screen.getByText("Shared drive for files")).toBeInTheDocument();
+  });
+
   it("renders menu toggle button in welcome panel when no agents", async () => {
     setAgents([]);
     renderWithLayout();

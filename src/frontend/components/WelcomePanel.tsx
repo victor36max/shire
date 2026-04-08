@@ -1,4 +1,4 @@
-import { Menu, MessageSquare, Users, Zap } from "lucide-react";
+import { FolderOpen, Menu, MessageSquare, Users } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface WelcomePanelProps {
@@ -55,9 +55,9 @@ export default function WelcomePanel({
               </div>
               <div className="flex flex-col items-center text-center gap-2 p-3">
                 <div className="rounded-full bg-primary/10 p-2.5">
-                  <Zap className="h-5 w-5 text-primary" />
+                  <FolderOpen className="h-5 w-5 text-primary" />
                 </div>
-                <p className="text-sm text-muted-foreground">Isolated VMs per project</p>
+                <p className="text-sm text-muted-foreground">Shared drive for files</p>
               </div>
             </div>
 
