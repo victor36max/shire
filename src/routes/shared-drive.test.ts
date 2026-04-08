@@ -419,6 +419,90 @@ describe("shared-drive routes", () => {
     expect(res.status).toBe(404);
   });
 
+  it("POST /api/projects/:id/shared-drive/file creates a markdown file", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/shared-drive/file`, {
+      name: "notes",
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { ok: boolean; path: string };
+    expect(data.ok).toBe(true);
+    expect(data.path).toBe("/notes.md");
+
+    // Verify file appears in listing
+    const listRes = await request("GET", `/api/projects/${projectId}/shared-drive`);
+    const list = (await listRes.json()) as { files: Array<{ name: string; type: string }> };
+    expect(list.files.some((f) => f.name === "notes.md" && f.type === "file")).toBe(true);
+  });
+
+  it("POST /api/projects/:id/shared-drive/file auto-appends .md extension", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/shared-drive/file`, {
+      name: "readme",
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { ok: boolean; path: string };
+    expect(data.path).toBe("/readme.md");
+  });
+
+  it("POST /api/projects/:id/shared-drive/file preserves .md if already present", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/shared-drive/file`, {
+      name: "readme.md",
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { ok: boolean; path: string };
+    expect(data.path).toBe("/readme.md");
+  });
+
+  it("POST /api/projects/:id/shared-drive/file creates in subdirectory", async () => {
+    // Create subdirectory first
+    await request("POST", `/api/projects/${projectId}/shared-drive/directory`, {
+      name: "docs",
+    });
+    const res = await request("POST", `/api/projects/${projectId}/shared-drive/file`, {
+      name: "guide",
+      path: "/docs",
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { ok: boolean; path: string };
+    expect(data.path).toBe("/docs/guide.md");
+  });
+
+  it("POST /api/projects/:id/shared-drive/file returns 409 if file already exists", async () => {
+    await request("POST", `/api/projects/${projectId}/shared-drive/file`, { name: "dup" });
+    const res = await request("POST", `/api/projects/${projectId}/shared-drive/file`, {
+      name: "dup",
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("POST /api/projects/:id/shared-drive/file returns 400 for traversal", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/shared-drive/file`, {
+      name: "evil",
+      path: "../../../tmp",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/projects/:id/shared-drive/file returns 400 for empty name", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/shared-drive/file`, {
+      name: "",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/projects/:id/shared-drive/file returns 400 for name with slashes", async () => {
+    const res = await request("POST", `/api/projects/${projectId}/shared-drive/file`, {
+      name: "../../etc/passwd",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/projects/:id/shared-drive/file returns 404 for unknown project", async () => {
+    const res = await request("POST", "/api/projects/nonexistent/shared-drive/file", {
+      name: "test",
+    });
+    expect(res.status).toBe(404);
+  });
+
   it("resolves project by name as well as by id", async () => {
     const res = await request("GET", "/api/projects/sd-test/shared-drive");
     expect(res.status).toBe(200);

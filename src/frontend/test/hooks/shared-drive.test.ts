@@ -3,7 +3,12 @@ import { http, HttpResponse } from "msw";
 import { waitFor, act } from "@testing-library/react";
 import { server } from "../msw-server";
 import { renderHookWithProviders } from "../test-utils";
-import { useSharedDrive, useCreateDirectory, useDeleteSharedFile } from "../../hooks/shared-drive";
+import {
+  useSharedDrive,
+  useCreateDirectory,
+  useCreateFile,
+  useDeleteSharedFile,
+} from "../../hooks/shared-drive";
 
 const sharedDriveResponse = {
   files: [
@@ -38,6 +43,15 @@ describe("useCreateDirectory", () => {
     const { result } = renderHookWithProviders(() => useCreateDirectory("p1"));
     act(() => result.current.mutate({ name: "new-dir", path: "/" }));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+});
+
+describe("useCreateFile", () => {
+  it("succeeds and returns path", async () => {
+    const { result } = renderHookWithProviders(() => useCreateFile("p1"));
+    act(() => result.current.mutate({ name: "notes", path: "/" }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toMatchObject({ ok: true, path: "/test.md" });
   });
 });
 

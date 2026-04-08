@@ -7,9 +7,7 @@ export function useSchedules(projectId: string | undefined) {
   return useQuery<ScheduledTask[]>({
     queryKey: ["schedules", projectId],
     queryFn: async () =>
-      unwrap(
-        await api.projects[":id"].schedules.$get({ param: { id: projectId! } }),
-      ) as unknown as Promise<ScheduledTask[]>,
+      unwrap(await api.projects[":id"].schedules.$get({ param: { id: projectId! } })),
     enabled: !!projectId,
   });
 }

@@ -23,7 +23,7 @@ export function useSharedDrive(projectId: string | undefined, path: string) {
           param: { id: projectId! },
           query: { path },
         }),
-      ) as unknown as SharedDriveResponse,
+      ),
     enabled: !!projectId,
   });
 }
@@ -34,6 +34,20 @@ export function useCreateDirectory(projectId: string) {
     mutationFn: async ({ name, path }: { name: string; path: string }) =>
       unwrap(
         await api.projects[":id"]["shared-drive"].directory.$post({
+          param: { id: projectId },
+          json: { name, path },
+        }),
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shared-drive", projectId] }),
+  });
+}
+
+export function useCreateFile(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, path }: { name: string; path: string }) =>
+      unwrap(
+        await api.projects[":id"]["shared-drive"].file.$post({
           param: { id: projectId },
           json: { name, path },
         }),

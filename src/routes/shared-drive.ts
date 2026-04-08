@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { readdir, stat, readFile, mkdir, unlink, rm, writeFile } from "fs/promises";
-import { join, resolve, basename } from "path";
+import { readdir, stat, readFile, mkdir, unlink, rm, writeFile, access } from "fs/promises";
+import { join, resolve, basename, dirname } from "path";
 import * as workspace from "../services/workspace";
 import * as projectsService from "../services/projects";
 import type { AppEnv } from "../types";
@@ -122,6 +122,39 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
 
       await mkdir(fullPath, { recursive: true });
       return c.json({ ok: true }, 201);
+    },
+  )
+  .post(
+    "/projects/:id/shared-drive/file",
+    zValidator(
+      "json",
+      z.object({
+        name: z
+          .string()
+          .min(1)
+          .regex(/^[^/\\]+$/, "Name must not contain path separators"),
+        path: z.string().optional(),
+      }),
+    ),
+    async (c) => {
+      const projectId = resolveProjectId(c.req.param("id"));
+      if (!projectId) return c.json({ error: "Project not found" }, 404);
+
+      const sharedRoot = workspace.sharedDir(projectId);
+      const { name, path: parentPath } = c.req.valid("json");
+      const filename = name.endsWith(".md") ? name : `${name}.md`;
+      const relPath = join(parentPath ?? "/", filename);
+      const fullPath = safePath(sharedRoot, relPath);
+      if (!fullPath) return c.json({ error: "Invalid path" }, 400);
+
+      const exists = await access(fullPath)
+        .then(() => true)
+        .catch(() => false);
+      if (exists) return c.json({ error: "File already exists" }, 409);
+
+      await mkdir(dirname(fullPath), { recursive: true });
+      await writeFile(fullPath, "", "utf-8");
+      return c.json({ ok: true, path: relPath }, 201);
     },
   )
   .post("/projects/:id/shared-drive/upload", async (c) => {

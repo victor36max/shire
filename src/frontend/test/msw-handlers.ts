@@ -80,6 +80,9 @@ export const defaultHandlers = [
   http.post("*/api/projects/:id/shared-drive/directory", () =>
     HttpResponse.json({ ok: true }, { status: 201 }),
   ),
+  http.post("*/api/projects/:id/shared-drive/file", () =>
+    HttpResponse.json({ ok: true, path: "/test.md" }, { status: 201 }),
+  ),
   http.post("*/api/projects/:id/shared-drive/upload", () =>
     HttpResponse.json({ ok: true }, { status: 201 }),
   ),

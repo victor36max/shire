@@ -26,7 +26,7 @@ export function useMessages(projectId: string | undefined, agentId: string | und
           param: { id: projectId!, aid: agentId! },
           query,
         }),
-      ) as unknown as MessagesResponse;
+      );
     },
     enabled: !!projectId && !!agentId,
     initialPageParam: undefined satisfies number | undefined,

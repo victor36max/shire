@@ -30,6 +30,7 @@ import {
   useProjectId,
   useSharedDrive,
   useCreateDirectory,
+  useCreateFile,
   useDeleteSharedFile,
   useUploadSharedDriveFile,
   usePreviewFile,
@@ -216,6 +217,7 @@ export default function SharedDrive() {
   const files = data?.files ?? [];
 
   const createDirectory = useCreateDirectory(projectId ?? "");
+  const createFile = useCreateFile(projectId ?? "");
   const deleteSharedFile = useDeleteSharedFile(projectId ?? "");
   const uploadFile = useUploadSharedDriveFile(projectId ?? "");
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
@@ -224,6 +226,8 @@ export default function SharedDrive() {
 
   const [newFolderOpen, setNewFolderOpen] = React.useState(false);
   const [newFolderName, setNewFolderName] = React.useState("");
+  const [newMarkdownOpen, setNewMarkdownOpen] = React.useState(false);
+  const [newMarkdownName, setNewMarkdownName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
 
@@ -289,6 +293,32 @@ export default function SharedDrive() {
     createDirectory.mutate({ name: newFolderName.trim(), path: currentPath });
     setNewFolderName("");
     setNewFolderOpen(false);
+  };
+
+  const handleCreateMarkdown = () => {
+    const trimmedName = newMarkdownName.trim();
+    if (!trimmedName) return;
+    setNewMarkdownName("");
+    setNewMarkdownOpen(false);
+    createFile.mutate(
+      { name: trimmedName, path: currentPath },
+      {
+        onSuccess: (data) => {
+          const filename = trimmedName.endsWith(".md") ? trimmedName : `${trimmedName}.md`;
+          const newFile: SharedDriveFile = {
+            name: filename,
+            path: data.path,
+            type: "file",
+            size: 0,
+          };
+          setPreviewFile(newFile);
+          setPreviewContent("");
+          setPreviewLoading(false);
+          setPreviewError(null);
+          currentPreviewPath.current = newFile.path;
+        },
+      },
+    );
   };
 
   const handleDelete = (file: SharedDriveFile) => {
@@ -403,6 +433,9 @@ export default function SharedDrive() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={open}>
               Upload File
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setNewMarkdownOpen(true)}>
+              New Markdown
             </Button>
             <Button variant="outline" size="sm" onClick={() => setNewFolderOpen(true)}>
               New Folder
@@ -594,6 +627,38 @@ export default function SharedDrive() {
               Cancel
             </Button>
             <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Markdown Dialog */}
+      <Dialog open={newMarkdownOpen} onOpenChange={setNewMarkdownOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Markdown</DialogTitle>
+            <DialogDescription>Create a new markdown file in the shared drive.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="File name"
+              value={newMarkdownName}
+              onChange={(e) => setNewMarkdownName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreateMarkdown();
+              }}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              .md extension will be added automatically
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewMarkdownOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateMarkdown} disabled={!newMarkdownName.trim()}>
               Create
             </Button>
           </DialogFooter>
