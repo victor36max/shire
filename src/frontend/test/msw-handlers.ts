@@ -98,6 +98,16 @@ export const defaultHandlers = [
   http.delete("*/api/projects/:id/alert-channel", () => HttpResponse.json({ ok: true })),
   http.post("*/api/projects/:id/alert-channel/test", () => HttpResponse.json({ ok: true })),
 
+  // --- Version ---
+  http.get("*/api/version", () =>
+    HttpResponse.json({
+      current: "0.1.0-dev",
+      latest: null,
+      updateAvailable: false,
+      upgradeCommand: "npm install -g agents-shire@latest",
+    }),
+  ),
+
   // --- Catalog ---
   http.get("*/api/catalog/agents", () => HttpResponse.json([])),
   http.get("*/api/catalog/categories", () => HttpResponse.json([])),

@@ -46,6 +46,8 @@ jobs:
 
       - name: Build binary and assets
         run: bun run scripts/build-binaries.ts --target ${{ matrix.target }}
+        env:
+          SHIRE_VERSION: ${{ github.ref_name }}
 
       - name: Set version in package.json
         shell: bash

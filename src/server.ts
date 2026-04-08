@@ -13,6 +13,7 @@ import { settingsRoutes } from "./routes/settings";
 import { catalogRoutes } from "./routes/catalog";
 import { attachmentRoutes } from "./routes/attachments";
 import { alertChannelRoutes } from "./routes/alert-channels";
+import { versionRoutes } from "./routes/version";
 
 export interface AppContext {
   projectManager: ProjectManager;
@@ -45,6 +46,7 @@ export function createApp(ctx: AppContext) {
     .route("/api", catalogRoutes)
     .route("/api", attachmentRoutes)
     .route("/api", alertChannelRoutes)
+    .route("/api", versionRoutes)
     .get("/api/health", (c) => c.json({ status: "ok" }));
 
   return app;

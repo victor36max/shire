@@ -17,11 +17,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { FileText, Settings, FolderOpen, Clock } from "lucide-react";
+import { FileText, Settings, FolderOpen, Clock, ArrowUpCircle, X } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { type AgentOverview, type AgentStatus } from "./types";
-import { useProjectId, useProjects, useAgents, useDeleteAgent } from "../hooks";
+import { useProjectId, useProjects, useAgents, useDeleteAgent, useVersionCheck } from "../hooks";
 
 function statusDotColor(status: AgentStatus): string {
   switch (status) {
@@ -35,6 +35,52 @@ function statusDotColor(status: AgentStatus): string {
     default:
       return "bg-status-idle";
   }
+}
+
+const DISMISS_KEY = "shire-upgrade-dismissed";
+
+function VersionFooter() {
+  const { data } = useVersionCheck();
+  const [dismissed, setDismissed] = React.useState(false);
+
+  if (!data) return null;
+
+  const showUpgrade =
+    data.updateAvailable && !dismissed && localStorage.getItem(DISMISS_KEY) !== data.latest;
+
+  return (
+    <>
+      {showUpgrade && (
+        <div className="border-t border-border px-3 py-2">
+          <div className="flex items-start gap-2">
+            <ArrowUpCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground">v{data.latest} available</p>
+              <code className="text-[10px] text-muted-foreground break-all">
+                {data.upgradeCommand}
+              </code>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 p-0.5 rounded hover:bg-muted text-muted-foreground"
+              onClick={() => {
+                if (data.latest) {
+                  localStorage.setItem(DISMISS_KEY, data.latest);
+                }
+                setDismissed(true);
+              }}
+              aria-label="Dismiss upgrade notice"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="border-t border-border px-3 py-1.5">
+        <span className="text-[10px] text-muted-foreground">v{data.current}</span>
+      </div>
+    </>
+  );
 }
 
 interface AgentSidebarProps {
@@ -203,6 +249,8 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
           </Button>
         </div>
       </div>
+
+      <VersionFooter />
 
       <AlertDialog
         open={!!deleteAgent}
