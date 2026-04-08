@@ -42,7 +42,7 @@ export const versionRoutes = new Hono<AppEnv>().get("/version", async (c) => {
     current: CURRENT_VERSION,
     latest,
     updateAvailable: latest ? isNewer(latest, CURRENT_VERSION) : false,
-    upgradeCommand: "npm install -g agents-shire@latest",
+    upgradeCommands: ["npm install -g agents-shire@latest", "bun install -g agents-shire@latest"],
   });
 });
 
