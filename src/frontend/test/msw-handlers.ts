@@ -86,6 +86,9 @@ export const defaultHandlers = [
   http.post("*/api/projects/:id/shared-drive/upload", () =>
     HttpResponse.json({ ok: true }, { status: 201 }),
   ),
+  http.patch("*/api/projects/:id/shared-drive/rename", () =>
+    HttpResponse.json({ ok: true, newPath: "/renamed.md" }),
+  ),
   http.delete("*/api/projects/:id/shared-drive", () => HttpResponse.json({ ok: true })),
   http.get("*/api/projects/:id/shared-drive/preview", () =>
     HttpResponse.json({ content: "", contentType: "text/plain" }),

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { FileText, Settings, Clock, ArrowUpCircle } from "lucide-react";
 import { Button } from "./ui/button";
@@ -50,14 +51,26 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
   const { data: projects = [] } = useProjects();
   const location = useLocation();
 
-  const activeTab =
-    location.pathname === `/projects/${projectName}/shared` ? "shared-drive" : "agents";
+  const isSharedDrive = location.pathname === `/projects/${projectName}/shared`;
+  const activeTab = isSharedDrive ? "shared-drive" : "agents";
+
+  // Remember last path for each tab so switching back restores selection
+  const lastAgentPath = useRef(location.pathname + location.search);
+  const lastSharedPath = useRef(`/projects/${projectName}/shared${location.search}`);
+
+  useEffect(() => {
+    if (!isSharedDrive) {
+      lastAgentPath.current = location.pathname + location.search;
+    } else {
+      lastSharedPath.current = location.pathname + location.search;
+    }
+  }, [isSharedDrive, location.pathname, location.search]);
 
   const handleTabChange = (value: string) => {
     if (value === "shared-drive") {
-      navigate(`/projects/${projectName}/shared`);
+      navigate(lastSharedPath.current);
     } else {
-      navigate(`/projects/${projectName}`);
+      navigate(lastAgentPath.current);
     }
   };
 

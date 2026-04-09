@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { readdir, stat, readFile, mkdir, unlink, rm, writeFile, access } from "fs/promises";
+import { readdir, stat, readFile, mkdir, unlink, rm, writeFile, access, rename } from "fs/promises";
 import { join, resolve, basename, dirname } from "path";
 import * as workspace from "../services/workspace";
 import * as projectsService from "../services/projects";
@@ -212,6 +212,48 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       } catch {
         return c.json({ error: "Failed to write file" }, 500);
       }
+    },
+  )
+  .patch(
+    "/projects/:id/shared-drive/rename",
+    zValidator(
+      "json",
+      z.object({
+        path: z.string(),
+        newName: z
+          .string()
+          .min(1)
+          .regex(/^[^/\\]+$/, "Name must not contain path separators"),
+      }),
+    ),
+    async (c) => {
+      const projectId = resolveProjectId(c.req.param("id"));
+      if (!projectId) return c.json({ error: "Project not found" }, 404);
+
+      const sharedRoot = workspace.sharedDir(projectId);
+      const { path, newName } = c.req.valid("json");
+
+      const fullPath = safePath(sharedRoot, path);
+      if (!fullPath) return c.json({ error: "Invalid path" }, 400);
+
+      const parentDir = dirname(fullPath);
+      const newFullPath = join(parentDir, newName);
+      const newSafe = safePath(sharedRoot, join(dirname(path), newName));
+      if (!newSafe) return c.json({ error: "Invalid new name" }, 400);
+
+      try {
+        await stat(fullPath);
+      } catch {
+        return c.json({ error: "Not found" }, 404);
+      }
+
+      const exists = await access(newFullPath)
+        .then(() => true)
+        .catch(() => false);
+      if (exists) return c.json({ error: "A file with that name already exists" }, 409);
+
+      await rename(fullPath, newFullPath);
+      return c.json({ ok: true, newPath: join(dirname(path), newName) });
     },
   )
   .delete("/projects/:id/shared-drive", zValidator("query", requiredPathQuery), async (c) => {

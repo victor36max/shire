@@ -56,6 +56,20 @@ export function useCreateFile(projectId: string) {
   });
 }
 
+export function useRenameSharedFile(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ path, newName }: { path: string; newName: string }) =>
+      unwrap(
+        await api.projects[":id"]["shared-drive"].rename.$patch({
+          param: { id: projectId },
+          json: { path, newName },
+        }),
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shared-drive", projectId] }),
+  });
+}
+
 export function useDeleteSharedFile(projectId: string) {
   const qc = useQueryClient();
   return useMutation({

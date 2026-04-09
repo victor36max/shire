@@ -125,17 +125,16 @@ export default function SharedDriveContentArea() {
     return (
       <div className="flex flex-col h-full" {...getRootProps()}>
         <input {...getInputProps()} />
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+        {/* Mobile-only menu toggle */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border md:hidden">
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
             aria-label="Open menu"
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <h2 className="text-lg font-semibold">Shared Drive</h2>
         </div>
         {isDragActive && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg">

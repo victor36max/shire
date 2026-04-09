@@ -28,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { Folder, File, Upload, FolderPlus, FileText, Trash2, Download } from "lucide-react";
+import { Folder, File, Upload, FolderPlus, FileText, Trash2, Download, Pencil } from "lucide-react";
 import { Spinner } from "../ui/spinner";
 import {
   useProjectId,
@@ -36,6 +36,7 @@ import {
   useCreateDirectory,
   useCreateFile,
   useDeleteSharedFile,
+  useRenameSharedFile,
   useUploadSharedDriveFile,
 } from "../../hooks";
 import { formatSize, MAX_UPLOAD_SIZE } from "../../lib/file-utils";
@@ -87,6 +88,7 @@ export default function SharedDrivePanel() {
   const createDirectory = useCreateDirectory(projectId ?? "");
   const createFile = useCreateFile(projectId ?? "");
   const deleteSharedFile = useDeleteSharedFile(projectId ?? "");
+  const renameSharedFile = useRenameSharedFile(projectId ?? "");
   const uploadFile = useUploadSharedDriveFile(projectId ?? "");
 
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
@@ -98,6 +100,8 @@ export default function SharedDrivePanel() {
   const [newMarkdownOpen, setNewMarkdownOpen] = React.useState(false);
   const [newMarkdownName, setNewMarkdownName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
+  const [renameTarget, setRenameTarget] = React.useState<SharedDriveFile | null>(null);
+  const [renameName, setRenameName] = React.useState("");
 
   const selectedFile = searchParams.get("file");
 
@@ -108,6 +112,23 @@ export default function SharedDrivePanel() {
 
   const selectFile = (file: SharedDriveFile) => {
     setSearchParams({ file: file.path });
+  };
+
+  const handleRename = () => {
+    if (!renameTarget || !renameName.trim()) return;
+    const newName = renameName.trim();
+    renameSharedFile.mutate(
+      { path: renameTarget.path, newName },
+      {
+        onSuccess: (data: { ok: boolean; newPath: string }) => {
+          if (selectedFile === renameTarget.path) {
+            setSearchParams({ file: data.newPath });
+          }
+        },
+      },
+    );
+    setRenameTarget(null);
+    setRenameName("");
   };
 
   const handleCreateFolder = () => {
@@ -296,6 +317,15 @@ export default function SharedDrivePanel() {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
+                  onClick={() => {
+                    setRenameTarget(file);
+                    setRenameName(file.name);
+                  }}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onClick={() => setDeleteTarget(file)}
                 >
@@ -395,6 +425,53 @@ export default function SharedDrivePanel() {
             </Button>
             <Button onClick={handleCreateMarkdown} disabled={!newMarkdownName.trim()}>
               Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Dialog */}
+      <Dialog
+        open={!!renameTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameTarget(null);
+            setRenameName("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename</DialogTitle>
+            <DialogDescription>
+              Enter a new name for &ldquo;{renameTarget?.name}&rdquo;.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRename();
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRenameTarget(null);
+                setRenameName("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRename}
+              disabled={!renameName.trim() || renameName.trim() === renameTarget?.name}
+            >
+              Rename
             </Button>
           </DialogFooter>
         </DialogContent>

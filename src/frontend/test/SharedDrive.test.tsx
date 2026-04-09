@@ -194,6 +194,50 @@ describe("SharedDrivePanel", () => {
     });
   });
 
+  it("opens rename dialog from dropdown menu", async () => {
+    setFiles(sampleFiles);
+    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    await waitFor(() => {
+      expect(screen.getByText("readme.md")).toBeInTheDocument();
+    });
+
+    // Open dropdown for readme.md
+    const actionButtons = screen.getAllByRole("button", { name: /actions/ });
+    await userEvent.click(actionButtons[1]); // second file (first is docs folder)
+
+    await userEvent.click(screen.getByText("Rename"));
+    expect(screen.getByText(/Enter a new name/)).toBeInTheDocument();
+  });
+
+  it("renames a file via dialog", async () => {
+    let renamePayload: Record<string, unknown> | undefined;
+    server.use(
+      http.patch("*/api/projects/:id/shared-drive/rename", async ({ request }) => {
+        renamePayload = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ok: true, newPath: "/new-name.md" });
+      }),
+    );
+    setFiles(sampleFiles);
+    const user = userEvent.setup();
+    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    await waitFor(() => {
+      expect(screen.getByText("readme.md")).toBeInTheDocument();
+    });
+
+    const actionButtons = screen.getAllByRole("button", { name: /actions/ });
+    await user.click(actionButtons[1]);
+    await user.click(screen.getByText("Rename"));
+
+    const input = screen.getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "new-name.md");
+    await user.click(screen.getByRole("button", { name: "Rename" }));
+
+    await waitFor(() => {
+      expect(renamePayload).toEqual({ path: "data.json", newName: "new-name.md" });
+    });
+  });
+
   it("uploads files via hidden input", async () => {
     renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
 
@@ -222,11 +266,10 @@ describe("SharedDriveContentArea", () => {
   it("shows empty state when no file selected", async () => {
     renderContentArea();
     await waitFor(() => {
-      expect(screen.getByText("Shared Drive")).toBeInTheDocument();
+      expect(
+        screen.getByText("Select a file from the sidebar to preview or edit it."),
+      ).toBeInTheDocument();
     });
-    expect(
-      screen.getByText("Select a file from the sidebar to preview or edit it."),
-    ).toBeInTheDocument();
   });
 
   it("renders markdown file in the rich text editor", async () => {
