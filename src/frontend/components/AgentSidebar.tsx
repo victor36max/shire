@@ -62,7 +62,7 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
   };
 
   return (
-    <div className="border-r border-border bg-muted/30 flex flex-col h-full">
+    <div className="border-r border-border bg-muted/30 flex flex-col h-full min-w-56">
       <div className="p-3 border-b border-border">
         <ProjectSwitcher projects={projects} currentProjectName={projectName} />
       </div>

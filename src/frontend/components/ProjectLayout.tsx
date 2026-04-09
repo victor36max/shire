@@ -2,7 +2,6 @@ import * as React from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Spinner } from "./ui/spinner";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
@@ -22,6 +21,11 @@ import {
   type ProjectLayoutContextValue,
 } from "../providers/ProjectLayoutProvider";
 
+const SIDEBAR_MIN = 224;
+const SIDEBAR_MAX = 480;
+const SIDEBAR_DEFAULT = 280;
+const STORAGE_KEY = "shire-sidebar-width";
+
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = React.useState(
     typeof window !== "undefined" ? window.matchMedia("(min-width: 768px)").matches : true,
@@ -37,12 +41,73 @@ function useIsDesktop() {
   return isDesktop;
 }
 
+function useSidebarWidth() {
+  const [width, setWidth] = React.useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const n = Number(stored);
+        if (n >= SIDEBAR_MIN && n <= SIDEBAR_MAX) return n;
+      }
+    } catch {
+      // ignore
+    }
+    return SIDEBAR_DEFAULT;
+  });
+
+  const persist = React.useCallback((w: number) => {
+    setWidth(w);
+    try {
+      localStorage.setItem(STORAGE_KEY, String(w));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  return [width, persist] as const;
+}
+
+function ResizeHandle({ onDrag }: { onDrag: (width: number) => void }) {
+  const handlePointerDown = React.useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = (e.currentTarget as HTMLElement).previousElementSibling?.clientWidth ?? 0;
+
+      const onMove = (ev: PointerEvent) => {
+        onDrag(startWidth + (ev.clientX - startX));
+      };
+
+      const onUp = () => {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [onDrag],
+  );
+
+  return (
+    <div
+      className="w-px bg-border hover:bg-ring active:bg-ring cursor-col-resize shrink-0 after:absolute after:inset-y-0 after:-left-1 after:-right-1 after:content-[''] relative"
+      onPointerDown={handlePointerDown}
+    />
+  );
+}
+
 export default function ProjectLayout() {
   const { projectName, agentName } = useParams();
   const queryClient = useQueryClient();
   const projectId = useResolveProjectId(projectName);
   const updateAgentCache = useUpdateAgentCache(projectId);
   const isDesktop = useIsDesktop();
+  const [sidebarWidth, setSidebarWidth] = useSidebarWidth();
 
   const { data: agentList = [] } = useAgents(projectId);
   const selectedAgent = agentName
@@ -142,6 +207,13 @@ export default function ProjectLayout() {
     }
   };
 
+  const handleDrag = React.useCallback(
+    (w: number) => {
+      setSidebarWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)));
+    },
+    [setSidebarWidth],
+  );
+
   const contextValue: ProjectLayoutContextValue = {
     projectId,
     sidebarOpen,
@@ -190,13 +262,13 @@ export default function ProjectLayout() {
       )}
 
       {isDesktop && (
-        <ResizablePanelGroup orientation="horizontal">
-          <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
+        <>
+          <div className="h-full shrink-0" style={{ width: sidebarWidth }}>
             {sidebar}
-          </ResizablePanel>
-          <ResizableHandle />
-          <ResizablePanel defaultSize={80}>{content}</ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+          <ResizeHandle onDrag={handleDrag} />
+          {content}
+        </>
       )}
 
       <AgentForm
