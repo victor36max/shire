@@ -55,8 +55,11 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
   const activeTab = isSharedDrive ? "shared-drive" : "agents";
 
   // Remember last path for each tab so switching back restores selection
-  const lastAgentPath = useRef(location.pathname + location.search);
-  const lastSharedPath = useRef(`/projects/${projectName}/shared${location.search}`);
+  const projectRoot = `/projects/${projectName}`;
+  const lastAgentPath = useRef(isSharedDrive ? projectRoot : location.pathname + location.search);
+  const lastSharedPath = useRef(
+    isSharedDrive ? location.pathname + location.search : `${projectRoot}/shared`,
+  );
 
   useEffect(() => {
     if (!isSharedDrive) {
