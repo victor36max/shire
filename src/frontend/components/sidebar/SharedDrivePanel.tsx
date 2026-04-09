@@ -216,8 +216,37 @@ export default function SharedDrivePanel() {
   return (
     <>
       <input {...getInputProps()} />
-      <div className="px-3 py-2 border-b border-border">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
         <Breadcrumbs path={currentPath} onNavigate={navigate} />
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="Upload File"
+            onClick={openFilePicker}
+          >
+            <Upload className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="New Markdown"
+            onClick={() => setNewMarkdownOpen(true)}
+          >
+            <FileText className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="New Folder"
+            onClick={() => setNewFolderOpen(true)}
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {uploadProgress !== null && (
@@ -319,37 +348,6 @@ export default function SharedDrivePanel() {
             </DropdownMenu>
           </div>
         ))}
-      </div>
-
-      <div className="border-t border-border p-3 flex items-center gap-1.5">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          aria-label="Upload File"
-          onClick={openFilePicker}
-        >
-          <Upload className="h-4 w-4 mr-1" />
-          Upload
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          aria-label="New Markdown"
-          onClick={() => setNewMarkdownOpen(true)}
-        >
-          <FileText className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          aria-label="New Folder"
-          onClick={() => setNewFolderOpen(true)}
-        >
-          <FolderPlus className="h-4 w-4" />
-        </Button>
       </div>
 
       {/* New Folder Dialog */}
