@@ -11,17 +11,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from "../ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../ui/alert-dialog";
-import { buttonVariants } from "../ui/button";
+import { RenameDialog } from "../shared-drive/RenameDialog";
+import { DeleteDialog } from "../shared-drive/DeleteDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -101,7 +92,6 @@ export default function SharedDrivePanel() {
   const [newMarkdownName, setNewMarkdownName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
   const [renameTarget, setRenameTarget] = React.useState<SharedDriveFile | null>(null);
-  const [renameName, setRenameName] = React.useState("");
 
   const selectedFile = searchParams.get("file");
 
@@ -114,9 +104,8 @@ export default function SharedDrivePanel() {
     setSearchParams({ file: file.path });
   };
 
-  const handleRename = () => {
-    if (!renameTarget || !renameName.trim()) return;
-    const newName = renameName.trim();
+  const handleRename = (newName: string) => {
+    if (!renameTarget) return;
     renameSharedFile.mutate(
       { path: renameTarget.path, newName },
       {
@@ -128,7 +117,6 @@ export default function SharedDrivePanel() {
       },
     );
     setRenameTarget(null);
-    setRenameName("");
   };
 
   const handleCreateFolder = () => {
@@ -316,12 +304,7 @@ export default function SharedDrivePanel() {
                     </a>
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem
-                  onClick={() => {
-                    setRenameTarget(file);
-                    setRenameName(file.name);
-                  }}
-                >
+                <DropdownMenuItem onClick={() => setRenameTarget(file)}>
                   <Pencil className="h-4 w-4 mr-2" />
                   Rename
                 </DropdownMenuItem>
@@ -430,77 +413,24 @@ export default function SharedDrivePanel() {
         </DialogContent>
       </Dialog>
 
-      {/* Rename Dialog */}
-      <Dialog
-        open={!!renameTarget}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRenameTarget(null);
-            setRenameName("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename</DialogTitle>
-            <DialogDescription>
-              Enter a new name for &ldquo;{renameTarget?.name}&rdquo;.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={renameName}
-              onChange={(e) => setRenameName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleRename();
-              }}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRenameTarget(null);
-                setRenameName("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRename}
-              disabled={!renameName.trim() || renameName.trim() === renameTarget?.name}
-            >
-              Rename
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {renameTarget && (
+        <RenameDialog
+          open={!!renameTarget}
+          onOpenChange={(open) => !open && setRenameTarget(null)}
+          currentName={renameTarget.name}
+          onRename={handleRename}
+        />
+      )}
 
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {deleteTarget?.type === "directory" ? "folder" : "file"}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete &ldquo;{deleteTarget?.name}&rdquo;
-              {deleteTarget?.type === "directory" && " and all its contents"}. This action cannot be
-              undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={buttonVariants({ variant: "destructive" })}
-              onClick={() => deleteTarget && handleDelete(deleteTarget)}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {deleteTarget && (
+        <DeleteDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => !open && setDeleteTarget(null)}
+          name={deleteTarget.name}
+          type={deleteTarget.type}
+          onConfirm={() => handleDelete(deleteTarget)}
+        />
+      )}
     </>
   );
 }

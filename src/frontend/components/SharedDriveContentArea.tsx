@@ -1,25 +1,18 @@
 import * as React from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
-import { Menu, Upload, Download, Trash2, File, FolderOpen } from "lucide-react";
-import { Button, buttonVariants } from "./ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
+import { Menu, Upload, Download, Trash2, Pencil, File, FolderOpen } from "lucide-react";
+import { Button } from "./ui/button";
 import { SharedDriveEditor } from "./editor";
 import PlainTextEditor from "./editor/PlainTextEditor";
 import { Spinner } from "./ui/spinner";
+import { RenameDialog } from "./shared-drive/RenameDialog";
+import { DeleteDialog } from "./shared-drive/DeleteDialog";
 import {
   useProjectId,
   useFileContent,
   useDeleteSharedFile,
+  useRenameSharedFile,
   useUploadSharedDriveFile,
 } from "../hooks";
 import { getPreviewType, formatSize, MAX_UPLOAD_SIZE } from "../lib/file-utils";
@@ -44,9 +37,11 @@ export default function SharedDriveContentArea() {
   const error = queryError ? queryError.message || "Failed to load file" : null;
 
   const deleteSharedFile = useDeleteSharedFile(projectId ?? "");
+  const renameSharedFile = useRenameSharedFile(projectId ?? "");
   const uploadFile = useUploadSharedDriveFile(projectId ?? "");
 
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [renameOpen, setRenameOpen] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const fileProgressRef = React.useRef<Map<string, number>>(new Map());
@@ -56,6 +51,19 @@ export default function SharedDriveContentArea() {
     deleteSharedFile.mutate(filePath);
     setDeleteOpen(false);
     setSearchParams({});
+  };
+
+  const handleRename = (newName: string) => {
+    if (!filePath) return;
+    renameSharedFile.mutate(
+      { path: filePath, newName },
+      {
+        onSuccess: (data: { ok: boolean; newPath: string }) => {
+          setSearchParams({ file: data.newPath });
+        },
+      },
+    );
+    setRenameOpen(false);
   };
 
   const uploadFiles = React.useCallback(
@@ -125,7 +133,6 @@ export default function SharedDriveContentArea() {
     return (
       <div className="flex flex-col h-full" {...getRootProps()}>
         <input {...getInputProps()} />
-        {/* Mobile-only menu toggle */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border md:hidden">
           <Button
             variant="ghost"
@@ -179,6 +186,15 @@ export default function SharedDriveContentArea() {
         </Button>
         <span className="text-sm font-medium truncate flex-1">{fileName}</span>
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="Rename"
+            onClick={() => setRenameOpen(true)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
             <a
               href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(filePath)}`}
@@ -261,25 +277,20 @@ export default function SharedDriveContentArea() {
         )}
       </div>
 
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete file?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete &ldquo;{fileName}&rdquo;. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={buttonVariants({ variant: "destructive" })}
-              onClick={handleDelete}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <RenameDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        currentName={fileName}
+        onRename={handleRename}
+      />
+
+      <DeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        name={fileName}
+        type="file"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
