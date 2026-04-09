@@ -6,7 +6,7 @@ import ProjectDetailsPage from "./ProjectDetailsPage";
 import ProjectLayout from "./ProjectLayout";
 import SchedulesPage from "./SchedulesPage";
 import SettingsPage from "./SettingsPage";
-import SharedDrive from "./SharedDrive";
+import SharedDriveContentArea from "./SharedDriveContentArea";
 
 export default {
   AgentChatView,
@@ -17,5 +17,5 @@ export default {
   ProjectLayout,
   SchedulesPage,
   SettingsPage,
-  SharedDrive,
+  SharedDriveContentArea,
 };

@@ -21,7 +21,6 @@ import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
 import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useDebouncedCallback } from "use-debounce";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 import type { EditorState, LexicalEditor } from "lexical";
@@ -136,29 +135,20 @@ export default function SharedDriveEditor({
     [saveFile, filePath],
   );
 
-  const debouncedSave = useDebouncedCallback((editorState: EditorState) => {
-    doSave(editorState);
-  }, 1000);
-
-  const handleChange = useCallback(
-    (editorState: EditorState) => {
-      setSaveStatus("unsaved");
-      debouncedSave(editorState);
-    },
-    [debouncedSave],
-  );
+  const handleChange = useCallback(() => {
+    setSaveStatus("unsaved");
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        debouncedSave.cancel();
         if (editorRef.current) {
           doSave(editorRef.current.getEditorState());
         }
       }
     },
-    [debouncedSave, doSave],
+    [doSave],
   );
 
   return (
@@ -173,7 +163,6 @@ export default function SharedDriveEditor({
           type="button"
           disabled={saveStatus === "saved" || saveStatus === "saving"}
           onClick={() => {
-            debouncedSave.cancel();
             if (editorRef.current) {
               doSave(editorRef.current.getEditorState());
             }
@@ -217,7 +206,7 @@ export default function SharedDriveEditor({
           <RichTextPlugin
             contentEditable={
               <div
-                className="prose prose-sm dark:prose-invert max-w-none relative p-4"
+                className="prose prose-sm dark:prose-invert max-w-3xl mx-auto relative p-4"
                 ref={setAnchorElement}
               >
                 <ContentEditable

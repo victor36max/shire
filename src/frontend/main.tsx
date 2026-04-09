@@ -18,7 +18,7 @@ const AgentChatView = lazy(() => import("./components/AgentChatView"));
 const AgentSettings = lazy(() => import("./pages/AgentSettings"));
 const ProjectDetails = lazy(() => import("./pages/ProjectDetails"));
 const Settings = lazy(() => import("./pages/Settings"));
-const SharedDrivePage = lazy(() => import("./pages/SharedDrive"));
+const SharedDriveContentArea = lazy(() => import("./components/SharedDriveContentArea"));
 const Schedules = lazy(() => import("./pages/Schedules"));
 
 const queryClient = new QueryClient({
@@ -64,7 +64,7 @@ function App() {
                   <Route path="agents/:agentName/settings" element={<AgentSettings />} />
                   <Route path="details" element={<ProjectDetails />} />
                   <Route path="settings" element={<Settings />} />
-                  <Route path="shared" element={<SharedDrivePage />} />
+                  <Route path="shared" element={<SharedDriveContentArea />} />
                   <Route path="schedules" element={<Schedules />} />
                 </Route>
               </Routes>

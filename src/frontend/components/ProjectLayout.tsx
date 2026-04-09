@@ -2,6 +2,7 @@ import * as React from "react";
 import { useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Spinner } from "./ui/spinner";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
@@ -21,11 +22,27 @@ import {
   type ProjectLayoutContextValue,
 } from "../providers/ProjectLayoutProvider";
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = React.useState(
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 768px)").matches : true,
+  );
+
+  React.useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  return isDesktop;
+}
+
 export default function ProjectLayout() {
   const { projectName, agentName } = useParams();
   const queryClient = useQueryClient();
   const projectId = useResolveProjectId(projectName);
   const updateAgentCache = useUpdateAgentCache(projectId);
+  const isDesktop = useIsDesktop();
 
   const { data: agentList = [] } = useAgents(projectId);
   const selectedAgent = agentName
@@ -141,29 +158,48 @@ export default function ProjectLayout() {
     );
   }
 
+  const sidebar = <AgentSidebar onNewAgent={handleNew} onBrowseCatalog={handleBrowseCatalog} />;
+  const content = (
+    <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
+      <ProjectLayoutProvider value={contextValue} />
+    </div>
+  );
+
   return (
     <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 md:hidden"
-          aria-hidden="true"
-          onClick={() => setSidebarOpen(false)}
-        >
-          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
-        </div>
+      {!isDesktop && (
+        <>
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 z-40"
+              aria-hidden="true"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+            </div>
+          )}
+          <div
+            className={`fixed top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-50 w-64 transition-transform duration-200 ${
+              sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
+            {sidebar}
+          </div>
+          {content}
+        </>
       )}
 
-      <div
-        className={`fixed top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-50 w-64 transition-transform duration-200 md:static md:inset-auto md:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <AgentSidebar onNewAgent={handleNew} onBrowseCatalog={handleBrowseCatalog} />
-      </div>
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <ProjectLayoutProvider value={contextValue} />
-      </div>
+      {isDesktop && (
+        <ResizablePanelGroup orientation="horizontal">
+          <ResizablePanel id="sidebar" defaultSize="20" minSize="15" maxSize="35">
+            {sidebar}
+          </ResizablePanel>
+          <ResizableHandle />
+          <ResizablePanel id="content" defaultSize="80">
+            {content}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
 
       <AgentForm
         key={currentAgent?.id ?? "new"}
