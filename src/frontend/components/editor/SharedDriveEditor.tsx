@@ -206,7 +206,7 @@ export default function SharedDriveEditor({
           <RichTextPlugin
             contentEditable={
               <div
-                className="prose prose-sm dark:prose-invert max-w-none relative p-4"
+                className="prose prose-sm dark:prose-invert max-w-3xl mx-auto relative p-4"
                 ref={setAnchorElement}
               >
                 <ContentEditable
