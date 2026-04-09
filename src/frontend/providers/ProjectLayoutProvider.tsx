@@ -1,4 +1,4 @@
-import { createContext, Suspense, useContext } from "react";
+import { createContext, Suspense, useContext, type ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 import { Spinner } from "../components/ui/spinner";
 
@@ -22,9 +22,10 @@ export function useProjectLayout() {
 
 interface ProjectLayoutProviderProps {
   value: ProjectLayoutContextValue;
+  children?: ReactNode;
 }
 
-export function ProjectLayoutProvider({ value }: ProjectLayoutProviderProps) {
+export function ProjectLayoutProvider({ value, children }: ProjectLayoutProviderProps) {
   return (
     <ProjectLayoutContext.Provider value={value}>
       <Suspense
@@ -34,7 +35,7 @@ export function ProjectLayoutProvider({ value }: ProjectLayoutProviderProps) {
           </div>
         }
       >
-        <Outlet />
+        {children ?? <Outlet />}
       </Suspense>
     </ProjectLayoutContext.Provider>
   );

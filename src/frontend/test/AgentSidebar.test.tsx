@@ -248,12 +248,12 @@ describe("AgentSidebar", () => {
     });
   });
 
-  it("renders Shared Drive link", async () => {
+  it("renders Files tab", async () => {
     setProjects();
     setAgents(defaultAgents);
     renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
     await waitFor(() => {
-      expect(screen.getByText("Shared Drive")).toBeInTheDocument();
+      expect(screen.getByText("Files")).toBeInTheDocument();
     });
   });
 

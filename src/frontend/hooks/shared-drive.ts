@@ -82,6 +82,20 @@ export function usePreviewFile(projectId: string) {
   });
 }
 
+export function useFileContent(projectId: string | undefined, path: string | null) {
+  return useQuery({
+    queryKey: ["file-content", projectId, path],
+    queryFn: async () =>
+      unwrap(
+        await api.projects[":id"]["shared-drive"].preview.$get({
+          param: { id: projectId! },
+          query: { path: path! },
+        }),
+      ),
+    enabled: !!projectId && !!path,
+  });
+}
+
 export function useSaveFileContent(projectId: string) {
   return useMutation({
     mutationFn: async ({ path, content }: { path: string; content: string }) =>
