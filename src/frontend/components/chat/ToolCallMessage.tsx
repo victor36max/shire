@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CodeBlock } from "@/components/ai-elements/code-block";
 import { type Message } from "./types";
@@ -16,7 +17,11 @@ export const ToolCallMessage = React.memo(function ToolCallMessage({ msg }: { ms
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 rounded-lg"
       >
-        <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
         <Badge variant="outline" className="font-mono text-xs">
           {msg.tool}
         </Badge>

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import { type Message } from "./types";
 
@@ -13,7 +14,11 @@ export const InterAgentMessage = React.memo(function InterAgentMessage({ msg }: 
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 rounded-lg italic"
       >
-        <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
         <span className="text-muted-foreground">Message from {msg.fromAgent}</span>
       </button>
       {open && (
