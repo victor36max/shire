@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "bun:test";
 import {
   CodeBlock,
@@ -31,7 +30,7 @@ describe("CodeBlock", () => {
 
   it("applies custom className", () => {
     const { container } = render(
-      <CodeBlock code="test" language="text" className="custom-class" />,
+      <CodeBlock code="test" language="markdown" className="custom-class" />,
     );
     const wrapper = container.firstElementChild;
     expect(wrapper?.className).toContain("custom-class");
@@ -67,14 +66,14 @@ describe("CodeBlockHeader", () => {
 
 describe("CodeBlockContent", () => {
   it("renders code with raw tokens initially", () => {
-    const { container } = render(<CodeBlockContent code="hello world" language="text" />);
+    const { container } = render(<CodeBlockContent code="hello world" language="markdown" />);
     expect(container.querySelector("pre")).toBeInTheDocument();
     expect(screen.getByText("hello world")).toBeInTheDocument();
   });
 
   it("renders multiline code", () => {
     const code = "line1\nline2\nline3";
-    render(<CodeBlockContent code={code} language="text" />);
+    render(<CodeBlockContent code={code} language="markdown" />);
     expect(screen.getByText("line1")).toBeInTheDocument();
     expect(screen.getByText("line2")).toBeInTheDocument();
     expect(screen.getByText("line3")).toBeInTheDocument();
@@ -84,7 +83,7 @@ describe("CodeBlockContent", () => {
 describe("CodeBlockCopyButton", () => {
   it("renders copy button inside CodeBlock", () => {
     render(
-      <CodeBlock code="copy me" language="text">
+      <CodeBlock code="copy me" language="markdown">
         <CodeBlockHeader>
           <CodeBlockActions>
             <CodeBlockCopyButton />

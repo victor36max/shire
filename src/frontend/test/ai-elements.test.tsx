@@ -1,19 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "bun:test";
-import { Message, MessageContent, MessageActions, MessageAction } from "../components/ai-elements/message";
+import {
+  Message,
+  MessageContent,
+  MessageActions,
+  MessageAction,
+} from "../components/ai-elements/message";
 import { Shimmer } from "../components/ai-elements/shimmer";
-import {
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-} from "../components/ui/collapsible";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "../components/ui/tooltip";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../components/ui/collapsible";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "../components/ui/tooltip";
 
 describe("Message", () => {
   it("renders user message with correct alignment", () => {

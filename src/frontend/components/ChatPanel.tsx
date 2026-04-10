@@ -8,6 +8,7 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "./ai-elements/conversation";
+import { useStickToBottom } from "use-stick-to-bottom";
 import { Message, MessageContent, MessageActions } from "./ai-elements/message";
 import { type AgentOverview } from "./types";
 import { useProjectId, useMessages, useSendMessage, useUpdateAgentCache } from "../hooks";
@@ -116,13 +117,15 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     return () => observer.disconnect();
   }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
+  const stickyInstance = useStickToBottom();
+
   useTickingClock(60_000);
 
   const hasMessages = messages.length > 0 || streamingText.length > 0;
 
   return (
     <div className="flex flex-col h-full relative">
-      <Conversation>
+      <Conversation instance={stickyInstance}>
         <ConversationContent>
           <div ref={sentinelRef} className="h-px" />
           {loadingMore && (
@@ -152,6 +155,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
                       className="rounded-full"
                       onClick={() => {
                         markBusy();
+                        stickyInstance.scrollToBottom();
                         sendMessage.mutate({ agentId: agent.id, text: suggestion });
                       }}
                     >
@@ -222,7 +226,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <ChatInput agent={agent} />
+      <ChatInput agent={agent} onMessageSent={stickyInstance.scrollToBottom} />
     </div>
   );
 }

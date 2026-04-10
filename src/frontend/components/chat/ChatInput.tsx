@@ -15,9 +15,10 @@ import { type PendingFile, MAX_FILE_SIZE, formatFileSize } from "./types";
 
 interface ChatInputProps {
   agent: AgentOverview;
+  onMessageSent?: () => void;
 }
 
-export function ChatInput({ agent }: ChatInputProps) {
+export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
   const { projectId } = useProjectId();
   const updateAgentCache = useUpdateAgentCache(projectId);
   const markBusy = () => updateAgentCache(agent.id, { busy: true });
@@ -101,6 +102,7 @@ export function ChatInput({ agent }: ChatInputProps) {
       .map((f) => f.uploadId as string);
 
     markBusy();
+    onMessageSent?.();
     sendMessage.mutate(
       {
         agentId: agent.id,

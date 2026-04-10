@@ -24,7 +24,7 @@ mock.module("use-stick-to-bottom", () => ({
 
 // Assign Content sub-component after mock is in place
 const stb = await import("use-stick-to-bottom");
-(stb.StickToBottom as Record<string, unknown>).Content = ({
+(stb.StickToBottom as unknown as Record<string, unknown>).Content = ({
   children,
   className,
   ...props
@@ -90,7 +90,7 @@ describe("Conversation", () => {
   });
 
   it("applies custom className to ConversationContent", () => {
-    const { container } = render(
+    render(
       <Conversation>
         <ConversationContent className="custom-content">items</ConversationContent>
       </Conversation>,
