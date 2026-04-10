@@ -122,7 +122,7 @@ export default function AgentChatView() {
       <>
         <ChatHeader agent={selectedAgent} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
         <div className="flex-1 min-h-0">
-          <ChatPanel agent={selectedAgent} streamingText={streamingText} />
+          <ChatPanel key={selectedAgent.id} agent={selectedAgent} streamingText={streamingText} />
         </div>
       </>
     );

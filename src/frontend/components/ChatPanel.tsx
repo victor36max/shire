@@ -117,7 +117,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     return () => observer.disconnect();
   }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
-  const stickyInstance = useStickToBottom();
+  const stickyInstance = useStickToBottom({ initial: "instant", resize: "smooth" });
 
   useTickingClock(60_000);
 

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Markdown from "@/components/Markdown";
 import { type Message } from "./types";
@@ -14,7 +15,11 @@ export const SystemMessage = React.memo(function SystemMessage({ msg }: { msg: M
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left italic h-auto justify-start"
       >
-        <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
         <span className="text-muted-foreground">System notification</span>
       </Button>
       {open && (
