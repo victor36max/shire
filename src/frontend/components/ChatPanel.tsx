@@ -1,210 +1,28 @@
 import * as React from "react";
-import { Paperclip, Square, X, FileIcon, Download, Check, AlertCircle } from "lucide-react";
 import { Spinner } from "./ui/spinner";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
 import Markdown from "./Markdown";
 import { CopyButton } from "./CopyButton";
-import { type AgentOverview } from "./types";
 import {
-  useProjectId,
-  useMessages,
-  useSendMessage,
-  useInterruptAgent,
-  useRestartAgent,
-  useUploadAttachment,
-  useUpdateAgentCache,
-} from "../hooks";
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "./ai-elements/conversation";
+import { Message, MessageContent, MessageActions } from "./ai-elements/message";
+import { type AgentOverview } from "./types";
+import { useProjectId, useMessages, useSendMessage, useUpdateAgentCache } from "../hooks";
 import { messageTimeLabel, dateSeparatorLabel, isSameDay } from "../lib/time";
 import { useTickingClock } from "../lib/useTickingClock";
+import { Reasoning, ReasoningTrigger } from "./ai-elements/reasoning";
+import { ToolCallMessage } from "./chat/ToolCallMessage";
+import { InterAgentMessage } from "./chat/InterAgentMessage";
+import { SystemMessage } from "./chat/SystemMessage";
+import { AttachmentDisplay } from "./chat/AttachmentDisplay";
+import { ChatInput } from "./chat/ChatInput";
+import type { MessageRole } from "./ai-elements/types";
 
-export interface Attachment {
-  id: string;
-  filename: string;
-  size: number;
-  content_type: string;
-}
-
-export interface Message {
-  id?: number;
-  role: string;
-  text?: string;
-  ts: string;
-  tool?: string;
-  tool_use_id?: string;
-  input?: Record<string, unknown>;
-  output?: string | null;
-  isError?: boolean;
-  fromAgent?: string;
-  attachments?: Attachment[];
-}
-
-interface PendingFile {
-  localId: string;
-  name: string;
-  size: number;
-  content_type: string;
-  uploadId: string | null;
-  progress: number; // 0 = queued, 1-99 = uploading, 100 = done
-  error?: string;
-}
-
-const MAX_FILE_SIZE = 128 * 1024 * 1024;
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-const AttachmentDisplay = React.memo(function AttachmentDisplay({
-  attachments,
-  projectName,
-  agentId,
-}: {
-  attachments: Attachment[];
-  projectName: string;
-  agentId: string;
-}) {
-  if (!attachments.length) return null;
-
-  return (
-    <div className="flex flex-wrap gap-2 mt-2">
-      {attachments.map((att) => {
-        const url = `/api/projects/${projectName}/agents/${agentId}/attachments/${att.id}/${encodeURIComponent(att.filename)}`;
-        const isImage = att.content_type.startsWith("image/");
-
-        return isImage ? (
-          <a
-            key={att.id}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block rounded-md border border-border overflow-hidden hover:opacity-90 transition-opacity"
-          >
-            <img
-              src={url}
-              alt={att.filename}
-              loading="lazy"
-              className="max-w-48 max-h-32 object-cover"
-            />
-          </a>
-        ) : (
-          <a
-            key={att.id}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border hover:bg-muted/50 text-sm"
-          >
-            <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate max-w-40">{att.filename}</span>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              ({formatFileSize(att.size)})
-            </span>
-            <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          </a>
-        );
-      })}
-    </div>
-  );
-});
-
-const ToolCallMessage = React.memo(function ToolCallMessage({ msg }: { msg: Message }) {
-  const [open, setOpen] = React.useState(false);
-  const inputStr = msg.input ? JSON.stringify(msg.input, null, 2) : "";
-  const hasOutput = msg.output != null;
-
-  return (
-    <div className="max-w-[80%] rounded-lg border border-border text-sm w-fit">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 rounded-lg"
-      >
-        <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
-        <Badge variant="outline" className="font-mono text-xs">
-          {msg.tool}
-        </Badge>
-        {hasOutput ? (
-          <Badge variant={msg.isError ? "destructive" : "secondary"} className="text-xs">
-            {msg.isError ? "error" : "done"}
-          </Badge>
-        ) : (
-          <span className="text-xs text-muted-foreground animate-pulse">running...</span>
-        )}
-      </button>
-      {open && (
-        <div className="border-t border-border px-3 py-2 space-y-2">
-          {inputStr && (
-            <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Input</div>
-              <pre className="whitespace-pre-wrap font-mono text-xs bg-muted/50 rounded p-2 max-h-40 overflow-y-auto">
-                {inputStr}
-              </pre>
-            </div>
-          )}
-          {hasOutput && (
-            <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Output</div>
-              <pre className="whitespace-pre-wrap font-mono text-xs bg-muted/50 rounded p-2 max-h-40 overflow-y-auto">
-                {msg.output}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
-
-const InterAgentMessage = React.memo(function InterAgentMessage({ msg }: { msg: Message }) {
-  const [open, setOpen] = React.useState(false);
-
-  return (
-    <div className="max-w-[80%] rounded-lg border border-border text-sm w-fit">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 rounded-lg italic"
-      >
-        <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
-        <span className="text-muted-foreground">Message from {msg.fromAgent}</span>
-      </button>
-      {open && (
-        <div className="border-t border-border px-3 py-2">
-          <Markdown>{msg.text ?? ""}</Markdown>
-        </div>
-      )}
-    </div>
-  );
-});
-
-const SystemMessage = React.memo(function SystemMessage({ msg }: { msg: Message }) {
-  const [open, setOpen] = React.useState(false);
-
-  return (
-    <div className="max-w-[80%] rounded-lg border border-border text-sm w-fit">
-      <Button
-        variant="ghost"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left italic h-auto justify-start"
-      >
-        <span className="text-muted-foreground">{open ? "\u25BC" : "\u25B6"}</span>
-        <span className="text-muted-foreground">System notification</span>
-      </Button>
-      {open && (
-        <div className="border-t border-border px-3 py-2">
-          <Markdown>{msg.text ?? ""}</Markdown>
-        </div>
-      )}
-    </div>
-  );
-});
+// Re-export types for backward compatibility with tests
+export type { Attachment, Message } from "./chat/types";
 
 /** Shape of a raw message from the API. */
 interface RawMessage {
@@ -215,7 +33,19 @@ interface RawMessage {
 }
 
 /** Transform API messages to ChatPanel Message format */
-function transformMessages(raw: RawMessage[]): Message[] {
+function transformMessages(raw: RawMessage[]): Array<{
+  id?: number;
+  role: string;
+  text?: string;
+  ts: string;
+  tool?: string;
+  tool_use_id?: string;
+  input?: Record<string, unknown>;
+  output?: string | null;
+  isError?: boolean;
+  fromAgent?: string;
+  attachments?: Array<{ id: string; filename: string; size: number; content_type: string }>;
+}> {
   return raw.map((m) => {
     const { content } = m;
     return {
@@ -229,7 +59,9 @@ function transformMessages(raw: RawMessage[]): Message[] {
       output: content.output as string | null | undefined,
       isError: content.isError as boolean | undefined,
       fromAgent: content.fromAgent as string | undefined,
-      attachments: content.attachments as Attachment[] | undefined,
+      attachments: content.attachments as
+        | Array<{ id: string; filename: string; size: number; content_type: string }>
+        | undefined,
     };
   });
 }
@@ -242,8 +74,10 @@ interface ChatPanelProps {
 export default function ChatPanel({ agent, streamingText: externalStreamingText }: ChatPanelProps) {
   const { projectId, projectName } = useProjectId();
   const updateAgentCache = useUpdateAgentCache(projectId);
-
-  const markBusy = () => updateAgentCache(agent.id, { busy: true });
+  const markBusy = React.useCallback(
+    () => updateAgentCache(agent.id, { busy: true }),
+    [updateAgentCache, agent.id],
+  );
 
   const {
     data: messagesData,
@@ -253,13 +87,9 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     isFetchingNextPage,
   } = useMessages(projectId, agent.id);
   const sendMessage = useSendMessage(projectId ?? "");
-  const uploadAttachment = useUploadAttachment(projectId ?? "");
-  const interruptAgent = useInterruptAgent(projectId ?? "");
-  const restartAgent = useRestartAgent(projectId ?? "");
 
   const messages = React.useMemo(() => {
     if (!messagesData) return [];
-    // Page 0 = newest (no cursor), page N = oldest. Reverse for chronological order.
     const allRaw = [...messagesData.pages].reverse().flatMap((page) => page.messages);
     return transformMessages(allRaw);
   }, [messagesData]);
@@ -268,260 +98,95 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
 
   const streamingText = externalStreamingText ?? "";
 
-  const [input, setInput] = React.useState("");
-  const [pendingFiles, setPendingFiles] = React.useState<PendingFile[]>([]);
-  const [uploadError, setUploadError] = React.useState<string | null>(null);
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-  const messagesEndRef = React.useRef<HTMLDivElement>(null);
-  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
-  const prevMessagesLengthRef = React.useRef(0);
-  const prevScrollHeightRef = React.useRef(0);
-  const initialScrollDone = React.useRef(false);
-
-  // Reset scroll tracking when switching agents
+  // Infinite scroll sentinel
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
-    initialScrollDone.current = false;
-    prevMessagesLengthRef.current = 0;
-    prevScrollHeightRef.current = 0;
-  }, [agent.id]);
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
 
-  // Auto-scroll to bottom on initial load and new messages
-  React.useEffect(() => {
-    const prevLen = prevMessagesLengthRef.current;
-    const container = scrollContainerRef.current;
-
-    if (container && messages.length > 0) {
-      if (!initialScrollDone.current) {
-        // Initial load — scroll to bottom immediately
-        initialScrollDone.current = true;
-        messagesEndRef.current?.scrollIntoView();
-      } else if (messages.length > prevLen) {
-        const prevScrollHeight = prevScrollHeightRef.current;
-        if (
-          prevScrollHeight > 0 &&
-          container.scrollHeight > prevScrollHeight &&
-          container.scrollTop < 50
-        ) {
-          // Preserve scroll position after prepending older messages
-          container.scrollTop = container.scrollHeight - prevScrollHeight;
-        } else {
-          // New message at the end — scroll to bottom
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && messages.length > 0) {
+          fetchNextPage();
         }
-      }
-    }
-
-    prevMessagesLengthRef.current = messages.length;
-  }, [messages]);
-
-  // Auto-scroll during streaming (instant to avoid animation queue buildup)
-  React.useEffect(() => {
-    if (streamingText && initialScrollDone.current) {
-      messagesEndRef.current?.scrollIntoView();
-    }
-  }, [streamingText]);
-
-  // Scroll to bottom when busy state changes (thinking indicator appears/disappears)
-  React.useEffect(() => {
-    if (agent.busy && initialScrollDone.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [agent.busy]);
-
-  // Save scroll height before render for scroll position preservation
-  React.useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      prevScrollHeightRef.current = container.scrollHeight;
-    }
-  });
-
-  // Infinite scroll: load more when scrolled to top
-  const handleScroll = React.useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container || !hasMore || loadingMore) return;
-    if (container.scrollTop === 0 && messages.length > 0) {
-      fetchNextPage();
-    }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, [hasMore, loadingMore, fetchNextPage, messages.length]);
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  const handleFileSelect = React.useCallback(
-    (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-      for (const file of Array.from(files)) {
-        if (file.size > MAX_FILE_SIZE) {
-          setUploadError(
-            (prev) =>
-              (prev ? `${prev}; ` : "") +
-              `"${file.name}": File is larger than ${formatFileSize(MAX_FILE_SIZE)}`,
-          );
-          continue;
-        }
-        const lid = crypto.randomUUID();
-        const pending: PendingFile = {
-          localId: lid,
-          name: file.name,
-          size: file.size,
-          content_type: file.type || "application/octet-stream",
-          uploadId: null,
-          progress: 0,
-        };
-        setPendingFiles((prev) => [...prev, pending]);
-
-        uploadAttachment
-          .mutateAsync({
-            agentId: agent.id,
-            file,
-            onProgress: (percent) => {
-              setPendingFiles((prev) =>
-                prev.map((f) => (f.localId === lid ? { ...f, progress: percent } : f)),
-              );
-            },
-          })
-          .then((result) => {
-            setPendingFiles((prev) =>
-              prev.map((f) =>
-                f.localId === lid ? { ...f, uploadId: result.id, progress: 100 } : f,
-              ),
-            );
-          })
-          .catch((err: unknown) => {
-            const errorMsg = err instanceof Error ? err.message : "Upload failed";
-            setPendingFiles((prev) =>
-              prev.map((f) => (f.localId === lid ? { ...f, error: errorMsg, progress: 0 } : f)),
-            );
-          });
-      }
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    },
-    [agent.id, uploadAttachment],
-  );
-
-  const removePendingFile = React.useCallback((index: number) => {
-    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const anyPending = pendingFiles.some((f) => f.uploadId === null && !f.error);
-
-  const handleSend = () => {
-    const text = input.trim();
-    if (!text && pendingFiles.length === 0) return;
-    if (anyPending) return;
-
-    const attachmentIds = pendingFiles
-      .filter((f) => f.uploadId !== null)
-      .map((f) => f.uploadId as string);
-
-    markBusy();
-    sendMessage.mutate(
-      {
-        agentId: agent.id,
-        text: text || "",
-        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
-      },
-      {
-        onSuccess: () => {
-          setInput("");
-          setPendingFiles([]);
-          if (textareaRef.current) {
-            textareaRef.current.style.height = "auto";
-          }
-        },
-        onError: (err) => {
-          setUploadError(`Failed to send: ${err instanceof Error ? err.message : "unknown error"}`);
-        },
-      },
-    );
-  };
-
-  // Re-render every 60s so relative timestamps stay fresh
   useTickingClock(60_000);
 
   const hasMessages = messages.length > 0 || streamingText.length > 0;
 
   return (
     <div className="flex flex-col h-full relative">
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="sr-only"
-        onChange={(e) => handleFileSelect(e.target.files)}
-      />
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-3"
-      >
-        {loadingMore && (
-          <div className="flex justify-center py-2">
-            <span className="text-xs text-muted-foreground animate-pulse">
-              Loading older messages...
-            </span>
-          </div>
-        )}
-        {messagesLoading && (
-          <div className="flex items-center justify-center h-full">
-            <Spinner size="md" className="text-muted-foreground" />
-          </div>
-        )}
-        {!messagesLoading && !hasMessages && (
-          <div className="flex flex-col items-center justify-center h-full gap-4 max-w-sm mx-auto text-center">
-            <p className="text-sm text-muted-foreground">
-              Send a message to start working with this agent.
-            </p>
-            {agent.status === "active" && (
-              <div className="flex flex-wrap justify-center gap-2">
-                {["What can you help me with?", "What tools do you have?"].map((suggestion) => (
-                  <Button
-                    key={suggestion}
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full"
-                    onClick={() => {
-                      markBusy();
-                      sendMessage.mutate({ agentId: agent.id, text: suggestion });
-                    }}
-                  >
-                    {suggestion}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {messages.map((msg, i) => {
-          const prevMsg = i > 0 ? messages[i - 1] : null;
-          const showSeparator = !prevMsg || !isSameDay(prevMsg.ts, msg.ts);
-          const key = msg.id ?? `msg-${i}`;
-
-          return (
-            <React.Fragment key={key}>
-              {showSeparator && (
-                <div className="flex items-center gap-2 my-2">
-                  <div className="flex-1 border-t border-border" />
-                  <span className="text-xs text-muted-foreground px-2">
-                    {dateSeparatorLabel(msg.ts)}
-                  </span>
-                  <div className="flex-1 border-t border-border" />
+      <Conversation>
+        <ConversationContent>
+          <div ref={sentinelRef} className="h-px" />
+          {loadingMore && (
+            <div className="flex justify-center py-2">
+              <span className="text-xs text-muted-foreground animate-pulse">
+                Loading older messages...
+              </span>
+            </div>
+          )}
+          {messagesLoading && (
+            <div className="flex items-center justify-center h-full">
+              <Spinner size="md" className="text-muted-foreground" />
+            </div>
+          )}
+          {!messagesLoading && !hasMessages && (
+            <div className="flex flex-col items-center justify-center h-full gap-4 max-w-sm mx-auto text-center">
+              <p className="text-sm text-muted-foreground">
+                Send a message to start working with this agent.
+              </p>
+              {agent.status === "active" && (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {["What can you help me with?", "What tools do you have?"].map((suggestion) => (
+                    <Button
+                      key={suggestion}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => {
+                        markBusy();
+                        sendMessage.mutate({ agentId: agent.id, text: suggestion });
+                      }}
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
                 </div>
               )}
-              {msg.role === "tool_use" ? (
-                <ToolCallMessage msg={msg} />
-              ) : msg.role === "inter_agent" ? (
-                <InterAgentMessage msg={msg} />
-              ) : msg.role === "system" ? (
-                <SystemMessage msg={msg} />
-              ) : (
-                <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className="flex flex-col max-w-[80%]">
-                    <div
-                      className={`px-3 py-1.5 rounded-lg text-sm w-fit ${
-                        msg.role === "user" ? "bg-primary/10 text-foreground" : "bg-muted"
-                      }`}
-                    >
+            </div>
+          )}
+          {messages.map((msg, i) => {
+            const prevMsg = i > 0 ? messages[i - 1] : null;
+            const showSeparator = !prevMsg || !isSameDay(prevMsg.ts, msg.ts);
+            const key = msg.id ?? `msg-${i}`;
+
+            return (
+              <React.Fragment key={key}>
+                {showSeparator && (
+                  <div className="flex items-center gap-2 my-2">
+                    <div className="flex-1 border-t border-border" />
+                    <span className="text-xs text-muted-foreground px-2">
+                      {dateSeparatorLabel(msg.ts)}
+                    </span>
+                    <div className="flex-1 border-t border-border" />
+                  </div>
+                )}
+                {msg.role === "tool_use" ? (
+                  <ToolCallMessage msg={msg} />
+                ) : msg.role === "inter_agent" ? (
+                  <InterAgentMessage msg={msg} />
+                ) : msg.role === "system" ? (
+                  <SystemMessage msg={msg} />
+                ) : (
+                  <Message from={msg.role as MessageRole}>
+                    <MessageContent>
                       {msg.text ? <Markdown>{msg.text}</Markdown> : null}
                       {msg.attachments && msg.attachments.length > 0 && (
                         <AttachmentDisplay
@@ -530,155 +195,34 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
                           agentId={agent.id}
                         />
                       )}
-                    </div>
-                    <div
-                      className={`flex items-center gap-1.5 mt-0.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
+                    </MessageContent>
+                    <MessageActions>
                       <span className="text-xs text-muted-foreground">
                         {messageTimeLabel(msg.ts)}
                       </span>
                       {msg.role === "agent" && msg.text && <CopyButton text={msg.text} />}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </React.Fragment>
-          );
-        })}
-        {streamingText && (
-          <div className="flex justify-start">
-            <div className="px-3 py-1.5 rounded-lg text-sm w-fit max-w-[80%] bg-muted">
-              <Markdown>{streamingText}</Markdown>
-            </div>
-          </div>
-        )}
-        {agent.busy && !streamingText && (
-          <div
-            className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
-            role="status"
-            aria-live="polite"
-          >
-            <span
-              className="inline-block w-1.5 h-1.5 rounded-full bg-status-active animate-pulse"
-              aria-hidden="true"
-            />
-            Thinking...
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-      {agent.status === "active" ? (
-        <div className="border-t border-border p-4">
-          {uploadError && (
-            <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-destructive/10 text-destructive text-xs">
-              <span className="flex-1">{uploadError}</span>
-              <button
-                type="button"
-                onClick={() => setUploadError(null)}
-                className="hover:text-destructive/80"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
+                    </MessageActions>
+                  </Message>
+                )}
+              </React.Fragment>
+            );
+          })}
+          {streamingText && (
+            <Message from="assistant">
+              <MessageContent>
+                <Markdown>{streamingText}</Markdown>
+              </MessageContent>
+            </Message>
           )}
-          {pendingFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              {pendingFiles.map((file, i) => (
-                <div
-                  key={file.localId}
-                  className="flex flex-col rounded-md border border-border bg-muted/50 text-xs overflow-hidden"
-                >
-                  <div className="flex items-center gap-1.5 px-2 py-1">
-                    {file.error ? (
-                      <AlertCircle className="h-3 w-3 text-destructive shrink-0" />
-                    ) : file.progress === 100 ? (
-                      <Check className="h-3 w-3 text-green-500 shrink-0" />
-                    ) : (
-                      <FileIcon className="h-3 w-3 text-muted-foreground shrink-0" />
-                    )}
-                    <span className="truncate max-w-32">{file.name}</span>
-                    <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
-                    <button
-                      type="button"
-                      onClick={() => removePendingFile(i)}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                  {file.progress > 0 && file.progress < 100 && (
-                    <div className="h-0.5 bg-muted">
-                      <div
-                        className="h-full bg-primary transition-all duration-200"
-                        style={{ width: `${file.progress}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          {agent.busy && !streamingText && (
+            <Reasoning isStreaming={true}>
+              <ReasoningTrigger />
+            </Reasoning>
           )}
-          <div className="flex gap-2 items-end">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Attach file"
-            >
-              <Paperclip className="h-4 w-4" />
-            </Button>
-            <Textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px";
-              }}
-              placeholder="Type a message..."
-              rows={1}
-              className="min-h-0 resize-none"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-            />
-            {agent.busy ? (
-              <Button
-                variant="destructive"
-                size="icon"
-                onClick={() => interruptAgent.mutate(agent.id)}
-                aria-label="Stop"
-              >
-                <Square className="h-4 w-4 fill-current" />
-              </Button>
-            ) : (
-              <Button onClick={handleSend} disabled={sendMessage.isPending || anyPending}>
-                Send
-              </Button>
-            )}
-          </div>
-        </div>
-      ) : agent.status === "idle" ? (
-        <div className="border-t border-border p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              Agent is idle. It will restart automatically when the VM wakes up.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => restartAgent.mutate(agent.id)}
-              disabled={restartAgent.isPending}
-            >
-              {restartAgent.isPending ? "Restarting..." : "Restart"}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      <ChatInput agent={agent} />
     </div>
   );
 }
