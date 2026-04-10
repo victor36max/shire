@@ -557,6 +557,32 @@ describe("ChatPanel", () => {
     });
   });
 
+  it("encodes attachment filename with spaces in URL", async () => {
+    const msgWithSpacey: Message = {
+      id: 32,
+      role: "agent",
+      text: "",
+      ts: "2026-03-17T00:00:07Z",
+      attachments: [
+        {
+          id: "img002",
+          filename: "Screenshot 2026-04-10 at 10.30.00.png",
+          size: 4096,
+          content_type: "image/png",
+        },
+      ],
+    };
+    setMessages([msgWithSpacey]);
+    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    await waitFor(() => {
+      const img = screen.getByAltText("Screenshot 2026-04-10 at 10.30.00.png");
+      expect(img).toHaveAttribute(
+        "src",
+        "/api/projects/test-project/agents/a1/attachments/img002/Screenshot%202026-04-10%20at%2010.30.00.png",
+      );
+    });
+  });
+
   it("sets aria-expanded on tool call toggle button", async () => {
     const toolMsg: Message = {
       id: 3,

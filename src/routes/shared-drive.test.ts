@@ -208,7 +208,23 @@ describe("shared-drive routes", () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Disposition")).toContain("dl.txt");
-    expect(res.headers.get("Content-Type")).toBe("application/octet-stream");
+    expect(res.headers.get("Content-Type")).toBe("text/plain");
+  });
+
+  it("GET /api/projects/:id/shared-drive/download returns correct Content-Type for images", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    mkdirSync(sharedRoot, { recursive: true });
+    // Write a minimal PNG header
+    const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    writeFileSync(join(sharedRoot, "photo.png"), pngHeader);
+
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/shared-drive/download?path=photo.png`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/png");
+    expect(res.headers.get("Content-Disposition")).toContain("inline");
   });
 
   it("GET /api/projects/:id/shared-drive/download returns 404 for missing file", async () => {

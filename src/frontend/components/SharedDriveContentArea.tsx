@@ -160,6 +160,7 @@ export default function SharedDriveContentArea() {
   }
 
   const previewUrl = `/api/projects/${projectName}/shared-drive/preview?path=${encodeURIComponent(filePath)}`;
+  const downloadUrl = `/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(filePath)}`;
 
   return (
     <div className="flex flex-col h-full relative" {...getRootProps()}>
@@ -257,7 +258,7 @@ export default function SharedDriveContentArea() {
         {!loading && !error && type === "image" && (
           <div className="flex items-center justify-center p-4">
             <img
-              src={previewUrl}
+              src={downloadUrl}
               alt={fileName}
               loading="lazy"
               className="max-w-full max-h-[70vh] object-contain"
