@@ -60,24 +60,20 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
   const lastSharedPath = useRef(
     isSharedDrive ? location.pathname + location.search : `${projectRoot}/shared`,
   );
+  const prevProjectRoot = useRef(projectRoot);
 
   useEffect(() => {
-    if (!isSharedDrive) {
+    if (prevProjectRoot.current !== projectRoot) {
+      // Project changed — reset both tabs to new project defaults
+      prevProjectRoot.current = projectRoot;
+      lastAgentPath.current = projectRoot;
+      lastSharedPath.current = `${projectRoot}/shared`;
+    } else if (!isSharedDrive) {
       lastAgentPath.current = location.pathname + location.search;
     } else {
       lastSharedPath.current = location.pathname + location.search;
     }
-  }, [isSharedDrive, location.pathname, location.search]);
-
-  // Reset remembered paths when switching projects (skip initial mount)
-  const prevProjectRoot = useRef(projectRoot);
-  useEffect(() => {
-    if (prevProjectRoot.current !== projectRoot) {
-      prevProjectRoot.current = projectRoot;
-      lastAgentPath.current = projectRoot;
-      lastSharedPath.current = `${projectRoot}/shared`;
-    }
-  }, [projectRoot]);
+  }, [projectRoot, isSharedDrive, location.pathname, location.search]);
 
   const handleTabChange = (value: string) => {
     if (value === "shared-drive") {
