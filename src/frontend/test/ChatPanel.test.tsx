@@ -235,20 +235,8 @@ describe("ChatPanel", () => {
     expect(screen.getByText("done")).toBeInTheDocument();
   });
 
-  it("fetches next page when sentinel becomes visible", async () => {
+  it("fetches next page when scrolled to top", async () => {
     let fetchCount = 0;
-    // Capture IntersectionObserver callback
-    let observerCallback: IntersectionObserverCallback | null = null;
-    const origIO = globalThis.IntersectionObserver;
-    globalThis.IntersectionObserver = class MockIO {
-      constructor(cb: IntersectionObserverCallback) {
-        observerCallback = cb;
-      }
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    } as unknown as typeof IntersectionObserver;
-
     server.use(
       http.get("*/api/projects/:id/agents/:aid/messages", ({ request }) => {
         fetchCount++;
@@ -263,37 +251,39 @@ describe("ChatPanel", () => {
         });
       }),
     );
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
 
     await waitFor(() => {
       expect(screen.getByText("Hello agent")).toBeInTheDocument();
     });
 
     const initialCount = fetchCount;
-    // Simulate sentinel becoming visible (scrolled to top)
-    observerCallback!(
-      [{ isIntersecting: true } as IntersectionObserverEntry],
-      {} as IntersectionObserver,
-    );
+    // The scroll listener attaches to stickyInstance.scrollRef.current.
+    // Try the rendered scroll container first, then fall back to any scrollable element.
+    const scrollContainer =
+      container.querySelector('[role="log"] > div') ?? container.querySelector('[role="log"]');
+    if (scrollContainer) {
+      Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
+      fireEvent.scroll(scrollContainer);
+    }
+
+    // Also dispatch on the mock scrollRef element (when use-stick-to-bottom is mocked,
+    // the scroll listener attaches to a detached element from the mock)
+    const stb = await import("use-stick-to-bottom");
+    if ("useStickToBottom" in stb) {
+      const instance = (stb.useStickToBottom as () => { scrollRef: { current: HTMLElement } })();
+      const mockScrollEl = instance.scrollRef.current;
+      if (mockScrollEl) {
+        Object.defineProperty(mockScrollEl, "scrollTop", { value: 0, writable: true });
+        mockScrollEl.dispatchEvent(new Event("scroll"));
+      }
+    }
 
     await waitFor(() => expect(fetchCount).toBeGreaterThan(initialCount));
-
-    globalThis.IntersectionObserver = origIO;
   });
 
   it("does not fetch next page when no messages", async () => {
     let fetchCount = 0;
-    let observerCallback: IntersectionObserverCallback | null = null;
-    const origIO = globalThis.IntersectionObserver;
-    globalThis.IntersectionObserver = class MockIO {
-      constructor(cb: IntersectionObserverCallback) {
-        observerCallback = cb;
-      }
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    } as unknown as typeof IntersectionObserver;
-
     server.use(
       http.get("*/api/projects/:id/agents/:aid/messages", () => {
         fetchCount++;
@@ -303,21 +293,22 @@ describe("ChatPanel", () => {
     renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
 
     await waitForText(/Send a message to start working/);
-    // Wait for the initial messages fetch to complete
     await new Promise((r) => setTimeout(r, 200));
 
     const prevCount = fetchCount;
-    // Simulate sentinel becoming visible — should NOT trigger fetch when no messages
-    observerCallback!(
-      [{ isIntersecting: true } as IntersectionObserverEntry],
-      {} as IntersectionObserver,
-    );
+    // Dispatch scroll on mock scrollRef — should NOT trigger fetch when no messages
+    const stb = await import("use-stick-to-bottom");
+    if ("useStickToBottom" in stb) {
+      const instance = (stb.useStickToBottom as () => { scrollRef: { current: HTMLElement } })();
+      const mockScrollEl = instance.scrollRef.current;
+      if (mockScrollEl) {
+        Object.defineProperty(mockScrollEl, "scrollTop", { value: 0, writable: true });
+        mockScrollEl.dispatchEvent(new Event("scroll"));
+      }
+    }
 
-    // Give time for any potential fetch
     await new Promise((r) => setTimeout(r, 100));
     expect(fetchCount).toBe(prevCount);
-
-    globalThis.IntersectionObserver = origIO;
   });
 
   it("renders streaming text from props", async () => {
