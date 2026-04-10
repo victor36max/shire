@@ -69,6 +69,16 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
     }
   }, [isSharedDrive, location.pathname, location.search]);
 
+  // Reset remembered paths when switching projects (skip initial mount)
+  const prevProjectRoot = useRef(projectRoot);
+  useEffect(() => {
+    if (prevProjectRoot.current !== projectRoot) {
+      prevProjectRoot.current = projectRoot;
+      lastAgentPath.current = projectRoot;
+      lastSharedPath.current = `${projectRoot}/shared`;
+    }
+  }, [projectRoot]);
+
   const handleTabChange = (value: string) => {
     if (value === "shared-drive") {
       navigate(lastSharedPath.current);

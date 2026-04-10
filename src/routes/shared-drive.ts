@@ -6,6 +6,7 @@ import { join, resolve, basename, dirname } from "path";
 import * as workspace from "../services/workspace";
 import * as projectsService from "../services/projects";
 import type { AppEnv } from "../types";
+import { mimeFromPath } from "../utils/mime";
 
 function resolveProjectId(nameOrId: string): string | null {
   const byId = projectsService.getProject(nameOrId);
@@ -98,10 +99,12 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
     try {
       const data = await readFile(fullPath);
       const filename = basename(fullPath);
+      const contentType = mimeFromPath(filename);
+      const isSafeImage = contentType.startsWith("image/") && contentType !== "image/svg+xml";
       return new Response(data, {
         headers: {
-          "Content-Disposition": `attachment; filename="${filename}"`,
-          "Content-Type": "application/octet-stream",
+          "Content-Disposition": `${isSafeImage ? "inline" : "attachment"}; filename="${filename.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`,
+          "Content-Type": contentType,
         },
       });
     } catch {

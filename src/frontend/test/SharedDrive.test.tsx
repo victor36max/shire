@@ -289,14 +289,14 @@ describe("SharedDriveContentArea", () => {
     expect(screen.getByText("Saved")).toBeInTheDocument();
   });
 
-  it("shows image preview via img tag for image files", async () => {
+  it("shows image preview via img tag using download endpoint", async () => {
     renderContentArea("/projects/test-project/shared?file=photo.png");
     await waitFor(() => {
       const img = screen.getByRole("img", { name: "photo.png" });
       expect(img).toBeInTheDocument();
       expect(img).toHaveAttribute(
         "src",
-        "/api/projects/test-project/shared-drive/preview?path=photo.png",
+        "/api/projects/test-project/shared-drive/download?path=photo.png",
       );
     });
   });

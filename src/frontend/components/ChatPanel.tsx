@@ -72,7 +72,7 @@ const AttachmentDisplay = React.memo(function AttachmentDisplay({
   return (
     <div className="flex flex-wrap gap-2 mt-2">
       {attachments.map((att) => {
-        const url = `/api/projects/${projectName}/agents/${agentId}/attachments/${att.id}/${att.filename}`;
+        const url = `/api/projects/${projectName}/agents/${agentId}/attachments/${att.id}/${encodeURIComponent(att.filename)}`;
         const isImage = att.content_type.startsWith("image/");
 
         return isImage ? (
