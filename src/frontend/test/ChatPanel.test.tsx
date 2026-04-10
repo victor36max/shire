@@ -235,8 +235,20 @@ describe("ChatPanel", () => {
     expect(screen.getByText("done")).toBeInTheDocument();
   });
 
-  it("fetches next page when scrolled to top", async () => {
+  it("fetches next page when sentinel becomes visible", async () => {
     let fetchCount = 0;
+    // Capture IntersectionObserver callback
+    let observerCallback: IntersectionObserverCallback | null = null;
+    const origIO = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class MockIO {
+      constructor(cb: IntersectionObserverCallback) {
+        observerCallback = cb;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof IntersectionObserver;
+
     server.use(
       http.get("*/api/projects/:id/agents/:aid/messages", ({ request }) => {
         fetchCount++;
@@ -251,43 +263,61 @@ describe("ChatPanel", () => {
         });
       }),
     );
-    const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
 
     await waitFor(() => {
       expect(screen.getByText("Hello agent")).toBeInTheDocument();
     });
 
     const initialCount = fetchCount;
-    const scrollContainer = container.querySelector(".overflow-y-auto")!;
-    Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
-    fireEvent.scroll(scrollContainer);
+    // Simulate sentinel becoming visible (scrolled to top)
+    observerCallback!(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
 
     await waitFor(() => expect(fetchCount).toBeGreaterThan(initialCount));
+
+    globalThis.IntersectionObserver = origIO;
   });
 
   it("does not fetch next page when no messages", async () => {
     let fetchCount = 0;
+    let observerCallback: IntersectionObserverCallback | null = null;
+    const origIO = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class MockIO {
+      constructor(cb: IntersectionObserverCallback) {
+        observerCallback = cb;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof IntersectionObserver;
+
     server.use(
       http.get("*/api/projects/:id/agents/:aid/messages", () => {
         fetchCount++;
         return HttpResponse.json({ messages: [], hasMore: true });
       }),
     );
-    const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
 
     await waitForText(/Send a message to start working/);
     // Wait for the initial messages fetch to complete
     await new Promise((r) => setTimeout(r, 200));
 
     const prevCount = fetchCount;
-    const scrollContainer = container.querySelector(".overflow-y-auto")!;
-    Object.defineProperty(scrollContainer, "scrollTop", { value: 0, writable: true });
-    fireEvent.scroll(scrollContainer);
+    // Simulate sentinel becoming visible — should NOT trigger fetch when no messages
+    observerCallback!(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
 
     // Give time for any potential fetch
     await new Promise((r) => setTimeout(r, 100));
-    // Should not have fetched more (the component guards against fetching when no messages displayed)
     expect(fetchCount).toBe(prevCount);
+
+    globalThis.IntersectionObserver = origIO;
   });
 
   it("renders streaming text from props", async () => {
