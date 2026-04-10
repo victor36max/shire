@@ -99,25 +99,21 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
 
   const streamingText = externalStreamingText ?? "";
 
-  // Infinite scroll sentinel
-  const sentinelRef = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && messages.length > 0) {
-          fetchNextPage();
-        }
-      },
-      { threshold: 0.1 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, fetchNextPage, messages.length]);
-
   const stickyInstance = useStickToBottom({ initial: "instant", resize: "instant" });
+
+  // Infinite scroll: fetch older messages when user scrolls near the top
+  React.useEffect(() => {
+    const scrollEl = stickyInstance.scrollRef.current;
+    if (!scrollEl) return;
+
+    const handleScroll = () => {
+      if (scrollEl.scrollTop < 50 && hasMore && !loadingMore && messages.length > 0) {
+        fetchNextPage();
+      }
+    };
+    scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollEl.removeEventListener("scroll", handleScroll);
+  }, [stickyInstance.scrollRef, hasMore, loadingMore, fetchNextPage, messages.length]);
 
   useTickingClock(60_000);
 
@@ -127,7 +123,6 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
     <div className="flex flex-col h-full relative">
       <Conversation instance={stickyInstance}>
         <ConversationContent>
-          <div ref={sentinelRef} className="h-px" />
           {loadingMore && (
             <div className="flex justify-center py-2">
               <span className="text-xs text-muted-foreground animate-pulse">

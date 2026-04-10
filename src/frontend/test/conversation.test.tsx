@@ -1,3 +1,4 @@
+import * as React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, mock } from "bun:test";
@@ -10,17 +11,38 @@ import {
 const scrollToBottom = mock(() => {});
 
 // Mock use-stick-to-bottom to control isAtBottom state
-mock.module("use-stick-to-bottom", () => ({
-  StickToBottom: ({ children, className, ...props }: Record<string, unknown>) => (
-    <div className={className as string} {...props}>
-      {children as React.ReactNode}
-    </div>
-  ),
-  useStickToBottomContext: () => ({
-    isAtBottom: false,
-    scrollToBottom,
-  }),
-}));
+mock.module("use-stick-to-bottom", () => {
+  const scrollDiv = document.createElement("div");
+  const contentDiv = document.createElement("div");
+  const scrollRef = Object.assign((_el: HTMLElement | null) => {}, {
+    current: scrollDiv,
+  }) as unknown as React.MutableRefObject<HTMLElement | null> & React.RefCallback<HTMLElement>;
+  const contentRef = Object.assign((_el: HTMLElement | null) => {}, {
+    current: contentDiv,
+  }) as unknown as React.MutableRefObject<HTMLElement | null> & React.RefCallback<HTMLElement>;
+
+  return {
+    StickToBottom: ({ children, className, ...props }: Record<string, unknown>) => (
+      <div className={className as string} {...props}>
+        {children as React.ReactNode}
+      </div>
+    ),
+    useStickToBottomContext: () => ({
+      isAtBottom: false,
+      scrollToBottom,
+    }),
+    useStickToBottom: () => ({
+      scrollRef,
+      contentRef,
+      scrollToBottom,
+      stopScroll: () => {},
+      isAtBottom: true,
+      isNearBottom: true,
+      escapedFromLock: false,
+      state: {},
+    }),
+  };
+});
 
 // Assign Content sub-component after mock is in place
 const stb = await import("use-stick-to-bottom");
