@@ -20,9 +20,12 @@ import {
 } from "../hooks";
 import { useSubscription, type AgentListWsEvent, type SharedDriveWsEvent } from "../lib/ws";
 import {
+  ProjectLayoutContext,
   ProjectLayoutProvider,
   type ProjectLayoutContextValue,
 } from "../providers/ProjectLayoutProvider";
+
+const ProjectLayoutContextProvider = ProjectLayoutContext.Provider;
 
 const DESKTOP_MQ = "(min-width: 768px)";
 
@@ -206,85 +209,87 @@ export default function ProjectLayout() {
   );
 
   return (
-    <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      {!isDesktop && (
-        <>
-          {sidebarOpen && (
-            <div
-              className="fixed inset-0 z-40"
-              aria-hidden="true"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
-            </div>
-          )}
-          <div
-            className={`fixed top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-50 w-64 transition-transform duration-200 ${
-              sidebarOpen ? "translate-x-0" : "-translate-x-full"
-            }`}
-          >
-            {sidebar}
-          </div>
-          {content}
-        </>
-      )}
-
-      {isDesktop && (
-        <ResizablePanelGroup orientation="horizontal">
-          <ResizablePanel id="sidebar" defaultSize="20" minSize="15" maxSize="35">
-            {sidebar}
-          </ResizablePanel>
-          <ResizableHandle />
-          <ResizablePanel id="content" defaultSize="80" minSize="30">
-            {content}
-          </ResizablePanel>
-          <ResizableHandle className={panelFilePath ? "" : "hidden"} />
-          <ResizablePanel
-            id="file-panel"
-            panelRef={filePanelRef}
-            defaultSize="0"
-            minSize="20"
-            maxSize="50"
-            collapsible
-            collapsedSize={0}
-            onResize={(size) => {
-              if (size.asPercentage === 0 && panelFilePath) {
-                setPanelFilePath(null);
-              }
-            }}
-          >
-            {panelFilePath && projectId && (
-              <FilePreviewPanel
-                projectId={projectId}
-                projectName={projectName ?? ""}
-                filePath={panelFilePath}
-                onClose={() => setPanelFilePath(null)}
-                onExpand={() => {
-                  navigate(
-                    `/projects/${projectName}/shared?file=${encodeURIComponent(panelFilePath)}`,
-                  );
-                  setPanelFilePath(null);
-                }}
-              />
+    <ProjectLayoutContextProvider value={contextValue}>
+      <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+        {!isDesktop && (
+          <>
+            {sidebarOpen && (
+              <div
+                className="fixed inset-0 z-40"
+                aria-hidden="true"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+              </div>
             )}
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      )}
+            <div
+              className={`fixed top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-50 w-64 transition-transform duration-200 ${
+                sidebarOpen ? "translate-x-0" : "-translate-x-full"
+              }`}
+            >
+              {sidebar}
+            </div>
+            {content}
+          </>
+        )}
 
-      <AgentForm
-        key={currentAgent?.id ?? "new"}
-        open={formOpen}
-        title={formTitle}
-        agent={currentAgent}
-        onSave={handleFormSave}
-        onClose={() => setFormOpen(false)}
-      />
+        {isDesktop && (
+          <ResizablePanelGroup orientation="horizontal">
+            <ResizablePanel id="sidebar" defaultSize="20" minSize="15" maxSize="35">
+              {sidebar}
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel id="content" defaultSize="80" minSize="30">
+              {content}
+            </ResizablePanel>
+            <ResizableHandle className={panelFilePath ? "" : "hidden"} />
+            <ResizablePanel
+              id="file-panel"
+              panelRef={filePanelRef}
+              defaultSize="0"
+              minSize="20"
+              maxSize="50"
+              collapsible
+              collapsedSize={0}
+              onResize={(size) => {
+                if (size.asPercentage === 0 && panelFilePath) {
+                  setPanelFilePath(null);
+                }
+              }}
+            >
+              {panelFilePath && projectId && (
+                <FilePreviewPanel
+                  projectId={projectId}
+                  projectName={projectName ?? ""}
+                  filePath={panelFilePath}
+                  onClose={() => setPanelFilePath(null)}
+                  onExpand={() => {
+                    navigate(
+                      `/projects/${projectName}/shared?file=${encodeURIComponent(panelFilePath)}`,
+                    );
+                    setPanelFilePath(null);
+                  }}
+                />
+              )}
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
 
-      <CatalogBrowser
-        open={catalogOpen}
-        onClose={() => setCatalogOpen(false)}
-        onAdd={handleCatalogAdd}
-      />
-    </div>
+        <AgentForm
+          key={currentAgent?.id ?? "new"}
+          open={formOpen}
+          title={formTitle}
+          agent={currentAgent}
+          onSave={handleFormSave}
+          onClose={() => setFormOpen(false)}
+        />
+
+        <CatalogBrowser
+          open={catalogOpen}
+          onClose={() => setCatalogOpen(false)}
+          onAdd={handleCatalogAdd}
+        />
+      </div>
+    </ProjectLayoutContextProvider>
   );
 }

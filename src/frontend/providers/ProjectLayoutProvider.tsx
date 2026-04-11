@@ -13,7 +13,7 @@ export interface ProjectLayoutContextValue {
   setPanelFilePath: (path: string | null) => void;
 }
 
-const ProjectLayoutContext = createContext<ProjectLayoutContextValue | null>(null);
+export const ProjectLayoutContext = createContext<ProjectLayoutContextValue | null>(null);
 
 export function useProjectLayout() {
   const ctx = useContext(ProjectLayoutContext);
