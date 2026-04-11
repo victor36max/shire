@@ -144,7 +144,13 @@ export default function SharedDriveEditor({
     },
     [saveFile, filePath, onDirtyChange],
   );
+  const initialRender = useRef(true);
   const handleChange = useCallback(() => {
+    // Lexical fires onChange during initial editor state setup — skip it
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
     if (saveStatusRef.current !== "unsaved") {
       onDirtyChange?.(true);
     }
