@@ -24,19 +24,18 @@ import {
   type ProjectLayoutContextValue,
 } from "../providers/ProjectLayoutProvider";
 
+const DESKTOP_MQ = "(min-width: 768px)";
+
 function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = React.useState(
-    typeof window !== "undefined" ? window.matchMedia("(min-width: 768px)").matches : true,
+  return React.useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia(DESKTOP_MQ);
+      mq.addEventListener("change", cb);
+      return () => mq.removeEventListener("change", cb);
+    },
+    () => window.matchMedia(DESKTOP_MQ).matches,
+    () => true,
   );
-
-  React.useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  return isDesktop;
 }
 
 export default function ProjectLayout() {
@@ -62,9 +61,11 @@ export default function ProjectLayout() {
   const filePanelRef = React.useRef<PanelImperativeHandle>(null);
 
   // Reset panel when project changes
-  React.useEffect(() => {
+  const [prevProjectName, setPrevProjectName] = React.useState(projectName);
+  if (projectName !== prevProjectName) {
+    setPrevProjectName(projectName);
     setPanelFilePath(null);
-  }, [projectName]);
+  }
 
   // Expand/collapse the file panel imperatively
   React.useEffect(() => {
