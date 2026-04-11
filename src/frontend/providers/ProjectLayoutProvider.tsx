@@ -4,6 +4,7 @@ import { Spinner } from "../components/ui/spinner";
 
 export interface ProjectLayoutContextValue {
   projectId: string | undefined;
+  projectName: string;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   onNewAgent: () => void;

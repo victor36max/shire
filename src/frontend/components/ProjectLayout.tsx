@@ -144,6 +144,7 @@ export default function ProjectLayout() {
 
   const contextValue: ProjectLayoutContextValue = {
     projectId,
+    projectName: projectName ?? "",
     sidebarOpen,
     setSidebarOpen,
     onNewAgent: handleNew,
