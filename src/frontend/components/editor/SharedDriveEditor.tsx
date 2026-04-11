@@ -43,6 +43,7 @@ interface SharedDriveEditorProps {
   initialMarkdown: string;
   projectId: string;
   filePath: string;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const editorTheme = {
@@ -108,14 +109,18 @@ export default function SharedDriveEditor({
   initialMarkdown,
   projectId,
   filePath,
+  onDirtyChange,
 }: SharedDriveEditorProps) {
   const [anchorElement, setAnchorElement] = useState<HTMLDivElement | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const { mutate: saveFile } = useSaveFileContent(projectId);
   const editorRef = useRef<LexicalEditor | null>(null);
 
+  const saveStatusRef = useRef<SaveStatus>("saved");
+
   const doSave = useCallback(
     (editorState: EditorState) => {
+      saveStatusRef.current = "saving";
       setSaveStatus("saving");
       let markdown = "";
       editorState.read(() => {
@@ -124,20 +129,28 @@ export default function SharedDriveEditor({
       saveFile(
         { path: filePath, content: markdown },
         {
-          onSuccess: () => setSaveStatus("saved"),
+          onSuccess: () => {
+            saveStatusRef.current = "saved";
+            setSaveStatus("saved");
+            onDirtyChange?.(false);
+          },
           onError: () => {
+            saveStatusRef.current = "unsaved";
             setSaveStatus("unsaved");
             toast.error("Failed to save file");
           },
         },
       );
     },
-    [saveFile, filePath],
+    [saveFile, filePath, onDirtyChange],
   );
-
   const handleChange = useCallback(() => {
+    if (saveStatusRef.current !== "unsaved") {
+      onDirtyChange?.(true);
+    }
+    saveStatusRef.current = "unsaved";
     setSaveStatus("unsaved");
-  }, []);
+  }, [onDirtyChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

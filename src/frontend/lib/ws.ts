@@ -91,8 +91,15 @@ export type AgentListWsEvent =
       payload: { agentId: string; messageId: number; role: string };
     };
 
+/** Payload shapes for shared drive WebSocket events. */
+export type SharedDriveWsEvent = {
+  topic: string;
+  type: "file_changed";
+  payload: { path: string };
+};
+
 /** Union of all WebSocket events. */
-export type WsEvent = AgentWsEvent | AgentListWsEvent;
+export type WsEvent = AgentWsEvent | AgentListWsEvent | SharedDriveWsEvent;
 
 export type ConnectionState = "connecting" | "connected" | "disconnected";
 

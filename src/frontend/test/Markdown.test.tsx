@@ -11,6 +11,8 @@ const layoutValue = {
   setSidebarOpen: () => {},
   onNewAgent: () => {},
   onBrowseCatalog: () => {},
+  panelFilePath: null,
+  setPanelFilePath: () => {},
 };
 
 function renderMarkdown(children: string) {

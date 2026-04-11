@@ -12,6 +12,7 @@ interface CodeEditorProps {
   initialContent: string;
   projectId: string;
   filePath: string;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function subscribeToDarkMode(callback: () => void) {
@@ -31,7 +32,12 @@ function useDarkMode(): boolean {
   return useSyncExternalStore(subscribeToDarkMode, getIsDark, () => false);
 }
 
-export default function CodeEditor({ initialContent, projectId, filePath }: CodeEditorProps) {
+export default function CodeEditor({
+  initialContent,
+  projectId,
+  filePath,
+  onDirtyChange,
+}: CodeEditorProps) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const { mutate: saveFile } = useSaveFileContent(projectId);
   const contentRef = useRef(initialContent);
@@ -44,14 +50,17 @@ export default function CodeEditor({ initialContent, projectId, filePath }: Code
     saveFile(
       { path: filePath, content },
       {
-        onSuccess: () => setSaveStatus("saved"),
+        onSuccess: () => {
+          setSaveStatus("saved");
+          onDirtyChange?.(false);
+        },
         onError: () => {
           setSaveStatus("unsaved");
           toast.error("Failed to save file");
         },
       },
     );
-  }, [saveFile, filePath]);
+  }, [saveFile, filePath, onDirtyChange]);
 
   // Register Cmd+S shortcut at the DOM level (avoids ref-in-memo issues with CodeMirror keymap)
   useEffect(() => {
@@ -81,10 +90,16 @@ export default function CodeEditor({ initialContent, projectId, filePath }: Code
     saveStatusRef.current = saveStatus;
   }, [saveStatus]);
 
-  const handleChange = useCallback((value: string) => {
-    contentRef.current = value;
-    if (saveStatusRef.current === "saved") setSaveStatus("unsaved");
-  }, []);
+  const handleChange = useCallback(
+    (value: string) => {
+      contentRef.current = value;
+      if (saveStatusRef.current === "saved") {
+        setSaveStatus("unsaved");
+        onDirtyChange?.(true);
+      }
+    },
+    [onDirtyChange],
+  );
 
   return (
     <div className="flex flex-col h-full">

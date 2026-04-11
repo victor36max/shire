@@ -1,11 +1,13 @@
 import * as React from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 import { Spinner } from "./ui/spinner";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
+import FilePreviewPanel from "./FilePreviewPanel";
 import { type Agent } from "./types";
 import {
   useResolveProjectId,
@@ -16,7 +18,7 @@ import {
   fetchCatalogAgent,
   findDefaultAgent,
 } from "../hooks";
-import { useSubscription, type AgentListWsEvent } from "../lib/ws";
+import { useSubscription, type AgentListWsEvent, type SharedDriveWsEvent } from "../lib/ws";
 import {
   ProjectLayoutProvider,
   type ProjectLayoutContextValue,
@@ -52,6 +54,26 @@ export default function ProjectLayout() {
 
   const createAgent = useCreateAgent(projectId ?? "");
   const updateAgent = useUpdateAgent(projectId ?? "");
+
+  const navigate = useNavigate();
+
+  // --- File preview panel state ---
+  const [panelFilePath, setPanelFilePath] = React.useState<string | null>(null);
+  const filePanelRef = React.useRef<PanelImperativeHandle>(null);
+
+  // Reset panel when project changes
+  React.useEffect(() => {
+    setPanelFilePath(null);
+  }, [projectName]);
+
+  // Expand/collapse the file panel imperatively
+  React.useEffect(() => {
+    if (panelFilePath) {
+      filePanelRef.current?.expand();
+    } else {
+      filePanelRef.current?.collapse();
+    }
+  }, [panelFilePath]);
 
   // --- Modal state ---
   const [formOpen, setFormOpen] = React.useState(false);
@@ -121,6 +143,20 @@ export default function ProjectLayout() {
     }
   });
 
+  // Subscribe to shared drive file changes to keep caches fresh
+  useSubscription<SharedDriveWsEvent>(
+    projectId ? `project:${projectId}:shared-drive` : null,
+    React.useCallback(
+      (event) => {
+        if (event.type === "file_changed") {
+          queryClient.invalidateQueries({ queryKey: ["shared-drive", projectId] });
+          queryClient.invalidateQueries({ queryKey: ["file-content", projectId] });
+        }
+      },
+      [queryClient, projectId],
+    ),
+  );
+
   const handleBrowseCatalog = () => {
     setCatalogOpen(true);
   };
@@ -149,6 +185,8 @@ export default function ProjectLayout() {
     setSidebarOpen,
     onNewAgent: handleNew,
     onBrowseCatalog: handleBrowseCatalog,
+    panelFilePath,
+    setPanelFilePath,
   };
 
   if (!projectId) {
@@ -196,8 +234,38 @@ export default function ProjectLayout() {
             {sidebar}
           </ResizablePanel>
           <ResizableHandle />
-          <ResizablePanel id="content" defaultSize="80">
+          <ResizablePanel id="content" defaultSize="80" minSize="30">
             {content}
+          </ResizablePanel>
+          <ResizableHandle className={panelFilePath ? "" : "hidden"} />
+          <ResizablePanel
+            id="file-panel"
+            panelRef={filePanelRef}
+            defaultSize="0"
+            minSize="20"
+            maxSize="50"
+            collapsible
+            collapsedSize={0}
+            onResize={(size) => {
+              if (size.asPercentage === 0 && panelFilePath) {
+                setPanelFilePath(null);
+              }
+            }}
+          >
+            {panelFilePath && projectId && (
+              <FilePreviewPanel
+                projectId={projectId}
+                projectName={projectName ?? ""}
+                filePath={panelFilePath}
+                onClose={() => setPanelFilePath(null)}
+                onExpand={() => {
+                  navigate(
+                    `/projects/${projectName}/shared?file=${encodeURIComponent(panelFilePath)}`,
+                  );
+                  setPanelFilePath(null);
+                }}
+              />
+            )}
           </ResizablePanel>
         </ResizablePanelGroup>
       )}

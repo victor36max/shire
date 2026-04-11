@@ -48,6 +48,8 @@ function renderContentArea(route = "/projects/test-project/shared") {
         setSidebarOpen: () => {},
         onNewAgent: () => {},
         onBrowseCatalog: () => {},
+        panelFilePath: null,
+        setPanelFilePath: () => {},
       }}
     >
       <SharedDriveContentArea />
@@ -56,16 +58,36 @@ function renderContentArea(route = "/projects/test-project/shared") {
   );
 }
 
+const sidebarLayoutValue = {
+  projectId: "p1",
+  projectName: "test-project",
+  sidebarOpen: false,
+  setSidebarOpen: () => {},
+  onNewAgent: () => {},
+  onBrowseCatalog: () => {},
+  panelFilePath: null,
+  setPanelFilePath: () => {},
+};
+
+function renderSidebarPanel() {
+  return renderWithProviders(
+    <ProjectLayoutProvider value={sidebarLayoutValue}>
+      <SharedDrivePanel />
+    </ProjectLayoutProvider>,
+    panelRouteOpts,
+  );
+}
+
 describe("SharedDrivePanel", () => {
   it("renders breadcrumbs with root", async () => {
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
     await waitFor(() => {
       expect(screen.getByText("shared")).toBeInTheDocument();
     });
   });
 
   it("shows empty state when no files", async () => {
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
     await waitFor(() => {
       expect(screen.getByText("Empty directory")).toBeInTheDocument();
     });
@@ -73,7 +95,7 @@ describe("SharedDrivePanel", () => {
 
   it("renders files and directories", async () => {
     setFiles(sampleFiles);
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
     await waitFor(() => {
       expect(screen.getByText("docs")).toBeInTheDocument();
     });
@@ -83,7 +105,7 @@ describe("SharedDrivePanel", () => {
 
   it("sorts directories before files", async () => {
     setFiles(sampleFiles);
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
     await waitFor(() => {
       expect(screen.getByText("docs")).toBeInTheDocument();
     });
@@ -95,7 +117,7 @@ describe("SharedDrivePanel", () => {
   });
 
   it("opens new folder dialog", async () => {
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "New Folder" })).toBeInTheDocument();
     });
@@ -104,7 +126,7 @@ describe("SharedDrivePanel", () => {
   });
 
   it("opens new markdown dialog", async () => {
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "New Markdown" })).toBeInTheDocument();
     });
@@ -121,7 +143,7 @@ describe("SharedDrivePanel", () => {
       }),
     );
     const user = userEvent.setup();
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "New Folder" })).toBeInTheDocument();
@@ -144,7 +166,7 @@ describe("SharedDrivePanel", () => {
       }),
     );
     const user = userEvent.setup();
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "New Folder" })).toBeInTheDocument();
@@ -160,7 +182,7 @@ describe("SharedDrivePanel", () => {
 
   it("navigates into a subdirectory", async () => {
     setFiles(sampleFiles);
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
 
     await waitFor(() => {
       expect(screen.getByText("docs")).toBeInTheDocument();
@@ -188,7 +210,7 @@ describe("SharedDrivePanel", () => {
   });
 
   it("has upload button", async () => {
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Upload File" })).toBeInTheDocument();
@@ -197,7 +219,7 @@ describe("SharedDrivePanel", () => {
 
   it("opens rename dialog from dropdown menu", async () => {
     setFiles(sampleFiles);
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
     await waitFor(() => {
       expect(screen.getByText("readme.md")).toBeInTheDocument();
     });
@@ -220,7 +242,7 @@ describe("SharedDrivePanel", () => {
     );
     setFiles(sampleFiles);
     const user = userEvent.setup();
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
     await waitFor(() => {
       expect(screen.getByText("readme.md")).toBeInTheDocument();
     });
@@ -240,7 +262,7 @@ describe("SharedDrivePanel", () => {
   });
 
   it("uploads files via hidden input", async () => {
-    renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
+    renderSidebarPanel();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Upload File" })).toBeInTheDocument();
