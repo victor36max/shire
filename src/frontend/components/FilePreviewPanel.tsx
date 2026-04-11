@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Maximize2, File } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
@@ -32,6 +32,14 @@ export default function FilePreviewPanel({
   const [refreshVersion, setRefreshVersion] = useState(0);
   const hasUnsavedChanges = useRef(false);
   const [externalChangeDetected, setExternalChangeDetected] = useState(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
 
   const {
     data: fileData,
@@ -56,7 +64,7 @@ export default function FilePreviewPanel({
     setRefreshVersion((v) => v + 1);
   }, []);
 
-  // Subscribe to file changes for this specific file
+  // Subscribe to file changes — debounce to wait for streaming edits to settle
   useSubscription<SharedDriveWsEvent>(
     `project:${projectId}:shared-drive`,
     useCallback(
@@ -64,10 +72,15 @@ export default function FilePreviewPanel({
         if (event.type === "file_changed" && event.payload.path === filePath) {
           if (hasUnsavedChanges.current) {
             setExternalChangeDetected(true);
-          } else {
+            return;
+          }
+          // Debounce: reset timer on each event, refresh only after writes settle
+          if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+          refreshTimerRef.current = setTimeout(() => {
+            refreshTimerRef.current = null;
             setRefreshVersion((v) => v + 1);
             toast("File updated", { duration: 2000 });
-          }
+          }, 500);
         }
       },
       [filePath],
