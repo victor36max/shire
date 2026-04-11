@@ -43,6 +43,7 @@ function renderContentArea(route = "/projects/test-project/shared") {
     <ProjectLayoutProvider
       value={{
         projectId: "p1",
+        projectName: "test-project",
         sidebarOpen: false,
         setSidebarOpen: () => {},
         onNewAgent: () => {},

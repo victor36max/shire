@@ -5,6 +5,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "./msw-server";
 import ChatPanel, { type Message } from "../components/ChatPanel";
 import { type AgentOverview } from "../components/types";
+import { ProjectLayoutProvider } from "../providers/ProjectLayoutProvider";
 import { renderWithProviders, waitForText } from "./test-utils";
 
 mock.module("../lib/ws", () => ({
@@ -28,6 +29,24 @@ const routeOpts = {
   route: "/projects/test-project",
   routePath: "/projects/:projectName",
 };
+
+const layoutValue = {
+  projectId: "p1",
+  projectName: "test-project",
+  sidebarOpen: false,
+  setSidebarOpen: () => {},
+  onNewAgent: () => {},
+  onBrowseCatalog: () => {},
+};
+
+function renderChat(agent: AgentOverview, extra?: { streamingText?: string }) {
+  return renderWithProviders(
+    <ProjectLayoutProvider value={layoutValue}>
+      <ChatPanel agent={agent} {...extra} />
+    </ProjectLayoutProvider>,
+    routeOpts,
+  );
+}
 
 /** Helper to build API-format messages that transformMessages() in the component will process */
 function apiMessage(msg: Message): Record<string, unknown> {
@@ -74,14 +93,14 @@ function createDataTransfer(files: File[]): DataTransfer {
 
 describe("ChatPanel", () => {
   it("renders empty state when no messages", async () => {
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText(/Send a message to start working/)).toBeInTheDocument();
     });
   });
 
   it("shows suggestion chips in empty state for active agent", async () => {
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitForText("What can you help me with?");
     await userEvent.click(screen.getByText("What can you help me with?"));
     // After clicking, the chip triggers a message send — component should react
@@ -90,7 +109,7 @@ describe("ChatPanel", () => {
 
   it("renders messages", async () => {
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("Hello agent")).toBeInTheDocument();
     });
@@ -99,7 +118,7 @@ describe("ChatPanel", () => {
 
   it("shows input bar when agent is active", async () => {
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
     });
@@ -108,7 +127,7 @@ describe("ChatPanel", () => {
 
   it("hides input bar when agent is not active", async () => {
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={createdAgent} />, routeOpts);
+    renderChat(createdAgent);
     await waitFor(() => {
       expect(screen.getByText("Hello agent")).toBeInTheDocument();
     });
@@ -124,7 +143,7 @@ describe("ChatPanel", () => {
       }),
     );
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
@@ -150,7 +169,7 @@ describe("ChatPanel", () => {
       }),
     );
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
@@ -176,7 +195,7 @@ describe("ChatPanel", () => {
       }),
     );
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
@@ -204,7 +223,7 @@ describe("ChatPanel", () => {
       }),
     );
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
 
     await waitFor(() => {
       expect(screen.getByText("Send")).toBeInTheDocument();
@@ -228,7 +247,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:02Z",
     };
     setMessages([toolMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("read_file")).toBeInTheDocument();
     });
@@ -251,7 +270,7 @@ describe("ChatPanel", () => {
         });
       }),
     );
-    const { container } = renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    const { container } = renderChat(activeAgent);
 
     await waitFor(() => {
       expect(screen.getByText("Hello agent")).toBeInTheDocument();
@@ -290,7 +309,7 @@ describe("ChatPanel", () => {
         return HttpResponse.json({ messages: [], hasMore: true });
       }),
     );
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
 
     await waitForText(/Send a message to start working/);
     await new Promise((r) => setTimeout(r, 200));
@@ -313,19 +332,24 @@ describe("ChatPanel", () => {
 
   it("renders streaming text from props", async () => {
     setMessages(messages);
-    const { rerender } = renderWithProviders(
-      <ChatPanel agent={activeAgent} streamingText="Hello " />,
-      routeOpts,
-    );
+    const { rerender } = renderChat(activeAgent, { streamingText: "Hello " });
 
     await waitFor(() => {
       expect(screen.getByText("Hello")).toBeInTheDocument();
     });
 
-    rerender(<ChatPanel agent={activeAgent} streamingText="Hello world!" />);
+    rerender(
+      <ProjectLayoutProvider value={layoutValue}>
+        <ChatPanel agent={activeAgent} streamingText="Hello world!" />
+      </ProjectLayoutProvider>,
+    );
     expect(screen.getByText("Hello world!")).toBeInTheDocument();
 
-    rerender(<ChatPanel agent={activeAgent} streamingText="" />);
+    rerender(
+      <ProjectLayoutProvider value={layoutValue}>
+        <ChatPanel agent={activeAgent} streamingText="" />
+      </ProjectLayoutProvider>,
+    );
     expect(screen.queryByText("Hello world!")).not.toBeInTheDocument();
   });
 
@@ -338,7 +362,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:03Z",
     };
     setMessages([interAgentMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("Message from researcher")).toBeInTheDocument();
     });
@@ -354,7 +378,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:03Z",
     };
     setMessages([interAgentMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("Message from researcher")).toBeInTheDocument();
     });
@@ -371,7 +395,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:03Z",
     };
     setMessages([interAgentMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("Message from researcher")).toBeInTheDocument();
     });
@@ -390,7 +414,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:04Z",
     };
     setMessages([sysMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("System notification")).toBeInTheDocument();
     });
@@ -405,7 +429,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:04Z",
     };
     setMessages([sysMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("System notification")).toBeInTheDocument();
     });
@@ -421,7 +445,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:04Z",
     };
     setMessages([sysMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("System notification")).toBeInTheDocument();
     });
@@ -435,7 +459,7 @@ describe("ChatPanel", () => {
   it("shows stop button when agent is busy", async () => {
     const busyAgent = { ...activeAgent, busy: true };
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={busyAgent} />, routeOpts);
+    renderChat(busyAgent);
     await waitFor(() => {
       expect(screen.getByLabelText("Stop")).toBeInTheDocument();
     });
@@ -452,7 +476,7 @@ describe("ChatPanel", () => {
     );
     const busyAgent = { ...activeAgent, busy: true };
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={busyAgent} />, routeOpts);
+    renderChat(busyAgent);
     await waitFor(() => {
       expect(screen.getByLabelText("Stop")).toBeInTheDocument();
     });
@@ -462,7 +486,7 @@ describe("ChatPanel", () => {
 
   it("shows send button when agent is not busy", async () => {
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("Send")).toBeInTheDocument();
     });
@@ -472,7 +496,7 @@ describe("ChatPanel", () => {
   it("shows thinking indicator when agent is busy and not streaming", async () => {
     const busyAgent = { ...activeAgent, busy: true };
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={busyAgent} />, routeOpts);
+    renderChat(busyAgent);
     await waitFor(() => {
       expect(screen.getByText("Thinking...")).toBeInTheDocument();
     });
@@ -481,7 +505,7 @@ describe("ChatPanel", () => {
   it("hides thinking indicator when agent is busy but streaming", async () => {
     const busyAgent = { ...activeAgent, busy: true };
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={busyAgent} streamingText="streaming..." />, routeOpts);
+    renderChat(busyAgent, { streamingText: "streaming..." });
 
     await waitFor(() => {
       expect(screen.getByText("streaming...")).toBeInTheDocument();
@@ -491,7 +515,7 @@ describe("ChatPanel", () => {
 
   it("does not show thinking indicator when agent is not busy", async () => {
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("Hello agent")).toBeInTheDocument();
     });
@@ -501,7 +525,7 @@ describe("ChatPanel", () => {
   it("shows idle message and restart button when agent is idle", async () => {
     const idleAgent: AgentOverview = { ...activeAgent, status: "idle" };
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={idleAgent} />, routeOpts);
+    renderChat(idleAgent);
     await waitFor(() => {
       expect(screen.getByText(/Agent is idle/)).toBeInTheDocument();
     });
@@ -519,7 +543,7 @@ describe("ChatPanel", () => {
     );
     const idleAgent: AgentOverview = { ...activeAgent, status: "idle" };
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={idleAgent} />, routeOpts);
+    renderChat(idleAgent);
     await waitFor(() => {
       expect(screen.getByText("Restart")).toBeInTheDocument();
     });
@@ -529,7 +553,7 @@ describe("ChatPanel", () => {
 
   it("shows attach button when agent is active", async () => {
     setMessages(messages);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByLabelText("Attach file")).toBeInTheDocument();
     });
@@ -546,7 +570,7 @@ describe("ChatPanel", () => {
       ],
     };
     setMessages([msgWithAtt]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("report.pdf")).toBeInTheDocument();
     });
@@ -568,7 +592,7 @@ describe("ChatPanel", () => {
       ],
     };
     setMessages([msgWithImg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       const img = screen.getByAltText("screenshot.png");
       expect(img).toHaveAttribute(
@@ -594,7 +618,7 @@ describe("ChatPanel", () => {
       ],
     };
     setMessages([msgWithSpacey]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       const img = screen.getByAltText("Screenshot 2026-04-10 at 10.30.00.png");
       expect(img).toHaveAttribute(
@@ -616,7 +640,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:02Z",
     };
     setMessages([toolMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("read_file")).toBeInTheDocument();
     });
@@ -635,7 +659,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:03Z",
     };
     setMessages([interAgentMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("Message from researcher")).toBeInTheDocument();
     });
@@ -653,7 +677,7 @@ describe("ChatPanel", () => {
       ts: "2026-03-17T00:00:04Z",
     };
     setMessages([sysMsg]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("System notification")).toBeInTheDocument();
     });
@@ -672,7 +696,7 @@ describe("ChatPanel", () => {
       attachments: [{ id: "def456", filename: "data.csv", size: 512, content_type: "text/csv" }],
     };
     setMessages([userMsgWithAtt]);
-    renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+    renderChat(activeAgent);
     await waitFor(() => {
       expect(screen.getByText("Check this file")).toBeInTheDocument();
     });
@@ -700,7 +724,7 @@ describe("ChatPanel", () => {
         { id: 2, role: "agent", text: "Hello", ts: new Date(NOW - 60_000).toISOString() },
       ];
       setMessages(todayMsgs);
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
       await waitFor(() => {
         expect(screen.getByText("Today")).toBeInTheDocument();
       });
@@ -717,7 +741,7 @@ describe("ChatPanel", () => {
         { id: 2, role: "agent", text: "Reply", ts: new Date(NOW - 60_000).toISOString() },
       ];
       setMessages(multiDayMsgs);
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
       await waitFor(() => {
         expect(screen.getByText("Today")).toBeInTheDocument();
       });
@@ -732,7 +756,7 @@ describe("ChatPanel", () => {
         { id: 2, role: "agent", text: "Hello", ts: new Date(NOW - 60_000).toISOString() },
       ];
       setMessages(recentMsgs);
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
       await waitFor(() => {
         expect(screen.getByText("Hi")).toBeInTheDocument();
       });
@@ -752,7 +776,7 @@ describe("ChatPanel", () => {
         ts: new Date(NOW - 60_000).toISOString(),
       };
       setMessages([toolMsg]);
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
       await waitFor(() => {
         expect(screen.getByText("read_file")).toBeInTheDocument();
       });
@@ -762,7 +786,7 @@ describe("ChatPanel", () => {
 
   describe("multi-file upload", () => {
     it("adds multiple files to pending list via file input", async () => {
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
 
       await waitFor(() => {
         expect(document.querySelector('input[type="file"]')).toBeTruthy();
@@ -781,7 +805,7 @@ describe("ChatPanel", () => {
     });
 
     it("shows error when file exceeds 128 MB limit", async () => {
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
 
       await waitFor(() => {
         expect(document.querySelector('input[type="file"]')).toBeTruthy();
@@ -814,7 +838,7 @@ describe("ChatPanel", () => {
         }),
       );
 
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
 
       await waitFor(() => {
         expect(document.querySelector('input[type="file"]')).toBeTruthy();
@@ -839,7 +863,7 @@ describe("ChatPanel", () => {
           HttpResponse.json({ error: "Network error" }, { status: 500 }),
         ),
       );
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
 
       await waitFor(() => {
         expect(document.querySelector('input[type="file"]')).toBeTruthy();
@@ -864,7 +888,7 @@ describe("ChatPanel", () => {
 
   describe("file input", () => {
     it("renders hidden file input with multiple attribute", async () => {
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
       await waitFor(() => {
         const input = document.querySelector('input[type="file"]') as HTMLInputElement;
         expect(input).toBeTruthy();
@@ -873,7 +897,7 @@ describe("ChatPanel", () => {
     });
 
     it("processes files selected via file input", async () => {
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
 
       await waitFor(() => {
         expect(document.querySelector('input[type="file"]')).toBeTruthy();
@@ -904,7 +928,7 @@ describe("ChatPanel", () => {
 
     it("shows copy button on agent messages", async () => {
       setMessages(messages);
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
       await waitFor(() => {
         expect(screen.getByLabelText("Copy message")).toBeInTheDocument();
       });
@@ -915,7 +939,7 @@ describe("ChatPanel", () => {
         { id: 1, role: "user", text: "Hello", ts: "2026-03-17T00:00:00Z" },
       ];
       setMessages(userOnly);
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
       await waitFor(() => {
         expect(screen.getByText("Hello")).toBeInTheDocument();
       });
@@ -924,7 +948,7 @@ describe("ChatPanel", () => {
 
     it("copies agent message text on click", async () => {
       setMessages(messages);
-      renderWithProviders(<ChatPanel agent={activeAgent} />, routeOpts);
+      renderChat(activeAgent);
       await waitFor(() => {
         expect(screen.getByLabelText("Copy message")).toBeInTheDocument();
       });

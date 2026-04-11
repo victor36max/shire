@@ -6,23 +6,54 @@
 import { cn } from "@/components/lib/utils";
 import { code } from "@streamdown/code";
 import type { ComponentProps } from "react";
-import { memo } from "react";
-import { Streamdown } from "streamdown";
+import { memo, useMemo } from "react";
+import { Streamdown, type Components } from "streamdown";
+import remarkSharedLinks from "@/lib/remark-shared-links";
+import { SharedDriveLink } from "@/components/chat/SharedDriveLink";
+import type { Pluggable } from "unified";
 
-export type MessageResponseProps = ComponentProps<typeof Streamdown>;
+export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
+  projectName?: string;
+};
 
 const streamdownPlugins = { code };
+const sharedLinksPlugins: Pluggable[] = [remarkSharedLinks];
 
 export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
-    <Streamdown
-      className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
-      plugins={streamdownPlugins}
-      {...props}
-    />
-  ),
+  ({
+    className,
+    projectName,
+    remarkPlugins,
+    components: componentsProp,
+    ...props
+  }: MessageResponseProps) => {
+    const components = useMemo<Components | undefined>(() => {
+      if (!projectName) return componentsProp;
+      return {
+        ...componentsProp,
+        a: (linkProps) => <SharedDriveLink {...linkProps} projectName={projectName} />,
+      };
+    }, [projectName, componentsProp]);
+
+    const mergedRemarkPlugins = useMemo(() => {
+      if (!projectName) return remarkPlugins;
+      return remarkPlugins ? [...sharedLinksPlugins, ...remarkPlugins] : sharedLinksPlugins;
+    }, [projectName, remarkPlugins]);
+
+    return (
+      <Streamdown
+        className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
+        plugins={streamdownPlugins}
+        remarkPlugins={mergedRemarkPlugins}
+        components={components}
+        {...props}
+      />
+    );
+  },
   (prevProps, nextProps) =>
-    prevProps.children === nextProps.children && nextProps.isAnimating === prevProps.isAnimating,
+    prevProps.children === nextProps.children &&
+    nextProps.isAnimating === prevProps.isAnimating &&
+    prevProps.projectName === nextProps.projectName,
 );
 
 MessageResponse.displayName = "MessageResponse";
