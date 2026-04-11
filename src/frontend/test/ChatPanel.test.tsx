@@ -37,6 +37,8 @@ const layoutValue = {
   setSidebarOpen: () => {},
   onNewAgent: () => {},
   onBrowseCatalog: () => {},
+  panelFilePath: null,
+  setPanelFilePath: () => {},
 };
 
 function renderChat(agent: AgentOverview, extra?: { streamingText?: string }) {

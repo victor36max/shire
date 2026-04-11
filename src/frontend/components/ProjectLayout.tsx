@@ -1,11 +1,13 @@
 import * as React from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 import { Spinner } from "./ui/spinner";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 import AgentSidebar from "./AgentSidebar";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import CatalogBrowser from "./CatalogBrowser";
+import FilePreviewPanel from "./FilePreviewPanel";
 import { type Agent } from "./types";
 import {
   useResolveProjectId,
@@ -16,25 +18,27 @@ import {
   fetchCatalogAgent,
   findDefaultAgent,
 } from "../hooks";
-import { useSubscription, type AgentListWsEvent } from "../lib/ws";
+import { useSubscription, type AgentListWsEvent, type SharedDriveWsEvent } from "../lib/ws";
 import {
+  ProjectLayoutContext,
   ProjectLayoutProvider,
   type ProjectLayoutContextValue,
 } from "../providers/ProjectLayoutProvider";
 
+const ProjectLayoutContextProvider = ProjectLayoutContext.Provider;
+
+const DESKTOP_MQ = "(min-width: 768px)";
+
 function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = React.useState(
-    typeof window !== "undefined" ? window.matchMedia("(min-width: 768px)").matches : true,
+  return React.useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia(DESKTOP_MQ);
+      mq.addEventListener("change", cb);
+      return () => mq.removeEventListener("change", cb);
+    },
+    () => window.matchMedia(DESKTOP_MQ).matches,
+    () => true,
   );
-
-  React.useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  return isDesktop;
 }
 
 export default function ProjectLayout() {
@@ -52,6 +56,33 @@ export default function ProjectLayout() {
 
   const createAgent = useCreateAgent(projectId ?? "");
   const updateAgent = useUpdateAgent(projectId ?? "");
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isSharedDriveRoute = location.pathname === `/projects/${projectName}/shared`;
+
+  // --- File preview panel state ---
+  const [panelFilePath, setPanelFilePath] = React.useState<string | null>(null);
+  const filePanelRef = React.useRef<PanelImperativeHandle>(null);
+
+  // Only show the panel on agent chat routes, not on the shared drive view
+  const effectivePanelFilePath = isSharedDriveRoute ? null : panelFilePath;
+
+  // Reset panel when project changes
+  const [prevProjectName, setPrevProjectName] = React.useState(projectName);
+  if (projectName !== prevProjectName) {
+    setPrevProjectName(projectName);
+    setPanelFilePath(null);
+  }
+
+  // Expand/collapse the file panel imperatively
+  React.useEffect(() => {
+    if (effectivePanelFilePath) {
+      filePanelRef.current?.expand();
+    } else {
+      filePanelRef.current?.collapse();
+    }
+  }, [effectivePanelFilePath]);
 
   // --- Modal state ---
   const [formOpen, setFormOpen] = React.useState(false);
@@ -121,6 +152,20 @@ export default function ProjectLayout() {
     }
   });
 
+  // Subscribe to shared drive file changes to keep caches fresh
+  useSubscription<SharedDriveWsEvent>(
+    projectId ? `project:${projectId}:shared-drive` : null,
+    React.useCallback(
+      (event) => {
+        if (event.type === "file_changed") {
+          queryClient.invalidateQueries({ queryKey: ["shared-drive", projectId] });
+          queryClient.invalidateQueries({ queryKey: ["file-content", projectId] });
+        }
+      },
+      [queryClient, projectId],
+    ),
+  );
+
   const handleBrowseCatalog = () => {
     setCatalogOpen(true);
   };
@@ -149,6 +194,8 @@ export default function ProjectLayout() {
     setSidebarOpen,
     onNewAgent: handleNew,
     onBrowseCatalog: handleBrowseCatalog,
+    panelFilePath,
+    setPanelFilePath,
   };
 
   if (!projectId) {
@@ -167,55 +214,87 @@ export default function ProjectLayout() {
   );
 
   return (
-    <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      {!isDesktop && (
-        <>
-          {sidebarOpen && (
+    <ProjectLayoutContextProvider value={contextValue}>
+      <div className="flex h-dvh bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+        {!isDesktop && (
+          <>
+            {sidebarOpen && (
+              <div
+                className="fixed inset-0 z-40"
+                aria-hidden="true"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+              </div>
+            )}
             <div
-              className="fixed inset-0 z-40"
-              aria-hidden="true"
-              onClick={() => setSidebarOpen(false)}
+              className={`fixed top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-50 w-64 transition-transform duration-200 ${
+                sidebarOpen ? "translate-x-0" : "-translate-x-full"
+              }`}
             >
-              <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+              {sidebar}
             </div>
-          )}
-          <div
-            className={`fixed top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-50 w-64 transition-transform duration-200 ${
-              sidebarOpen ? "translate-x-0" : "-translate-x-full"
-            }`}
-          >
-            {sidebar}
-          </div>
-          {content}
-        </>
-      )}
-
-      {isDesktop && (
-        <ResizablePanelGroup orientation="horizontal">
-          <ResizablePanel id="sidebar" defaultSize="20" minSize="15" maxSize="35">
-            {sidebar}
-          </ResizablePanel>
-          <ResizableHandle />
-          <ResizablePanel id="content" defaultSize="80">
             {content}
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      )}
+          </>
+        )}
 
-      <AgentForm
-        key={currentAgent?.id ?? "new"}
-        open={formOpen}
-        title={formTitle}
-        agent={currentAgent}
-        onSave={handleFormSave}
-        onClose={() => setFormOpen(false)}
-      />
+        {isDesktop && (
+          <ResizablePanelGroup orientation="horizontal">
+            <ResizablePanel id="sidebar" defaultSize="20" minSize="15" maxSize="35">
+              {sidebar}
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel id="content" defaultSize="80" minSize="30">
+              {content}
+            </ResizablePanel>
+            <ResizableHandle className={effectivePanelFilePath ? "" : "hidden"} />
+            <ResizablePanel
+              id="file-panel"
+              panelRef={filePanelRef}
+              defaultSize="0"
+              minSize="20"
+              maxSize="50"
+              collapsible
+              collapsedSize={0}
+              onResize={(size) => {
+                if (size.asPercentage === 0 && effectivePanelFilePath) {
+                  setPanelFilePath(null);
+                }
+              }}
+            >
+              {effectivePanelFilePath && projectId && (
+                <FilePreviewPanel
+                  projectId={projectId}
+                  projectName={projectName ?? ""}
+                  filePath={effectivePanelFilePath}
+                  onClose={() => setPanelFilePath(null)}
+                  onExpand={() => {
+                    navigate(
+                      `/projects/${projectName}/shared?file=${encodeURIComponent(effectivePanelFilePath)}`,
+                    );
+                    setPanelFilePath(null);
+                  }}
+                />
+              )}
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
 
-      <CatalogBrowser
-        open={catalogOpen}
-        onClose={() => setCatalogOpen(false)}
-        onAdd={handleCatalogAdd}
-      />
-    </div>
+        <AgentForm
+          key={currentAgent?.id ?? "new"}
+          open={formOpen}
+          title={formTitle}
+          agent={currentAgent}
+          onSave={handleFormSave}
+          onClose={() => setFormOpen(false)}
+        />
+
+        <CatalogBrowser
+          open={catalogOpen}
+          onClose={() => setCatalogOpen(false)}
+          onAdd={handleCatalogAdd}
+        />
+      </div>
+    </ProjectLayoutContextProvider>
   );
 }

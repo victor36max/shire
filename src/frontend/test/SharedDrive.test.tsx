@@ -48,6 +48,8 @@ function renderContentArea(route = "/projects/test-project/shared") {
         setSidebarOpen: () => {},
         onNewAgent: () => {},
         onBrowseCatalog: () => {},
+        panelFilePath: null,
+        setPanelFilePath: () => {},
       }}
     >
       <SharedDriveContentArea />

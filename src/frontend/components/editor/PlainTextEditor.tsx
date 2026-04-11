@@ -9,12 +9,14 @@ interface PlainTextEditorProps {
   initialContent: string;
   projectId: string;
   filePath: string;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export default function PlainTextEditor({
   initialContent,
   projectId,
   filePath,
+  onDirtyChange,
 }: PlainTextEditorProps) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const { mutate: saveFile } = useSaveFileContent(projectId);
@@ -26,14 +28,17 @@ export default function PlainTextEditor({
     saveFile(
       { path: filePath, content },
       {
-        onSuccess: () => setSaveStatus("saved"),
+        onSuccess: () => {
+          setSaveStatus("saved");
+          onDirtyChange?.(false);
+        },
         onError: () => {
           setSaveStatus("unsaved");
           toast.error("Failed to save file");
         },
       },
     );
-  }, [saveFile, filePath]);
+  }, [saveFile, filePath, onDirtyChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -52,9 +57,10 @@ export default function PlainTextEditor({
         textarea.value = textarea.value.substring(0, start) + "  " + textarea.value.substring(end);
         textarea.selectionStart = textarea.selectionEnd = start + 2;
         setSaveStatus("unsaved");
+        onDirtyChange?.(true);
       }
     },
-    [doSave],
+    [doSave, onDirtyChange],
   );
 
   return (
@@ -79,7 +85,10 @@ export default function PlainTextEditor({
         ref={textareaRef}
         defaultValue={initialContent}
         onChange={() => {
-          if (saveStatus === "saved") setSaveStatus("unsaved");
+          if (saveStatus === "saved") {
+            setSaveStatus("unsaved");
+            onDirtyChange?.(true);
+          }
         }}
         className="flex-1 w-full resize-none bg-background p-4 font-mono text-sm outline-none"
         spellCheck={false}

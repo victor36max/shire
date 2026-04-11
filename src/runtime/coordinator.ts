@@ -16,6 +16,7 @@ import * as projectsService from "../services/projects";
 import * as workspace from "../services/workspace";
 import * as skillsService from "../services/skills";
 import { dispatchAlert } from "../services/alert-dispatcher";
+import { startSharedDriveWatcher, stopSharedDriveWatcher } from "../services/shared-drive-watcher";
 import type { Skill } from "../services/skills";
 import { valid as isValidSlug } from "../services/slug";
 
@@ -76,6 +77,7 @@ export class Coordinator {
     if (this.deployed) return;
 
     await workspace.ensureProjectDirs(this.projectId);
+    startSharedDriveWatcher(this.projectId);
 
     const dbAgents = agentsService.listAgents(this.projectId);
     const results = await Promise.allSettled(
@@ -311,6 +313,7 @@ export class Coordinator {
   }
 
   async stopAll(): Promise<void> {
+    stopSharedDriveWatcher(this.projectId);
     await Promise.all([...this.agents.values()].map((proc) => proc.stop()));
     this.agents.clear();
     this.statuses.clear();

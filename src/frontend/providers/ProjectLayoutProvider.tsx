@@ -9,9 +9,11 @@ export interface ProjectLayoutContextValue {
   setSidebarOpen: (open: boolean) => void;
   onNewAgent: () => void;
   onBrowseCatalog: () => void;
+  panelFilePath: string | null;
+  setPanelFilePath: (path: string | null) => void;
 }
 
-const ProjectLayoutContext = createContext<ProjectLayoutContextValue | null>(null);
+export const ProjectLayoutContext = createContext<ProjectLayoutContextValue | null>(null);
 
 export function useProjectLayout() {
   const ctx = useContext(ProjectLayoutContext);

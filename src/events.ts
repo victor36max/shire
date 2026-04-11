@@ -106,6 +106,12 @@ export type SpawnAgentBusEvent = {
   payload: { name: string };
 };
 
+// --- Shared drive events (project:{id}:shared-drive channel) ---
+export type SharedDriveBusEvent = {
+  type: "file_changed";
+  payload: { path: string };
+};
+
 // Union of all bus events
 export type BusEvent =
   | AgentBusEvent
@@ -113,7 +119,8 @@ export type BusEvent =
   | ProjectBusEvent
   | OutboxBusEvent
   | ScheduleBusEvent
-  | SpawnAgentBusEvent;
+  | SpawnAgentBusEvent
+  | SharedDriveBusEvent;
 
 type EventHandler<E extends BusEvent = BusEvent> = (event: E) => void;
 
