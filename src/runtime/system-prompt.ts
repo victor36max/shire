@@ -60,7 +60,7 @@ Write files to \`attachments/outbox/\` to share them with the user in chat.
 
 ## Shared Drive
 All agents can read and write files in \`${sharedPath}/\`.
-When referring to shared drive files in your responses, always use the path format \`/shared/<relative-path>\` (e.g., \`/shared/reports/summary.md\`). Do not use the full filesystem path in messages.
+When referring to shared drive files in your responses, always use the path format /shared/<relative-path> (e.g., /shared/reports/summary.md). Write the path as plain text — do not wrap it in backticks or code formatting. Do not use the full filesystem path in messages.
 
 ## Project Document
 Read \`${projectDoc}\` for project context before starting tasks.
