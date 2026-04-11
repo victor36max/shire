@@ -8,6 +8,7 @@ import { code } from "@streamdown/code";
 import type { ComponentProps } from "react";
 import { memo, useMemo } from "react";
 import { Streamdown, type Components } from "streamdown";
+import remarkGfm from "remark-gfm";
 import remarkSharedLinks from "@/lib/remark-shared-links";
 import { SharedDriveLink } from "@/components/chat/SharedDriveLink";
 import type { Pluggable } from "unified";
@@ -17,7 +18,7 @@ export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
 };
 
 const streamdownPlugins = { code };
-const sharedLinksPlugins: Pluggable[] = [remarkSharedLinks];
+const baseRemarkPlugins: Pluggable[] = [remarkGfm, remarkSharedLinks];
 
 export const MessageResponse = memo(
   ({
@@ -36,9 +37,8 @@ export const MessageResponse = memo(
     }, [projectName, componentsProp]);
 
     const mergedRemarkPlugins = useMemo(() => {
-      if (!projectName) return remarkPlugins;
-      return remarkPlugins ? [...sharedLinksPlugins, ...remarkPlugins] : sharedLinksPlugins;
-    }, [projectName, remarkPlugins]);
+      return remarkPlugins ? [...baseRemarkPlugins, ...remarkPlugins] : baseRemarkPlugins;
+    }, [remarkPlugins]);
 
     return (
       <Streamdown
