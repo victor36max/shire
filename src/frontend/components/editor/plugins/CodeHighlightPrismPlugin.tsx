@@ -8,6 +8,13 @@ import {
 } from "@lexical/code";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { mergeRegister } from "@lexical/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { $getNodeByKey, $getSelection, $isRangeSelection, LexicalNode } from "lexical";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -99,12 +106,9 @@ export default function CodeHighlightPrismPlugin({ anchorElement }: CodeHighligh
         width: position?.width,
       }}
     >
-      <select
-        className="min-w-40 rounded-md border border-border bg-background px-2 py-1 text-sm"
-        value={codeLanguage || ""}
-        onChange={(e) => {
-          const key = e.target.value;
-          if (!key) return;
+      <Select
+        value={codeLanguage ?? undefined}
+        onValueChange={(key) => {
           setCodeLanguage(key);
           if (codeNodeKeyRef.current) {
             editor.update(() => {
@@ -115,15 +119,18 @@ export default function CodeHighlightPrismPlugin({ anchorElement }: CodeHighligh
             });
           }
         }}
-        aria-label="Code Language"
       >
-        <option value="">Select language</option>
-        {codeLanguageOptions.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="min-w-40 h-8 text-sm" aria-label="Code Language">
+          <SelectValue placeholder="Select language" />
+        </SelectTrigger>
+        <SelectContent>
+          {codeLanguageOptions.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>,
     anchorElement,
   );
