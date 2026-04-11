@@ -4,7 +4,8 @@ import { useDropzone } from "react-dropzone";
 import { Menu, Upload, Download, Trash2, Pencil, File, FolderOpen } from "lucide-react";
 import { Button } from "./ui/button";
 import { SharedDriveEditor } from "./editor";
-import PlainTextEditor from "./editor/PlainTextEditor";
+import CodeEditor from "./editor/CodeEditor";
+import CsvEditor from "./editor/CsvEditor";
 import { Spinner } from "./ui/spinner";
 import { RenameDialog } from "./shared-drive/RenameDialog";
 import { DeleteDialog } from "./shared-drive/DeleteDialog";
@@ -26,7 +27,7 @@ export default function SharedDriveContentArea() {
   const filePath = searchParams.get("file");
   const fileName = filePath ? (filePath.split("/").pop() ?? "") : "";
   const type = filePath ? getPreviewType(fileName) : null;
-  const needsContent = type === "markdown" || type === "text";
+  const needsContent = type === "markdown" || type === "text" || type === "csv";
 
   const {
     data: fileData,
@@ -246,8 +247,17 @@ export default function SharedDriveContentArea() {
           />
         )}
 
+        {!loading && !error && type === "csv" && content !== null && (
+          <CsvEditor
+            key={filePath}
+            initialContent={content}
+            projectId={projectId}
+            filePath={filePath}
+          />
+        )}
+
         {!loading && !error && type === "text" && content !== null && (
-          <PlainTextEditor
+          <CodeEditor
             key={filePath}
             initialContent={content}
             projectId={projectId}
