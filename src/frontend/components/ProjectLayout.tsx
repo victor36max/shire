@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { Spinner } from "./ui/spinner";
@@ -58,10 +58,15 @@ export default function ProjectLayout() {
   const updateAgent = useUpdateAgent(projectId ?? "");
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const isSharedDriveRoute = location.pathname === `/projects/${projectName}/shared`;
 
   // --- File preview panel state ---
   const [panelFilePath, setPanelFilePath] = React.useState<string | null>(null);
   const filePanelRef = React.useRef<PanelImperativeHandle>(null);
+
+  // Only show the panel on agent chat routes, not on the shared drive view
+  const effectivePanelFilePath = isSharedDriveRoute ? null : panelFilePath;
 
   // Reset panel when project changes
   const [prevProjectName, setPrevProjectName] = React.useState(projectName);
@@ -72,12 +77,12 @@ export default function ProjectLayout() {
 
   // Expand/collapse the file panel imperatively
   React.useEffect(() => {
-    if (panelFilePath) {
+    if (effectivePanelFilePath) {
       filePanelRef.current?.expand();
     } else {
       filePanelRef.current?.collapse();
     }
-  }, [panelFilePath]);
+  }, [effectivePanelFilePath]);
 
   // --- Modal state ---
   const [formOpen, setFormOpen] = React.useState(false);
@@ -242,7 +247,7 @@ export default function ProjectLayout() {
             <ResizablePanel id="content" defaultSize="80" minSize="30">
               {content}
             </ResizablePanel>
-            <ResizableHandle className={panelFilePath ? "" : "hidden"} />
+            <ResizableHandle className={effectivePanelFilePath ? "" : "hidden"} />
             <ResizablePanel
               id="file-panel"
               panelRef={filePanelRef}
@@ -252,20 +257,20 @@ export default function ProjectLayout() {
               collapsible
               collapsedSize={0}
               onResize={(size) => {
-                if (size.asPercentage === 0 && panelFilePath) {
+                if (size.asPercentage === 0 && effectivePanelFilePath) {
                   setPanelFilePath(null);
                 }
               }}
             >
-              {panelFilePath && projectId && (
+              {effectivePanelFilePath && projectId && (
                 <FilePreviewPanel
                   projectId={projectId}
                   projectName={projectName ?? ""}
-                  filePath={panelFilePath}
+                  filePath={effectivePanelFilePath}
                   onClose={() => setPanelFilePath(null)}
                   onExpand={() => {
                     navigate(
-                      `/projects/${projectName}/shared?file=${encodeURIComponent(panelFilePath)}`,
+                      `/projects/${projectName}/shared?file=${encodeURIComponent(effectivePanelFilePath)}`,
                     );
                     setPanelFilePath(null);
                   }}
