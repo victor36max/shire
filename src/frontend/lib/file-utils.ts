@@ -1,4 +1,4 @@
-export type PreviewType = "markdown" | "text" | "image" | "pdf" | "unsupported";
+export type PreviewType = "markdown" | "text" | "csv" | "image" | "pdf" | "unsupported";
 
 export const TEXT_EXTENSIONS = new Set([
   "txt",
@@ -6,7 +6,6 @@ export const TEXT_EXTENSIONS = new Set([
   "yaml",
   "yml",
   "toml",
-  "csv",
   "log",
   "sh",
   "bash",
@@ -50,6 +49,7 @@ export function getFileExtension(name: string): string {
 export function getPreviewType(name: string): PreviewType {
   const ext = getFileExtension(name);
   if (ext === "md" || ext === "mdx") return "markdown";
+  if (ext === "csv") return "csv";
   if (TEXT_EXTENSIONS.has(ext)) return "text";
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
   if (ext === "pdf") return "pdf";

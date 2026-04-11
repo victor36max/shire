@@ -320,14 +320,15 @@ describe("SharedDriveContentArea", () => {
     });
   });
 
-  it("renders text file in PlainTextEditor", async () => {
+  it("renders text file in CodeEditor", async () => {
     setPreviewResponse('{"key": "value"}', "data.json", 2048);
     renderContentArea("/projects/test-project/shared?file=data.json");
     await waitFor(() => {
-      const textarea = screen.getByRole("textbox");
-      expect(textarea).toBeInTheDocument();
-      expect(textarea.tagName).toBe("TEXTAREA");
+      expect(screen.getByText("Saved")).toBeInTheDocument();
     });
+    // CodeMirror renders a contenteditable div, not a textarea
+    const cmContent = document.querySelector(".cm-content");
+    expect(cmContent).toBeInTheDocument();
   });
 
   it("shows file name in header", async () => {

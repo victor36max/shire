@@ -34,7 +34,7 @@ describe("getPreviewType", () => {
   it("returns text for known text extensions", () => {
     expect(getPreviewType("data.json")).toBe("text");
     expect(getPreviewType("script.py")).toBe("text");
-    expect(getPreviewType("data.csv")).toBe("text");
+    expect(getPreviewType("data.csv")).toBe("csv");
     expect(getPreviewType("config.yaml")).toBe("text");
   });
 
@@ -87,7 +87,7 @@ describe("extension sets", () => {
     expect(TEXT_EXTENSIONS.has("js")).toBe(true);
     expect(TEXT_EXTENSIONS.has("ts")).toBe(true);
     expect(TEXT_EXTENSIONS.has("py")).toBe(true);
-    expect(TEXT_EXTENSIONS.has("csv")).toBe(true);
+    expect(TEXT_EXTENSIONS.has("csv")).toBe(false);
   });
 
   it("IMAGE_EXTENSIONS includes common image formats", () => {
