@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { FileText, Settings, Clock, ArrowUpCircle } from "lucide-react";
 import { Button } from "./ui/button";
@@ -51,59 +51,35 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
   const { data: projects = [] } = useProjects();
   const location = useLocation();
 
-  const isSharedDriveRoute = location.pathname === `/projects/${projectName}/shared`;
-
-  // Local tab state: allows showing Files sidebar without navigating away from agent chat
-  const [sidebarTab, setSidebarTab] = useState<"agents" | "shared-drive">(
-    isSharedDriveRoute ? "shared-drive" : "agents",
-  );
-
-  // Sync tab when route changes (e.g. navigating to /shared or back to agent)
-  const activeTab = isSharedDriveRoute ? "shared-drive" : sidebarTab;
+  const isSharedDrive = location.pathname === `/projects/${projectName}/shared`;
+  const activeTab = isSharedDrive ? "shared-drive" : "agents";
 
   // Remember last path for each tab so switching back restores selection
   const projectRoot = `/projects/${projectName}`;
-  const lastAgentPath = useRef(
-    isSharedDriveRoute ? projectRoot : location.pathname + location.search,
-  );
+  const lastAgentPath = useRef(isSharedDrive ? projectRoot : location.pathname + location.search);
   const lastSharedPath = useRef(
-    isSharedDriveRoute ? location.pathname + location.search : `${projectRoot}/shared`,
+    isSharedDrive ? location.pathname + location.search : `${projectRoot}/shared`,
   );
-  // Reset sidebar tab when project changes (render-time pattern)
-  const [prevProjectRoot, setPrevProjectRoot] = useState(projectRoot);
-  if (projectRoot !== prevProjectRoot) {
-    setPrevProjectRoot(projectRoot);
-    setSidebarTab("agents");
-  }
+  const prevProjectRoot = useRef(projectRoot);
 
-  // Keep last paths in sync with current location
-  const prevProjectRootRef = useRef(projectRoot);
   useEffect(() => {
-    if (prevProjectRootRef.current !== projectRoot) {
-      prevProjectRootRef.current = projectRoot;
+    if (prevProjectRoot.current !== projectRoot) {
+      // Project changed — reset both tabs to new project defaults
+      prevProjectRoot.current = projectRoot;
       lastAgentPath.current = projectRoot;
       lastSharedPath.current = `${projectRoot}/shared`;
-    } else if (!isSharedDriveRoute) {
+    } else if (!isSharedDrive) {
       lastAgentPath.current = location.pathname + location.search;
     } else {
       lastSharedPath.current = location.pathname + location.search;
     }
-  }, [projectRoot, isSharedDriveRoute, location.pathname, location.search]);
+  }, [projectRoot, isSharedDrive, location.pathname, location.search]);
 
   const handleTabChange = (value: string) => {
     if (value === "shared-drive") {
-      if (isSharedDriveRoute) {
-        // Already on the shared drive route — no-op
-        return;
-      }
-      // Show files sidebar without navigating away from agent chat
-      setSidebarTab("shared-drive");
+      navigate(lastSharedPath.current);
     } else {
-      setSidebarTab("agents");
-      if (isSharedDriveRoute) {
-        // Navigate back to the agent chat
-        navigate(lastAgentPath.current);
-      }
+      navigate(lastAgentPath.current);
     }
   };
 

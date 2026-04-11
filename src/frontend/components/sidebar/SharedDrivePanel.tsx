@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -31,7 +31,6 @@ import {
   useUploadSharedDriveFile,
 } from "../../hooks";
 import { formatSize, MAX_UPLOAD_SIZE } from "../../lib/file-utils";
-import { useProjectLayout } from "../../providers/ProjectLayoutProvider";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
 
 function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
@@ -68,11 +67,7 @@ function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: st
 export default function SharedDrivePanel() {
   const { projectId, projectName } = useProjectId();
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
-  const { panelFilePath, setPanelFilePath } = useProjectLayout();
   const [currentPath, setCurrentPath] = React.useState("/");
-
-  const isSharedDriveRoute = location.pathname === `/projects/${projectName}/shared`;
 
   const {
     data,
@@ -98,7 +93,7 @@ export default function SharedDrivePanel() {
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
   const [renameTarget, setRenameTarget] = React.useState<SharedDriveFile | null>(null);
 
-  const selectedFile = isSharedDriveRoute ? searchParams.get("file") : panelFilePath;
+  const selectedFile = searchParams.get("file");
 
   const navigate = (path: string) => {
     setUploadError(null);
@@ -106,11 +101,7 @@ export default function SharedDrivePanel() {
   };
 
   const selectFile = (file: SharedDriveFile) => {
-    if (isSharedDriveRoute) {
-      setSearchParams({ file: file.path });
-    } else {
-      setPanelFilePath(file.path);
-    }
+    setSearchParams({ file: file.path });
   };
 
   const handleRename = (newName: string) => {
@@ -120,11 +111,7 @@ export default function SharedDrivePanel() {
       {
         onSuccess: (data: { ok: boolean; newPath: string }) => {
           if (selectedFile === renameTarget.path) {
-            if (isSharedDriveRoute) {
-              setSearchParams({ file: data.newPath });
-            } else {
-              setPanelFilePath(data.newPath);
-            }
+            setSearchParams({ file: data.newPath });
           }
         },
       },
