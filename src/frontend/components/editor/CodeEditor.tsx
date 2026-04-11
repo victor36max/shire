@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Save } from "lucide-react";
 import { toast } from "sonner";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
@@ -14,21 +14,21 @@ interface CodeEditorProps {
   filePath: string;
 }
 
+function subscribeToDarkMode(callback: () => void) {
+  const observer = new MutationObserver(callback);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  return () => observer.disconnect();
+}
+
+function getIsDark() {
+  return document.documentElement.classList.contains("dark");
+}
+
 function useDarkMode(): boolean {
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setDark(document.documentElement.classList.contains("dark"));
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => observer.disconnect();
-  }, []);
-
-  return dark;
+  return useSyncExternalStore(subscribeToDarkMode, getIsDark, () => false);
 }
 
 export default function CodeEditor({ initialContent, projectId, filePath }: CodeEditorProps) {
