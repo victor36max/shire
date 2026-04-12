@@ -74,7 +74,6 @@ export type AgentListBusEvent =
 export type ProjectBusEvent =
   | { type: "project_created"; payload: { id: string; name: string } }
   | { type: "project_destroyed"; payload: { id: string } }
-  | { type: "project_restarted"; payload: { id: string } }
   | { type: "project_renamed"; payload: { id: string; name: string } };
 
 // --- Outbox events (project:{id}:outbox channel) ---

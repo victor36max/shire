@@ -18,7 +18,7 @@ const agent: AgentOverview = {
  * ChatHeader calls useProjectId() which reads projectName from useParams()
  * and resolves the project id from GET /api/projects.
  * We render at route "/projects/test-project" and let the default MSW handler
- * return [{ id: "p1", name: "test-project", status: "running" }].
+ * return [{ id: "p1", name: "test-project" }].
  */
 function renderChatHeader(props?: { onMenuToggle?: () => void }) {
   return renderWithProviders(<ChatHeader agent={agent} {...props} />, {

@@ -29,8 +29,8 @@ const defaultAgents: AgentOverview[] = [
 ];
 
 const projects: Project[] = [
-  { id: "p1", name: "test-project", status: "running" },
-  { id: "p2", name: "other-project", status: "running" },
+  { id: "p1", name: "test-project" },
+  { id: "p2", name: "other-project" },
 ];
 
 function setAgents(agents: AgentOverview[]) {

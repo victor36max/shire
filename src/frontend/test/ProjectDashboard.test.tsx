@@ -12,8 +12,8 @@ mock.module("../lib/ws", () => ({
 }));
 
 const defaultProjects: Project[] = [
-  { id: "p1", name: "test-project", status: "running" },
-  { id: "p2", name: "other-project", status: "running" },
+  { id: "p1", name: "test-project" },
+  { id: "p2", name: "other-project" },
 ];
 
 function setProjects(projects: Project[]) {
@@ -45,46 +45,6 @@ describe("ProjectDashboard", () => {
       expect(screen.getByText("No projects yet")).toBeInTheDocument();
     });
     expect(screen.getByText("Create Your First Project")).toBeInTheDocument();
-  });
-
-  it("shows status badges on project cards", async () => {
-    setProjects([
-      { id: "p3", name: "running-project", status: "running" },
-      { id: "p4", name: "error-project", status: "error" },
-    ]);
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getByText("running")).toBeInTheDocument();
-    });
-    expect(screen.getByText("error")).toBeInTheDocument();
-  });
-
-  it("shows starting status badge", async () => {
-    setProjects([{ id: "p9", name: "starting-project", status: "starting" }]);
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getByText("starting")).toBeInTheDocument();
-    });
-  });
-
-  it("does not show Restart option for starting projects", async () => {
-    setProjects([{ id: "p10", name: "starting-proj", status: "starting" }]);
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
-    });
-    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
-    expect(screen.queryByText("Restart")).not.toBeInTheDocument();
-  });
-
-  it("does not show Restart option for running projects (explicit)", async () => {
-    setProjects([{ id: "p12", name: "running-proj", status: "running" }]);
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
-    });
-    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
-    expect(screen.queryByText("Restart")).not.toBeInTheDocument();
   });
 
   it("opens create dialog when clicking + New Project", async () => {
@@ -178,66 +138,6 @@ describe("ProjectDashboard", () => {
     await waitFor(() => expect(deletedId).toBe("p1"));
   });
 
-  it("shows Restart option in menu for error projects", async () => {
-    setProjects([{ id: "p5", name: "errored-proj", status: "error" }]);
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
-    });
-    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
-    expect(screen.getByText("Restart")).toBeInTheDocument();
-  });
-
-  it("does not show Restart option for running projects", async () => {
-    setProjects(defaultProjects);
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getAllByRole("button", { name: /actions/ }).length).toBeGreaterThan(0);
-    });
-    const menuButtons = screen.getAllByRole("button", { name: /actions/ });
-    await userEvent.click(menuButtons[0]);
-    expect(screen.queryByText("Restart")).not.toBeInTheDocument();
-  });
-
-  it("sends restart request when clicking Restart in menu", async () => {
-    let restartedId: string | undefined;
-    server.use(
-      http.post("*/api/projects/:id/restart", ({ params }) => {
-        restartedId = params.id as string;
-        return HttpResponse.json({ ok: true });
-      }),
-    );
-    setProjects([{ id: "p7", name: "restart-me", status: "error" }]);
-
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
-    });
-
-    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
-    await userEvent.click(screen.getByText("Restart"));
-    await waitFor(() => expect(restartedId).toBe("p7"));
-  });
-
-  it("shows Restarting... text while restart is in progress", async () => {
-    // Keep the restart request pending so onSettled doesn't fire before assertion
-    server.use(
-      http.post("*/api/projects/:id/restart", () => {
-        return new Promise(() => {});
-      }),
-    );
-    setProjects([{ id: "p8", name: "restarting-proj", status: "error" }]);
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /actions/ })).toBeInTheDocument();
-    });
-
-    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
-    await userEvent.click(screen.getByText("Restart"));
-    await userEvent.click(screen.getByRole("button", { name: /actions/ }));
-    expect(screen.getByText("Restarting...")).toBeInTheDocument();
-  });
-
   it("shows error state with retry when projects query fails", async () => {
     server.use(
       http.get("*/api/projects", () =>
@@ -316,14 +216,6 @@ describe("ProjectDashboard", () => {
     await user.paste("enter-project");
     await user.keyboard("{Enter}");
     await waitFor(() => expect(createdName).toBe("enter-project"));
-  });
-
-  it("shows unknown status as secondary variant", async () => {
-    setProjects([{ id: "p-unknown", name: "unknown-proj", status: "starting" }]);
-    renderWithProviders(<ProjectDashboard />);
-    await waitFor(() => {
-      expect(screen.getByText("starting")).toBeInTheDocument();
-    });
   });
 
   it("retries fetch when clicking Try again on error state", async () => {

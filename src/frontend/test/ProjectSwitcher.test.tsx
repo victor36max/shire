@@ -5,8 +5,8 @@ import type { Project } from "../components/types";
 import { renderWithProviders } from "./test-utils";
 
 const projects: Project[] = [
-  { id: "p1", name: "test-project", status: "running" },
-  { id: "p2", name: "other-project", status: "running" },
+  { id: "p1", name: "test-project" },
+  { id: "p2", name: "other-project" },
 ];
 
 describe("ProjectSwitcher", () => {

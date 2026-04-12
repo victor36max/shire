@@ -43,13 +43,12 @@ describe("POST /api/projects", () => {
     expect(res.status).toBe(422);
   });
 
-  it("lists created project with running status", async () => {
+  it("lists created project", async () => {
     await request("POST", "/api/projects", { name: "listed" });
     const res = await request("GET", "/api/projects");
     const data = (await res.json()) as Array<Record<string, unknown>>;
     expect(data.length).toBe(1);
     expect(data[0].name).toBe("listed");
-    expect(data[0].status).toBe("running");
   });
 });
 
@@ -76,18 +75,6 @@ describe("DELETE /api/projects/:id", () => {
     const listRes = await request("GET", "/api/projects");
     const data = (await listRes.json()) as Array<Record<string, unknown>>;
     expect(data.length).toBe(0);
-  });
-});
-
-describe("POST /api/projects/:id/restart", () => {
-  it("restarts a project", async () => {
-    const createRes = await request("POST", "/api/projects", { name: "restart-me" });
-    const { id } = (await createRes.json()) as Record<string, string>;
-
-    const res = await request("POST", `/api/projects/${id}/restart`);
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as Record<string, unknown>;
-    expect(data.ok).toBe(true);
   });
 });
 

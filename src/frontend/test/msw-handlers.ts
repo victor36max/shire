@@ -6,12 +6,9 @@ import { http, HttpResponse } from "msw";
  */
 export const defaultHandlers = [
   // --- Projects ---
-  http.get("*/api/projects", () =>
-    HttpResponse.json([{ id: "p1", name: "test-project", status: "running" }]),
-  ),
+  http.get("*/api/projects", () => HttpResponse.json([{ id: "p1", name: "test-project" }])),
   http.post("*/api/projects", () => HttpResponse.json({ id: "p-new" }, { status: 201 })),
   http.delete("*/api/projects/:id", () => HttpResponse.json({ ok: true })),
-  http.post("*/api/projects/:id/restart", () => HttpResponse.json({ ok: true })),
   http.patch("*/api/projects/:id", () => HttpResponse.json({ ok: true })),
 
   // --- Agents ---
