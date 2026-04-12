@@ -93,6 +93,7 @@ export default function ProjectLayout() {
       setCurrentAgent({
         id: "",
         name: agent.name,
+        emoji: agent.emoji,
         description: agent.description,
         harness: agent.harness,
         model: agent.model,

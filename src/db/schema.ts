@@ -22,6 +22,7 @@ export const agents = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    emoji: text("emoji"),
     sessionId: text("session_id"),
     description: text("description"),
     harness: text("harness"),

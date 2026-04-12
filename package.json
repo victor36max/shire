@@ -72,6 +72,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.39.0",
+    "frimousse": "^0.3.0",
     "hono": "^4.7.0",
     "js-yaml": "^4.1.0",
     "lexical": "^0.42.0",

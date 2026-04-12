@@ -20,6 +20,7 @@ export interface Skill {
 export interface AgentOverview {
   id: string;
   name: string;
+  emoji?: string | null;
   busy: boolean;
   unreadCount: number;
   lastUserMessageAt?: string | null;

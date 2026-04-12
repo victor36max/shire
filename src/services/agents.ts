@@ -29,6 +29,7 @@ export function createAgent(
   projectId: string,
   data: {
     name: string;
+    emoji?: string;
     description?: string;
     harness?: string;
     model?: string;
@@ -41,6 +42,7 @@ export function createAgent(
     .values({
       projectId,
       name: data.name,
+      emoji: data.emoji,
       description: data.description,
       harness: data.harness,
       model: data.model,
@@ -54,6 +56,7 @@ export function updateAgent(
   id: string,
   fields: {
     name?: string;
+    emoji?: string;
     description?: string;
     harness?: string;
     model?: string;

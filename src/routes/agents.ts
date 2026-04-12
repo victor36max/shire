@@ -33,6 +33,7 @@ export const agentRoutes = new Hono<AppEnv>()
       "json",
       z.object({
         name: z.string(),
+        emoji: z.string().max(10).optional(),
         description: z.string().optional(),
         harness: z.enum(["claude_code", "pi", "opencode", "codex"]).optional(),
         model: z.string().optional(),
@@ -66,6 +67,7 @@ export const agentRoutes = new Hono<AppEnv>()
       "json",
       z.object({
         name: z.string().optional(),
+        emoji: z.string().max(10).optional(),
         description: z.string().optional(),
         harness: z.enum(["claude_code", "pi", "opencode", "codex"]).optional(),
         model: z.string().optional(),

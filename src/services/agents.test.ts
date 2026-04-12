@@ -328,6 +328,27 @@ describe("agents service", () => {
     });
   });
 
+  describe("emoji support", () => {
+    it("stores emoji on creation", () => {
+      const agent = agents.createAgent(projectId, {
+        name: "emoji-agent",
+        emoji: "\u{1F680}",
+      });
+      expect(agent.emoji).toBe("\u{1F680}");
+    });
+
+    it("defaults emoji to null when not provided", () => {
+      const agent = agents.createAgent(projectId, { name: "no-emoji-agent" });
+      expect(agent.emoji).toBeNull();
+    });
+
+    it("updates emoji via updateAgent", () => {
+      const agent = agents.createAgent(projectId, { name: "update-emoji-agent" });
+      const updated = agents.updateAgent(agent.id, { emoji: "\u{1F916}" });
+      expect(updated!.emoji).toBe("\u{1F916}");
+    });
+  });
+
   describe("transaction support", () => {
     it("createMessage rolls back when transaction fails", () => {
       const initialMessages = agents.listMessages(projectId, agentId).messages.length;
