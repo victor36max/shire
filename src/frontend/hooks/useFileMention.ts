@@ -15,8 +15,6 @@ export interface FileMentionActions {
   navigateUp: () => void;
   navigateDown: () => void;
   dismiss: () => void;
-  navigateToDirectory: (path: string) => void;
-  navigateBack: () => void;
 }
 
 export type FileMentionResult = FileMentionState & FileMentionActions;
@@ -140,14 +138,6 @@ export function useFileMention(
     setDismissedAtInput(input);
   }, [input]);
 
-  const navigateToDirectory = React.useCallback(() => {
-    // No-op: directory navigation is now driven by the query text
-  }, []);
-
-  const navigateBack = React.useCallback(() => {
-    // No-op: directory navigation is now driven by the query text
-  }, []);
-
   const selectItem = React.useCallback((item: SharedDriveFile): string | null => {
     if (item.type === "directory") {
       return null;
@@ -166,7 +156,5 @@ export function useFileMention(
     navigateUp,
     navigateDown,
     dismiss,
-    navigateToDirectory,
-    navigateBack,
   };
 }

@@ -46,7 +46,7 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
           const s = await stat(entryPath);
           return {
             name: entry.name,
-            path: join(path, entry.name),
+            path: (path === "/" ? "/" : path + "/") + entry.name,
             type: entry.isDirectory() ? ("directory" as const) : ("file" as const),
             size: s.size,
           };
@@ -85,10 +85,14 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
         size: number;
       }> = [];
 
+      const MAX_RESULTS = 50;
+
       async function walk(dir: string, rel: string) {
+        if (results.length >= MAX_RESULTS) return;
         try {
           const entries = await readdir(dir, { withFileTypes: true });
           for (const entry of entries) {
+            if (results.length >= MAX_RESULTS) return;
             const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
             const entryFull = join(dir, entry.name);
             if (entry.name.toLowerCase().includes(query)) {
