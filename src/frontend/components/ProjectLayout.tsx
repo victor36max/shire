@@ -17,6 +17,7 @@ import {
   useUpdateAgentCache,
   fetchCatalogAgent,
   findDefaultAgent,
+  useIsDesktop,
 } from "../hooks";
 import { useSubscription, type AgentListWsEvent, type SharedDriveWsEvent } from "../lib/ws";
 import {
@@ -26,20 +27,6 @@ import {
 } from "../providers/ProjectLayoutProvider";
 
 const ProjectLayoutContextProvider = ProjectLayoutContext.Provider;
-
-const DESKTOP_MQ = "(min-width: 768px)";
-
-function useIsDesktop() {
-  return React.useSyncExternalStore(
-    (cb) => {
-      const mq = window.matchMedia(DESKTOP_MQ);
-      mq.addEventListener("change", cb);
-      return () => mq.removeEventListener("change", cb);
-    },
-    () => window.matchMedia(DESKTOP_MQ).matches,
-    () => true,
-  );
-}
 
 export default function ProjectLayout() {
   const { projectName, agentName } = useParams();
