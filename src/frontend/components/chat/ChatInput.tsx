@@ -11,7 +11,10 @@ import {
   useUploadAttachment,
   useUpdateAgentCache,
 } from "../../hooks";
+import { useFileMention } from "../../hooks/useFileMention";
+import type { SharedDriveFile } from "../../hooks/shared-drive";
 import { type PendingFile, MAX_FILE_SIZE, formatFileSize } from "./types";
+import { FileMentionDropdown } from "./FileMentionDropdown";
 
 interface ChatInputProps {
   agent: AgentOverview;
@@ -29,10 +32,41 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
   const restartAgent = useRestartAgent(projectId ?? "");
 
   const [input, setInput] = React.useState("");
+  const [cursorPos, setCursorPos] = React.useState(0);
   const [pendingFiles, setPendingFiles] = React.useState<PendingFile[]>([]);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const mention = useFileMention(input, cursorPos, projectId);
+  const { dismiss, selectItem, triggerIndex } = mention;
+
+  const insertMention = React.useCallback(
+    (mentionText: string) => {
+      const before = input.slice(0, triggerIndex);
+      const after = input.slice(cursorPos);
+      const newInput = before + mentionText + " " + after;
+      setInput(newInput);
+      const newCursorPos = before.length + mentionText.length + 1;
+      setCursorPos(newCursorPos);
+      requestAnimationFrame(() => {
+        textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+        textareaRef.current?.focus();
+      });
+      dismiss();
+    },
+    [input, cursorPos, triggerIndex, dismiss],
+  );
+
+  const handleMentionSelect = React.useCallback(
+    (item: SharedDriveFile) => {
+      const result = selectItem(item);
+      if (result !== null) {
+        insertMention(result);
+      }
+    },
+    [selectItem, insertMention],
+  );
 
   const handleFileSelect = React.useCallback(
     (files: FileList | null) => {
@@ -124,6 +158,38 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
     );
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mention.isOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        mention.navigateDown();
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        mention.navigateUp();
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        if (mention.items.length > 0) {
+          e.preventDefault();
+          handleMentionSelect(mention.items[mention.selectedIndex]);
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        mention.dismiss();
+        return;
+      }
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   if (agent.status === "idle") {
     return (
       <div className="border-t border-border p-4">
@@ -204,7 +270,7 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
           ))}
         </div>
       )}
-      <div className="flex gap-2 items-end">
+      <div className="relative flex gap-2 items-end">
         <Button
           variant="ghost"
           size="icon"
@@ -214,24 +280,33 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
         >
           <Paperclip className="h-4 w-4" />
         </Button>
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px";
-          }}
-          placeholder="Type a message..."
-          rows={1}
-          className="min-h-0 resize-none"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-        />
+        <div className="relative flex-1">
+          {mention.isOpen && (
+            <FileMentionDropdown
+              items={mention.items}
+              selectedIndex={mention.selectedIndex}
+              currentPath={mention.currentPath}
+              isLoading={mention.isLoading}
+              onSelect={handleMentionSelect}
+              onNavigateBack={mention.navigateBack}
+            />
+          )}
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setCursorPos(e.target.selectionStart ?? 0);
+              e.target.style.height = "auto";
+              e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px";
+            }}
+            onSelect={(e) => setCursorPos(e.currentTarget.selectionStart ?? 0)}
+            placeholder="Type a message... (@ to reference files)"
+            rows={1}
+            className="min-h-0 resize-none"
+            onKeyDown={handleKeyDown}
+          />
+        </div>
         {agent.busy ? (
           <Button
             variant="destructive"
