@@ -50,6 +50,9 @@ export function useFileMention(
   const [currentPath, setCurrentPath] = React.useState("/");
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [dismissedAtInput, setDismissedAtInput] = React.useState<string | null>(null);
+  const [prevQuery, setPrevQuery] = React.useState("");
+  const [prevPath, setPrevPath] = React.useState("/");
+  const [prevIsOpen, setPrevIsOpen] = React.useState(false);
 
   const trigger = findTrigger(input, cursorPosition);
   const dismissed = dismissedAtInput !== null && dismissedAtInput === input;
@@ -57,6 +60,23 @@ export function useFileMention(
   const isOpen = !dismissed && trigger !== null;
   const query = trigger?.query ?? "";
   const triggerIndex = trigger?.triggerIndex ?? -1;
+
+  // Reset selectedIndex when query or path changes
+  if (query !== prevQuery || currentPath !== prevPath) {
+    setPrevQuery(query);
+    setPrevPath(currentPath);
+    setSelectedIndex(0);
+  }
+
+  // Reset path when dropdown closes (e.g. user deletes the @)
+  if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false);
+    setCurrentPath("/");
+    setSelectedIndex(0);
+  }
+  if (isOpen && !prevIsOpen) {
+    setPrevIsOpen(true);
+  }
 
   const { data, isLoading } = useSharedDrive(isOpen ? projectId : undefined, currentPath);
 
@@ -71,17 +91,6 @@ export function useFileMention(
         return a.name.localeCompare(b.name);
       });
   }, [files, query]);
-
-  React.useEffect(() => {
-    setSelectedIndex(0);
-  }, [query, currentPath]);
-
-  React.useEffect(() => {
-    if (!isOpen) {
-      setCurrentPath("/");
-      setSelectedIndex(0);
-    }
-  }, [isOpen]);
 
   const navigateUp = React.useCallback(() => {
     setSelectedIndex((prev) => (prev <= 0 ? items.length - 1 : prev - 1));
