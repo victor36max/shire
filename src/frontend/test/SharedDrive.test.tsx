@@ -189,6 +189,39 @@ describe("SharedDrivePanel", () => {
     });
   });
 
+  it("navigates to parent folder when file search param is set", async () => {
+    const nestedFiles: SharedDriveFile[] = [
+      { name: "notes.txt", path: "/docs/sub/notes.txt", type: "file", size: 512 },
+      { name: "readme.md", path: "/docs/sub/readme.md", type: "file", size: 1024 },
+    ];
+    server.use(
+      http.get("*/api/projects/:id/shared-drive", ({ request }) => {
+        const url = new URL(request.url);
+        const path = url.searchParams.get("path") ?? "/";
+        if (path === "/docs/sub") {
+          return HttpResponse.json({ files: nestedFiles, currentPath: "/docs/sub" });
+        }
+        return HttpResponse.json({ files: [], currentPath: path });
+      }),
+    );
+
+    renderWithProviders(<SharedDrivePanel />, {
+      route: "/projects/test-project/shared?file=/docs/sub/notes.txt",
+      routePath: "/projects/:projectName/shared",
+    });
+
+    // Should show breadcrumbs for /docs/sub
+    await waitFor(() => {
+      expect(screen.getByText("docs")).toBeInTheDocument();
+      expect(screen.getByText("sub")).toBeInTheDocument();
+    });
+
+    // Should show files from the /docs/sub directory
+    await waitFor(() => {
+      expect(screen.getByText("notes.txt")).toBeInTheDocument();
+    });
+  });
+
   it("has upload button", async () => {
     renderWithProviders(<SharedDrivePanel />, panelRouteOpts);
 

@@ -67,7 +67,20 @@ function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: st
 export default function SharedDrivePanel() {
   const { projectId, projectName } = useProjectId();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [currentPath, setCurrentPath] = React.useState("/");
+  const selectedFile = searchParams.get("file");
+  const parentDir = selectedFile
+    ? selectedFile.substring(0, selectedFile.lastIndexOf("/")) || "/"
+    : null;
+  const [currentPath, setCurrentPath] = React.useState(parentDir ?? "/");
+  const prevParentDir = React.useRef(parentDir);
+
+  // Sync currentPath when selectedFile changes externally (e.g. direct URL navigation)
+  if (parentDir !== prevParentDir.current) {
+    prevParentDir.current = parentDir;
+    if (parentDir !== null && parentDir !== currentPath) {
+      setCurrentPath(parentDir);
+    }
+  }
 
   const {
     data,
@@ -92,8 +105,6 @@ export default function SharedDrivePanel() {
   const [newMarkdownName, setNewMarkdownName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<SharedDriveFile | null>(null);
   const [renameTarget, setRenameTarget] = React.useState<SharedDriveFile | null>(null);
-
-  const selectedFile = searchParams.get("file");
 
   const navigate = (path: string) => {
     setUploadError(null);
