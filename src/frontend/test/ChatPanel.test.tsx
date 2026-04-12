@@ -122,7 +122,7 @@ describe("ChatPanel", () => {
     setMessages(messages);
     renderChat(activeAgent);
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/Type a message/)).toBeInTheDocument();
     });
     expect(screen.getByText("Send")).toBeInTheDocument();
   });
@@ -133,7 +133,7 @@ describe("ChatPanel", () => {
     await waitFor(() => {
       expect(screen.getByText("Hello agent")).toBeInTheDocument();
     });
-    expect(screen.queryByPlaceholderText("Type a message...")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Type a message/)).not.toBeInTheDocument();
   });
 
   it("sends message on click", async () => {
@@ -148,10 +148,10 @@ describe("ChatPanel", () => {
     renderChat(activeAgent);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/Type a message/)).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText("Type a message..."), {
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
       target: { value: "test message" },
     });
     await userEvent.click(screen.getByText("Send"));
@@ -174,13 +174,13 @@ describe("ChatPanel", () => {
     renderChat(activeAgent);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/Type a message/)).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText("Type a message..."), {
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
       target: { value: "test message" },
     });
-    fireEvent.keyDown(screen.getByPlaceholderText("Type a message..."), { key: "Enter" });
+    fireEvent.keyDown(screen.getByPlaceholderText(/Type a message/), { key: "Enter" });
 
     await waitFor(() => {
       expect(sentPayload).toBeDefined();
@@ -200,13 +200,13 @@ describe("ChatPanel", () => {
     renderChat(activeAgent);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("Type a message...")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/Type a message/)).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText("Type a message..."), {
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
       target: { value: "line one" },
     });
-    fireEvent.keyDown(screen.getByPlaceholderText("Type a message..."), {
+    fireEvent.keyDown(screen.getByPlaceholderText(/Type a message/), {
       key: "Enter",
       shiftKey: true,
     });
@@ -532,7 +532,7 @@ describe("ChatPanel", () => {
       expect(screen.getByText(/Agent is idle/)).toBeInTheDocument();
     });
     expect(screen.getByText("Restart")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Type a message...")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Type a message/)).not.toBeInTheDocument();
   });
 
   it("sends restart event when restart button is clicked", async () => {

@@ -28,6 +28,20 @@ export function useSharedDrive(projectId: string | undefined, path: string) {
   });
 }
 
+export function useSharedDriveSearch(projectId: string | undefined, query: string) {
+  return useQuery<{ files: SharedDriveFile[] }>({
+    queryKey: ["shared-drive-search", projectId, query],
+    queryFn: async () =>
+      unwrap(
+        await api.projects[":id"]["shared-drive"].search.$get({
+          param: { id: projectId! },
+          query: { q: query },
+        }),
+      ),
+    enabled: !!projectId && query.length > 0,
+  });
+}
+
 export function useCreateDirectory(projectId: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -145,6 +145,41 @@ describe("shared-drive routes", () => {
     expect(data.files[0].type).toBe("file");
   });
 
+  it("GET /api/projects/:id/shared-drive/search finds files recursively", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    mkdirSync(join(sharedRoot, "docs"), { recursive: true });
+    writeFileSync(join(sharedRoot, "readme.md"), "hello");
+    writeFileSync(join(sharedRoot, "docs", "guide.md"), "guide");
+    writeFileSync(join(sharedRoot, "docs", "test.txt"), "test");
+
+    const res = await request("GET", `/api/projects/${projectId}/shared-drive/search?q=guide`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { files: Array<{ name: string; path: string }> };
+    expect(data.files.length).toBe(1);
+    expect(data.files[0].name).toBe("guide.md");
+    expect(data.files[0].path).toBe("/docs/guide.md");
+  });
+
+  it("GET /api/projects/:id/shared-drive/search returns files from all levels", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    mkdirSync(join(sharedRoot, "sub"), { recursive: true });
+    writeFileSync(join(sharedRoot, "test.md"), "root");
+    writeFileSync(join(sharedRoot, "sub", "test.txt"), "nested");
+
+    const res = await request("GET", `/api/projects/${projectId}/shared-drive/search?q=test`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { files: Array<{ name: string; path: string }> };
+    expect(data.files.length).toBe(2);
+    const names = data.files.map((f) => f.name);
+    expect(names).toContain("test.md");
+    expect(names).toContain("test.txt");
+  });
+
+  it("GET /api/projects/:id/shared-drive/search returns 404 for unknown project", async () => {
+    const res = await request("GET", "/api/projects/nonexistent/shared-drive/search?q=test");
+    expect(res.status).toBe(404);
+  });
+
   it("GET /api/projects/:id/shared-drive/preview returns file content", async () => {
     const sharedRoot = workspace.sharedDir(projectId);
     mkdirSync(sharedRoot, { recursive: true });
