@@ -49,4 +49,21 @@ describe("remarkSharedLinks", () => {
     const result = process("```\n/shared/file.txt\n```");
     expect(result).not.toContain("[/shared/file.txt]");
   });
+
+  it("converts backtick-wrapped /shared/ path to a link", () => {
+    const result = process("Check `/shared/file.txt` for details.");
+    expect(result).toContain("[/shared/file.txt](/shared/file.txt)");
+    expect(result).not.toContain("`/shared/file.txt`");
+  });
+
+  it("converts backtick-wrapped nested /shared/ path to a link", () => {
+    const result = process("See `/shared/a/b/c.md` here.");
+    expect(result).toContain("[/shared/a/b/c.md](/shared/a/b/c.md)");
+  });
+
+  it("does not convert backtick code containing more than just a path", () => {
+    const result = process("Run `cat /shared/file.txt` to see it.");
+    expect(result).toContain("`cat /shared/file.txt`");
+    expect(result).not.toContain("[/shared/file.txt]");
+  });
 });
