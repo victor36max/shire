@@ -298,6 +298,17 @@ th:focus-within .shire-table-cell-action-button {
 .shire-punctuation { color: rgb(171, 178, 191); }
 .shire-keyword { color: rgb(198, 120, 221); }
 
+/* Override Tailwind prose pre backgrounds for light/dark mode */
+.prose pre {
+  --tw-prose-pre-bg: oklch(0.97 0.003 150);
+  --tw-prose-pre-code: oklch(0.25 0.01 150);
+}
+
+.dark .prose pre {
+  --tw-prose-pre-bg: oklch(0.2 0.01 150);
+  --tw-prose-pre-code: oklch(0.9 0.005 150);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
