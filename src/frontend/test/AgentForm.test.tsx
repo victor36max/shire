@@ -92,7 +92,6 @@ describe("AgentForm", () => {
     const agent: Agent = {
       id: "a-test",
       name: "test",
-      status: "created",
       busy: false,
       unreadCount: 0,
       harness: "claude_code",
@@ -182,7 +181,6 @@ describe("AgentForm", () => {
       id: "",
       name: "frontend-developer",
       description: "React specialist",
-      status: "idle",
       busy: false,
       unreadCount: 0,
       harness: "claude_code",
@@ -219,7 +217,6 @@ describe("AgentForm", () => {
     const agent: Agent = {
       id: "a-existing",
       name: "existing-agent",
-      status: "active",
       busy: false,
       unreadCount: 0,
       harness: "claude_code",

@@ -1,8 +1,5 @@
 import { EventEmitter } from "events";
 
-/** Agent lifecycle status — shared between runtime and event bus. */
-export type AgentStatus = "idle" | "bootstrapping" | "active" | "crashed";
-
 // --- Serialized message shape attached to agent-level bus events ---
 export interface SerializedMessage {
   id: number;
@@ -60,7 +57,6 @@ export type AgentBusEvent =
       };
       message?: SerializedMessage;
     }
-  | { type: "agent_status"; payload: { agentId: string; status: AgentStatus } }
   | { type: "agent_busy"; payload: { agentId: string; active: boolean } };
 
 // --- Agent-list events (project:{id}:agents channel) ---
@@ -68,7 +64,6 @@ export type AgentListBusEvent =
   | { type: "agent_created"; payload: { agentId: string; name: string } }
   | { type: "agent_updated"; payload: { agentId: string; name: string } }
   | { type: "agent_deleted"; payload: { agentId: string } }
-  | { type: "agent_status"; payload: { agentId: string; status: AgentStatus } }
   | { type: "agent_busy"; payload: { agentId: string; active: boolean } }
   | {
       type: "new_message_notification";

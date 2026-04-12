@@ -10,7 +10,6 @@ import { renderWithProviders } from "./test-utils";
 const agent: AgentOverview = {
   id: "a1",
   name: "test-agent",
-  status: "active",
   busy: false,
   unreadCount: 0,
 };
@@ -29,10 +28,9 @@ function renderChatHeader(props?: { onMenuToggle?: () => void }) {
 }
 
 describe("ChatHeader", () => {
-  it("renders agent name and status", () => {
+  it("renders agent name", () => {
     renderChatHeader();
     expect(screen.getByText("test-agent")).toBeInTheDocument();
-    expect(screen.getByText("active")).toBeInTheDocument();
   });
 
   it("sends clear session request when Clear Session is clicked", async () => {

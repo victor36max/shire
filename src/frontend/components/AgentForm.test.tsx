@@ -18,7 +18,7 @@ describe("AgentForm key-based reset", () => {
       id: "a1",
       name: "my-agent",
       description: "A test agent",
-      status: "active",
+
       busy: false,
       unreadCount: 0,
       harness: "claude_code",
@@ -45,7 +45,7 @@ describe("AgentForm key-based reset", () => {
     const agent1: Agent = {
       id: "a1",
       name: "agent-one",
-      status: "active",
+
       busy: false,
       unreadCount: 0,
       harness: "claude_code",
@@ -53,7 +53,7 @@ describe("AgentForm key-based reset", () => {
     const agent2: Agent = {
       id: "a2",
       name: "agent-two",
-      status: "active",
+
       busy: false,
       unreadCount: 0,
       harness: "pi",

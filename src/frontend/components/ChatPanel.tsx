@@ -140,25 +140,23 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
               <p className="text-sm text-muted-foreground">
                 Send a message to start working with this agent.
               </p>
-              {agent.status === "active" && (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {["What can you help me with?", "What tools do you have?"].map((suggestion) => (
-                    <Button
-                      key={suggestion}
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full"
-                      onClick={() => {
-                        markBusy();
-                        stickyInstance.scrollToBottom();
-                        sendMessage.mutate({ agentId: agent.id, text: suggestion });
-                      }}
-                    >
-                      {suggestion}
-                    </Button>
-                  ))}
-                </div>
-              )}
+              <div className="flex flex-wrap justify-center gap-2">
+                {["What can you help me with?", "What tools do you have?"].map((suggestion) => (
+                  <Button
+                    key={suggestion}
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => {
+                      markBusy();
+                      stickyInstance.scrollToBottom();
+                      sendMessage.mutate({ agentId: agent.id, text: suggestion });
+                    }}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((msg, i) => {

@@ -6,8 +6,6 @@ export interface Project {
 
 export type HarnessType = "pi" | "claude_code" | "opencode" | "codex";
 
-export type AgentStatus = "created" | "starting" | "bootstrapping" | "active" | "idle" | "crashed";
-
 export interface SkillReference {
   name: string;
   content: string;
@@ -23,7 +21,6 @@ export interface Skill {
 export interface AgentOverview {
   id: string;
   name: string;
-  status: AgentStatus;
   busy: boolean;
   unreadCount: number;
   lastUserMessageAt?: string | null;
@@ -57,24 +54,6 @@ export interface CatalogCategory {
   name: string;
   description: string;
 }
-
-export const statusVariant = (
-  status: string,
-): "default" | "secondary" | "destructive" | "outline" => {
-  switch (status) {
-    case "active":
-      return "default";
-    case "starting":
-    case "bootstrapping":
-      return "secondary";
-    case "idle":
-      return "outline";
-    case "crashed":
-      return "destructive";
-    default:
-      return "secondary";
-  }
-};
 
 export interface Secret {
   id: number;

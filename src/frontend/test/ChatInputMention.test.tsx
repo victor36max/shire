@@ -11,7 +11,6 @@ import { renderWithProviders, waitForText } from "./test-utils";
 const activeAgent: AgentOverview = {
   id: "a1",
   name: "test-agent",
-  status: "active",
   busy: false,
   unreadCount: 0,
 };

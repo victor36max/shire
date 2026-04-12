@@ -59,7 +59,7 @@ describe("deployAndScan", () => {
     const statuses = coordinator.listAgentStatuses();
     expect(statuses.length).toBe(3);
     for (const s of statuses) {
-      expect(s.status).toBe("active");
+      expect(s.busy).toBeDefined();
     }
     // Should be fast (parallel) — well under 1s
     expect(elapsed).toBeLessThan(2000);
@@ -82,7 +82,7 @@ describe("deployAndScan", () => {
     const elapsed = Date.now() - start;
 
     const statuses = coordinator.listAgentStatuses();
-    expect(statuses[0].status).toBe("active");
+    expect(statuses[0].name).toBeTruthy();
     expect(elapsed).toBeLessThan(2000);
   });
 
@@ -96,11 +96,10 @@ describe("deployAndScan", () => {
 
     await coordinator.deployAndScan();
 
-    // The good agent should still be active
+    // The good agent should still be listed
     const statuses = coordinator.listAgentStatuses();
     const good = statuses.find((s) => s.name === "good-agent");
     expect(good).toBeDefined();
-    expect(good!.status).toBe("active");
   });
 });
 
@@ -190,7 +189,7 @@ describe("listAgentStatuses", () => {
     expect(names).toContain("agent-one");
     expect(names).toContain("agent-two");
     for (const s of statuses) {
-      expect(s.status).toBeTruthy();
+      expect(s.name).toBeTruthy();
       expect(s.lastUserMessageAt).toBeNull();
     }
   });
@@ -263,7 +262,6 @@ describe("getAgentDetail", () => {
     expect(detail!.description).toBe("A test");
     expect(detail!.harness).toBe("claude_code");
     expect(detail!.model).toBe("claude-3-haiku");
-    expect(detail!.status).toBeTruthy();
   });
 });
 
@@ -423,7 +421,7 @@ describe("restartAllAgents", () => {
     const statuses = coordinator.listAgentStatuses();
     expect(statuses.length).toBe(2);
     for (const s of statuses) {
-      expect(s.status).toBe("active");
+      expect(s.busy).toBeDefined();
     }
   });
 });

@@ -15,14 +15,13 @@ import {
 import type { AgentOverview } from "../../components/types";
 
 const agents = [
-  { id: "a1", name: "agent-one", status: "running" },
-  { id: "a2", name: "agent-two", status: "idle" },
+  { id: "a1", name: "agent-one" },
+  { id: "a2", name: "agent-two" },
 ];
 
 const agentDetail = {
   id: "a1",
   name: "agent-one",
-  status: "running",
   harness: "claude_code",
   systemPrompt: "You are helpful.",
 };
@@ -88,7 +87,7 @@ describe("useRestartAgent", () => {
 });
 
 describe("findDefaultAgent", () => {
-  const base: AgentOverview = { id: "", name: "", status: "idle", busy: false, unreadCount: 0 };
+  const base: AgentOverview = { id: "", name: "", busy: false, unreadCount: 0 };
 
   it("returns undefined for empty list", () => {
     expect(findDefaultAgent([])).toBeUndefined();

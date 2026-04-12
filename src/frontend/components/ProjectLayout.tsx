@@ -98,7 +98,6 @@ export default function ProjectLayout() {
         model: agent.model,
         systemPrompt: agent.systemPrompt,
         skills: [],
-        status: "idle",
         busy: false,
         unreadCount: 0,
         lastUserMessageAt: null,
@@ -117,11 +116,6 @@ export default function ProjectLayout() {
       case "agent_busy":
         updateAgentCache(event.payload.agentId, {
           busy: event.payload.active,
-        });
-        break;
-      case "agent_status":
-        updateAgentCache(event.payload.agentId, {
-          status: event.payload.status,
         });
         break;
       case "new_message_notification":

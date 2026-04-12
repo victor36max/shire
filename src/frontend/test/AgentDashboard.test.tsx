@@ -18,14 +18,12 @@ const agents: AgentOverview[] = [
   {
     id: "a1",
     name: "Agent One",
-    status: "active",
     busy: false,
     unreadCount: 0,
   },
   {
     id: "a2",
     name: "Agent Two",
-    status: "created",
     busy: false,
     unreadCount: 0,
   },

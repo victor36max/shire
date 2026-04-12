@@ -9,7 +9,6 @@ import { renderWithProviders } from "./test-utils";
 const agent: Agent = {
   id: "a1",
   name: "Test Agent",
-  status: "active",
   busy: false,
   unreadCount: 0,
   model: "claude-sonnet-4-6",
@@ -28,10 +27,10 @@ import AgentShow from "../components/AgentShow";
 
 function setAgentData(
   detail: Partial<Agent> = {},
-  agentsList?: Array<{ id: string; name: string; status: string }>,
+  agentsList?: Array<{ id: string; name: string }>,
 ) {
   const merged = { ...agent, ...detail };
-  const agents = agentsList ?? [{ id: merged.id, name: merged.name, status: merged.status }];
+  const agents = agentsList ?? [{ id: merged.id, name: merged.name }];
   server.use(
     http.get("*/api/projects/:id/agents", () => HttpResponse.json(agents)),
     http.get("*/api/projects/:id/agents/:aid", () => HttpResponse.json(merged)),
@@ -45,7 +44,7 @@ const routeOpts = {
 
 async function renderAgentShow(
   detail: Partial<Agent> = {},
-  agentsList?: Array<{ id: string; name: string; status: string }>,
+  agentsList?: Array<{ id: string; name: string }>,
 ) {
   setAgentData(detail, agentsList);
   renderWithProviders(<AgentShow />, routeOpts);
@@ -65,7 +64,6 @@ describe("AgentShow", () => {
     expect(screen.getByRole("heading", { name: "Test Agent" })).toBeInTheDocument();
     expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
     expect(screen.getByText("You are a helpful assistant.")).toBeInTheDocument();
-    expect(screen.getAllByText("active")).toHaveLength(2); // header badge + detail badge
   });
 
   it("shows fallback for missing model and system prompt", async () => {
@@ -73,18 +71,8 @@ describe("AgentShow", () => {
     expect(screen.getAllByText("Not set")).toHaveLength(2);
   });
 
-  it("shows Start button for created agent", async () => {
-    setAgentData({ ...agent, status: "created" }, [
-      { id: "a1", name: "Test Agent", status: "created" },
-    ]);
-    renderWithProviders(<AgentShow />, routeOpts);
-    await waitFor(() => {
-      expect(screen.getByText("Start Agent")).toBeInTheDocument();
-    });
-  });
-
   it("shows Delete Agent in more menu", async () => {
-    await renderAgentShow({ status: "created" });
+    await renderAgentShow();
     await openMoreMenu();
     expect(screen.getByText("Delete Agent")).toBeInTheDocument();
   });
@@ -92,25 +80,6 @@ describe("AgentShow", () => {
   it("shows Restart button for active agent", async () => {
     await renderAgentShow();
     expect(screen.getByText("Restart Agent")).toBeInTheDocument();
-  });
-
-  it("calls restart when start is clicked", async () => {
-    let restartedId: string | undefined;
-    server.use(
-      http.post("*/api/projects/:id/agents/:aid/restart", ({ params }) => {
-        restartedId = params.aid as string;
-        return HttpResponse.json({ ok: true });
-      }),
-    );
-    setAgentData({ ...agent, status: "created" }, [
-      { id: "a1", name: "Test Agent", status: "created" },
-    ]);
-    renderWithProviders(<AgentShow />, routeOpts);
-    await waitFor(() => {
-      expect(screen.getByText("Start Agent")).toBeInTheDocument();
-    });
-    await userEvent.click(screen.getByText("Start Agent"));
-    await waitFor(() => expect(restartedId).toBe("a1"));
   });
 
   it("calls restart after confirming restart", async () => {
@@ -136,50 +105,6 @@ describe("AgentShow", () => {
       }),
     );
     await renderAgentShow();
-    await openMoreMenu();
-    await userEvent.click(screen.getByText("Delete Agent"));
-    await userEvent.click(screen.getByText("Delete"));
-    await waitFor(() => expect(deletedId).toBe("a1"));
-  });
-
-  it("shows Start button for crashed agent", async () => {
-    setAgentData({ ...agent, status: "crashed" }, [
-      { id: "a1", name: "Test Agent", status: "crashed" },
-    ]);
-    renderWithProviders(<AgentShow />, routeOpts);
-    await waitFor(() => {
-      expect(screen.getByText("Start Agent")).toBeInTheDocument();
-    });
-  });
-
-  it("shows Restart button for bootstrapping agent", async () => {
-    setAgentData({ ...agent, status: "bootstrapping" }, [
-      { id: "a1", name: "Test Agent", status: "bootstrapping" },
-    ]);
-    renderWithProviders(<AgentShow />, routeOpts);
-    await waitFor(() => {
-      expect(screen.getByText("Restart Agent")).toBeInTheDocument();
-    });
-    expect(screen.queryByText("Start Agent")).not.toBeInTheDocument();
-  });
-
-  it("shows Start button for idle agent", async () => {
-    setAgentData({ ...agent, status: "idle" }, [{ id: "a1", name: "Test Agent", status: "idle" }]);
-    renderWithProviders(<AgentShow />, routeOpts);
-    await waitFor(() => {
-      expect(screen.getByText("Start Agent")).toBeInTheDocument();
-    });
-  });
-
-  it("calls delete for created agent after confirming", async () => {
-    let deletedId: string | undefined;
-    server.use(
-      http.delete("*/api/projects/:id/agents/:aid", ({ params }) => {
-        deletedId = params.aid as string;
-        return HttpResponse.json({ ok: true });
-      }),
-    );
-    await renderAgentShow({ status: "created" });
     await openMoreMenu();
     await userEvent.click(screen.getByText("Delete Agent"));
     await userEvent.click(screen.getByText("Delete"));

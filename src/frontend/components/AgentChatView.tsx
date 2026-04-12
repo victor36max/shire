@@ -43,7 +43,7 @@ export default function AgentChatView() {
   // --- Streaming state ---
   const [streamingText, setStreamingText] = useState("");
 
-  // Subscribe to per-agent streaming events (agent_busy/agent_status are
+  // Subscribe to per-agent streaming events (agent_busy is
   // handled by ProjectLayout's project-level subscription, not here)
   const handleAgentEvent = useCallback(
     (event: AgentWsEvent) => {

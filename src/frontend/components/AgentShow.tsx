@@ -22,8 +22,8 @@ import {
 import AppLayout from "./AppLayout";
 import AgentForm, { type AgentFormPayload } from "./AgentForm";
 import { ChevronLeft, MoreHorizontal, Pencil } from "lucide-react";
-import { Spinner, PageLoader } from "./ui/spinner";
-import { statusVariant, harnessLabel } from "./types";
+import { PageLoader } from "./ui/spinner";
+import { harnessLabel } from "./types";
 import {
   useProjectId,
   useAgents,
@@ -32,9 +32,6 @@ import {
   useDeleteAgent,
   useUpdateAgent,
 } from "../hooks";
-
-const isRunning = (status: string) =>
-  status === "active" || status === "starting" || status === "bootstrapping";
 
 export default function AgentShow() {
   const navigate = useNavigate();
@@ -80,26 +77,15 @@ export default function AgentShow() {
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <h1 className="text-2xl font-bold">{agent.name}</h1>
-            <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => setEditOpen(true)}>
               <Pencil className="h-4 w-4 mr-1" />
               Edit
             </Button>
-            {isRunning(agent.status) ? (
-              <Button variant="outline" onClick={() => setRestartOpen(true)}>
-                Restart Agent
-              </Button>
-            ) : (
-              <Button
-                onClick={() => restartAgent.mutate(agentId!)}
-                disabled={restartAgent.isPending}
-              >
-                {restartAgent.isPending && <Spinner size="sm" className="mr-1" />}
-                Start Agent
-              </Button>
-            )}
+            <Button variant="outline" onClick={() => setRestartOpen(true)}>
+              Restart Agent
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="More actions">
@@ -144,12 +130,6 @@ export default function AgentShow() {
                     </dd>
                   </div>
                 )}
-                <div className="py-3 grid grid-cols-3 gap-4">
-                  <dt className="text-sm font-medium text-muted-foreground">Status</dt>
-                  <dd className="text-sm col-span-2">
-                    <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
-                  </dd>
-                </div>
               </dl>
             </CardContent>
           </Card>

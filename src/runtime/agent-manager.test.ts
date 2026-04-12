@@ -40,9 +40,9 @@ function collectEvents(topic: string): { events: BusEvent[]; unsub: () => void }
 
 describe("AgentManager", () => {
   describe("initial state", () => {
-    it("starts with idle status", () => {
+    it("starts not running", () => {
       const mgr = createManager();
-      expect(mgr.status).toBe("idle");
+      expect(mgr.running).toBe(false);
     });
 
     it("initializes lastReadMessageId from DB", () => {
@@ -262,18 +262,6 @@ describe("AgentManager", () => {
     });
   });
 
-  describe("status transitions", () => {
-    it("emits agent_status events on status change", () => {
-      const { unsub } = collectEvents(`project:${projectId}:agents`);
-      createManager();
-
-      // Creating the manager doesn't change status (starts idle, no event)
-      // The status events are tested through the coordinator tests
-
-      unsub();
-    });
-  });
-
   describe("sendMessage with attachments", () => {
     let sentMessages: string[];
 
@@ -294,7 +282,7 @@ describe("AgentManager", () => {
       };
       // Access private fields to set the agent as active
       (mgr as unknown as Record<string, unknown>).harness = mockHarness;
-      (mgr as unknown as Record<string, unknown>).status = "active";
+      (mgr as unknown as Record<string, unknown>).running = true;
       return mgr;
     }
 
@@ -422,7 +410,7 @@ describe("AgentManager", () => {
         getSessionId: () => null,
       };
       (mgr as unknown as Record<string, unknown>).harness = mockHarness;
-      (mgr as unknown as Record<string, unknown>).status = "active";
+      (mgr as unknown as Record<string, unknown>).running = true;
       return mgr;
     }
 
@@ -475,7 +463,7 @@ describe("AgentManager", () => {
         getSessionId: () => null,
       };
       (mgr as unknown as Record<string, unknown>).harness = mockHarness;
-      (mgr as unknown as Record<string, unknown>).status = "active";
+      (mgr as unknown as Record<string, unknown>).running = true;
 
       const result = await mgr.clearSession();
       expect(result).toBe(true);
@@ -507,7 +495,7 @@ describe("AgentManager", () => {
         getSessionId: () => null,
       };
       (mgr as unknown as Record<string, unknown>).harness = mockHarness;
-      (mgr as unknown as Record<string, unknown>).status = "active";
+      (mgr as unknown as Record<string, unknown>).running = true;
 
       const result = await mgr.interrupt();
       expect(result).toBe(true);
@@ -515,10 +503,10 @@ describe("AgentManager", () => {
   });
 
   describe("stop", () => {
-    it("sets status to idle", async () => {
+    it("sets running to false", async () => {
       const mgr = createManager();
       await mgr.stop();
-      expect(mgr.status).toBe("idle");
+      expect(mgr.running).toBe(false);
     });
   });
 
@@ -539,7 +527,7 @@ describe("AgentManager", () => {
         getSessionId: () => null,
       };
       (mgr as unknown as Record<string, unknown>).harness = mockHarness;
-      (mgr as unknown as Record<string, unknown>).status = "active";
+      (mgr as unknown as Record<string, unknown>).running = true;
 
       const { events, unsub } = collectEvents(`project:${projectId}:agents`);
       await mgr.sendMessage("test");
@@ -568,7 +556,7 @@ describe("AgentManager", () => {
       await workspace.ensureProjectDirs(projectId);
       const mgr = createManager();
       await mgr.start();
-      expect(mgr.status).toBe("active");
+      expect(mgr.running).toBe(true);
       await mgr.stop();
     });
 
@@ -589,9 +577,9 @@ describe("AgentManager", () => {
       await workspace.ensureProjectDirs(projectId);
       const mgr = createManager();
       await mgr.start();
-      expect(mgr.status).toBe("active");
+      expect(mgr.running).toBe(true);
       await mgr.restart();
-      expect(mgr.status).toBe("active");
+      expect(mgr.running).toBe(true);
       await mgr.stop();
     });
   });

@@ -21,7 +21,6 @@ export const defaultHandlers = [
     HttpResponse.json({
       id: "a1",
       name: "test-agent",
-      status: "active",
       harness: "claude_code",
       description: "",
       systemPrompt: "",

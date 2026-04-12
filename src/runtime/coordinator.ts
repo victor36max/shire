@@ -1,13 +1,7 @@
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import yaml from "js-yaml";
-import {
-  bus,
-  type AgentStatus,
-  type OutboxBusEvent,
-  type SpawnAgentBusEvent,
-  type AgentBusEvent,
-} from "../events";
+import { bus, type OutboxBusEvent, type SpawnAgentBusEvent } from "../events";
 import { getDb } from "../db";
 import { ALERT_SEVERITIES, type AlertSeverity } from "../db/schema";
 import { AgentManager } from "./agent-manager";
@@ -32,7 +26,6 @@ export interface AgentFields {
 export class Coordinator {
   readonly projectId: string;
   private agents = new Map<string, AgentManager>();
-  private statuses = new Map<string, AgentStatus>();
   private deployed = false;
   private unsubscribes: Array<() => void> = [];
 
@@ -202,7 +195,6 @@ export class Coordinator {
     if (proc) {
       await proc.stop();
       this.agents.delete(agentId);
-      this.statuses.delete(agentId);
     }
 
     // Delete DB record + workspace atomically
@@ -238,7 +230,6 @@ export class Coordinator {
   listAgentStatuses(): Array<{
     id: string;
     name: string;
-    status: AgentStatus;
     busy: boolean;
     unreadCount: number;
     lastReadMessageId: number | null;
@@ -254,7 +245,6 @@ export class Coordinator {
     const result: Array<{
       id: string;
       name: string;
-      status: AgentStatus;
       busy: boolean;
       unreadCount: number;
       lastReadMessageId: number | null;
@@ -264,7 +254,6 @@ export class Coordinator {
       result.push({
         id,
         name: proc.agentName,
-        status: proc.status,
         busy: proc.busy,
         unreadCount: unreads.get(id) ?? 0,
         lastReadMessageId: proc.getLastReadMessageId(),
@@ -308,7 +297,6 @@ export class Coordinator {
       model: agent?.model ?? null,
       systemPrompt: agent?.systemPrompt ?? null,
       skills: agentSkills,
-      status: proc.status,
     };
   }
 
@@ -316,7 +304,6 @@ export class Coordinator {
     stopSharedDriveWatcher(this.projectId);
     await Promise.all([...this.agents.values()].map((proc) => proc.stop()));
     this.agents.clear();
-    this.statuses.clear();
     for (const unsub of this.unsubscribes) unsub();
     this.unsubscribes = [];
   }
@@ -331,16 +318,6 @@ export class Coordinator {
     });
 
     this.agents.set(agentId, proc);
-
-    // Listen for status changes
-    this.unsubscribes.push(
-      bus.on<AgentBusEvent>(`project:${this.projectId}:agent:${agentId}`, (event) => {
-        if (event.type === "agent_status") {
-          this.statuses.set(event.payload.agentId, event.payload.status);
-        }
-      }),
-    );
-
     await proc.start();
   }
 
