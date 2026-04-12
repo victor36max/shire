@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { Folder, File, Upload, FolderPlus, FileText, Trash2, Download, Pencil } from "lucide-react";
+import { Folder, Upload, FolderPlus, FileText, Trash2, Download, Pencil } from "lucide-react";
 import { Spinner } from "../ui/spinner";
 import {
   useProjectId,
@@ -30,7 +30,7 @@ import {
   useRenameSharedFile,
   useUploadSharedDriveFile,
 } from "../../hooks";
-import { formatSize, MAX_UPLOAD_SIZE } from "../../lib/file-utils";
+import { formatSize, getFileIcon, MAX_UPLOAD_SIZE } from "../../lib/file-utils";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
 
 function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
@@ -277,77 +277,76 @@ export default function SharedDrivePanel() {
             <p className="text-xs text-muted-foreground">Empty directory</p>
           </div>
         )}
-        {sortedFiles.map((file) => (
-          <div key={file.path} className="group flex items-center mx-1">
-            <button
-              type="button"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm flex-1 min-w-0 text-left ${
-                selectedFile === file.path
-                  ? "bg-accent text-accent-foreground"
-                  : "hover:bg-muted text-foreground"
-              }`}
-              onClick={() => {
-                if (file.type === "directory") {
-                  navigate(file.path);
-                } else {
-                  selectFile(file);
-                }
-              }}
-            >
-              {file.type === "directory" ? (
-                <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-              ) : (
-                <File className="h-4 w-4 text-muted-foreground shrink-0" />
-              )}
-              <span className="truncate">{file.name}</span>
-            </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 rounded hover:bg-background text-muted-foreground"
-                  aria-label={`${file.name} actions`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    aria-hidden="true"
+        {sortedFiles.map((file) => {
+          const FileTypeIcon = file.type === "directory" ? Folder : getFileIcon(file.name);
+          return (
+            <div key={file.path} className="group flex items-center mx-1">
+              <button
+                type="button"
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm flex-1 min-w-0 text-left ${
+                  selectedFile === file.path
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-muted text-foreground"
+                }`}
+                onClick={() => {
+                  if (file.type === "directory") {
+                    navigate(file.path);
+                  } else {
+                    selectFile(file);
+                  }
+                }}
+              >
+                <FileTypeIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="truncate">{file.name}</span>
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 rounded hover:bg-background text-muted-foreground"
+                    aria-label={`${file.name} actions`}
                   >
-                    <circle cx="8" cy="3" r="1.5" />
-                    <circle cx="8" cy="8" r="1.5" />
-                    <circle cx="8" cy="13" r="1.5" />
-                  </svg>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {file.type === "file" && (
-                  <DropdownMenuItem asChild>
-                    <a
-                      href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(file.path)}`}
-                      download
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                      aria-hidden="true"
                     >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download
-                    </a>
+                      <circle cx="8" cy="3" r="1.5" />
+                      <circle cx="8" cy="8" r="1.5" />
+                      <circle cx="8" cy="13" r="1.5" />
+                    </svg>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {file.type === "file" && (
+                    <DropdownMenuItem asChild>
+                      <a
+                        href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(file.path)}`}
+                        download
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setRenameTarget(file)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Rename
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => setRenameTarget(file)}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => setDeleteTarget(file)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ))}
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => setDeleteTarget(file)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        })}
       </div>
 
       {/* New Folder Dialog */}
