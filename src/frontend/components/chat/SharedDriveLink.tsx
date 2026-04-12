@@ -1,7 +1,8 @@
 import type { AnchorHTMLAttributes, MouseEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { Element } from "hast";
 import { useProjectLayout } from "../../providers/ProjectLayoutProvider";
+import { useIsDesktop } from "../../hooks/use-is-desktop";
 
 interface SharedDriveLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   projectName: string;
@@ -16,6 +17,8 @@ export function SharedDriveLink({
   ...rest
 }: SharedDriveLinkProps) {
   const { setPanelFilePath } = useProjectLayout();
+  const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
 
   if (href?.startsWith("/shared/")) {
     const filePath = href.slice("/shared".length);
@@ -26,7 +29,12 @@ export function SharedDriveLink({
       if (e.metaKey || e.ctrlKey || e.button === 1) return;
 
       e.preventDefault();
-      setPanelFilePath(filePath);
+
+      if (isDesktop) {
+        setPanelFilePath(filePath);
+      } else {
+        navigate(to);
+      }
     };
 
     return (

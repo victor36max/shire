@@ -9,3 +9,4 @@ export * from "./uploads";
 export * from "./schedules";
 export * from "./alert-channels";
 export * from "./version";
+export * from "./use-is-desktop";

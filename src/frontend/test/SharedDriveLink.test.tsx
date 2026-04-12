@@ -1,9 +1,15 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, mock, afterEach } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { SharedDriveLink } from "../components/chat/SharedDriveLink";
 import { ProjectLayoutProvider } from "../providers/ProjectLayoutProvider";
+
+/** Renders the current router location so tests can assert navigation. */
+function LocationDisplay() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname + location.search}</span>;
+}
 
 const layoutValue = {
   projectId: "p1",
@@ -16,10 +22,21 @@ const layoutValue = {
   setPanelFilePath: mock(() => {}),
 };
 
-function renderLink(href: string, text: string, projectName = "my-project") {
+function renderLink(
+  href: string,
+  text: string,
+  projectName = "my-project",
+  opts?: { setPanelFilePath?: ReturnType<typeof mock> },
+) {
   return render(
     <MemoryRouter>
-      <ProjectLayoutProvider value={{ ...layoutValue, projectName }}>
+      <ProjectLayoutProvider
+        value={{
+          ...layoutValue,
+          projectName,
+          ...(opts?.setPanelFilePath && { setPanelFilePath: opts.setPanelFilePath }),
+        }}
+      >
         <SharedDriveLink href={href} projectName={projectName}>
           {text}
         </SharedDriveLink>
@@ -27,6 +44,20 @@ function renderLink(href: string, text: string, projectName = "my-project") {
     </MemoryRouter>,
   );
 }
+
+function setDesktop(isDesktop: boolean) {
+  window.matchMedia = mock((query: string) => ({
+    matches: isDesktop && query === "(min-width: 768px)",
+    media: query,
+    addEventListener: mock(() => {}),
+    removeEventListener: mock(() => {}),
+  })) as unknown as typeof window.matchMedia;
+}
+
+afterEach(() => {
+  // Reset to default (mobile) after each test
+  setDesktop(false);
+});
 
 describe("SharedDriveLink", () => {
   it("renders shared drive paths as internal links", () => {
@@ -54,7 +85,16 @@ describe("SharedDriveLink", () => {
     );
   });
 
-  it("calls setPanelFilePath on click instead of navigating", async () => {
+  it("opens side panel on click on desktop", async () => {
+    setDesktop(true);
+    const setPanelFilePath = mock(() => {});
+    renderLink("/shared/hello.md", "/shared/hello.md", "my-project", { setPanelFilePath });
+    await userEvent.click(screen.getByText("/shared/hello.md"));
+    expect(setPanelFilePath).toHaveBeenCalledWith("/hello.md");
+  });
+
+  it("navigates to shared drive route on click on mobile", async () => {
+    setDesktop(false);
     const setPanelFilePath = mock(() => {});
     render(
       <MemoryRouter>
@@ -62,10 +102,14 @@ describe("SharedDriveLink", () => {
           <SharedDriveLink href="/shared/hello.md" projectName="my-project">
             /shared/hello.md
           </SharedDriveLink>
+          <LocationDisplay />
         </ProjectLayoutProvider>
       </MemoryRouter>,
     );
     await userEvent.click(screen.getByText("/shared/hello.md"));
-    expect(setPanelFilePath).toHaveBeenCalledWith("/hello.md");
+    expect(setPanelFilePath).not.toHaveBeenCalled();
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/projects/my-project/shared?file=%2Fhello.md",
+    );
   });
 });
