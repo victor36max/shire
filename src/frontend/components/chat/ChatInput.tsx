@@ -39,7 +39,7 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const mention = useFileMention(input, cursorPos, projectId);
-  const { dismiss, selectItem, triggerIndex } = mention;
+  const { selectItem, triggerIndex } = mention;
 
   const insertMention = React.useCallback(
     (mentionText: string) => {
@@ -53,20 +53,53 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
         textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
         textareaRef.current?.focus();
       });
-      dismiss();
     },
-    [input, cursorPos, triggerIndex, dismiss],
+    [input, cursorPos, triggerIndex],
   );
 
   const handleMentionSelect = React.useCallback(
     (item: SharedDriveFile) => {
+      if (item.type === "directory") {
+        // Replace @query with @dirPath/ so the hook navigates into the directory
+        const before = input.slice(0, triggerIndex + 1); // keep the @
+        const after = input.slice(cursorPos);
+        const dirQuery = item.path.slice(1) + "/"; // strip leading /, add trailing /
+        const newInput = before + dirQuery + after;
+        const newCursorPos = triggerIndex + 1 + dirQuery.length;
+        setInput(newInput);
+        setCursorPos(newCursorPos);
+        requestAnimationFrame(() => {
+          textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+          textareaRef.current?.focus();
+        });
+        return;
+      }
       const result = selectItem(item);
       if (result !== null) {
         insertMention(result);
       }
     },
-    [selectItem, insertMention],
+    [selectItem, insertMention, input, cursorPos, triggerIndex],
   );
+
+  const handleNavigateBack = React.useCallback(() => {
+    // Trim the last path segment from the query: @docs/sub/ → @docs/
+    const before = input.slice(0, triggerIndex + 1); // up to and including @
+    const rawQuery = input.slice(triggerIndex + 1, cursorPos);
+    const after = input.slice(cursorPos);
+    // Remove trailing slash, then trim to parent
+    const trimmed = rawQuery.replace(/\/$/, "");
+    const lastSlash = trimmed.lastIndexOf("/");
+    const newQuery = lastSlash === -1 ? "" : trimmed.slice(0, lastSlash + 1);
+    const newInput = before + newQuery + after;
+    const newCursorPos = triggerIndex + 1 + newQuery.length;
+    setInput(newInput);
+    setCursorPos(newCursorPos);
+    requestAnimationFrame(() => {
+      textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+      textareaRef.current?.focus();
+    });
+  }, [input, cursorPos, triggerIndex]);
 
   const handleFileSelect = React.useCallback(
     (files: FileList | null) => {
@@ -288,7 +321,7 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
               currentPath={mention.currentPath}
               isLoading={mention.isLoading}
               onSelect={handleMentionSelect}
-              onNavigateBack={mention.navigateBack}
+              onNavigateBack={handleNavigateBack}
             />
           )}
           <Textarea

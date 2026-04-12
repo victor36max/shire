@@ -13,17 +13,24 @@ const sampleFiles: SharedDriveFile[] = [
   { name: "notes.txt", path: "/notes.txt", type: "file", size: 512 },
 ];
 
-function setFiles(files: SharedDriveFile[], path = "/") {
+const docsFiles: SharedDriveFile[] = [
+  { name: "guide.md", path: "/docs/guide.md", type: "file", size: 2048 },
+  { name: "api.md", path: "/docs/api.md", type: "file", size: 1024 },
+];
+
+function setFilesForPaths(pathMap: Record<string, SharedDriveFile[]>) {
   server.use(
     http.get("*/api/projects/:id/shared-drive", ({ request }) => {
       const url = new URL(request.url);
       const reqPath = url.searchParams.get("path") ?? "/";
-      if (reqPath === path) {
-        return HttpResponse.json({ files, currentPath: reqPath });
-      }
-      return HttpResponse.json({ files: [], currentPath: reqPath });
+      const files = pathMap[reqPath] ?? [];
+      return HttpResponse.json({ files, currentPath: reqPath });
     }),
   );
+}
+
+function setFiles(files: SharedDriveFile[]) {
+  setFilesForPaths({ "/": files });
 }
 
 function renderMention(input: string, cursorPosition: number) {
@@ -80,7 +87,6 @@ describe("useFileMention", () => {
       setFiles(sampleFiles);
       const { result, rerender } = renderMention("@re", 3);
 
-      // Wait for data to load
       await act(async () => {
         await new Promise((r) => setTimeout(r, 50));
       });
@@ -107,7 +113,46 @@ describe("useFileMention", () => {
     });
   });
 
-  describe("navigation", () => {
+  describe("path-based navigation", () => {
+    it("navigates into directory when query contains /", async () => {
+      setFilesForPaths({ "/": sampleFiles, "/docs": docsFiles });
+      const { result, rerender } = renderMention("@docs/", 6);
+
+      expect(result.current.currentPath).toBe("/docs");
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      rerender({ input: "@docs/", cursorPosition: 6 });
+
+      const names = result.current.items.map((i) => i.name);
+      expect(names).toContain("guide.md");
+      expect(names).toContain("api.md");
+    });
+
+    it("filters within subdirectory", async () => {
+      setFilesForPaths({ "/": sampleFiles, "/docs": docsFiles });
+      const { result, rerender } = renderMention("@docs/gui", 9);
+
+      expect(result.current.currentPath).toBe("/docs");
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      rerender({ input: "@docs/gui", cursorPosition: 9 });
+
+      const names = result.current.items.map((i) => i.name);
+      expect(names).toContain("guide.md");
+      expect(names).not.toContain("api.md");
+    });
+
+    it("stays at root when query has no slash", () => {
+      const { result } = renderMention("@readme", 7);
+      expect(result.current.currentPath).toBe("/");
+    });
+  });
+
+  describe("keyboard navigation", () => {
     it("navigateDown increments selectedIndex", async () => {
       setFiles(sampleFiles);
       const { result } = renderMention("@", 1);
@@ -142,7 +187,6 @@ describe("useFileMention", () => {
         await new Promise((r) => setTimeout(r, 50));
       });
 
-      // Navigate to last
       for (let i = 0; i < result.current.items.length - 1; i++) {
         act(() => result.current.navigateDown());
       }
@@ -167,7 +211,7 @@ describe("useFileMention", () => {
       expect(path).toBe(`/shared${fileItem!.path}`);
     });
 
-    it("returns null for directories and navigates into them", async () => {
+    it("returns null for directories", async () => {
       setFiles(sampleFiles);
       const { result } = renderMention("@", 1);
 
@@ -177,12 +221,8 @@ describe("useFileMention", () => {
 
       const dirItem = result.current.items.find((i) => i.type === "directory");
       expect(dirItem).toBeDefined();
-      let path: string | null = null;
-      act(() => {
-        path = result.current.selectItem(dirItem!);
-      });
+      const path = result.current.selectItem(dirItem!);
       expect(path).toBeNull();
-      expect(result.current.currentPath).toBe(dirItem!.path);
     });
   });
 
@@ -202,32 +242,6 @@ describe("useFileMention", () => {
 
       rerender({ input: "@r", cursorPosition: 2 });
       expect(result.current.isOpen).toBe(true);
-    });
-  });
-
-  describe("navigateBack", () => {
-    it("navigates to parent directory", async () => {
-      setFiles(sampleFiles);
-      const { result } = renderMention("@", 1);
-
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 50));
-      });
-
-      const dirItem = result.current.items.find((i) => i.type === "directory");
-      act(() => {
-        result.current.selectItem(dirItem!);
-      });
-      expect(result.current.currentPath).not.toBe("/");
-
-      act(() => result.current.navigateBack());
-      expect(result.current.currentPath).toBe("/");
-    });
-
-    it("stays at root when already at root", () => {
-      const { result } = renderMention("@", 1);
-      act(() => result.current.navigateBack());
-      expect(result.current.currentPath).toBe("/");
     });
   });
 });

@@ -42,36 +42,55 @@ function findTrigger(
   return null;
 }
 
+/**
+ * Parse a query like "docs/sub/file" into a directory path and filter string.
+ * "docs/sub/file" → { dirPath: "/docs/sub", filter: "file" }
+ * "docs/" → { dirPath: "/docs", filter: "" }
+ * "file" → { dirPath: "/", filter: "file" }
+ * "" → { dirPath: "/", filter: "" }
+ */
+function parseQueryPath(query: string): { dirPath: string; filter: string } {
+  const slashIndex = query.lastIndexOf("/");
+  if (slashIndex === -1) {
+    return { dirPath: "/", filter: query };
+  }
+  const dirPart = query.slice(0, slashIndex);
+  const filter = query.slice(slashIndex + 1);
+  const dirPath = "/" + dirPart;
+  return { dirPath, filter };
+}
+
 export function useFileMention(
   input: string,
   cursorPosition: number,
   projectId: string | undefined,
 ): FileMentionResult {
-  const [currentPath, setCurrentPath] = React.useState("/");
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [dismissedAtInput, setDismissedAtInput] = React.useState<string | null>(null);
-  const [prevQuery, setPrevQuery] = React.useState("");
-  const [prevPath, setPrevPath] = React.useState("/");
+  const [prevFilter, setPrevFilter] = React.useState("");
+  const [prevDirPath, setPrevDirPath] = React.useState("/");
   const [prevIsOpen, setPrevIsOpen] = React.useState(false);
 
   const trigger = findTrigger(input, cursorPosition);
   const dismissed = dismissedAtInput !== null && dismissedAtInput === input;
 
   const isOpen = !dismissed && trigger !== null;
-  const query = trigger?.query ?? "";
+  const rawQuery = trigger?.query ?? "";
   const triggerIndex = trigger?.triggerIndex ?? -1;
 
-  // Reset selectedIndex when query or path changes
-  if (query !== prevQuery || currentPath !== prevPath) {
-    setPrevQuery(query);
-    setPrevPath(currentPath);
+  const { dirPath, filter } = parseQueryPath(rawQuery);
+  const currentPath = isOpen ? dirPath : "/";
+
+  // Reset selectedIndex when filter or path changes
+  if (filter !== prevFilter || dirPath !== prevDirPath) {
+    setPrevFilter(filter);
+    setPrevDirPath(dirPath);
     setSelectedIndex(0);
   }
 
-  // Reset path when dropdown closes (e.g. user deletes the @)
+  // Reset when dropdown closes
   if (!isOpen && prevIsOpen) {
     setPrevIsOpen(false);
-    setCurrentPath("/");
     setSelectedIndex(0);
   }
   if (isOpen && !prevIsOpen) {
@@ -83,14 +102,14 @@ export function useFileMention(
   const files = data?.files;
   const items = React.useMemo(() => {
     if (!files) return [];
-    const q = query.toLowerCase();
+    const q = filter.toLowerCase();
     return files
       .filter((f) => f.name.toLowerCase().includes(q))
       .sort((a, b) => {
         if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
         return a.name.localeCompare(b.name);
       });
-  }, [files, query]);
+  }, [files, filter]);
 
   const navigateUp = React.useCallback(() => {
     setSelectedIndex((prev) => (prev <= 0 ? items.length - 1 : prev - 1));
@@ -102,31 +121,23 @@ export function useFileMention(
 
   const dismiss = React.useCallback(() => {
     setDismissedAtInput(input);
-    setCurrentPath("/");
   }, [input]);
 
-  const navigateToDirectory = React.useCallback((path: string) => {
-    setCurrentPath(path);
+  const navigateToDirectory = React.useCallback(() => {
+    // No-op: directory navigation is now driven by the query text
   }, []);
 
   const navigateBack = React.useCallback(() => {
-    setCurrentPath((prev) => {
-      if (prev === "/") return prev;
-      const parent = prev.split("/").slice(0, -1).join("/") || "/";
-      return parent;
-    });
+    // No-op: directory navigation is now driven by the query text
   }, []);
 
-  const selectItem = React.useCallback(
-    (item: SharedDriveFile): string | null => {
-      if (item.type === "directory") {
-        navigateToDirectory(item.path);
-        return null;
-      }
-      return `/shared${item.path}`;
-    },
-    [navigateToDirectory],
-  );
+  const selectItem = React.useCallback((item: SharedDriveFile): string | null => {
+    if (item.type === "directory") {
+      // Return the directory path suffix so ChatInput can update the query text
+      return null;
+    }
+    return `/shared${item.path}`;
+  }, []);
 
   return {
     isOpen,
