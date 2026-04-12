@@ -29,6 +29,12 @@ const routeOpts = {
 
 function setFiles(files: SharedDriveFile[]) {
   server.use(
+    http.get("*/api/projects/:id/shared-drive/search", ({ request }) => {
+      const url = new URL(request.url);
+      const q = (url.searchParams.get("q") ?? "").toLowerCase();
+      const results = files.filter((f) => f.name.toLowerCase().includes(q));
+      return HttpResponse.json({ files: results });
+    }),
     http.get("*/api/projects/:id/shared-drive", ({ request }) => {
       const url = new URL(request.url);
       const path = url.searchParams.get("path") ?? "/";

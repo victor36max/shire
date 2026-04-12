@@ -65,6 +65,54 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       });
     }
   })
+  .get(
+    "/projects/:id/shared-drive/search",
+    zValidator("query", z.object({ q: z.string() })),
+    async (c) => {
+      const projectId = resolveProjectId(c.req.param("id"));
+      if (!projectId) return c.json({ error: "Project not found" }, 404);
+
+      const sharedRoot = workspace.sharedDir(projectId);
+      const { q } = c.req.valid("query");
+      const query = q.toLowerCase();
+
+      await mkdir(sharedRoot, { recursive: true });
+
+      const results: Array<{
+        name: string;
+        path: string;
+        type: "file" | "directory";
+        size: number;
+      }> = [];
+
+      async function walk(dir: string, rel: string) {
+        try {
+          const entries = await readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
+            const entryFull = join(dir, entry.name);
+            if (entry.name.toLowerCase().includes(query)) {
+              const s = await stat(entryFull);
+              results.push({
+                name: entry.name,
+                path: "/" + entryRel,
+                type: entry.isDirectory() ? "directory" : "file",
+                size: s.size,
+              });
+            }
+            if (entry.isDirectory()) {
+              await walk(entryFull, entryRel);
+            }
+          }
+        } catch {
+          // skip unreadable directories
+        }
+      }
+
+      await walk(sharedRoot, "");
+      return c.json({ files: results });
+    },
+  )
   .get("/projects/:id/shared-drive/preview", zValidator("query", requiredPathQuery), async (c) => {
     const projectId = resolveProjectId(c.req.param("id"));
     if (!projectId) return c.json({ error: "Project not found" }, 404);

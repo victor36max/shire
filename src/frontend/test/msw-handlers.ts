@@ -74,6 +74,7 @@ export const defaultHandlers = [
   http.put("*/api/projects/:id/settings/project-doc", () => HttpResponse.json({ ok: true })),
 
   // --- Shared Drive ---
+  http.get("*/api/projects/:id/shared-drive/search", () => HttpResponse.json({ files: [] })),
   http.get("*/api/projects/:id/shared-drive", () =>
     HttpResponse.json({ files: [], currentPath: "/" }),
   ),

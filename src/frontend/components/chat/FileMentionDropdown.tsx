@@ -74,6 +74,11 @@ export function FileMentionDropdown({
                 <FileIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               )}
               <span className="truncate">{item.name}</span>
+              {currentPath === "/" && item.path !== "/" + item.name && (
+                <span className="truncate text-xs text-muted-foreground">
+                  {item.path.slice(0, item.path.lastIndexOf("/"))}
+                </span>
+              )}
             </button>
           ))}
       </div>

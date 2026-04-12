@@ -18,8 +18,18 @@ const docsFiles: SharedDriveFile[] = [
   { name: "api.md", path: "/docs/api.md", type: "file", size: 1024 },
 ];
 
-function setFilesForPaths(pathMap: Record<string, SharedDriveFile[]>) {
+function setFilesForPaths(
+  pathMap: Record<string, SharedDriveFile[]>,
+  allFiles?: SharedDriveFile[],
+) {
+  const all = allFiles ?? Object.values(pathMap).flat();
   server.use(
+    http.get("*/api/projects/:id/shared-drive/search", ({ request }) => {
+      const url = new URL(request.url);
+      const q = (url.searchParams.get("q") ?? "").toLowerCase();
+      const results = all.filter((f) => f.name.toLowerCase().includes(q));
+      return HttpResponse.json({ files: results });
+    }),
     http.get("*/api/projects/:id/shared-drive", ({ request }) => {
       const url = new URL(request.url);
       const reqPath = url.searchParams.get("path") ?? "/";

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useSharedDrive, type SharedDriveFile } from "./shared-drive";
+import { useSharedDrive, useSharedDriveSearch, type SharedDriveFile } from "./shared-drive";
 
 export interface FileMentionState {
   isOpen: boolean;
@@ -78,8 +78,16 @@ export function useFileMention(
   const rawQuery = trigger?.query ?? "";
   const triggerIndex = trigger?.triggerIndex ?? -1;
 
+  const hasSlash = rawQuery.includes("/");
+  const useSearch = !hasSlash && rawQuery.length > 0;
   const { dirPath, filter } = parseQueryPath(rawQuery);
   const currentPath = isOpen ? dirPath : "/";
+
+  // Use recursive search for non-empty queries without slash, directory listing otherwise
+  const searchResult = useSharedDriveSearch(isOpen && useSearch ? projectId : undefined, rawQuery);
+  const dirResult = useSharedDrive(isOpen && !useSearch ? projectId : undefined, currentPath);
+
+  const isLoading = useSearch ? searchResult.isLoading : dirResult.isLoading;
 
   // Reset selectedIndex when filter or path changes
   if (filter !== prevFilter || dirPath !== prevDirPath) {
@@ -97,19 +105,28 @@ export function useFileMention(
     setPrevIsOpen(true);
   }
 
-  const { data, isLoading } = useSharedDrive(isOpen ? projectId : undefined, currentPath);
+  const searchFiles = searchResult.data?.files;
+  const dirFiles = dirResult.data?.files;
 
-  const files = data?.files;
   const items = React.useMemo(() => {
-    if (!files) return [];
+    if (useSearch) {
+      // Search mode: results already filtered by the backend
+      if (!searchFiles) return [];
+      return searchFiles.sort((a, b) => {
+        if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    // Directory mode: show directory contents, filter by text after last slash
+    if (!dirFiles) return [];
     const q = filter.toLowerCase();
-    return files
-      .filter((f) => f.name.toLowerCase().includes(q))
+    return dirFiles
+      .filter((f) => (q ? f.name.toLowerCase().includes(q) : true))
       .sort((a, b) => {
         if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
         return a.name.localeCompare(b.name);
       });
-  }, [files, filter]);
+  }, [useSearch, dirFiles, searchFiles, filter]);
 
   const navigateUp = React.useCallback(() => {
     setSelectedIndex((prev) => (prev <= 0 ? items.length - 1 : prev - 1));
@@ -133,7 +150,6 @@ export function useFileMention(
 
   const selectItem = React.useCallback((item: SharedDriveFile): string | null => {
     if (item.type === "directory") {
-      // Return the directory path suffix so ChatInput can update the query text
       return null;
     }
     return `/shared${item.path}`;
