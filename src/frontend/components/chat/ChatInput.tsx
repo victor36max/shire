@@ -7,7 +7,6 @@ import {
   useProjectId,
   useSendMessage,
   useInterruptAgent,
-  useRestartAgent,
   useUploadAttachment,
   useUpdateAgentCache,
 } from "../../hooks";
@@ -30,7 +29,6 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
   const sendMessage = useSendMessage(projectId ?? "");
   const uploadAttachment = useUploadAttachment(projectId ?? "");
   const interruptAgent = useInterruptAgent(projectId ?? "");
-  const restartAgent = useRestartAgent(projectId ?? "");
 
   const [input, setInput] = React.useState("");
   const [cursorPos, setCursorPos] = React.useState(0);
@@ -223,28 +221,6 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
       handleSend();
     }
   };
-
-  if (agent.status === "idle") {
-    return (
-      <div className="border-t border-border p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Agent is idle. It will restart automatically when the VM wakes up.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => restartAgent.mutate(agent.id)}
-            disabled={restartAgent.isPending}
-          >
-            {restartAgent.isPending ? "Restarting..." : "Restart"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (agent.status !== "active") return null;
 
   return (
     <div className="border-t border-border p-4">

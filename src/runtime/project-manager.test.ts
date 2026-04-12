@@ -52,7 +52,7 @@ describe("ProjectManager", () => {
       const list = pm.listProjects();
       expect(list.length).toBe(2);
       for (const p of list) {
-        expect(p.status).toBe("running");
+        expect(p.name).toBeTruthy();
       }
     });
 
@@ -71,7 +71,6 @@ describe("ProjectManager", () => {
       const list = pm.listProjects();
       expect(list.length).toBe(1);
       expect(list[0].name).toBe("new-project");
-      expect(list[0].status).toBe("running");
     });
 
     it("emits project_created event", async () => {
@@ -109,35 +108,6 @@ describe("ProjectManager", () => {
     });
   });
 
-  describe("restartProject", () => {
-    it("restarts an existing project", async () => {
-      const createResult = await pm.createProject("restart-me");
-      expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
-
-      const events: Array<{ type: string }> = [];
-      const unsub = bus.on("projects:lobby", (e) => events.push(e));
-
-      const ok = await pm.restartProject(createResult.project.id);
-      unsub();
-
-      expect(ok).toBe(true);
-      expect(events.some((e) => e.type === "project_restarted")).toBe(true);
-
-      const list = pm.listProjects();
-      const project = list.find((p) => p.id === createResult.project.id);
-      expect(project?.status).toBe("running");
-    });
-
-    it("restarts a project that has no coordinator", async () => {
-      // Create a project in DB without booting
-      const p = projectsService.createProject("no-coord");
-
-      const ok = await pm.restartProject(p.id);
-      expect(ok).toBe(true);
-    });
-  });
-
   describe("renameProject", () => {
     it("renames an existing project and emits event", async () => {
       const createResult = await pm.createProject("rename-me");
@@ -171,11 +141,11 @@ describe("ProjectManager", () => {
   });
 
   describe("listProjects", () => {
-    it("returns starting status for unbooted projects", () => {
+    it("lists unbooted projects", () => {
       projectsService.createProject("unbooted");
       const list = pm.listProjects();
       expect(list.length).toBe(1);
-      expect(list[0].status).toBe("starting");
+      expect(list[0].name).toBe("unbooted");
     });
   });
 });

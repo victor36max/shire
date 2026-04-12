@@ -2,7 +2,6 @@ import * as React from "react";
 import { Button, buttonVariants } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card, CardContent } from "./ui/card";
-import { Badge } from "./ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -33,22 +32,9 @@ import { MoreHorizontal } from "lucide-react";
 import { PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
 import type { Project } from "./types";
-import { useProjects, useCreateProject, useDeleteProject, useRestartProject } from "../hooks";
+import { useProjects, useCreateProject, useDeleteProject } from "../hooks";
 import { useSubscription } from "../lib/ws";
 import { useQueryClient } from "@tanstack/react-query";
-
-function projectStatusVariant(status: string): "default" | "secondary" | "destructive" {
-  switch (status) {
-    case "running":
-      return "default";
-    case "starting":
-      return "secondary";
-    case "error":
-      return "destructive";
-    default:
-      return "secondary";
-  }
-}
 
 const PROJECT_NAME_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
@@ -58,7 +44,6 @@ export default function ProjectDashboard() {
   const { data: projects = [], isLoading, isError, error, refetch } = useProjects();
   const createProject = useCreateProject();
   const deleteProject = useDeleteProject();
-  const restartProject = useRestartProject();
 
   useSubscription("projects:lobby", () => {
     queryClient.invalidateQueries({ queryKey: ["projects"] });
@@ -67,7 +52,6 @@ export default function ProjectDashboard() {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [projectName, setProjectName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState<Project | null>(null);
-  const [restartingId, setRestartingId] = React.useState<string | null>(null);
 
   const nameValid = PROJECT_NAME_REGEX.test(projectName);
 
@@ -139,46 +123,30 @@ export default function ProjectDashboard() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-lg">{project.name}</h3>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={projectStatusVariant(project.status)}>{project.status}</Badge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            aria-label={`${project.name} actions`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {project.status === "error" && (
-                            <DropdownMenuItem
-                              disabled={restartingId === project.id}
-                              onClick={() => {
-                                setRestartingId(project.id);
-                                restartProject.mutate(project.id, {
-                                  onSettled: () => setRestartingId(null),
-                                });
-                              }}
-                            >
-                              {restartingId === project.id ? "Restarting..." : "Restart"}
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget(project);
-                            }}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={`${project.name} actions`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget(project);
+                          }}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardContent>
               </Card>

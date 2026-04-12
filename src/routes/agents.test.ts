@@ -187,7 +187,6 @@ describe("GET /api/projects/:id/agents", () => {
     const found = agents.find((a) => a.id === agentId);
     expect(found).toBeDefined();
     expect(found?.name).toBe("test-agent");
-    expect(found?.status).toBeDefined();
   });
 
   it("returns 404 for unknown project", async () => {

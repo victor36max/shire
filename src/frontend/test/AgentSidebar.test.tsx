@@ -11,29 +11,26 @@ const defaultAgents: AgentOverview[] = [
   {
     id: "a1",
     name: "Active Agent",
-    status: "active",
     busy: false,
     unreadCount: 0,
   },
   {
     id: "a2",
     name: "Created Agent",
-    status: "created",
     busy: false,
     unreadCount: 0,
   },
   {
     id: "a3",
     name: "Idle Agent",
-    status: "idle",
     busy: false,
     unreadCount: 0,
   },
 ];
 
 const projects: Project[] = [
-  { id: "p1", name: "test-project", status: "running" },
-  { id: "p2", name: "other-project", status: "running" },
+  { id: "p1", name: "test-project" },
+  { id: "p2", name: "other-project" },
 ];
 
 function setAgents(agents: AgentOverview[]) {
@@ -105,38 +102,6 @@ describe("AgentSidebar", () => {
     await waitFor(() => {
       expect(screen.getByText("Settings")).toBeInTheDocument();
     });
-  });
-
-  it("shows status dots with correct colors", async () => {
-    setProjects();
-    setAgents(defaultAgents);
-    const { container } = renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
-
-    await waitFor(() => {
-      expect(screen.getByText("Active Agent")).toBeInTheDocument();
-    });
-
-    const dots = container.querySelectorAll(".w-2.h-2.rounded-full");
-    expect(dots[0]).toHaveClass("bg-status-active"); // active
-    expect(dots[1]).toHaveClass("bg-status-idle"); // created
-    expect(dots[2]).toHaveClass("bg-status-idle"); // idle
-  });
-
-  it("pulses the status dot when agent is active and busy", async () => {
-    setProjects();
-    setAgents([
-      { ...defaultAgents[0], busy: true },
-      { ...defaultAgents[1], busy: false },
-    ]);
-    const { container } = renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
-
-    await waitFor(() => {
-      expect(screen.getByText("Active Agent")).toBeInTheDocument();
-    });
-
-    const dots = container.querySelectorAll(".w-2.h-2.rounded-full");
-    expect(dots[0]).toHaveClass("animate-pulse"); // active + busy
-    expect(dots[1]).not.toHaveClass("animate-pulse"); // created + not busy
   });
 
   it("renders unread badge when unreadCount > 0", async () => {
@@ -278,31 +243,6 @@ describe("AgentSidebar", () => {
     if (dropdownSettings) {
       await userEvent.click(dropdownSettings);
     }
-  });
-
-  it("shows starting and crashed status dot colors", async () => {
-    setProjects();
-    setAgents([
-      { id: "s1", name: "Starting Agent", status: "starting", busy: false, unreadCount: 0 },
-      { id: "s2", name: "Crashed Agent", status: "crashed", busy: false, unreadCount: 0 },
-      {
-        id: "s3",
-        name: "Bootstrapping Agent",
-        status: "bootstrapping",
-        busy: false,
-        unreadCount: 0,
-      },
-    ]);
-    const { container } = renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
-
-    await waitFor(() => {
-      expect(screen.getByText("Starting Agent")).toBeInTheDocument();
-    });
-
-    const dots = container.querySelectorAll(".w-2.h-2.rounded-full");
-    expect(dots[0]).toHaveClass("bg-status-starting"); // starting
-    expect(dots[1]).toHaveClass("bg-status-error"); // crashed
-    expect(dots[2]).toHaveClass("bg-status-starting"); // bootstrapping
   });
 
   it("dismisses delete dialog when onOpenChange fires false", async () => {

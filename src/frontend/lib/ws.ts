@@ -1,5 +1,4 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import type { AgentStatus } from "../components/types";
 
 /** Shape of the serialized message attached to agent-level WebSocket events. */
 export interface WsSerializedMessage {
@@ -75,7 +74,6 @@ export type AgentWsEvent =
       };
       message?: WsSerializedMessage;
     }
-  | { topic: string; type: "agent_status"; payload: { agentId: string; status: AgentStatus } }
   | { topic: string; type: "agent_busy"; payload: { agentId: string; active: boolean } };
 
 /** Payload shapes for agent-list WebSocket events. */
@@ -83,7 +81,6 @@ export type AgentListWsEvent =
   | { topic: string; type: "agent_created"; payload: { agentId: string; name: string } }
   | { topic: string; type: "agent_updated"; payload: { agentId: string; name: string } }
   | { topic: string; type: "agent_deleted"; payload: { agentId: string } }
-  | { topic: string; type: "agent_status"; payload: { agentId: string; status: AgentStatus } }
   | { topic: string; type: "agent_busy"; payload: { agentId: string; active: boolean } }
   | {
       topic: string;

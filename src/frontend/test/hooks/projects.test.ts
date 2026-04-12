@@ -11,8 +11,8 @@ import {
 } from "../../hooks/projects";
 
 const projects = [
-  { id: "p1", name: "my-project", status: "running" },
-  { id: "p2", name: "other-project", status: "running" },
+  { id: "p1", name: "my-project" },
+  { id: "p2", name: "other-project" },
 ];
 
 describe("useProjects", () => {

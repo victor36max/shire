@@ -39,15 +39,6 @@ export function useDeleteProject() {
   });
 }
 
-export function useRestartProject() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) =>
-      unwrap(await api.projects[":id"].restart.$post({ param: { id } })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
-  });
-}
-
 export function useRenameProject(projectId: string) {
   const qc = useQueryClient();
   return useMutation({

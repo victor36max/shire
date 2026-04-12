@@ -1,5 +1,4 @@
 import { Menu, EllipsisVertical, Eraser } from "lucide-react";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -7,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { type AgentOverview, statusVariant } from "./types";
+import { type AgentOverview } from "./types";
 import { useProjectId, useClearSession } from "../hooks";
 
 interface ChatHeaderProps {
@@ -33,7 +32,6 @@ export default function ChatHeader({ agent, onMenuToggle }: ChatHeaderProps) {
         </Button>
       )}
       <h2 className="text-lg font-semibold">{agent.name}</h2>
-      <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
       <div className="ml-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -29,10 +29,4 @@ export const projectRoutes = new Hono<AppEnv>()
     const result = await pm.destroyProject(id);
     if (!result.ok) return c.json({ error: result.error }, 500);
     return c.json({ ok: true });
-  })
-  .post("/projects/:id/restart", async (c) => {
-    const pm = c.get("projectManager");
-    const id = c.req.param("id");
-    await pm.restartProject(id);
-    return c.json({ ok: true });
   });

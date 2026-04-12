@@ -19,22 +19,8 @@ import {
 } from "../ui/alert-dialog";
 import { buttonVariants } from "../ui/button";
 import { Spinner } from "../ui/spinner";
-import { type AgentOverview, type AgentStatus } from "../types";
+import { type AgentOverview } from "../types";
 import { useProjectId, useAgents, useDeleteAgent } from "../../hooks";
-
-function statusDotColor(status: AgentStatus): string {
-  switch (status) {
-    case "active":
-      return "bg-status-active";
-    case "starting":
-    case "bootstrapping":
-      return "bg-status-starting";
-    case "crashed":
-      return "bg-status-error";
-    default:
-      return "bg-status-idle";
-  }
-}
 
 interface AgentListPanelProps {
   onNewAgent: () => void;
@@ -84,11 +70,6 @@ export default function AgentListPanel({ onNewAgent, onBrowseCatalog }: AgentLis
               }`}
               onClick={() => handleSelectAgent(agent.id)}
             >
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${statusDotColor(agent.status)}${agent.status === "active" && agent.busy ? " animate-pulse" : ""}`}
-                role="img"
-                aria-label={`Status: ${agent.status}${agent.busy ? " (busy)" : ""}`}
-              />
               <span className="truncate">{agent.name}</span>
               {agent.unreadCount ? (
                 <span className="ml-auto shrink-0 min-w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center px-1">

@@ -4,21 +4,13 @@ import { join } from "path";
 import yaml from "js-yaml";
 import { safeYamlLoad } from "../utils/yaml";
 import { mimeFromPath } from "../utils/mime";
-import {
-  bus,
-  type AgentStatus,
-  type AgentBusEvent,
-  type AgentListBusEvent,
-  type SerializedMessage,
-} from "../events";
+import { bus, type AgentBusEvent, type AgentListBusEvent, type SerializedMessage } from "../events";
 import * as agentsService from "../services/agents";
 import * as workspace from "../services/workspace";
 import * as skillsService from "../services/skills";
 import { createHarness, type Harness, type HarnessType } from "./harness";
 import type { AgentEvent } from "./harness/types";
 import { buildInternalPrompt } from "./system-prompt";
-
-export type { AgentStatus } from "../events";
 
 const MAX_AUTO_RESTARTS = 3;
 
@@ -83,7 +75,7 @@ export class AgentManager {
   readonly projectId: string;
   readonly agentId: string;
   agentName: string;
-  status: AgentStatus = "idle";
+  running = false;
 
   private harness: Harness | null = null;
   private streamingText: string | null = null;
@@ -122,12 +114,11 @@ export class AgentManager {
   // --- Lifecycle ---
 
   async start(): Promise<void> {
-    this.setStatus("bootstrapping");
     try {
       await this.setupWorkspace();
       await this.startHarness();
       this.startWatchers();
-      this.setStatus("active");
+      this.running = true;
 
       // Process any existing inbox messages in the background (fs.watch won't fire for pre-existing files)
       this.busy = true;
@@ -138,7 +129,7 @@ export class AgentManager {
         });
     } catch (err) {
       console.error(`Bootstrap failed for ${this.agentName}:`, err);
-      this.setStatus("idle");
+      this.running = false;
     }
   }
 
@@ -161,7 +152,7 @@ export class AgentManager {
 
   async stop(): Promise<void> {
     await this.stopInternal();
-    this.setStatus("idle");
+    this.running = false;
   }
 
   private async stopInternal(): Promise<void> {
@@ -194,7 +185,7 @@ export class AgentManager {
     | { ok: true; message: ReturnType<typeof agentsService.createMessage> | null }
     | { ok: false; error: string }
   > {
-    if (this.status !== "active") {
+    if (!this.running) {
       return { ok: false, error: "Agent not active" };
     }
 
@@ -253,13 +244,13 @@ export class AgentManager {
   }
 
   async interrupt(): Promise<boolean> {
-    if (this.status !== "active" || !this.harness) return false;
+    if (!this.running || !this.harness) return false;
     await this.harness.interrupt();
     return true;
   }
 
   async clearSession(): Promise<boolean> {
-    if (this.status !== "active" || !this.harness) return false;
+    if (!this.running || !this.harness) return false;
     await this.harness.clearSession();
     agentsService.setSessionId(this.agentId, null);
     const msg = agentsService.createMessage({
@@ -818,11 +809,5 @@ export class AgentManager {
       type: "new_message_notification",
       payload: { agentId: this.agentId, messageId: msg.id, role: msg.role },
     });
-  }
-
-  private setStatus(status: AgentStatus): void {
-    this.status = status;
-    this.broadcastAgent({ type: "agent_status", payload: { agentId: this.agentId, status } });
-    this.broadcastAgents({ type: "agent_status", payload: { agentId: this.agentId, status } });
   }
 }

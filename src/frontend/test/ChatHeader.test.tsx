@@ -10,7 +10,6 @@ import { renderWithProviders } from "./test-utils";
 const agent: AgentOverview = {
   id: "a1",
   name: "test-agent",
-  status: "active",
   busy: false,
   unreadCount: 0,
 };
@@ -19,7 +18,7 @@ const agent: AgentOverview = {
  * ChatHeader calls useProjectId() which reads projectName from useParams()
  * and resolves the project id from GET /api/projects.
  * We render at route "/projects/test-project" and let the default MSW handler
- * return [{ id: "p1", name: "test-project", status: "running" }].
+ * return [{ id: "p1", name: "test-project" }].
  */
 function renderChatHeader(props?: { onMenuToggle?: () => void }) {
   return renderWithProviders(<ChatHeader agent={agent} {...props} />, {
@@ -29,10 +28,9 @@ function renderChatHeader(props?: { onMenuToggle?: () => void }) {
 }
 
 describe("ChatHeader", () => {
-  it("renders agent name and status", () => {
+  it("renders agent name", () => {
     renderChatHeader();
     expect(screen.getByText("test-agent")).toBeInTheDocument();
-    expect(screen.getByText("active")).toBeInTheDocument();
   });
 
   it("sends clear session request when Clear Session is clicked", async () => {

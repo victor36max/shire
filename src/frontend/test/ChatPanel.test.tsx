@@ -15,14 +15,8 @@ mock.module("../lib/ws", () => ({
 const activeAgent: AgentOverview = {
   id: "a1",
   name: "Test Agent",
-  status: "active",
   busy: false,
   unreadCount: 0,
-};
-
-const createdAgent: AgentOverview = {
-  ...activeAgent,
-  status: "created",
 };
 
 const routeOpts = {
@@ -125,15 +119,6 @@ describe("ChatPanel", () => {
       expect(screen.getByPlaceholderText(/Type a message/)).toBeInTheDocument();
     });
     expect(screen.getByText("Send")).toBeInTheDocument();
-  });
-
-  it("hides input bar when agent is not active", async () => {
-    setMessages(messages);
-    renderChat(createdAgent);
-    await waitFor(() => {
-      expect(screen.getByText("Hello agent")).toBeInTheDocument();
-    });
-    expect(screen.queryByPlaceholderText(/Type a message/)).not.toBeInTheDocument();
   });
 
   it("sends message on click", async () => {
@@ -524,36 +509,7 @@ describe("ChatPanel", () => {
     expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
   });
 
-  it("shows idle message and restart button when agent is idle", async () => {
-    const idleAgent: AgentOverview = { ...activeAgent, status: "idle" };
-    setMessages(messages);
-    renderChat(idleAgent);
-    await waitFor(() => {
-      expect(screen.getByText(/Agent is idle/)).toBeInTheDocument();
-    });
-    expect(screen.getByText("Restart")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/Type a message/)).not.toBeInTheDocument();
-  });
-
-  it("sends restart event when restart button is clicked", async () => {
-    let restartedId: string | undefined;
-    server.use(
-      http.post("*/api/projects/:id/agents/:aid/restart", ({ params }) => {
-        restartedId = params.aid as string;
-        return HttpResponse.json({ ok: true });
-      }),
-    );
-    const idleAgent: AgentOverview = { ...activeAgent, status: "idle" };
-    setMessages(messages);
-    renderChat(idleAgent);
-    await waitFor(() => {
-      expect(screen.getByText("Restart")).toBeInTheDocument();
-    });
-    await userEvent.click(screen.getByText("Restart"));
-    await waitFor(() => expect(restartedId).toBe("a1"));
-  });
-
-  it("shows attach button when agent is active", async () => {
+  it("shows attach button", async () => {
     setMessages(messages);
     renderChat(activeAgent);
     await waitFor(() => {
