@@ -2,10 +2,22 @@ import { describe, it, expect } from "bun:test";
 import {
   getFileExtension,
   getPreviewType,
+  getFileIcon,
   formatSize,
   TEXT_EXTENSIONS,
   IMAGE_EXTENSIONS,
 } from "../lib/file-utils";
+import {
+  File,
+  FileCode,
+  FileText,
+  FileJson,
+  FileSpreadsheet,
+  Image,
+  Globe,
+  Database,
+  Settings,
+} from "lucide-react";
 
 describe("getFileExtension", () => {
   it("extracts extension from filename", () => {
@@ -79,6 +91,64 @@ describe("formatSize", () => {
 
   it("formats megabytes", () => {
     expect(formatSize(1048576)).toBe("1.0 MB");
+  });
+});
+
+describe("getFileIcon", () => {
+  it("returns FileCode for code files", () => {
+    expect(getFileIcon("app.ts")).toBe(FileCode);
+    expect(getFileIcon("index.jsx")).toBe(FileCode);
+    expect(getFileIcon("main.py")).toBe(FileCode);
+    expect(getFileIcon("run.sh")).toBe(FileCode);
+  });
+
+  it("returns FileText for markdown files", () => {
+    expect(getFileIcon("readme.md")).toBe(FileText);
+    expect(getFileIcon("article.mdx")).toBe(FileText);
+  });
+
+  it("returns FileText for plain text and log files", () => {
+    expect(getFileIcon("notes.txt")).toBe(FileText);
+    expect(getFileIcon("output.log")).toBe(FileText);
+  });
+
+  it("returns FileJson for config/data files", () => {
+    expect(getFileIcon("package.json")).toBe(FileJson);
+    expect(getFileIcon("config.yaml")).toBe(FileJson);
+    expect(getFileIcon("settings.toml")).toBe(FileJson);
+  });
+
+  it("returns Image for image files", () => {
+    expect(getFileIcon("photo.png")).toBe(Image);
+    expect(getFileIcon("logo.svg")).toBe(Image);
+    expect(getFileIcon("banner.jpg")).toBe(Image);
+  });
+
+  it("returns FileSpreadsheet for CSV files", () => {
+    expect(getFileIcon("data.csv")).toBe(FileSpreadsheet);
+  });
+
+  it("returns Globe for web files", () => {
+    expect(getFileIcon("index.html")).toBe(Globe);
+    expect(getFileIcon("style.css")).toBe(Globe);
+  });
+
+  it("returns Database for SQL files", () => {
+    expect(getFileIcon("schema.sql")).toBe(Database);
+  });
+
+  it("returns FileText for PDF files", () => {
+    expect(getFileIcon("doc.pdf")).toBe(FileText);
+  });
+
+  it("returns Settings for dotfiles/config", () => {
+    expect(getFileIcon(".env")).toBe(Settings);
+    expect(getFileIcon(".gitignore")).toBe(Settings);
+  });
+
+  it("returns generic File for unknown extensions", () => {
+    expect(getFileIcon("archive.zip")).toBe(File);
+    expect(getFileIcon("binary.exe")).toBe(File);
   });
 });
 

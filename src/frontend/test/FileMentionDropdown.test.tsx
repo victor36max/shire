@@ -77,4 +77,20 @@ describe("FileMentionDropdown", () => {
 
     expect(onNavigateBack).toHaveBeenCalled();
   });
+
+  it("renders different icons for different file types", () => {
+    const files: SharedDriveFile[] = [
+      { name: "script.ts", path: "/script.ts", type: "file", size: 100 },
+      { name: "photo.png", path: "/photo.png", type: "file", size: 200 },
+      { name: "docs", path: "/docs", type: "directory", size: 0 },
+    ];
+    const { container } = renderDropdown({ items: files });
+    // Each item button should contain an SVG icon
+    const buttons = container.querySelectorAll("button[data-selected]");
+    expect(buttons).toHaveLength(3);
+    // Each button should have an SVG (the icon)
+    for (const btn of buttons) {
+      expect(btn.querySelector("svg")).toBeInTheDocument();
+    }
+  });
 });

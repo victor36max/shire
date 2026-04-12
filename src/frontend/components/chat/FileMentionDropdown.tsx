@@ -1,6 +1,7 @@
 import * as React from "react";
-import { FileIcon, FolderIcon, ChevronLeft, Loader2 } from "lucide-react";
+import { FolderIcon, ChevronLeft, Loader2 } from "lucide-react";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
+import { getFileIcon } from "../../lib/file-utils";
 
 interface FileMentionDropdownProps {
   items: SharedDriveFile[];
@@ -57,30 +58,29 @@ export function FileMentionDropdown({
           <div className="px-3 py-4 text-center text-xs text-muted-foreground">No files found</div>
         )}
         {!isLoading &&
-          items.map((item, index) => (
-            <button
-              key={item.path}
-              type="button"
-              data-selected={index === selectedIndex}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent data-[selected=true]:bg-accent"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onSelect(item);
-              }}
-            >
-              {item.type === "directory" ? (
-                <FolderIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              ) : (
-                <FileIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              )}
-              <span className="truncate">{item.name}</span>
-              {currentPath === "/" && item.path !== "/" + item.name && (
-                <span className="truncate text-xs text-muted-foreground">
-                  {item.path.slice(0, item.path.lastIndexOf("/"))}
-                </span>
-              )}
-            </button>
-          ))}
+          items.map((item, index) => {
+            const ItemIcon = item.type === "directory" ? FolderIcon : getFileIcon(item.name);
+            return (
+              <button
+                key={item.path}
+                type="button"
+                data-selected={index === selectedIndex}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent data-[selected=true]:bg-accent"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onSelect(item);
+                }}
+              >
+                <ItemIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{item.name}</span>
+                {currentPath === "/" && item.path !== "/" + item.name && (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {item.path.slice(0, item.path.lastIndexOf("/"))}
+                  </span>
+                )}
+              </button>
+            );
+          })}
       </div>
     </div>
   );
