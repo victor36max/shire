@@ -16,6 +16,7 @@ import { valid as isValidSlug } from "../services/slug";
 
 export interface AgentFields {
   name?: string;
+  emoji?: string;
   description?: string;
   harness?: string;
   model?: string;
@@ -74,7 +75,7 @@ export class Coordinator {
 
     const dbAgents = agentsService.listAgents(this.projectId);
     const results = await Promise.allSettled(
-      dbAgents.map((agent) => this.startAgentManager(agent.id, agent.name)),
+      dbAgents.map((agent) => this.startAgentManager(agent.id, agent.name, agent.emoji)),
     );
     const ok = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.filter((r) => r.status === "rejected");
@@ -112,6 +113,7 @@ export class Coordinator {
         this.projectId,
         {
           name: params.name,
+          emoji: params.emoji,
           description: params.description,
           harness: params.harness,
           model: params.model,
@@ -129,7 +131,7 @@ export class Coordinator {
     }
 
     // Start process
-    await this.startAgentManager(agent.id, agent.name);
+    await this.startAgentManager(agent.id, agent.name, agent.emoji);
     await this.writePeersYaml();
 
     bus.emit(`project:${this.projectId}:agents`, {
@@ -176,9 +178,12 @@ export class Coordinator {
       await skillsService.writeSkills(this.projectId, agentId, params.skills, harness);
     }
 
-    // Restart the agent to pick up changes
+    // Update cached fields and restart the agent to pick up changes
     const proc = this.agents.get(agentId);
-    if (proc) await proc.restart();
+    if (proc) {
+      if (params.emoji !== undefined) proc.emoji = params.emoji ?? null;
+      await proc.restart();
+    }
 
     await this.writePeersYaml();
 
@@ -230,6 +235,7 @@ export class Coordinator {
   listAgentStatuses(): Array<{
     id: string;
     name: string;
+    emoji: string | null;
     busy: boolean;
     unreadCount: number;
     lastReadMessageId: number | null;
@@ -245,6 +251,7 @@ export class Coordinator {
     const result: Array<{
       id: string;
       name: string;
+      emoji: string | null;
       busy: boolean;
       unreadCount: number;
       lastReadMessageId: number | null;
@@ -254,6 +261,7 @@ export class Coordinator {
       result.push({
         id,
         name: proc.agentName,
+        emoji: proc.emoji,
         busy: proc.busy,
         unreadCount: unreads.get(id) ?? 0,
         lastReadMessageId: proc.getLastReadMessageId(),
@@ -292,6 +300,7 @@ export class Coordinator {
     return {
       id: agentId,
       name: proc.agentName,
+      emoji: agent?.emoji ?? null,
       description: agent?.description ?? "",
       harness: agent?.harness ?? "claude_code",
       model: agent?.model ?? null,
@@ -310,11 +319,16 @@ export class Coordinator {
 
   // --- Private ---
 
-  private async startAgentManager(agentId: string, agentName: string): Promise<void> {
+  private async startAgentManager(
+    agentId: string,
+    agentName: string,
+    emoji?: string | null,
+  ): Promise<void> {
     const proc = new AgentManager({
       projectId: this.projectId,
       agentId,
       agentName,
+      emoji,
     });
 
     this.agents.set(agentId, proc);

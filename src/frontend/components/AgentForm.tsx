@@ -12,11 +12,14 @@ import {
   DialogDescription,
 } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
+import { EmojiPicker } from "frimousse";
 import type { Agent, HarnessType, Skill, SkillReference } from "./types";
 
 export interface AgentFormPayload {
   id?: string;
   name: string;
+  emoji?: string;
   description?: string;
   harness: HarnessType;
   model?: string;
@@ -36,6 +39,8 @@ const SLUG_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
 export default function AgentForm({ open, title, agent, onSave, onClose }: AgentFormProps) {
   const [name, setName] = React.useState(agent?.name || "");
+  const [emoji, setEmoji] = React.useState(agent?.emoji || "");
+  const [emojiPickerOpen, setEmojiPickerOpen] = React.useState(false);
   const [description, setDescription] = React.useState(agent?.description || "");
   const [model, setModel] = React.useState(agent?.model || "");
   const [systemPrompt, setSystemPrompt] = React.useState(agent?.systemPrompt || "");
@@ -52,6 +57,7 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
     const event = isUpdate ? "update-agent" : "create-agent";
     const payload: AgentFormPayload = {
       name,
+      emoji: emoji || undefined,
       description: description || undefined,
       harness,
       model: model || undefined,
@@ -145,6 +151,80 @@ export default function AgentForm({ open, title, agent, onSave, onClose }: Agent
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What does this agent do?"
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Avatar</Label>
+            <div className="flex items-center gap-2">
+              <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="h-10 w-10 text-lg p-0">
+                    {emoji || "🤖"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-fit p-0" align="start">
+                  <EmojiPicker.Root
+                    onEmojiSelect={({ emoji: e }) => {
+                      setEmoji(e);
+                      setEmojiPickerOpen(false);
+                    }}
+                    className="flex flex-col"
+                  >
+                    <EmojiPicker.Search
+                      className="mx-2 mt-2 h-9 rounded-md border border-input bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+                      placeholder="Search emoji..."
+                      autoFocus
+                    />
+                    <EmojiPicker.Viewport className="h-[280px] overflow-y-auto overflow-x-hidden p-1">
+                      <EmojiPicker.Loading>
+                        <span className="flex items-center justify-center h-[280px] text-sm text-muted-foreground">
+                          Loading…
+                        </span>
+                      </EmojiPicker.Loading>
+                      <EmojiPicker.Empty>
+                        <span className="flex items-center justify-center h-[280px] text-sm text-muted-foreground">
+                          No emoji found.
+                        </span>
+                      </EmojiPicker.Empty>
+                      <EmojiPicker.List
+                        className="select-none"
+                        components={{
+                          CategoryHeader: ({ category, ...props }) => (
+                            <div
+                              className="px-2 py-1.5 text-xs font-medium text-muted-foreground bg-popover sticky top-0"
+                              {...props}
+                            >
+                              {category.label}
+                            </div>
+                          ),
+                          Emoji: ({ emoji: e, ...props }) => (
+                            <button
+                              className="flex items-center justify-center h-8 w-8 rounded text-lg hover:bg-accent cursor-pointer"
+                              {...props}
+                            >
+                              {e.emoji}
+                            </button>
+                          ),
+                        }}
+                      />
+                    </EmojiPicker.Viewport>
+                  </EmojiPicker.Root>
+                </PopoverContent>
+              </Popover>
+              <span className="text-sm text-muted-foreground">
+                {emoji ? "Click to change" : "Pick an emoji"}
+              </span>
+              {emoji && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEmoji("")}
+                  className="text-muted-foreground"
+                >
+                  Reset
+                </Button>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="harness">Harness</Label>

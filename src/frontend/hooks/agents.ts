@@ -55,6 +55,7 @@ export function useAgentDetail(projectId: string | undefined, agentId: string | 
 
 interface AgentMutationData {
   name: string;
+  emoji?: string;
   description?: string;
   harness?: "claude_code" | "pi" | "opencode" | "codex";
   model?: string;

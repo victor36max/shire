@@ -175,6 +175,53 @@ describe("AgentForm", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders emoji picker button with default robot emoji", () => {
+    renderForm();
+    expect(screen.getByText("\u{1F916}")).toBeInTheDocument();
+    expect(screen.getByText("Pick an emoji")).toBeInTheDocument();
+  });
+
+  it("renders emoji from agent prop in picker button", () => {
+    const agent: Agent = {
+      id: "a1",
+      name: "emoji-agent",
+      emoji: "\u{1F680}",
+      busy: false,
+      unreadCount: 0,
+      harness: "claude_code",
+    };
+    renderForm(agent);
+    expect(screen.getByText("\u{1F680}")).toBeInTheDocument();
+    expect(screen.getByText("Click to change")).toBeInTheDocument();
+  });
+
+  it("includes emoji in payload when agent has emoji from catalog", async () => {
+    const localOnSave = mock(() => {});
+    const catalogAgent: Agent = {
+      id: "",
+      name: "rocket-agent",
+      emoji: "\u{1F680}",
+      busy: false,
+      unreadCount: 0,
+      harness: "claude_code",
+    };
+
+    render(
+      <AgentForm
+        open={true}
+        title="New Agent from Catalog"
+        agent={catalogAgent}
+        onSave={localOnSave}
+        onClose={mock(() => {})}
+      />,
+    );
+
+    await userEvent.click(screen.getByText("Save Agent"));
+
+    const payload = (localOnSave.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    expect(payload.emoji).toBe("\u{1F680}");
+  });
+
   it("submits create-agent with structured fields when agent has empty id (catalog prefill)", async () => {
     const localOnSave = mock(() => {});
     const catalogAgent: Agent = {

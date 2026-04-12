@@ -36,6 +36,13 @@
       "when": 1775020737187,
       "tag": "0004_futuristic_shinobi_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1775989324106,
+      "tag": "0005_handy_wild_child",
+      "breakpoints": true
     }
   ]
 }

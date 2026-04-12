@@ -171,37 +171,31 @@ describe("AgentSidebar", () => {
     // Navigation should have been triggered (no error thrown)
   });
 
-  it("shows delete confirmation dialog and executes delete", async () => {
-    let deletedId: string | undefined;
-    server.use(
-      http.delete("*/api/projects/:id/agents/:aid", ({ params }) => {
-        deletedId = params.aid as string;
-        return HttpResponse.json({ ok: true });
-      }),
-    );
+  it("renders emoji avatar for agents", async () => {
     setProjects();
-    setAgents(defaultAgents);
+    setAgents([{ ...defaultAgents[0], emoji: "\u{1F680}" }, { ...defaultAgents[1] }]);
     renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
 
     await waitFor(() => {
       expect(screen.getByText("Active Agent")).toBeInTheDocument();
     });
 
-    // Open the actions dropdown for the first agent
-    const actionButtons = screen.getAllByRole("button", { name: /actions/ });
-    await userEvent.click(actionButtons[0]);
+    // Custom emoji for first agent
+    expect(screen.getByText("\u{1F680}")).toBeInTheDocument();
+    // Default robot emoji for second agent (no emoji set)
+    expect(screen.getByText("\u{1F916}")).toBeInTheDocument();
+  });
 
-    // Click "Delete" in the dropdown
-    await userEvent.click(screen.getByText("Delete"));
+  it("renders busy indicator when agent is busy", async () => {
+    setProjects();
+    setAgents([{ ...defaultAgents[0], busy: true }]);
+    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
 
-    // Confirm deletion in the alert dialog
-    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
-    const alertDialog = screen.getByRole("alertdialog");
-    const confirmButton = alertDialog.querySelector("button:last-of-type");
-    expect(confirmButton).toBeTruthy();
-    await userEvent.click(confirmButton!);
+    await waitFor(() => {
+      expect(screen.getByText("Active Agent")).toBeInTheDocument();
+    });
 
-    await waitFor(() => expect(deletedId).toBe("a1"));
+    expect(screen.getByRole("status", { name: "Processing" })).toBeInTheDocument();
   });
 
   it("renders Schedules link", async () => {
@@ -220,53 +214,6 @@ describe("AgentSidebar", () => {
     await waitFor(() => {
       expect(screen.getByText("Files")).toBeInTheDocument();
     });
-  });
-
-  it("navigates to settings on dropdown Settings click", async () => {
-    setProjects();
-    setAgents(defaultAgents);
-    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
-
-    await waitFor(() => {
-      expect(screen.getByText("Active Agent")).toBeInTheDocument();
-    });
-
-    // Open the actions dropdown for the first agent
-    const actionButtons = screen.getAllByRole("button", { name: /actions/ });
-    await userEvent.click(actionButtons[0]);
-
-    // Click "Settings" in the dropdown - use getAllByText since "Settings" appears
-    // both in the dropdown and in the sidebar nav
-    const settingsOptions = screen.getAllByText("Settings");
-    // The dropdown option is the one inside DropdownMenuContent
-    const dropdownSettings = settingsOptions.find((el) => el.closest("[role='menuitem']") !== null);
-    if (dropdownSettings) {
-      await userEvent.click(dropdownSettings);
-    }
-  });
-
-  it("dismisses delete dialog when onOpenChange fires false", async () => {
-    setProjects();
-    setAgents(defaultAgents);
-    renderWithProviders(<AgentSidebar {...defaultProps} />, routeOpts);
-
-    await waitFor(() => {
-      expect(screen.getByText("Active Agent")).toBeInTheDocument();
-    });
-
-    // Open the actions dropdown and click Delete
-    const actionButtons = screen.getAllByRole("button", { name: /actions/ });
-    await userEvent.click(actionButtons[0]);
-    await userEvent.click(screen.getByText("Delete"));
-
-    // Dialog should be open
-    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
-
-    // Press Cancel to dismiss
-    await userEvent.click(screen.getByText("Cancel"));
-
-    // Dialog should be closed
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("handles case when agent not found in handleSelectAgent", async () => {

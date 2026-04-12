@@ -18,6 +18,7 @@ interface AgentManagerOpts {
   projectId: string;
   agentId: string;
   agentName: string;
+  emoji?: string | null;
 }
 
 interface MessageEnvelope {
@@ -75,6 +76,7 @@ export class AgentManager {
   readonly projectId: string;
   readonly agentId: string;
   agentName: string;
+  emoji: string | null;
   running = false;
 
   private harness: Harness | null = null;
@@ -98,6 +100,7 @@ export class AgentManager {
     this.projectId = opts.projectId;
     this.agentId = opts.agentId;
     this.agentName = opts.agentName;
+    this.emoji = opts.emoji ?? null;
     this.initLastRead();
     this.initLastUserMessage();
   }
