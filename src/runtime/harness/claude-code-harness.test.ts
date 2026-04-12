@@ -314,6 +314,19 @@ describe("ClaudeCodeHarness", () => {
     expect(String(errorEvent!.payload.message)).toContain("something went wrong");
   });
 
+  test("sendMessage() includes user and project setting sources for skill discovery", async () => {
+    const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
+    const harness = new ClaudeCodeHarness(mockQuery);
+    harness.onEvent(() => {});
+    await harness.start(baseConfig);
+    await harness.sendMessage("Hello");
+
+    const settingSources = calls(mockQuery)[0][0].options?.settingSources as string[];
+    expect(settingSources).toContain("user");
+    expect(settingSources).toContain("project");
+    expect(settingSources.indexOf("user")).toBeLessThan(settingSources.indexOf("project"));
+  });
+
   test("sendMessage() passes pathToClaudeCodeExecutable", async () => {
     const mockQuery = createMockQuery([resultSuccess("Hi", "s1")]);
     const harness = new ClaudeCodeHarness(mockQuery);

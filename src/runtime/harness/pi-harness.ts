@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { AgentSession, AgentSessionEvent } from "@mariozechner/pi-coding-agent";
 import type { AgentEvent, Harness, HarnessConfig, EventCallback } from "./types";
 
@@ -113,6 +115,7 @@ export class PiHarness implements Harness {
     });
     const loader = new DefaultResourceLoader({
       cwd: config.cwd,
+      additionalSkillPaths: [join(homedir(), ".agents", "skills")],
       settingsManager,
       systemPromptOverride: (base) => {
         const parts = [base, config.internalSystemPrompt, config.systemPrompt].filter(Boolean);
