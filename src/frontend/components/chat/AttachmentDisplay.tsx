@@ -1,6 +1,7 @@
 import * as React from "react";
-import { FileIcon, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { type Attachment, formatFileSize } from "./types";
+import { getFileIcon } from "../../lib/file-utils";
 
 interface AttachmentDisplayProps {
   attachments: Attachment[];
@@ -20,6 +21,8 @@ export const AttachmentDisplay = React.memo(function AttachmentDisplay({
       {attachments.map((att) => {
         const url = `/api/projects/${projectName}/agents/${agentId}/attachments/${att.id}/${encodeURIComponent(att.filename)}`;
         const isImage = att.content_type.startsWith("image/");
+
+        const AttIcon = getFileIcon(att.filename);
 
         return isImage ? (
           <a
@@ -44,7 +47,7 @@ export const AttachmentDisplay = React.memo(function AttachmentDisplay({
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-3 py-2 rounded-md border border-border hover:bg-muted/50 text-sm"
           >
-            <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <AttIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="truncate max-w-40">{att.filename}</span>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               ({formatFileSize(att.size)})

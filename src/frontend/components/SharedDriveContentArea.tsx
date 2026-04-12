@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
-import { Menu, Upload, Download, Trash2, Pencil, File, FolderOpen } from "lucide-react";
+import { Menu, Upload, Download, Trash2, Pencil, FolderOpen } from "lucide-react";
 import { Button } from "./ui/button";
 import { SharedDriveEditor } from "./editor";
 import CodeEditor from "./editor/CodeEditor";
@@ -16,7 +16,7 @@ import {
   useRenameSharedFile,
   useUploadSharedDriveFile,
 } from "../hooks";
-import { getPreviewType, formatSize, MAX_UPLOAD_SIZE } from "../lib/file-utils";
+import { getFileIcon, getPreviewType, formatSize, MAX_UPLOAD_SIZE } from "../lib/file-utils";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 
 export default function SharedDriveContentArea() {
@@ -280,12 +280,18 @@ export default function SharedDriveContentArea() {
           <iframe src={previewUrl} className="w-full h-full border-0" title={fileName} />
         )}
 
-        {!loading && !error && type === "unsupported" && (
-          <div className="flex flex-col items-center justify-center py-12 gap-4 text-muted-foreground">
-            <File className="h-12 w-12" />
-            <p className="text-sm">Preview is not available for this file type.</p>
-          </div>
-        )}
+        {!loading &&
+          !error &&
+          type === "unsupported" &&
+          (() => {
+            const UnsupportedIcon = getFileIcon(fileName);
+            return (
+              <div className="flex flex-col items-center justify-center py-12 gap-4 text-muted-foreground">
+                <UnsupportedIcon className="h-12 w-12" />
+                <p className="text-sm">Preview is not available for this file type.</p>
+              </div>
+            );
+          })()}
       </div>
 
       <RenameDialog

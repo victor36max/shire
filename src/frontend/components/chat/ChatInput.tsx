@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Paperclip, Square, X, FileIcon, Check, AlertCircle } from "lucide-react";
+import { Paperclip, Square, X, Check, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { type AgentOverview } from "@/components/types";
@@ -14,6 +14,7 @@ import {
 import { useFileMention } from "../../hooks/useFileMention";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
 import { type PendingFile, MAX_FILE_SIZE, formatFileSize } from "./types";
+import { getFileIcon } from "../../lib/file-utils";
 import { FileMentionDropdown } from "./FileMentionDropdown";
 
 interface ChatInputProps {
@@ -268,39 +269,42 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
       )}
       {pendingFiles.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
-          {pendingFiles.map((file, i) => (
-            <div
-              key={file.localId}
-              className="flex flex-col rounded-md border border-border bg-muted/50 text-xs overflow-hidden"
-            >
-              <div className="flex items-center gap-1.5 px-2 py-1">
-                {file.error ? (
-                  <AlertCircle className="h-3 w-3 text-destructive shrink-0" />
-                ) : file.progress === 100 ? (
-                  <Check className="h-3 w-3 text-green-500 shrink-0" />
-                ) : (
-                  <FileIcon className="h-3 w-3 text-muted-foreground shrink-0" />
-                )}
-                <span className="truncate max-w-32">{file.name}</span>
-                <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
-                <button
-                  type="button"
-                  onClick={() => removePendingFile(i)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-              {file.progress > 0 && file.progress < 100 && (
-                <div className="h-0.5 bg-muted">
-                  <div
-                    className="h-full bg-primary transition-all duration-200"
-                    style={{ width: `${file.progress}%` }}
-                  />
+          {pendingFiles.map((file, i) => {
+            const PendingIcon = getFileIcon(file.name);
+            return (
+              <div
+                key={file.localId}
+                className="flex flex-col rounded-md border border-border bg-muted/50 text-xs overflow-hidden"
+              >
+                <div className="flex items-center gap-1.5 px-2 py-1">
+                  {file.error ? (
+                    <AlertCircle className="h-3 w-3 text-destructive shrink-0" />
+                  ) : file.progress === 100 ? (
+                    <Check className="h-3 w-3 text-green-500 shrink-0" />
+                  ) : (
+                    <PendingIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                  )}
+                  <span className="truncate max-w-32">{file.name}</span>
+                  <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingFile(i)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
-              )}
-            </div>
-          ))}
+                {file.progress > 0 && file.progress < 100 && (
+                  <div className="h-0.5 bg-muted">
+                    <div
+                      className="h-full bg-primary transition-all duration-200"
+                      style={{ width: `${file.progress}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       <div className="relative flex gap-2 items-end">

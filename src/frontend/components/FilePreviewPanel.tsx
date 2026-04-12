@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, Maximize2, File } from "lucide-react";
+import { X, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Spinner } from "./ui/spinner";
@@ -7,7 +7,7 @@ import { SharedDriveEditor } from "./editor";
 import CodeEditor from "./editor/CodeEditor";
 import CsvEditor from "./editor/CsvEditor";
 import { useFileContent } from "../hooks/shared-drive";
-import { getPreviewType } from "../lib/file-utils";
+import { getFileIcon, getPreviewType } from "../lib/file-utils";
 import { useSubscription, type SharedDriveWsEvent } from "../lib/ws";
 
 interface FilePreviewPanelProps {
@@ -179,12 +179,18 @@ export default function FilePreviewPanel({
           />
         )}
 
-        {!loading && !error && type === "unsupported" && (
-          <div className="flex flex-col items-center justify-center py-12 gap-4 text-muted-foreground">
-            <File className="h-12 w-12" />
-            <p className="text-sm">Preview is not available for this file type.</p>
-          </div>
-        )}
+        {!loading &&
+          !error &&
+          type === "unsupported" &&
+          (() => {
+            const UnsupportedIcon = getFileIcon(fileName);
+            return (
+              <div className="flex flex-col items-center justify-center py-12 gap-4 text-muted-foreground">
+                <UnsupportedIcon className="h-12 w-12" />
+                <p className="text-sm">Preview is not available for this file type.</p>
+              </div>
+            );
+          })()}
       </div>
     </div>
   );
