@@ -95,6 +95,13 @@ Violations include:
 - Writing to another project's folder
 - Modifying system files or dotfiles outside the project root
 - Using Bash to pipe, redirect, or copy data to paths outside \`${projectRoot}\`
+
+## Message History Search
+Search your past conversation history using:
+\`\`\`
+shire search-messages --project-id ${projectId} --agent-id ${agentId} --query "your search terms"
+\`\`\`
+Use this when you need to recall what was discussed in previous sessions — past decisions, instructions, or context no longer in your current conversation.
 `;
 
   // Conditionally inject alert instructions when a channel is configured

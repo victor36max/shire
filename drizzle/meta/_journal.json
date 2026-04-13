@@ -43,6 +43,13 @@
       "when": 1775989324106,
       "tag": "0005_handy_wild_child",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1776172800000,
+      "tag": "0006_fts_messages",
+      "breakpoints": true
     }
   ]
 }

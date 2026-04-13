@@ -27,6 +27,7 @@ interface ParsedArgs {
   daemon: boolean;
   noOpen: boolean;
   isDaemonChild: boolean;
+  commandArgs: string[];
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -58,15 +59,19 @@ function parseArgs(argv: string[]): ParsedArgs {
         process.exit(1);
       }
       port = parsed;
-    } else if (arg === "start" || arg === "stop" || arg === "status") {
+    } else if (arg === "start" || arg === "stop" || arg === "status" || arg === "search-messages") {
       command = arg;
+      if (arg === "search-messages") {
+        // Collect remaining args for the subcommand
+        return { command, port, daemon, noOpen, isDaemonChild, commandArgs: args.slice(i + 1) };
+      }
     } else {
       console.error(`Unknown argument: ${arg}`);
       process.exit(1);
     }
   }
 
-  return { command, port, daemon, noOpen, isDaemonChild };
+  return { command, port, daemon, noOpen, isDaemonChild, commandArgs: [] };
 }
 
 export function shouldOpenBrowser(): boolean {
@@ -96,9 +101,11 @@ Usage:
   shire [command] [options]
 
 Commands:
-  start          Start the server (default)
-  stop           Stop a running daemon
-  status         Check if the server is running
+  start              Start the server (default)
+  stop               Stop a running daemon
+  status             Check if the server is running
+  search-messages    Search past conversation history (used by agents via Bash)
+                     shire search-messages --project-id <id> --agent-id <id> --query <text> [--limit <n>]
 
 Options:
   -p, --port     Port to listen on (default: 8080)
@@ -225,6 +232,49 @@ function handleStatus(): void {
   console.log(`Shire is running (PID ${pid}${port ? `, port ${port}` : ""})`);
 }
 
+async function handleSearchMessages(cmdArgs: string[]): Promise<void> {
+  let projectId = "";
+  let agentId = "";
+  let query = "";
+  let limit = 10;
+
+  for (let i = 0; i < cmdArgs.length; i++) {
+    const arg = cmdArgs[i];
+    if (arg === "--project-id") {
+      projectId = cmdArgs[++i] ?? "";
+    } else if (arg === "--agent-id") {
+      agentId = cmdArgs[++i] ?? "";
+    } else if (arg === "--query") {
+      query = cmdArgs[++i] ?? "";
+    } else if (arg === "--limit") {
+      const parsed = parseInt(cmdArgs[++i] ?? "10", 10);
+      if (Number.isNaN(parsed) || parsed < 1) {
+        console.error("--limit must be a positive integer");
+        process.exit(1);
+      }
+      limit = parsed;
+    }
+  }
+
+  if (!projectId || !agentId || !query) {
+    console.error(
+      "Usage: shire search-messages --project-id <id> --agent-id <id> --query <text> [--limit <n>]",
+    );
+    process.exit(1);
+  }
+
+  const { getDb } = await import("./db");
+  getDb();
+  const { searchMessages } = await import("./db/fts");
+  try {
+    const results = searchMessages(projectId, agentId, query, limit);
+    console.log(JSON.stringify(results, null, 2));
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
@@ -243,6 +293,9 @@ async function main(): Promise<void> {
       break;
     case "status":
       handleStatus();
+      break;
+    case "search-messages":
+      await handleSearchMessages(args.commandArgs);
       break;
   }
 }
