@@ -1,6 +1,7 @@
 import { getDb } from "./db";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { sql } from "drizzle-orm";
+import { backfillFts } from "./db/fts";
 import { createApp, handleWsMessage, handleWsClose, type AppContext } from "./server";
 import { ProjectManager } from "./runtime/project-manager";
 import { Scheduler } from "./runtime/scheduler";
@@ -38,6 +39,9 @@ export async function startServer(opts: StartOptions = {}) {
   } finally {
     db.run(sql`PRAGMA foreign_keys = ON`);
   }
+
+  // 1b. Backfill FTS index (non-blocking)
+  Promise.resolve().then(() => backfillFts());
 
   // 2. Boot project manager
   const projectManager = new ProjectManager();

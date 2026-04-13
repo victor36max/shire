@@ -19,7 +19,7 @@ export function createTestDb() {
   db.run(sql`PRAGMA foreign_keys = OFF`);
   migrate(db, { migrationsFolder: MIGRATIONS_DIR });
   db.run(sql`PRAGMA foreign_keys = ON`);
-  setDb(db);
+  setDb(db, sqlite);
   return db;
 }
 

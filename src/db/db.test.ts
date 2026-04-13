@@ -25,8 +25,9 @@ describe("db/index", () => {
   });
 
   it("setDb overrides the db instance", () => {
-    const testDb = createTestDb();
-    setDb(testDb);
+    const sqlite = new Database(":memory:");
+    const testDb = drizzle(sqlite, { schema });
+    setDb(testDb, sqlite);
     expect(getDb()).toBe(testDb);
   });
 
@@ -40,10 +41,10 @@ describe("db/index", () => {
       // Clear internal _db by passing a temporary value and then forcing null
       const tempSqlite = new Database(":memory:");
       const tempDb = drizzle(tempSqlite, { schema });
-      setDb(tempDb);
+      setDb(tempDb, tempSqlite);
       // Now set to null to force getDb() to create a real DB
       // We access setDb with null cast
-      (setDb as (db: unknown) => void)(null);
+      (setDb as (db: unknown, s: unknown) => void)(null, null);
     });
 
     afterEach(() => {
