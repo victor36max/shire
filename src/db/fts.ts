@@ -9,29 +9,73 @@ export interface FtsResult {
   relevance: number;
 }
 
+export interface SearchMessagesOptions {
+  limit?: number;
+  offset?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
 /**
  * Search messages using FTS5 with BM25 ranking.
- * Returns messages matching the query, filtered by project and agent, ordered by relevance.
+ * Returns messages matching the query, filtered by project/agent and optional
+ * date range, ordered by relevance. Supports pagination via `limit` + `offset`.
  */
 export function searchMessages(
   projectId: string,
   agentId: string,
   query: string,
-  limit = 10,
+  options: SearchMessagesOptions = {},
 ): FtsResult[] {
-  const sqlite = getSqlite();
-  const stmt = sqlite.query<FtsResult, [string, string, string, number]>(`
+  const { limit = 10, offset = 0, startDate } = options;
+  let { endDate } = options;
+
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new Error("limit must be a positive integer");
+  }
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error("offset must be a non-negative integer");
+  }
+  if (startDate !== undefined && Number.isNaN(Date.parse(startDate))) {
+    throw new Error(`Invalid startDate: ${startDate}`);
+  }
+  if (endDate !== undefined && Number.isNaN(Date.parse(endDate))) {
+    throw new Error(`Invalid endDate: ${endDate}`);
+  }
+
+  // Timestamps are stored as full ISO-8601 (e.g. "2026-04-30T12:34:56.789Z") and
+  // compared lexicographically. A date-only endDate like "2026-04-30" would wrongly
+  // exclude every message later that same day, so extend it to end-of-day.
+  if (endDate !== undefined && !endDate.includes("T")) {
+    endDate = `${endDate}T23:59:59.999Z`;
+  }
+
+  const conditions: string[] = ["messages_fts MATCH ?", "m.project_id = ?", "m.agent_id = ?"];
+  const params: (string | number)[] = [query, projectId, agentId];
+
+  if (startDate !== undefined) {
+    conditions.push("m.created_at >= ?");
+    params.push(startDate);
+  }
+  if (endDate !== undefined) {
+    conditions.push("m.created_at <= ?");
+    params.push(endDate);
+  }
+
+  params.push(limit, offset);
+
+  const sql = `
     SELECT m.id, m.role, m.content, m.created_at, f.rank AS relevance
     FROM messages_fts f
     JOIN messages m ON m.id = f.rowid
-    WHERE messages_fts MATCH ?
-      AND m.project_id = ?
-      AND m.agent_id = ?
+    WHERE ${conditions.join(" AND ")}
     ORDER BY f.rank
-    LIMIT ?
-  `);
+    LIMIT ? OFFSET ?
+  `;
+
+  const sqlite = getSqlite();
   try {
-    return stmt.all(query, projectId, agentId, limit);
+    return sqlite.query<FtsResult, (string | number)[]>(sql).all(...params);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`Invalid search query: ${message}`);
