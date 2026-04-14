@@ -105,9 +105,11 @@ Commands:
   stop               Stop a running daemon
   status             Check if the server is running
   search-messages    Search past conversation history (used by agents via Bash)
-                     shire search-messages --project-id <id> --agent-id <id> --query <text>
+                     shire search-messages --project-id <id> --agent-id <id>
+                                           [--query <text>]
                                            [--start-date <iso>] [--end-date <iso>]
                                            [--limit <n>] [--offset <n>]
+                     At least one of --query or --start-date/--end-date is required.
 
 Options:
   -p, --port     Port to listen on (default: 8080)
@@ -280,11 +282,16 @@ async function handleSearchMessages(cmdArgs: string[]): Promise<void> {
     }
   }
 
-  if (!projectId || !agentId || !query) {
+  if (!projectId || !agentId) {
     console.error(
-      "Usage: shire search-messages --project-id <id> --agent-id <id> --query <text> " +
-        "[--start-date <iso>] [--end-date <iso>] [--limit <n>] [--offset <n>]",
+      "Usage: shire search-messages --project-id <id> --agent-id <id> " +
+        "[--query <text>] [--start-date <iso>] [--end-date <iso>] [--limit <n>] [--offset <n>]",
     );
+    process.exit(1);
+  }
+
+  if (!query && startDate === undefined && endDate === undefined) {
+    console.error("Provide at least one of --query, --start-date, or --end-date");
     process.exit(1);
   }
 

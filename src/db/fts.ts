@@ -24,7 +24,7 @@ export interface SearchMessagesOptions {
 export function searchMessages(
   projectId: string,
   agentId: string,
-  query: string,
+  query = "",
   options: SearchMessagesOptions = {},
 ): FtsResult[] {
   const { limit = 10, offset = 0, startDate } = options;
@@ -50,8 +50,23 @@ export function searchMessages(
     endDate = `${endDate}T23:59:59.999Z`;
   }
 
-  const conditions: string[] = ["messages_fts MATCH ?", "m.project_id = ?", "m.agent_id = ?"];
-  const params: (string | number)[] = [query, projectId, agentId];
+  const hasTextFilter = query.length > 0;
+
+  if (!hasTextFilter && startDate === undefined && endDate === undefined) {
+    throw new Error("searchMessages requires a query or a date range");
+  }
+
+  const conditions: string[] = ["m.project_id = ?", "m.agent_id = ?"];
+  const params: (string | number)[] = [projectId, agentId];
+
+  if (hasTextFilter) {
+    conditions.unshift("messages_fts MATCH ?");
+    params.unshift(query);
+  } else {
+    // Without an FTS MATCH we lose BM25 ranking, so scope to the same roles the
+    // FTS index covers for consistent results and order by recency.
+    conditions.push("m.role IN ('user', 'agent', 'inter_agent')");
+  }
 
   if (startDate !== undefined) {
     conditions.push("m.created_at >= ?");
@@ -64,12 +79,20 @@ export function searchMessages(
 
   params.push(limit, offset);
 
-  const sql = `
+  const sql = hasTextFilter
+    ? `
     SELECT m.id, m.role, m.content, m.created_at, f.rank AS relevance
     FROM messages_fts f
     JOIN messages m ON m.id = f.rowid
     WHERE ${conditions.join(" AND ")}
     ORDER BY f.rank
+    LIMIT ? OFFSET ?
+  `
+    : `
+    SELECT m.id, m.role, m.content, m.created_at, 0 AS relevance
+    FROM messages m
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY m.created_at DESC
     LIMIT ? OFFSET ?
   `;
 

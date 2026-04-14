@@ -197,6 +197,83 @@ describe("FTS message search", () => {
     expect(ids.size).toBe(5);
   });
 
+  it("supports date-only search with empty query", () => {
+    seedProject(db);
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "user",
+      content: { text: "Unrelated morning chat" },
+      createdAt: "2026-04-08T09:00:00.000Z",
+    });
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "agent",
+      content: { text: "Different topic entirely" },
+      createdAt: "2026-04-08T15:00:00.000Z",
+    });
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "user",
+      content: { text: "Message on another day" },
+      createdAt: "2026-04-09T09:00:00.000Z",
+    });
+
+    const results = searchMessages("p1", "a1", "", {
+      startDate: "2026-04-08",
+      endDate: "2026-04-08",
+    });
+    expect(results.length).toBe(2);
+    // Ordered by created_at DESC when no text filter is given.
+    expect(JSON.parse(results[0].content).text).toBe("Different topic entirely");
+    expect(JSON.parse(results[1].content).text).toBe("Unrelated morning chat");
+  });
+
+  it("date-only search excludes non-indexed roles", () => {
+    seedProject(db);
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "user",
+      content: { text: "User message" },
+      createdAt: "2026-04-08T09:00:00.000Z",
+    });
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "tool_use",
+      content: {
+        tool: "Bash",
+        tool_use_id: "t1",
+        input: {},
+        output: "something",
+        is_error: false,
+      },
+      createdAt: "2026-04-08T10:00:00.000Z",
+    });
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "system",
+      content: { text: "System notice" },
+      createdAt: "2026-04-08T11:00:00.000Z",
+    });
+
+    const results = searchMessages("p1", "a1", "", {
+      startDate: "2026-04-08",
+      endDate: "2026-04-08",
+    });
+    expect(results.length).toBe(1);
+    expect(results[0].role).toBe("user");
+  });
+
+  it("throws when neither query nor date range is given", () => {
+    seedProject(db);
+    expect(() => searchMessages("p1", "a1", "")).toThrow("query or a date range");
+  });
+
   it("throws on invalid date inputs", () => {
     seedProject(db);
     expect(() => searchMessages("p1", "a1", "deploy", { startDate: "not-a-date" })).toThrow(
