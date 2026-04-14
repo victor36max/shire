@@ -105,7 +105,9 @@ Commands:
   stop               Stop a running daemon
   status             Check if the server is running
   search-messages    Search past conversation history (used by agents via Bash)
-                     shire search-messages --project-id <id> --agent-id <id> --query <text> [--limit <n>]
+                     shire search-messages --project-id <id> --agent-id <id> --query <text>
+                                           [--start-date <iso>] [--end-date <iso>]
+                                           [--limit <n>] [--offset <n>]
 
 Options:
   -p, --port     Port to listen on (default: 8080)
@@ -237,6 +239,9 @@ async function handleSearchMessages(cmdArgs: string[]): Promise<void> {
   let agentId = "";
   let query = "";
   let limit = 10;
+  let offset = 0;
+  let startDate: string | undefined;
+  let endDate: string | undefined;
 
   for (let i = 0; i < cmdArgs.length; i++) {
     const arg = cmdArgs[i];
@@ -253,12 +258,32 @@ async function handleSearchMessages(cmdArgs: string[]): Promise<void> {
         process.exit(1);
       }
       limit = parsed;
+    } else if (arg === "--offset") {
+      const parsed = parseInt(cmdArgs[++i] ?? "0", 10);
+      if (Number.isNaN(parsed) || parsed < 0) {
+        console.error("--offset must be a non-negative integer");
+        process.exit(1);
+      }
+      offset = parsed;
+    } else if (arg === "--start-date") {
+      startDate = cmdArgs[++i];
+      if (!startDate) {
+        console.error("--start-date requires a value");
+        process.exit(1);
+      }
+    } else if (arg === "--end-date") {
+      endDate = cmdArgs[++i];
+      if (!endDate) {
+        console.error("--end-date requires a value");
+        process.exit(1);
+      }
     }
   }
 
   if (!projectId || !agentId || !query) {
     console.error(
-      "Usage: shire search-messages --project-id <id> --agent-id <id> --query <text> [--limit <n>]",
+      "Usage: shire search-messages --project-id <id> --agent-id <id> --query <text> " +
+        "[--start-date <iso>] [--end-date <iso>] [--limit <n>] [--offset <n>]",
     );
     process.exit(1);
   }
@@ -267,7 +292,12 @@ async function handleSearchMessages(cmdArgs: string[]): Promise<void> {
   getDb();
   const { searchMessages } = await import("./db/fts");
   try {
-    const results = searchMessages(projectId, agentId, query, limit);
+    const results = searchMessages(projectId, agentId, query, {
+      limit,
+      offset,
+      startDate,
+      endDate,
+    });
     console.log(JSON.stringify(results, null, 2));
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));

@@ -101,8 +101,12 @@ Violations include:
 ## Message History Search
 Search your past conversation history using:
 \`\`\`
-${shireCommand} search-messages --project-id ${projectId} --agent-id ${agentId} --query "your search terms"
+${shireCommand} search-messages --project-id ${projectId} --agent-id ${agentId} --query "your search terms" [--start-date <iso>] [--end-date <iso>] [--limit <n>] [--offset <n>]
 \`\`\`
+- \`--query\` uses SQLite FTS5 syntax and results are BM25-ranked by relevance.
+- \`--start-date\` / \`--end-date\` are ISO-8601 (e.g. \`2026-04-01\` or \`2026-04-01T00:00:00Z\`), both inclusive — use them to narrow to a specific time window.
+- Paginate deeper into results with \`--limit\` (default 10) + \`--offset\` (default 0). For example, \`--limit 10 --offset 10\` returns the second page.
+
 Use this when you need to recall what was discussed in previous sessions — past decisions, instructions, or context no longer in your current conversation.
 `;
 

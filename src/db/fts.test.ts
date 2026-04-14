@@ -107,8 +107,110 @@ describe("FTS message search", () => {
       });
     }
 
-    const results = searchMessages("p1", "a1", "deployment", 2);
+    const results = searchMessages("p1", "a1", "deployment", { limit: 2 });
     expect(results.length).toBe(2);
+  });
+
+  it("filters results by date range", () => {
+    seedProject(db);
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "user",
+      content: { text: "Early deployment notes" },
+      createdAt: "2026-03-01T00:00:00.000Z",
+    });
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "user",
+      content: { text: "Mid deployment notes" },
+      createdAt: "2026-04-05T00:00:00.000Z",
+    });
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "user",
+      content: { text: "Late deployment notes" },
+      createdAt: "2026-05-10T00:00:00.000Z",
+    });
+
+    const inRange = searchMessages("p1", "a1", "deployment", {
+      startDate: "2026-04-01",
+      endDate: "2026-04-30",
+    });
+    expect(inRange.length).toBe(1);
+    expect(JSON.parse(inRange[0].content).text).toBe("Mid deployment notes");
+
+    const fromApril = searchMessages("p1", "a1", "deployment", { startDate: "2026-04-01" });
+    expect(fromApril.length).toBe(2);
+
+    const untilApril = searchMessages("p1", "a1", "deployment", { endDate: "2026-04-30" });
+    expect(untilApril.length).toBe(2);
+  });
+
+  it("extends date-only endDate to end-of-day", () => {
+    seedProject(db);
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "user",
+      content: { text: "Midday deployment notes" },
+      createdAt: "2026-04-30T12:00:00.000Z",
+    });
+    agentsService.createMessage({
+      projectId: "p1",
+      agentId: "a1",
+      role: "user",
+      content: { text: "Next-day deployment notes" },
+      createdAt: "2026-05-01T00:00:00.000Z",
+    });
+
+    // Date-only endDate should include messages later the same day.
+    const results = searchMessages("p1", "a1", "deployment", { endDate: "2026-04-30" });
+    expect(results.length).toBe(1);
+    expect(JSON.parse(results[0].content).text).toBe("Midday deployment notes");
+  });
+
+  it("paginates via limit + offset", () => {
+    seedProject(db);
+    for (let i = 0; i < 5; i++) {
+      agentsService.createMessage({
+        projectId: "p1",
+        agentId: "a1",
+        role: "user",
+        content: { text: `Message about deployment number ${i}` },
+      });
+    }
+
+    const page1 = searchMessages("p1", "a1", "deployment", { limit: 2, offset: 0 });
+    const page2 = searchMessages("p1", "a1", "deployment", { limit: 2, offset: 2 });
+    const page3 = searchMessages("p1", "a1", "deployment", { limit: 2, offset: 4 });
+    const beyond = searchMessages("p1", "a1", "deployment", { limit: 2, offset: 10 });
+
+    expect(page1.length).toBe(2);
+    expect(page2.length).toBe(2);
+    expect(page3.length).toBe(1);
+    expect(beyond.length).toBe(0);
+
+    const ids = new Set([...page1, ...page2, ...page3].map((r) => r.id));
+    expect(ids.size).toBe(5);
+  });
+
+  it("throws on invalid date inputs", () => {
+    seedProject(db);
+    expect(() => searchMessages("p1", "a1", "deploy", { startDate: "not-a-date" })).toThrow(
+      "Invalid startDate",
+    );
+    expect(() => searchMessages("p1", "a1", "deploy", { endDate: "also-bad" })).toThrow(
+      "Invalid endDate",
+    );
+  });
+
+  it("throws on invalid limit or offset", () => {
+    seedProject(db);
+    expect(() => searchMessages("p1", "a1", "deploy", { limit: 0 })).toThrow("limit");
+    expect(() => searchMessages("p1", "a1", "deploy", { offset: -1 })).toThrow("offset");
   });
 
   it("removes FTS entries when messages are deleted", () => {
