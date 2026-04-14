@@ -472,4 +472,39 @@ describe("SharedDriveContentArea", () => {
       expect(screen.getByText(/too large/)).toBeInTheDocument();
     });
   });
+
+  it("saves selected file to localStorage", async () => {
+    renderContentArea("/projects/test-project/shared?file=readme.md");
+    await waitFor(() => {
+      expect(localStorage.getItem("shire:file:test-project")).toBe("readme.md");
+    });
+  });
+
+  it("restores file from localStorage when no URL param", async () => {
+    localStorage.setItem("shire:file:test-project", "photo.png");
+    renderContentArea("/projects/test-project/shared");
+    await waitFor(() => {
+      const img = screen.getByRole("img", { name: "photo.png" });
+      expect(img).toBeInTheDocument();
+    });
+  });
+
+  it("clears localStorage on file delete", async () => {
+    server.use(
+      http.delete("*/api/projects/:id/shared-drive", () => HttpResponse.json({ ok: true })),
+    );
+    renderContentArea("/projects/test-project/shared?file=readme.md");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = screen.getByRole("alertdialog");
+    const confirmBtn = Array.from(dialog.querySelectorAll("button")).find(
+      (b) => b.textContent === "Delete",
+    );
+    await userEvent.click(confirmBtn!);
+    await waitFor(() => {
+      expect(localStorage.getItem("shire:file:test-project")).toBeNull();
+    });
+  });
 });
