@@ -1,6 +1,6 @@
 import { screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { http, HttpResponse } from "msw";
 import { server } from "./msw-server";
 import SharedDrivePanel from "../components/sidebar/SharedDrivePanel";
@@ -299,6 +299,10 @@ describe("SharedDrivePanel", () => {
 });
 
 describe("SharedDriveContentArea", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it("shows empty state when no file selected", async () => {
     renderContentArea();
     await waitFor(() => {

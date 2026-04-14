@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useSearchParams } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { Menu, Upload, Download, Trash2, Pencil, FolderOpen } from "lucide-react";
 import { Button } from "./ui/button";
@@ -15,6 +14,7 @@ import {
   useDeleteSharedFile,
   useRenameSharedFile,
   useUploadSharedDriveFile,
+  useSyncedParam,
 } from "../hooks";
 import { getFileIcon, getPreviewType, formatSize, MAX_UPLOAD_SIZE } from "../lib/file-utils";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
@@ -22,9 +22,7 @@ import { useProjectLayout } from "../providers/ProjectLayoutProvider";
 export default function SharedDriveContentArea() {
   const { projectId, projectName } = useProjectId();
   const { sidebarOpen, setSidebarOpen } = useProjectLayout();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  const filePath = searchParams.get("file");
+  const [filePath, setFilePath] = useSyncedParam("file", `shire:file:${projectName}`);
   const fileName = filePath ? (filePath.split("/").pop() ?? "") : "";
   const type = filePath ? getPreviewType(fileName) : null;
   const needsContent = type === "markdown" || type === "text" || type === "csv";
@@ -51,7 +49,7 @@ export default function SharedDriveContentArea() {
     if (!filePath) return;
     deleteSharedFile.mutate(filePath);
     setDeleteOpen(false);
-    setSearchParams({});
+    setFilePath(null);
   };
 
   const handleRename = (newName: string) => {
@@ -60,7 +58,7 @@ export default function SharedDriveContentArea() {
       { path: filePath, newName },
       {
         onSuccess: (data: { ok: boolean; newPath: string }) => {
-          setSearchParams({ file: data.newPath });
+          setFilePath(data.newPath);
         },
       },
     );

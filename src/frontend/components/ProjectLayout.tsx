@@ -18,6 +18,7 @@ import {
   fetchCatalogAgent,
   findDefaultAgent,
   useIsDesktop,
+  useSyncedParam,
 } from "../hooks";
 import { useSubscription, type AgentListWsEvent, type SharedDriveWsEvent } from "../lib/ws";
 import {
@@ -48,19 +49,42 @@ export default function ProjectLayout() {
   const location = useLocation();
   const isSharedDriveRoute = location.pathname === `/projects/${projectName}/shared`;
 
-  // --- File preview panel state ---
-  const [panelFilePath, setPanelFilePath] = React.useState<string | null>(null);
+  // --- File preview panel state (synced to URL ?preview= and localStorage) ---
+  const [panelFilePath, setPanelFilePath] = useSyncedParam(
+    "preview",
+    `shire:preview:${projectName}`,
+    { disabled: isSharedDriveRoute },
+  );
   const filePanelRef = React.useRef<PanelImperativeHandle>(null);
 
   // Only show the panel on agent chat routes, not on the shared drive view
   const effectivePanelFilePath = isSharedDriveRoute ? null : panelFilePath;
 
-  // Reset panel when project changes
-  const [prevProjectName, setPrevProjectName] = React.useState(projectName);
-  if (projectName !== prevProjectName) {
-    setPrevProjectName(projectName);
-    setPanelFilePath(null);
-  }
+  // --- Remember last-viewed agent per project ---
+  const agentStorageKey = `shire:agent:${projectName}`;
+  React.useEffect(() => {
+    if (agentName) {
+      try {
+        localStorage.setItem(agentStorageKey, agentName);
+      } catch {
+        // ignore
+      }
+    }
+  }, [agentName, agentStorageKey]);
+
+  // Redirect project index to last-viewed agent (only on the exact index route)
+  const isProjectIndex = location.pathname === `/projects/${projectName}`;
+  React.useEffect(() => {
+    if (!isProjectIndex || agentList.length === 0) return;
+    try {
+      const saved = localStorage.getItem(agentStorageKey);
+      if (saved && agentList.some((a) => a.name === saved)) {
+        navigate(`/projects/${projectName}/agents/${saved}`, { replace: true });
+      }
+    } catch {
+      // ignore
+    }
+  }, [isProjectIndex, agentList, agentStorageKey, projectName, navigate]);
 
   // Expand/collapse the file panel imperatively
   React.useEffect(() => {

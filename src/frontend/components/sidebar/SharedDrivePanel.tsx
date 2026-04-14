@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useSearchParams } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -29,6 +28,7 @@ import {
   useDeleteSharedFile,
   useRenameSharedFile,
   useUploadSharedDriveFile,
+  useSyncedParam,
 } from "../../hooks";
 import { formatSize, getFileIcon, MAX_UPLOAD_SIZE } from "../../lib/file-utils";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
@@ -66,8 +66,7 @@ function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: st
 
 export default function SharedDrivePanel() {
   const { projectId, projectName } = useProjectId();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedFile = searchParams.get("file");
+  const [selectedFile, setSelectedFile] = useSyncedParam("file", `shire:file:${projectName}`);
   const parentDir = selectedFile
     ? selectedFile.substring(0, selectedFile.lastIndexOf("/")) || "/"
     : null;
@@ -112,7 +111,7 @@ export default function SharedDrivePanel() {
   };
 
   const selectFile = (file: SharedDriveFile) => {
-    setSearchParams({ file: file.path });
+    setSelectedFile(file.path);
   };
 
   const handleRename = (newName: string) => {
@@ -122,7 +121,7 @@ export default function SharedDrivePanel() {
       {
         onSuccess: (data: { ok: boolean; newPath: string }) => {
           if (selectedFile === renameTarget.path) {
-            setSearchParams({ file: data.newPath });
+            setSelectedFile(data.newPath);
           }
         },
       },
@@ -146,7 +145,7 @@ export default function SharedDrivePanel() {
       { name: trimmedName, path: currentPath },
       {
         onSuccess: (data) => {
-          setSearchParams({ file: data.path });
+          setSelectedFile(data.path);
         },
       },
     );
@@ -156,7 +155,7 @@ export default function SharedDrivePanel() {
     deleteSharedFile.mutate(file.path);
     setDeleteTarget(null);
     if (selectedFile === file.path) {
-      setSearchParams({});
+      setSelectedFile(null);
     }
   };
 
