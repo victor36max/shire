@@ -11,6 +11,7 @@ import * as skillsService from "../services/skills";
 import { createHarness, type Harness, type HarnessType } from "./harness";
 import type { AgentEvent } from "./harness/types";
 import { buildInternalPrompt } from "./system-prompt";
+import { getPackageRoot } from "../utils/package-root";
 
 const MAX_AUTO_RESTARTS = 3;
 
@@ -299,10 +300,15 @@ export class AgentManager {
     const model = agent.model ?? "claude-sonnet-4-6";
     const systemPrompt = agent.systemPrompt ?? "";
     const agentDir = workspace.agentDir(this.projectId, this.agentId);
+    const isCompiled = process.argv[1]?.startsWith("/$bunfs/");
+    const shireCommand = isCompiled
+      ? "shire"
+      : `bun run ${join(getPackageRoot(__dirname, 2), "src", "cli.ts")}`;
     const internalSystemPrompt = buildInternalPrompt({
       agentName: this.agentName,
       projectId: this.projectId,
       agentId: this.agentId,
+      shireCommand,
     });
 
     this.harness = createHarness(harnessType);
