@@ -86,6 +86,16 @@ export default function ProjectLayout() {
     }
   }, [isProjectIndex, agentList, agentStorageKey, projectName, navigate]);
 
+  // Capture the initial preview state for defaultSize. useState (not useRef)
+  // avoids React Compiler "ref during render" errors while still only reading
+  // the value once on mount.
+  const [initialHasPreview] = React.useState(() => !!effectivePanelFilePath);
+
+  // Track last known panel size so onResize can distinguish "user collapsed"
+  // from "initial layout at size 0" (which fires via ResizeObserver before
+  // React effects run, so we can't use a ref set in useEffect).
+  const [lastPanelSize, setLastPanelSize] = React.useState(initialHasPreview ? 25 : 0);
+
   // Expand/collapse the file panel imperatively
   React.useEffect(() => {
     if (effectivePanelFilePath) {
@@ -250,20 +260,24 @@ export default function ProjectLayout() {
               {sidebar}
             </ResizablePanel>
             <ResizableHandle />
-            <ResizablePanel id="content" defaultSize="80" minSize="30">
+            <ResizablePanel id="content" defaultSize={initialHasPreview ? "55" : "80"} minSize="30">
               {content}
             </ResizablePanel>
             <ResizableHandle className={effectivePanelFilePath ? "" : "hidden"} />
             <ResizablePanel
               id="file-panel"
               panelRef={filePanelRef}
-              defaultSize="0"
+              defaultSize={initialHasPreview ? "25" : "0"}
               minSize="20"
               maxSize="50"
               collapsible
               collapsedSize={0}
               onResize={(size) => {
-                if (size.asPercentage === 0 && effectivePanelFilePath) {
+                const prev = lastPanelSize;
+                setLastPanelSize(size.asPercentage);
+                // Only clear when the panel transitions from expanded → collapsed
+                // (not on the initial layout where it starts at 0).
+                if (size.asPercentage === 0 && prev > 0 && effectivePanelFilePath) {
                   setPanelFilePath(null);
                 }
               }}
