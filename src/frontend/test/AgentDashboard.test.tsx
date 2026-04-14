@@ -1,13 +1,14 @@
 import * as React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, mock } from "bun:test";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "./msw-server";
 import ProjectLayout from "../components/ProjectLayout";
 import AgentChatView from "../components/AgentChatView";
+import SharedDriveContentArea from "../components/SharedDriveContentArea";
 import { type AgentOverview } from "../components/types";
 
 mock.module("../lib/ws", () => ({
@@ -33,6 +34,12 @@ function setAgents(agentList: AgentOverview[]) {
   server.use(http.get("*/api/projects/:id/agents", () => HttpResponse.json(agentList)));
 }
 
+/** Renders the current router location so tests can assert navigation. */
+function LocationDisplay() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}</span>;
+}
+
 function renderWithLayout(route = "/projects/test-project") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
@@ -45,8 +52,10 @@ function renderWithLayout(route = "/projects/test-project") {
           <Route path="/projects/:projectName" element={<ProjectLayout />}>
             <Route index element={<AgentChatView />} />
             <Route path="agents/:agentName" element={<AgentChatView />} />
+            <Route path="shared" element={<SharedDriveContentArea />} />
           </Route>
         </Routes>
+        <LocationDisplay />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -170,6 +179,50 @@ describe("ProjectLayout + AgentChatView", () => {
     renderWithLayout("/projects/test-project/agents/Agent Two");
     await waitFor(() => {
       expect(screen.getAllByText("Agent Two").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("agent localStorage redirect", () => {
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it("saves current agent to localStorage", async () => {
+      setAgents(agents);
+      renderWithLayout("/projects/test-project/agents/Agent Two");
+      await waitFor(() => {
+        expect(localStorage.getItem("shire:agent:test-project")).toBe("Agent Two");
+      });
+    });
+
+    it("redirects project index to last-viewed agent", async () => {
+      setAgents(agents);
+      localStorage.setItem("shire:agent:test-project", "Agent Two");
+      renderWithLayout("/projects/test-project");
+      await waitFor(() => {
+        expect(screen.getByTestId("location").textContent).toBe(
+          "/projects/test-project/agents/Agent Two",
+        );
+      });
+    });
+
+    it("does not redirect when saved agent no longer exists", async () => {
+      setAgents(agents);
+      localStorage.setItem("shire:agent:test-project", "Deleted Agent");
+      renderWithLayout("/projects/test-project");
+      await waitFor(() => {
+        expect(screen.getAllByText("Agent One").length).toBeGreaterThanOrEqual(1);
+      });
+      expect(screen.getByTestId("location").textContent).toBe("/projects/test-project");
+    });
+
+    it("does not redirect on the shared drive route", async () => {
+      setAgents(agents);
+      localStorage.setItem("shire:agent:test-project", "Agent Two");
+      renderWithLayout("/projects/test-project/shared");
+      await waitFor(() => {
+        expect(screen.getByTestId("location").textContent).toBe("/projects/test-project/shared");
+      });
     });
   });
 });

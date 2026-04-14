@@ -1,6 +1,6 @@
 import { screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { http, HttpResponse } from "msw";
 import { server } from "./msw-server";
 import SharedDrivePanel from "../components/sidebar/SharedDrivePanel";
@@ -299,6 +299,10 @@ describe("SharedDrivePanel", () => {
 });
 
 describe("SharedDriveContentArea", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it("shows empty state when no file selected", async () => {
     renderContentArea();
     await waitFor(() => {
@@ -466,6 +470,41 @@ describe("SharedDriveContentArea", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/too large/)).toBeInTheDocument();
+    });
+  });
+
+  it("saves selected file to localStorage", async () => {
+    renderContentArea("/projects/test-project/shared?file=readme.md");
+    await waitFor(() => {
+      expect(localStorage.getItem("shire:file:test-project")).toBe("readme.md");
+    });
+  });
+
+  it("restores file from localStorage when no URL param", async () => {
+    localStorage.setItem("shire:file:test-project", "photo.png");
+    renderContentArea("/projects/test-project/shared");
+    await waitFor(() => {
+      const img = screen.getByRole("img", { name: "photo.png" });
+      expect(img).toBeInTheDocument();
+    });
+  });
+
+  it("clears localStorage on file delete", async () => {
+    server.use(
+      http.delete("*/api/projects/:id/shared-drive", () => HttpResponse.json({ ok: true })),
+    );
+    renderContentArea("/projects/test-project/shared?file=readme.md");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = screen.getByRole("alertdialog");
+    const confirmBtn = Array.from(dialog.querySelectorAll("button")).find(
+      (b) => b.textContent === "Delete",
+    );
+    await userEvent.click(confirmBtn!);
+    await waitFor(() => {
+      expect(localStorage.getItem("shire:file:test-project")).toBeNull();
     });
   });
 });
