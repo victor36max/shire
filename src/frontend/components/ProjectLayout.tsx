@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import type { PanelImperativeHandle } from "react-resizable-panels";
+import { type PanelImperativeHandle, useDefaultLayout } from "react-resizable-panels";
 import { Spinner } from "./ui/spinner";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./ui/resizable";
 import AgentSidebar from "./AgentSidebar";
@@ -86,20 +86,36 @@ export default function ProjectLayout() {
     }
   }, [isProjectIndex, agentList, agentStorageKey, projectName, navigate]);
 
-  // Capture the initial preview state for defaultSize. useState (not useRef)
-  // avoids React Compiler "ref during render" errors while still only reading
-  // the value once on mount.
-  const [initialHasPreview] = React.useState(() => !!effectivePanelFilePath);
+  // Persist sidebar/panel sizes to localStorage (global, not per-project).
+  // Use two different panel sets: with and without the file preview panel.
+  const panelIds = effectivePanelFilePath
+    ? ["sidebar", "content", "file-panel"]
+    : ["sidebar", "content"];
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "shire:layout",
+    panelIds,
+  });
 
   // Track last known panel size so onResize can distinguish "user collapsed"
   // from "initial layout at size 0" (which fires via ResizeObserver before
   // React effects run, so we can't use a ref set in useEffect).
-  const [lastPanelSize, setLastPanelSize] = React.useState(initialHasPreview ? 25 : 0);
+  const [lastPanelSize, setLastPanelSize] = React.useState(effectivePanelFilePath ? 33 : 0);
 
-  // Expand/collapse the file panel imperatively
+  // Expand/collapse the file panel imperatively.
+  // Use resize() instead of expand() so the panel opens to ~33%, not just minSize.
+  // If the library has a saved layout, expand() restores that; otherwise we set 33%.
   React.useEffect(() => {
     if (effectivePanelFilePath) {
-      filePanelRef.current?.expand();
+      const panel = filePanelRef.current;
+      if (panel) {
+        panel.expand();
+        // expand() only goes to minSize on first open; resize to 33% if still small
+        requestAnimationFrame(() => {
+          if (panel.getSize().asPercentage < 25) {
+            panel.resize("33");
+          }
+        });
+      }
     } else {
       filePanelRef.current?.collapse();
     }
@@ -255,19 +271,27 @@ export default function ProjectLayout() {
         )}
 
         {isDesktop && (
-          <ResizablePanelGroup orientation="horizontal">
+          <ResizablePanelGroup
+            orientation="horizontal"
+            defaultLayout={defaultLayout}
+            onLayoutChanged={onLayoutChanged}
+          >
             <ResizablePanel id="sidebar" defaultSize="20" minSize="15" maxSize="35">
               {sidebar}
             </ResizablePanel>
             <ResizableHandle />
-            <ResizablePanel id="content" defaultSize={initialHasPreview ? "55" : "80"} minSize="30">
+            <ResizablePanel
+              id="content"
+              defaultSize={effectivePanelFilePath ? "47" : "80"}
+              minSize="30"
+            >
               {content}
             </ResizablePanel>
             <ResizableHandle className={effectivePanelFilePath ? "" : "hidden"} />
             <ResizablePanel
               id="file-panel"
               panelRef={filePanelRef}
-              defaultSize={initialHasPreview ? "25" : "0"}
+              defaultSize={effectivePanelFilePath ? "33" : "0"}
               minSize="20"
               maxSize="50"
               collapsible
