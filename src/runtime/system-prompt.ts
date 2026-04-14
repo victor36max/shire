@@ -6,12 +6,14 @@ interface BuildInternalPromptOpts {
   agentName: string;
   projectId: string;
   agentId: string;
+  shireCommand?: string;
 }
 
 export function buildInternalPrompt({
   agentName,
   projectId,
   agentId,
+  shireCommand = "shire",
 }: BuildInternalPromptOpts): string {
   const peersPath = workspace.peersPath(projectId);
   const agentDir = workspace.agentDir(projectId, agentId);
@@ -99,7 +101,7 @@ Violations include:
 ## Message History Search
 Search your past conversation history using:
 \`\`\`
-shire search-messages --project-id ${projectId} --agent-id ${agentId} --query "your search terms"
+${shireCommand} search-messages --project-id ${projectId} --agent-id ${agentId} --query "your search terms"
 \`\`\`
 Use this when you need to recall what was discussed in previous sessions — past decisions, instructions, or context no longer in your current conversation.
 `;
