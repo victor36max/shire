@@ -1,12 +1,27 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import { http, HttpResponse } from "msw";
 import { server } from "./msw-server";
 import { ChatInput } from "../components/chat/ChatInput";
 import type { AgentOverview } from "../components/types";
 import type { SharedDriveFile } from "../hooks/shared-drive";
+import {
+  ProjectLayoutContext,
+  type ProjectLayoutContextValue,
+} from "../providers/ProjectLayoutProvider";
 import { renderWithProviders, waitForText } from "./test-utils";
+
+const layoutContextValue: ProjectLayoutContextValue = {
+  projectId: "p1",
+  projectName: "test-project",
+  sidebarOpen: false,
+  setSidebarOpen: () => {},
+  onNewAgent: () => {},
+  onBrowseCatalog: () => {},
+  panelFilePath: null,
+  setPanelFilePath: () => {},
+};
 
 const activeAgent: AgentOverview = {
   id: "a1",
@@ -43,7 +58,12 @@ function setFiles(files: SharedDriveFile[]) {
 }
 
 function renderChatInput() {
-  return renderWithProviders(<ChatInput agent={activeAgent} />, routeOpts);
+  return renderWithProviders(
+    <ProjectLayoutContext.Provider value={layoutContextValue}>
+      <ChatInput agent={activeAgent} />
+    </ProjectLayoutContext.Provider>,
+    routeOpts,
+  );
 }
 
 describe("ChatInput file mention", () => {
@@ -124,6 +144,56 @@ describe("ChatInput file mention", () => {
     await userEvent.type(textarea, "@zzzzz");
 
     await waitForText("No files found");
+  });
+
+  it("opens a file in the preview panel when the Open button is clicked (desktop)", async () => {
+    // Force desktop mode: useIsDesktop() reads window.matchMedia("(min-width: 768px)").matches.
+    // Return a STABLE stub object — useSyncExternalStore calls matchMedia multiple times
+    // (subscribe + snapshot) and expects a consistent reference for change notifications.
+    const originalMatchMedia = window.matchMedia;
+    const desktopMq: MediaQueryList = {
+      matches: true,
+      media: "(min-width: 768px)",
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    } as unknown as MediaQueryList;
+    window.matchMedia = (() => desktopMq) as unknown as typeof window.matchMedia;
+
+    try {
+      setFiles(sampleFiles);
+      const setPanelFilePath = mock((_path: string | null) => {});
+      const value: ProjectLayoutContextValue = { ...layoutContextValue, setPanelFilePath };
+      renderWithProviders(
+        <ProjectLayoutContext.Provider value={value}>
+          <ChatInput agent={activeAgent} />
+        </ProjectLayoutContext.Provider>,
+        routeOpts,
+      );
+
+      const textarea = screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement;
+      await userEvent.type(textarea, "@rea");
+
+      await waitForText("readme.md");
+
+      const openButton = screen.getByRole("button", { name: /open file/i });
+      openButton.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+
+      await waitFor(() => {
+        expect(setPanelFilePath).toHaveBeenCalledWith("/readme.md");
+      });
+      // Textarea value unchanged — no mention was inserted
+      expect(textarea.value).toBe("@rea");
+      // Dropdown closes
+      await waitFor(() => {
+        expect(screen.queryByText("readme.md")).toBeNull();
+      });
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 
   it("navigates keyboard down and up through items", async () => {

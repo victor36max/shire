@@ -78,6 +78,26 @@ describe("FileMentionDropdown", () => {
     expect(onNavigateBack).toHaveBeenCalled();
   });
 
+  it("renders an Open button for file rows but not directory rows", () => {
+    renderDropdown({ onPreview: mock(() => {}) });
+    const openButtons = screen.getAllByRole("button", { name: /open file/i });
+    // Two files in sampleFiles, directory excluded
+    expect(openButtons).toHaveLength(2);
+  });
+
+  it("calls onPreview with the file when the Open button is clicked, and does not call onSelect", () => {
+    const onSelect = mock(() => {});
+    const onPreview = mock(() => {});
+    renderDropdown({ onSelect, onPreview });
+
+    const openButtons = screen.getAllByRole("button", { name: /open file/i });
+    openButtons[0].dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onPreview).toHaveBeenCalledWith(sampleFiles[1]); // readme.md (first file in items)
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it("renders different icons for different file types", () => {
     const files: SharedDriveFile[] = [
       { name: "script.ts", path: "/script.ts", type: "file", size: 100 },

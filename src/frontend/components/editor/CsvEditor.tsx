@@ -176,6 +176,9 @@ export default function CsvEditor({ initialContent, projectId, filePath }: CsvEd
     });
   }, [filteredRowsWithIndices, sortConfig]);
 
+  // React Compiler skips memoizing this component because useVirtualizer returns
+  // non-memoizable functions. Tracked upstream:
+  // https://github.com/TanStack/virtual/issues/1119
   const virtualizer = useVirtualizer({
     count: sortedRows.length,
     getScrollElement: () => scrollRef.current,
