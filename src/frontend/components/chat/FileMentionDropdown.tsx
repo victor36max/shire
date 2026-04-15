@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FolderIcon, ChevronLeft, Loader2 } from "lucide-react";
+import { FolderIcon, ChevronLeft, Loader2, ExternalLink } from "lucide-react";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
 import { getFileIcon } from "../../lib/file-utils";
 
@@ -10,6 +10,7 @@ interface FileMentionDropdownProps {
   isLoading: boolean;
   onSelect: (item: SharedDriveFile) => void;
   onNavigateBack: () => void;
+  onPreview?: (item: SharedDriveFile) => void;
 }
 
 export function FileMentionDropdown({
@@ -19,6 +20,7 @@ export function FileMentionDropdown({
   isLoading,
   onSelect,
   onNavigateBack,
+  onPreview,
 }: FileMentionDropdownProps) {
   const listRef = React.useRef<HTMLDivElement>(null);
 
@@ -60,25 +62,47 @@ export function FileMentionDropdown({
         {!isLoading &&
           items.map((item, index) => {
             const ItemIcon = item.type === "directory" ? FolderIcon : getFileIcon(item.name);
+            const isFile = item.type === "file";
             return (
-              <button
+              <div
                 key={item.path}
-                type="button"
+                className="flex items-center hover:bg-accent data-[selected=true]:bg-accent"
                 data-selected={index === selectedIndex}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent data-[selected=true]:bg-accent"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onSelect(item);
-                }}
               >
-                <ItemIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">{item.name}</span>
-                {currentPath === "/" && item.path !== "/" + item.name && (
-                  <span className="truncate text-xs text-muted-foreground">
-                    {item.path.slice(0, item.path.lastIndexOf("/"))}
-                  </span>
+                <button
+                  type="button"
+                  data-selected={index === selectedIndex}
+                  className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-sm"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onSelect(item);
+                  }}
+                >
+                  <ItemIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{item.name}</span>
+                  {currentPath === "/" && item.path !== "/" + item.name && (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {item.path.slice(0, item.path.lastIndexOf("/"))}
+                    </span>
+                  )}
+                </button>
+                {isFile && onPreview && (
+                  <button
+                    type="button"
+                    aria-label="Open file"
+                    title="Open file"
+                    className="mr-2 flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-foreground"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onPreview(item);
+                    }}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    <span>Open</span>
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
       </div>

@@ -10,8 +10,11 @@ import {
   useUploadAttachment,
   useUpdateAgentCache,
 } from "../../hooks";
+import { useNavigate } from "react-router-dom";
 import { useFileMention } from "../../hooks/useFileMention";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
+import { useIsDesktop } from "../../hooks/use-is-desktop";
+import { useProjectLayout } from "../../providers/ProjectLayoutProvider";
 import { type PendingFile, MAX_FILE_SIZE, formatFileSize } from "./types";
 import { getFileIcon } from "../../lib/file-utils";
 import { FileMentionDropdown } from "./FileMentionDropdown";
@@ -38,7 +41,23 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const mention = useFileMention(input, cursorPos, projectId);
-  const { selectItem, triggerIndex } = mention;
+  const { selectItem, triggerIndex, dismiss } = mention;
+  const { projectName, setPanelFilePath } = useProjectLayout();
+  const isDesktop = useIsDesktop();
+  const navigate = useNavigate();
+
+  const handleMentionPreview = React.useCallback(
+    (item: SharedDriveFile) => {
+      if (item.type !== "file") return;
+      if (isDesktop) {
+        setPanelFilePath(item.path);
+      } else {
+        navigate(`/projects/${projectName}/shared?file=${encodeURIComponent(item.path)}`);
+      }
+      dismiss();
+    },
+    [isDesktop, setPanelFilePath, navigate, projectName, dismiss],
+  );
 
   const insertMention = React.useCallback(
     (mentionText: string) => {
@@ -302,6 +321,7 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
               isLoading={mention.isLoading}
               onSelect={handleMentionSelect}
               onNavigateBack={handleNavigateBack}
+              onPreview={handleMentionPreview}
             />
           )}
           <Textarea
