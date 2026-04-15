@@ -1,5 +1,7 @@
 import * as React from "react";
-import { FolderIcon, ChevronLeft, Loader2, ExternalLink } from "lucide-react";
+import { FolderIcon, ChevronLeft, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
 import { getFileIcon } from "../../lib/file-utils";
 
@@ -38,22 +40,24 @@ export function FileMentionDropdown({
   return (
     <div className="absolute bottom-full left-0 right-0 z-50 mb-1 rounded-md border border-border bg-popover shadow-md">
       {showBackButton && (
-        <button
+        <Button
           type="button"
-          className="flex w-full items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent"
+          variant="ghost"
+          size="xs"
+          className="w-full justify-start rounded-none border-b border-border px-3 py-1.5 text-muted-foreground"
           onMouseDown={(e) => {
             e.preventDefault();
             onNavigateBack();
           }}
         >
-          <ChevronLeft className="h-3 w-3" />
+          <ChevronLeft />
           <span className="truncate">{currentPath}</span>
-        </button>
+        </Button>
       )}
       <div ref={listRef} className="max-h-48 overflow-y-auto py-1">
         {isLoading && (
           <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <Spinner size="sm" className="text-muted-foreground" />
           </div>
         )}
         {!isLoading && items.length === 0 && (
@@ -62,45 +66,46 @@ export function FileMentionDropdown({
         {!isLoading &&
           items.map((item, index) => {
             const ItemIcon = item.type === "directory" ? FolderIcon : getFileIcon(item.name);
+            const isSelected = index === selectedIndex;
             const isFile = item.type === "file";
             return (
-              <div
-                key={item.path}
-                className="flex items-center hover:bg-accent data-[selected=true]:bg-accent"
-                data-selected={index === selectedIndex}
-              >
-                <button
+              <div key={item.path} className="flex items-center">
+                <Button
                   type="button"
-                  data-selected={index === selectedIndex}
-                  className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-sm"
+                  variant="ghost"
+                  size="sm"
+                  data-selected={isSelected}
+                  className="min-w-0 flex-1 justify-start rounded-none px-3 py-1.5 text-sm data-[selected=true]:bg-accent"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     onSelect(item);
                   }}
                 >
-                  <ItemIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <ItemIcon className="text-muted-foreground" />
                   <span className="truncate">{item.name}</span>
                   {currentPath === "/" && item.path !== "/" + item.name && (
-                    <span className="truncate text-xs text-muted-foreground">
+                    <span className="truncate text-xs font-normal text-muted-foreground">
                       {item.path.slice(0, item.path.lastIndexOf("/"))}
                     </span>
                   )}
-                </button>
+                </Button>
                 {isFile && onPreview && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     aria-label="Open file"
                     title="Open file"
-                    className="mr-2 flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-foreground"
+                    className="mr-2 text-muted-foreground"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       onPreview(item);
                     }}
                   >
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink />
                     <span>Open</span>
-                  </button>
+                  </Button>
                 )}
               </div>
             );
