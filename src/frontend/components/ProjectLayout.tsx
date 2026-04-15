@@ -87,13 +87,11 @@ export default function ProjectLayout() {
   }, [isProjectIndex, agentList, agentStorageKey, projectName, navigate]);
 
   // Persist sidebar/panel sizes to localStorage (global, not per-project).
-  // Use two different panel sets: with and without the file preview panel.
-  const panelIds = effectivePanelFilePath
-    ? ["sidebar", "content", "file-panel"]
-    : ["sidebar", "content"];
+  // Always include all three panels so the sidebar size is saved under one
+  // consistent key regardless of whether the file panel is open or collapsed.
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "shire:layout",
-    panelIds,
+    panelIds: ["sidebar", "content", "file-panel"],
   });
 
   // Track last known panel size so onResize can distinguish "user collapsed"
