@@ -14,21 +14,11 @@ export function useAppConfig() {
 export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (credentials: { username: string; password: string }) => {
-      const res = await api.auth.login.$post({ json: credentials });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        let message = "Login failed";
-        try {
-          const parsed = JSON.parse(text) as { error?: string };
-          if (parsed.error) message = parsed.error;
-        } catch {
-          // keep default
-        }
-        throw new Error(message);
-      }
-      return res.json() as Promise<{ accessToken: string; username: string }>;
-    },
+    mutationFn: async (credentials: { username: string; password: string }) =>
+      unwrap(await api.auth.login.$post({ json: credentials })) as unknown as {
+        accessToken: string;
+        username: string;
+      },
     onSuccess: (data) => {
       const store = useAuthStore.getState();
       store.reset();
