@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuthStore } from "../lib/auth";
 import { api } from "../lib/api";
 import { unwrap } from "./util";
@@ -12,7 +12,6 @@ export function useAppConfig() {
 }
 
 export function useLogin() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (credentials: { username: string; password: string }) =>
       unwrap(await api.auth.login.$post({ json: credentials })) as unknown as {
@@ -23,20 +22,17 @@ export function useLogin() {
       const store = useAuthStore.getState();
       store.reset();
       store.setAccessToken(data.accessToken);
-      queryClient.invalidateQueries({ queryKey: ["config"] });
     },
   });
 }
 
 export function useLogout() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       await api.auth.logout.$post();
     },
     onSuccess: () => {
       useAuthStore.getState().reset();
-      queryClient.invalidateQueries({ queryKey: ["config"] });
     },
   });
 }
