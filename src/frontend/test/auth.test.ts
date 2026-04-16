@@ -151,4 +151,14 @@ describe("api client auth integration", () => {
     expect(getAccessToken()).toBe("new-token");
     expect(callCount).toBe(2);
   });
+
+  it("clears token when refresh fails after 401", async () => {
+    setState({ accessToken: "expired-token" });
+    server.use(
+      http.get("*/api/config", () => HttpResponse.json({}, { status: 401 })),
+      http.post("*/api/auth/refresh", () => HttpResponse.json({}, { status: 401 })),
+    );
+    await api.config.$get();
+    expect(getAccessToken()).toBeNull();
+  });
 });
