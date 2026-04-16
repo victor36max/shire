@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { useAuthStore, getAccessToken } from "../lib/auth";
+import { SignJWT } from "jose";
+import { useAuthStore, getAccessToken, isTokenExpired } from "../lib/auth";
 import { api } from "../lib/api";
 import { http, HttpResponse } from "msw";
 import { waitFor, act } from "@testing-library/react";
@@ -9,6 +10,18 @@ import { useAppConfig, useLogin, useLogout } from "../hooks/auth";
 
 const { setState } = useAuthStore;
 const resetStore = () => setState({ accessToken: null, refreshPromise: null });
+
+async function makeFakeJwt(expiresIn = "15m"): Promise<string> {
+  const key = new TextEncoder().encode("test-secret");
+  return new SignJWT({ sub: "admin" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime(expiresIn)
+    .sign(key);
+}
+
+async function makeExpiredJwt(): Promise<string> {
+  return makeFakeJwt("-1s");
+}
 
 describe("auth token management", () => {
   beforeEach(resetStore);
@@ -109,6 +122,7 @@ describe("api client auth integration", () => {
   beforeEach(resetStore);
 
   it("sends Authorization header when token is set", async () => {
+    const token = await makeFakeJwt();
     const captured: { auth: string | null } = { auth: null };
     server.use(
       http.get("*/api/config", ({ request }) => {
@@ -116,9 +130,9 @@ describe("api client auth integration", () => {
         return HttpResponse.json({ authEnabled: false });
       }),
     );
-    setState({ accessToken: "my-token" });
+    setState({ accessToken: token });
     await api.config.$get();
-    expect(captured.auth).toBe("Bearer my-token");
+    expect(captured.auth).toBe(`Bearer ${token}`);
   });
 
   it("sends no Authorization header when token is null", async () => {
@@ -134,7 +148,8 @@ describe("api client auth integration", () => {
   });
 
   it("retries with refreshed token on 401", async () => {
-    setState({ accessToken: "expired-token" });
+    const token = await makeFakeJwt();
+    setState({ accessToken: token });
     let callCount = 0;
     server.use(
       http.get("*/api/config", () => {
@@ -153,12 +168,68 @@ describe("api client auth integration", () => {
   });
 
   it("clears token when refresh fails after 401", async () => {
-    setState({ accessToken: "expired-token" });
+    const token = await makeFakeJwt();
+    setState({ accessToken: token });
     server.use(
       http.get("*/api/config", () => HttpResponse.json({}, { status: 401 })),
       http.post("*/api/auth/refresh", () => HttpResponse.json({}, { status: 401 })),
     );
     await api.config.$get();
     expect(getAccessToken()).toBeNull();
+  });
+
+  it("proactively refreshes expired token before making request", async () => {
+    const expiredToken = await makeExpiredJwt();
+    const freshToken = await makeFakeJwt();
+    setState({ accessToken: expiredToken });
+    let refreshCalled = false;
+    const captured: { auth: string | null } = { auth: null };
+    server.use(
+      http.post("*/api/auth/refresh", () => {
+        refreshCalled = true;
+        return HttpResponse.json({ accessToken: freshToken, username: "admin" });
+      }),
+      http.get("*/api/config", ({ request }) => {
+        captured.auth = request.headers.get("authorization");
+        return HttpResponse.json({ authEnabled: true });
+      }),
+    );
+    const res = await api.config.$get();
+    expect(res.status).toBe(200);
+    expect(refreshCalled).toBe(true);
+    expect(captured.auth).toBe(`Bearer ${freshToken}`);
+    expect(getAccessToken()).toBe(freshToken);
+  });
+
+  it("does not refresh a valid token before request", async () => {
+    const validToken = await makeFakeJwt();
+    setState({ accessToken: validToken });
+    let refreshCalled = false;
+    server.use(
+      http.post("*/api/auth/refresh", () => {
+        refreshCalled = true;
+        return HttpResponse.json({ accessToken: "should-not-be-used", username: "admin" });
+      }),
+      http.get("*/api/config", () => HttpResponse.json({ authEnabled: true })),
+    );
+    await api.config.$get();
+    expect(refreshCalled).toBe(false);
+    expect(getAccessToken()).toBe(validToken);
+  });
+});
+
+describe("isTokenExpired", () => {
+  it("returns false for a valid non-expired token", async () => {
+    const token = await makeFakeJwt();
+    expect(isTokenExpired(token)).toBe(false);
+  });
+
+  it("returns true for an expired token", async () => {
+    const token = await makeExpiredJwt();
+    expect(isTokenExpired(token)).toBe(true);
+  });
+
+  it("returns true for a malformed token", () => {
+    expect(isTokenExpired("not-a-jwt")).toBe(true);
   });
 });

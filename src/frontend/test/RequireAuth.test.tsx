@@ -1,6 +1,7 @@
 import * as React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach } from "bun:test";
+import { SignJWT } from "jose";
 import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
@@ -55,7 +56,12 @@ describe("RequireAuth", () => {
   });
 
   it("renders children when auth is enabled and token exists", async () => {
-    useAuthStore.setState({ accessToken: "valid-token" });
+    const key = new TextEncoder().encode("test");
+    const token = await new SignJWT({ sub: "admin" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setExpirationTime("15m")
+      .sign(key);
+    useAuthStore.setState({ accessToken: token });
     server.use(http.get("*/api/config", () => HttpResponse.json({ authEnabled: true })));
     renderWithAuth();
     await waitFor(() => expect(screen.getByText("Protected Content")).toBeTruthy());

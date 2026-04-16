@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { decodeJwt } from "jose";
 
 interface AuthState {
   accessToken: string | null;
@@ -45,4 +46,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 export function getAccessToken(): string | null {
   return useAuthStore.getState().accessToken;
+}
+
+export function isTokenExpired(token: string): boolean {
+  try {
+    const { exp } = decodeJwt(token);
+    return !exp || exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
 }

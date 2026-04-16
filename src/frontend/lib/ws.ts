@@ -1,5 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { useAuthStore, getAccessToken } from "./auth";
+import { getAccessToken, isTokenExpired, useAuthStore } from "./auth";
 
 /** Shape of the serialized message attached to agent-level WebSocket events. */
 export interface WsSerializedMessage {
@@ -188,7 +188,10 @@ class WsClient {
       }
       this.setConnectionState("disconnected");
       this.reconnectTimer = setTimeout(async () => {
-        if (getAccessToken()) await useAuthStore.getState().refreshAccessToken();
+        const token = getAccessToken();
+        if (token && isTokenExpired(token)) {
+          await useAuthStore.getState().refreshAccessToken();
+        }
         this.connect();
       }, this.retryMs);
       this.retryMs = Math.min(this.retryMs * 2, MAX_RETRY_MS);
