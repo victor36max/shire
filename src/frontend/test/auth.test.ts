@@ -39,6 +39,26 @@ describe("auth token management", () => {
     expect(token).toBeNull();
     expect(getAccessToken()).toBeNull();
   });
+
+  it("deduplicates concurrent refresh calls into a single request", async () => {
+    let callCount = 0;
+    server.use(
+      http.post("*/api/auth/refresh", () => {
+        callCount++;
+        return HttpResponse.json({ accessToken: "deduped-token", username: "admin" });
+      }),
+    );
+    const { refreshAccessToken } = useAuthStore.getState();
+    const [t1, t2, t3] = await Promise.all([
+      refreshAccessToken(),
+      refreshAccessToken(),
+      refreshAccessToken(),
+    ]);
+    expect(callCount).toBe(1);
+    expect(t1).toBe("deduped-token");
+    expect(t2).toBe("deduped-token");
+    expect(t3).toBe("deduped-token");
+  });
 });
 
 describe("useAppConfig", () => {

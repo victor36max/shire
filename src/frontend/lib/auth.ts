@@ -3,25 +3,26 @@ import { create } from "zustand";
 interface AuthState {
   accessToken: string | null;
   refreshAttempted: boolean;
+  refreshPromise: Promise<string | null> | null;
   setAccessToken: (token: string | null) => void;
   reset: () => void;
   refreshAccessToken: () => Promise<string | null>;
 }
 
-let refreshPromise: Promise<string | null> | null = null;
-
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
   refreshAttempted: false,
+  refreshPromise: null,
 
   setAccessToken: (token) => set({ accessToken: token }),
 
-  reset: () => set({ accessToken: null, refreshAttempted: false }),
+  reset: () => set({ accessToken: null, refreshAttempted: false, refreshPromise: null }),
 
-  refreshAccessToken: async () => {
+  refreshAccessToken: () => {
+    const { refreshPromise } = get();
     if (refreshPromise) return refreshPromise;
 
-    refreshPromise = (async () => {
+    const promise = (async () => {
       try {
         const res = await fetch("/api/auth/refresh", {
           method: "POST",
@@ -38,11 +39,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ accessToken: null, refreshAttempted: true });
         return null;
       } finally {
-        refreshPromise = null;
+        set({ refreshPromise: null });
       }
     })();
 
-    return refreshPromise;
+    set({ refreshPromise: promise });
+    return promise;
   },
 }));
 
