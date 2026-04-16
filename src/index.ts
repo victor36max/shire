@@ -8,6 +8,8 @@ import { Scheduler } from "./runtime/scheduler";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { getPackageRoot } from "./utils/package-root";
+import { isAuthEnabled, getJwtSecret } from "./lib/auth-config";
+import { jwtVerify } from "jose";
 import homepage from "./frontend/index.html";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -43,6 +45,15 @@ export async function startServer(opts: StartOptions = {}) {
   // 1b. Backfill FTS index (non-blocking)
   Promise.resolve().then(() => backfillFts());
 
+  // 1c. Init auth + cleanup expired refresh tokens
+  if (isAuthEnabled()) {
+    getJwtSecret();
+    db.run(sql`DELETE FROM refresh_tokens WHERE expires_at < datetime('now')`);
+    console.log("Auth: enabled");
+  } else {
+    console.log("Auth: disabled (set SHIRE_USERNAME to enable)");
+  }
+
   // 2. Boot project manager
   const projectManager = new ProjectManager();
   await projectManager.boot();
@@ -76,6 +87,17 @@ export async function startServer(opts: StartOptions = {}) {
     },
     async fetch(req, server) {
       if (req.headers.get("upgrade") === "websocket") {
+        if (isAuthEnabled()) {
+          const url = new URL(req.url);
+          const token = url.searchParams.get("token");
+          if (!token) return new Response("Unauthorized", { status: 401 });
+          try {
+            const secret = new TextEncoder().encode(getJwtSecret());
+            await jwtVerify(token, secret, { algorithms: ["HS256"] });
+          } catch {
+            return new Response("Unauthorized", { status: 401 });
+          }
+        }
         const upgraded = server.upgrade(req, { data: {} });
         if (upgraded) return undefined;
         return new Response("WebSocket upgrade failed", { status: 400 });

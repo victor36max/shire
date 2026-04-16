@@ -12,7 +12,9 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useConnectionToast } from "./lib/useConnectionToast";
 import { Spinner } from "./components/ui/spinner";
 import ProjectLayout from "./components/ProjectLayout";
+import { RequireAuth } from "./components/RequireAuth";
 
+const Login = lazy(() => import("./pages/Login"));
 const ProjectDashboard = lazy(() => import("./pages/ProjectDashboard"));
 const AgentChatView = lazy(() => import("./components/AgentChatView"));
 const AgentSettings = lazy(() => import("./pages/AgentSettings"));
@@ -57,8 +59,23 @@ function App() {
               }
             >
               <Routes>
-                <Route path="/" element={<ProjectDashboard />} />
-                <Route path="/projects/:projectName" element={<ProjectLayout />}>
+                <Route path="/login" element={<Login />} />
+                <Route
+                  path="/"
+                  element={
+                    <RequireAuth>
+                      <ProjectDashboard />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/projects/:projectName"
+                  element={
+                    <RequireAuth>
+                      <ProjectLayout />
+                    </RequireAuth>
+                  }
+                >
                   <Route index element={<AgentChatView />} />
                   <Route path="agents/:agentName" element={<AgentChatView />} />
                   <Route path="agents/:agentName/settings" element={<AgentSettings />} />

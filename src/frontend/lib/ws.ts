@@ -1,4 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { getAccessToken, refreshAccessToken } from "./auth";
 
 /** Shape of the serialized message attached to agent-level WebSocket events. */
 export interface WsSerializedMessage {
@@ -145,7 +146,12 @@ class WsClient {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
     this.setConnectionState("connecting");
-    this.ws = new WebSocket(this.url);
+    let wsUrl = this.url;
+    const token = getAccessToken();
+    if (token) {
+      wsUrl += `?token=${encodeURIComponent(token)}`;
+    }
+    this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
       this.retryMs = INITIAL_RETRY_MS;
@@ -181,7 +187,10 @@ class WsClient {
         return;
       }
       this.setConnectionState("disconnected");
-      this.reconnectTimer = setTimeout(() => this.connect(), this.retryMs);
+      this.reconnectTimer = setTimeout(async () => {
+        if (getAccessToken()) await refreshAccessToken();
+        this.connect();
+      }, this.retryMs);
       this.retryMs = Math.min(this.retryMs * 2, MAX_RETRY_MS);
     };
   }
