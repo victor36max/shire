@@ -236,17 +236,11 @@ describe("auth routes", () => {
       expect(res.status).toBe(401);
     });
 
-    test("returns 401 for invalid token (route handler)", async () => {
-      const app = new Hono().route("/api", authRoutes);
+    test("returns 401 for invalid token (via middleware)", async () => {
+      const app = createTestApp();
       const res = await app.request("/api/auth/me", {
         headers: { Authorization: "Bearer invalid.jwt.token" },
       });
-      expect(res.status).toBe(401);
-    });
-
-    test("returns 401 without Authorization header (route handler)", async () => {
-      const app = new Hono().route("/api", authRoutes);
-      const res = await app.request("/api/auth/me");
       expect(res.status).toBe(401);
     });
   });

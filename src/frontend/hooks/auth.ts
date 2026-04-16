@@ -29,7 +29,8 @@ export function useLogout() {
   const { setAccessToken } = useAuthStore();
   return useMutation({
     mutationFn: async () => {
-      await api.auth.logout.$post();
+      const res = await api.auth.logout.$post();
+      if (!res.ok) throw new Error("Logout failed");
     },
     onSuccess: () => {
       setAccessToken(null);

@@ -147,7 +147,7 @@ describe("api client auth integration", () => {
     expect(captured.auth).toBeNull();
   });
 
-  it("retries with refreshed token on 401", async () => {
+  it("refreshes and retries on 401", async () => {
     const token = await makeFakeJwt();
     setState({ accessToken: token });
     let callCount = 0;

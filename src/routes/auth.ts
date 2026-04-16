@@ -2,7 +2,7 @@ import { timingSafeEqual as cryptoTimingSafeEqual, createHash } from "crypto";
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { eq, and, gt } from "drizzle-orm";
 import type { AppEnv } from "../types";
@@ -28,6 +28,7 @@ function checkRateLimit(ip: string): boolean {
   const now = Date.now();
   const entry = loginAttempts.get(ip);
   if (!entry || now >= entry.resetAt) {
+    loginAttempts.delete(ip);
     loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
     return true;
   }
@@ -143,19 +144,8 @@ export const authRoutes = new Hono<AppEnv>()
     deleteCookie(c, "shire_refresh", { path: "/api/auth" });
     return c.body(null, 204);
   })
-  .get("/auth/me", async (c) => {
-    const header = c.req.header("Authorization");
-    if (!header?.startsWith("Bearer ")) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    try {
-      const secret = new TextEncoder().encode(getJwtSecret());
-      const { payload } = await jwtVerify(header.slice(7), secret, { algorithms: ["HS256"] });
-      return c.json({ username: payload.sub });
-    } catch {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+  .get("/auth/me", (c) => {
+    return c.json({ username: c.get("username") });
   });
 
 export { loginAttempts as _loginAttempts };

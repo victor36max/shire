@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useLogin } from "../hooks/auth";
-import { getAccessToken } from "../lib/auth";
+import { useAuthStore } from "../lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -14,7 +14,9 @@ export default function Login() {
   const navigate = useNavigate();
   const login = useLogin();
 
-  if (getAccessToken()) {
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  if (accessToken) {
     return <Navigate to="/" replace />;
   }
 

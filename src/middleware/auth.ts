@@ -24,7 +24,8 @@ export function authMiddleware(): MiddlewareHandler<AppEnv> {
     const token = header.slice(7);
     try {
       const secret = new TextEncoder().encode(getJwtSecret());
-      await jwtVerify(token, secret, { algorithms: ["HS256"] });
+      const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
+      c.set("username", (payload.sub as string) ?? null);
     } catch {
       return c.json({ error: "Unauthorized" }, 401);
     }

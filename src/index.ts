@@ -1,6 +1,7 @@
 import { getDb } from "./db";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import { sql } from "drizzle-orm";
+import { sql, lt } from "drizzle-orm";
+import { refreshTokens } from "./db/schema";
 import { backfillFts } from "./db/fts";
 import { createApp, handleWsMessage, handleWsClose, type AppContext } from "./server";
 import { ProjectManager } from "./runtime/project-manager";
@@ -48,7 +49,7 @@ export async function startServer(opts: StartOptions = {}) {
   // 1c. Init auth + cleanup expired refresh tokens
   if (isAuthEnabled()) {
     getJwtSecret();
-    db.run(sql`DELETE FROM refresh_tokens WHERE expires_at < datetime('now')`);
+    db.delete(refreshTokens).where(lt(refreshTokens.expiresAt, new Date().toISOString())).run();
     console.log("Auth: enabled");
   } else {
     console.log("Auth: disabled (set SHIRE_USERNAME to enable)");

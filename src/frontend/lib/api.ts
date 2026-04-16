@@ -15,15 +15,16 @@ const client = hc<AppType>("/", {
     return token ? { Authorization: `Bearer ${token}` } : {};
   },
   fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-    const res = await fetch(input, { ...init, credentials: "include" });
+    let res = await fetch(input, { ...init, credentials: "include" });
     if (res.status === 401 && getAccessToken()) {
       const newToken = await useAuthStore.getState().refreshAccessToken();
       if (newToken) {
         const headers = new Headers(init?.headers);
         headers.set("Authorization", `Bearer ${newToken}`);
-        return fetch(input, { ...init, headers, credentials: "include" });
+        res = await fetch(input, { ...init, headers, credentials: "include" });
+      } else {
+        useAuthStore.getState().setAccessToken(null);
       }
-      useAuthStore.getState().setAccessToken(null);
     }
     return res;
   },
