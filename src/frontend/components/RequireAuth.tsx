@@ -17,15 +17,6 @@ function ensureRefreshed(): Promise<void> {
   return refreshPromise;
 }
 
-function RefreshGate({ children }: { children: ReactNode }) {
-  const accessToken = useAuthStore((s) => s.accessToken);
-  use(ensureRefreshed());
-  if (!accessToken) {
-    return <Navigate to="/login" replace />;
-  }
-  return <>{children}</>;
-}
-
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { data: config, isLoading } = useAppConfig();
 
@@ -41,5 +32,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  return <RefreshGate>{children}</RefreshGate>;
+  use(ensureRefreshed());
+
+  if (!useAuthStore.getState().accessToken) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
 }
