@@ -2,9 +2,10 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Hono } from "hono";
 import { SignJWT } from "jose";
 import { authMiddleware } from "./auth";
-import { resetCachedSecret } from "../lib/auth-config";
-
-const TEST_SECRET = "test-secret-key-for-middleware-tests";
+import { getJwtSecret, resetCachedSecret } from "../lib/auth-config";
+import { mkdtempSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 function createTestApp() {
   const app = new Hono()
@@ -18,7 +19,7 @@ function createTestApp() {
   return app;
 }
 
-async function makeAccessToken(secret = TEST_SECRET): Promise<string> {
+async function makeAccessToken(secret: string): Promise<string> {
   const key = new TextEncoder().encode(secret);
   return new SignJWT({ sub: "admin" })
     .setProtectedHeader({ alg: "HS256" })
@@ -28,16 +29,19 @@ async function makeAccessToken(secret = TEST_SECRET): Promise<string> {
 
 describe("authMiddleware", () => {
   const origEnv = { ...process.env };
+  let tmpDir: string;
 
   beforeEach(() => {
     resetCachedSecret();
+    tmpDir = mkdtempSync(join(tmpdir(), "shire-test-"));
+    process.env.SHIRE_DATA_DIR = tmpDir;
     process.env.SHIRE_USERNAME = "admin";
     process.env.SHIRE_PASSWORD = "secret";
-    process.env.JWT_SECRET = TEST_SECRET;
   });
 
   afterEach(() => {
     process.env = { ...origEnv };
+    rmSync(tmpDir, { recursive: true });
   });
 
   describe("auth disabled", () => {
@@ -92,7 +96,7 @@ describe("authMiddleware", () => {
 
     test("passes through with valid token", async () => {
       const app = createTestApp();
-      const token = await makeAccessToken();
+      const token = await makeAccessToken(getJwtSecret());
       const res = await app.request("/api/projects", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -101,7 +105,7 @@ describe("authMiddleware", () => {
 
     test("returns 401 for expired token", async () => {
       const app = createTestApp();
-      const key = new TextEncoder().encode(TEST_SECRET);
+      const key = new TextEncoder().encode(getJwtSecret());
       const token = await new SignJWT({ sub: "admin" })
         .setProtectedHeader({ alg: "HS256" })
         .setExpirationTime("-1s")

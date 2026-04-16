@@ -11,7 +11,6 @@ describe("auth-config", () => {
     resetCachedSecret();
     delete process.env.SHIRE_USERNAME;
     delete process.env.SHIRE_PASSWORD;
-    delete process.env.JWT_SECRET;
   });
 
   afterEach(() => {
@@ -47,12 +46,7 @@ describe("auth-config", () => {
   });
 
   describe("getJwtSecret", () => {
-    test("uses JWT_SECRET env var when set", () => {
-      process.env.JWT_SECRET = "my-secret";
-      expect(getJwtSecret()).toBe("my-secret");
-    });
-
-    test("generates and persists secret file when no env var", () => {
+    test("generates and persists secret file", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "shire-test-"));
       process.env.SHIRE_DATA_DIR = tmpDir;
 
@@ -78,10 +72,14 @@ describe("auth-config", () => {
     });
 
     test("caches secret in memory", () => {
-      process.env.JWT_SECRET = "cached-secret";
-      getJwtSecret();
-      delete process.env.JWT_SECRET;
-      expect(getJwtSecret()).toBe("cached-secret");
+      const tmpDir = mkdtempSync(join(tmpdir(), "shire-test-"));
+      process.env.SHIRE_DATA_DIR = tmpDir;
+
+      const first = getJwtSecret();
+      const second = getJwtSecret();
+      expect(first).toBe(second);
+
+      rmSync(tmpDir, { recursive: true });
     });
   });
 });

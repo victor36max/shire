@@ -3,12 +3,13 @@ import { Hono } from "hono";
 import { SignJWT } from "jose";
 import { authRoutes, _loginAttempts } from "./auth";
 import { authMiddleware } from "../middleware/auth";
-import { resetCachedSecret, REFRESH_TOKEN_TTL } from "../lib/auth-config";
+import { getJwtSecret, resetCachedSecret, REFRESH_TOKEN_TTL } from "../lib/auth-config";
 import { useTestDb } from "../test/setup";
 import { getDb } from "../db";
 import { refreshTokens } from "../db/schema";
-
-const TEST_SECRET = "test-secret-for-auth-routes";
+import { mkdtempSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 function createTestApp() {
   return new Hono().use("*", authMiddleware()).route("/api", authRoutes);
@@ -27,7 +28,7 @@ function createAppWithCookie() {
 }
 
 async function makeAccessToken(): Promise<string> {
-  const key = new TextEncoder().encode(TEST_SECRET);
+  const key = new TextEncoder().encode(getJwtSecret());
   return new SignJWT({ sub: "admin" })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("15m")
@@ -47,17 +48,20 @@ function insertRefreshToken(token: string, expiresInSeconds = REFRESH_TOKEN_TTL)
 describe("auth routes", () => {
   useTestDb();
   const origEnv = { ...process.env };
+  let tmpDir: string;
 
   beforeEach(() => {
     resetCachedSecret();
     _loginAttempts.clear();
+    tmpDir = mkdtempSync(join(tmpdir(), "shire-test-"));
+    process.env.SHIRE_DATA_DIR = tmpDir;
     process.env.SHIRE_USERNAME = "admin";
     process.env.SHIRE_PASSWORD = "secret";
-    process.env.JWT_SECRET = TEST_SECRET;
   });
 
   afterEach(() => {
     process.env = { ...origEnv };
+    rmSync(tmpDir, { recursive: true });
   });
 
   describe("POST /api/auth/login", () => {

@@ -24,12 +24,6 @@ export function getCredentials(): { username: string; password: string } | null 
 export function getJwtSecret(): string {
   if (cachedSecret) return cachedSecret;
 
-  const envSecret = process.env.JWT_SECRET;
-  if (envSecret) {
-    cachedSecret = envSecret;
-    return envSecret;
-  }
-
   const dataDir = process.env.SHIRE_DATA_DIR || join(homedir(), ".shire");
   const secretPath = join(dataDir, ".jwt-secret");
 
