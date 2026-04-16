@@ -36,7 +36,7 @@ function renderWithAuth(initialRoute = "/") {
 
 describe("RequireAuth", () => {
   beforeEach(() => {
-    useAuthStore.setState({ accessToken: null, refreshAttempted: false });
+    useAuthStore.setState({ accessToken: null, refreshPromise: null });
   });
 
   it("renders children when auth is disabled", async () => {

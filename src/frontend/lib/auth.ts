@@ -2,21 +2,16 @@ import { create } from "zustand";
 
 interface AuthState {
   accessToken: string | null;
-  refreshAttempted: boolean;
   refreshPromise: Promise<string | null> | null;
   setAccessToken: (token: string | null) => void;
-  reset: () => void;
   refreshAccessToken: () => Promise<string | null>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
-  refreshAttempted: false,
   refreshPromise: null,
 
   setAccessToken: (token) => set({ accessToken: token }),
-
-  reset: () => set({ accessToken: null, refreshAttempted: false, refreshPromise: null }),
 
   refreshAccessToken: () => {
     const { refreshPromise } = get();
@@ -29,14 +24,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           credentials: "include",
         });
         if (!res.ok) {
-          set({ accessToken: null, refreshAttempted: true });
+          set({ accessToken: null });
           return null;
         }
         const data = (await res.json()) as { accessToken: string };
-        set({ accessToken: data.accessToken, refreshAttempted: true });
+        set({ accessToken: data.accessToken });
         return data.accessToken;
       } catch {
-        set({ accessToken: null, refreshAttempted: true });
+        set({ accessToken: null });
         return null;
       } finally {
         set({ refreshPromise: null });

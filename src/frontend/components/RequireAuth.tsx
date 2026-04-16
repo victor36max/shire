@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppConfig } from "../hooks/auth";
 import { useAuthStore } from "../lib/auth";
@@ -6,11 +6,12 @@ import { Spinner } from "./ui/spinner";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { data: config, isLoading: configLoading } = useAppConfig();
-  const { accessToken, refreshAttempted, refreshAccessToken } = useAuthStore();
+  const { accessToken, refreshAccessToken } = useAuthStore();
+  const [refreshAttempted, setRefreshAttempted] = useState(false);
 
   useEffect(() => {
     if (config?.authEnabled && !accessToken && !refreshAttempted) {
-      refreshAccessToken();
+      refreshAccessToken().finally(() => setRefreshAttempted(true));
     }
   }, [config?.authEnabled, accessToken, refreshAttempted, refreshAccessToken]);
 

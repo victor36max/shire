@@ -12,6 +12,7 @@ export function useAppConfig() {
 }
 
 export function useLogin() {
+  const { setAccessToken } = useAuthStore();
   return useMutation({
     mutationFn: async (credentials: { username: string; password: string }) =>
       unwrap(await api.auth.login.$post({ json: credentials })) as unknown as {
@@ -19,20 +20,19 @@ export function useLogin() {
         username: string;
       },
     onSuccess: (data) => {
-      const store = useAuthStore.getState();
-      store.reset();
-      store.setAccessToken(data.accessToken);
+      setAccessToken(data.accessToken);
     },
   });
 }
 
 export function useLogout() {
+  const { setAccessToken } = useAuthStore();
   return useMutation({
     mutationFn: async () => {
       await api.auth.logout.$post();
     },
     onSuccess: () => {
-      useAuthStore.getState().reset();
+      setAccessToken(null);
     },
   });
 }

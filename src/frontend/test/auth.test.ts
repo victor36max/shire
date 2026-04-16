@@ -8,7 +8,7 @@ import { renderHookWithProviders } from "./test-utils";
 import { useAppConfig, useLogin, useLogout } from "../hooks/auth";
 
 const { setState } = useAuthStore;
-const resetStore = () => setState({ accessToken: null, refreshAttempted: false });
+const resetStore = () => setState({ accessToken: null, refreshPromise: null });
 
 describe("auth token management", () => {
   beforeEach(resetStore);
