@@ -1,6 +1,6 @@
 import { hc } from "hono/client";
 import type { AppType } from "../../server";
-import { getAccessToken, refreshAccessToken } from "./auth";
+import { useAuthStore, getAccessToken } from "./auth";
 
 const client = hc<AppType>("/", {
   headers: (): Record<string, string> => {
@@ -10,7 +10,7 @@ const client = hc<AppType>("/", {
   fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
     let res = await fetch(input, { ...init, credentials: "include" });
     if (res.status === 401 && getAccessToken()) {
-      const newToken = await refreshAccessToken();
+      const newToken = await useAuthStore.getState().refreshAccessToken();
       if (newToken) {
         const headers = new Headers(init?.headers);
         headers.set("Authorization", `Bearer ${newToken}`);

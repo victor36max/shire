@@ -1,37 +1,41 @@
-let accessToken: string | null = null;
-let refreshPromise: Promise<string | null> | null = null;
+import { create } from "zustand";
 
-export function getAccessToken(): string | null {
-  return accessToken;
+interface AuthState {
+  accessToken: string | null;
+  refreshAttempted: boolean;
+  setAccessToken: (token: string | null) => void;
+  reset: () => void;
+  refreshAccessToken: () => Promise<string | null>;
 }
 
-export function setAccessToken(token: string | null): void {
-  accessToken = token;
-}
+export const useAuthStore = create<AuthState>((set) => ({
+  accessToken: null,
+  refreshAttempted: false,
 
-export async function refreshAccessToken(): Promise<string | null> {
-  if (refreshPromise) return refreshPromise;
+  setAccessToken: (token) => set({ accessToken: token }),
 
-  refreshPromise = (async () => {
+  reset: () => set({ accessToken: null, refreshAttempted: false }),
+
+  refreshAccessToken: async () => {
     try {
       const res = await fetch("/api/auth/refresh", {
         method: "POST",
         credentials: "include",
       });
       if (!res.ok) {
-        accessToken = null;
+        set({ accessToken: null, refreshAttempted: true });
         return null;
       }
       const data = (await res.json()) as { accessToken: string };
-      accessToken = data.accessToken;
-      return accessToken;
+      set({ accessToken: data.accessToken, refreshAttempted: true });
+      return data.accessToken;
     } catch {
-      accessToken = null;
+      set({ accessToken: null, refreshAttempted: true });
       return null;
-    } finally {
-      refreshPromise = null;
     }
-  })();
+  },
+}));
 
-  return refreshPromise;
+export function getAccessToken(): string | null {
+  return useAuthStore.getState().accessToken;
 }

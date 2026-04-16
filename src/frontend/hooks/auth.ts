@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { setAccessToken } from "../lib/auth";
-import { resetRefreshState } from "../components/RequireAuth";
+import { useAuthStore } from "../lib/auth";
 import { api } from "../lib/api";
 import { unwrap } from "./util";
 
@@ -31,8 +30,9 @@ export function useLogin() {
       return res.json() as Promise<{ accessToken: string; username: string }>;
     },
     onSuccess: (data) => {
-      setAccessToken(data.accessToken);
-      resetRefreshState();
+      const store = useAuthStore.getState();
+      store.reset();
+      store.setAccessToken(data.accessToken);
       queryClient.invalidateQueries({ queryKey: ["config"] });
     },
   });
@@ -45,8 +45,7 @@ export function useLogout() {
       await api.auth.logout.$post();
     },
     onSuccess: () => {
-      setAccessToken(null);
-      resetRefreshState();
+      useAuthStore.getState().reset();
       queryClient.invalidateQueries({ queryKey: ["config"] });
     },
   });

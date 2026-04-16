@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "bun:test";
-import { getAccessToken, setAccessToken, refreshAccessToken } from "../lib/auth";
+import { useAuthStore, getAccessToken } from "../lib/auth";
 import { api } from "../lib/api";
 import { http, HttpResponse } from "msw";
 import { waitFor, act } from "@testing-library/react";
@@ -7,17 +7,18 @@ import { server } from "./msw-server";
 import { renderHookWithProviders } from "./test-utils";
 import { useAppConfig, useLogin, useLogout } from "../hooks/auth";
 
+const { setState } = useAuthStore;
+const resetStore = () => setState({ accessToken: null, refreshAttempted: false });
+
 describe("auth token management", () => {
-  beforeEach(() => {
-    setAccessToken(null);
-  });
+  beforeEach(resetStore);
 
   it("getAccessToken returns null initially", () => {
     expect(getAccessToken()).toBeNull();
   });
 
   it("setAccessToken stores and retrieves token", () => {
-    setAccessToken("test-token");
+    setState({ accessToken: "test-token" });
     expect(getAccessToken()).toBe("test-token");
   });
 
@@ -27,14 +28,14 @@ describe("auth token management", () => {
         HttpResponse.json({ accessToken: "refreshed-token", username: "admin" }),
       ),
     );
-    const token = await refreshAccessToken();
+    const token = await useAuthStore.getState().refreshAccessToken();
     expect(token).toBe("refreshed-token");
     expect(getAccessToken()).toBe("refreshed-token");
   });
 
   it("refreshAccessToken returns null on failure", async () => {
     server.use(http.post("*/api/auth/refresh", () => HttpResponse.json({}, { status: 401 })));
-    const token = await refreshAccessToken();
+    const token = await useAuthStore.getState().refreshAccessToken();
     expect(token).toBeNull();
     expect(getAccessToken()).toBeNull();
   });
@@ -57,9 +58,7 @@ describe("useAppConfig", () => {
 });
 
 describe("useLogin", () => {
-  beforeEach(() => {
-    setAccessToken(null);
-  });
+  beforeEach(resetStore);
 
   it("sets access token on successful login", async () => {
     server.use(
@@ -75,9 +74,7 @@ describe("useLogin", () => {
 });
 
 describe("useLogout", () => {
-  beforeEach(() => {
-    setAccessToken("existing-token");
-  });
+  beforeEach(() => setState({ accessToken: "existing-token" }));
 
   it("clears access token on logout", async () => {
     server.use(http.post("*/api/auth/logout", () => new HttpResponse(null, { status: 204 })));
@@ -89,9 +86,7 @@ describe("useLogout", () => {
 });
 
 describe("api client auth integration", () => {
-  beforeEach(() => {
-    setAccessToken(null);
-  });
+  beforeEach(resetStore);
 
   it("sends Authorization header when token is set", async () => {
     const captured: { auth: string | null } = { auth: null };
@@ -101,7 +96,7 @@ describe("api client auth integration", () => {
         return HttpResponse.json({ authEnabled: false });
       }),
     );
-    setAccessToken("my-token");
+    setState({ accessToken: "my-token" });
     await api.config.$get();
     expect(captured.auth).toBe("Bearer my-token");
   });
@@ -119,7 +114,7 @@ describe("api client auth integration", () => {
   });
 
   it("retries with refreshed token on 401", async () => {
-    setAccessToken("expired-token");
+    setState({ accessToken: "expired-token" });
     let callCount = 0;
     server.use(
       http.get("*/api/config", () => {

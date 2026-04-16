@@ -1,31 +1,26 @@
 import { use, type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppConfig } from "../hooks/auth";
-import { getAccessToken, refreshAccessToken } from "../lib/auth";
+import { useAuthStore } from "../lib/auth";
 import { Spinner } from "./ui/spinner";
 
-let refreshAttempted = false;
 let refreshPromise: Promise<void> | null = null;
 
 function ensureRefreshed(): Promise<void> {
-  if (getAccessToken() || refreshAttempted) return Promise.resolve();
+  const { accessToken, refreshAttempted, refreshAccessToken } = useAuthStore.getState();
+  if (accessToken || refreshAttempted) return Promise.resolve();
   if (!refreshPromise) {
     refreshPromise = refreshAccessToken().then(() => {
-      refreshAttempted = true;
       refreshPromise = null;
     });
   }
   return refreshPromise;
 }
 
-export function resetRefreshState(): void {
-  refreshAttempted = false;
-  refreshPromise = null;
-}
-
 function RefreshGate({ children }: { children: ReactNode }) {
+  const accessToken = useAuthStore((s) => s.accessToken);
   use(ensureRefreshed());
-  if (!getAccessToken()) {
+  if (!accessToken) {
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;

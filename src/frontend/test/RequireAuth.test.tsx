@@ -5,8 +5,8 @@ import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { server } from "./msw-server";
-import { RequireAuth, resetRefreshState } from "../components/RequireAuth";
-import { setAccessToken } from "../lib/auth";
+import { RequireAuth } from "../components/RequireAuth";
+import { useAuthStore } from "../lib/auth";
 
 function renderWithAuth(initialRoute = "/") {
   const queryClient = new QueryClient({
@@ -36,8 +36,7 @@ function renderWithAuth(initialRoute = "/") {
 
 describe("RequireAuth", () => {
   beforeEach(() => {
-    setAccessToken(null);
-    resetRefreshState();
+    useAuthStore.setState({ accessToken: null, refreshAttempted: false });
   });
 
   it("renders children when auth is disabled", async () => {
@@ -56,7 +55,7 @@ describe("RequireAuth", () => {
   });
 
   it("renders children when auth is enabled and token exists", async () => {
-    setAccessToken("valid-token");
+    useAuthStore.setState({ accessToken: "valid-token" });
     server.use(http.get("*/api/config", () => HttpResponse.json({ authEnabled: true })));
     renderWithAuth();
     await waitFor(() => expect(screen.getByText("Protected Content")).toBeTruthy());
