@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { setAccessToken } from "../lib/auth";
+import { resetRefreshState } from "../components/RequireAuth";
 import { api } from "../lib/api";
 import { unwrap } from "./util";
 
@@ -31,6 +32,7 @@ export function useLogin() {
     },
     onSuccess: (data) => {
       setAccessToken(data.accessToken);
+      resetRefreshState();
       queryClient.invalidateQueries({ queryKey: ["config"] });
     },
   });
@@ -44,6 +46,7 @@ export function useLogout() {
     },
     onSuccess: () => {
       setAccessToken(null);
+      resetRefreshState();
       queryClient.invalidateQueries({ queryKey: ["config"] });
     },
   });

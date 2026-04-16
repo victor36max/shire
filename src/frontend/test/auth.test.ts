@@ -94,28 +94,28 @@ describe("api client auth integration", () => {
   });
 
   it("sends Authorization header when token is set", async () => {
-    let capturedAuth: string | null = null;
+    const captured: { auth: string | null } = { auth: null };
     server.use(
       http.get("*/api/config", ({ request }) => {
-        capturedAuth = request.headers.get("authorization");
+        captured.auth = request.headers.get("authorization");
         return HttpResponse.json({ authEnabled: false });
       }),
     );
     setAccessToken("my-token");
     await api.config.$get();
-    expect(capturedAuth).toBe("Bearer my-token");
+    expect(captured.auth).toBe("Bearer my-token");
   });
 
   it("sends no Authorization header when token is null", async () => {
-    let capturedAuth: string | null = null;
+    const captured: { auth: string | null } = { auth: null };
     server.use(
       http.get("*/api/config", ({ request }) => {
-        capturedAuth = request.headers.get("authorization");
+        captured.auth = request.headers.get("authorization");
         return HttpResponse.json({ authEnabled: false });
       }),
     );
     await api.config.$get();
-    expect(capturedAuth).toBeNull();
+    expect(captured.auth).toBeNull();
   });
 
   it("retries with refreshed token on 401", async () => {

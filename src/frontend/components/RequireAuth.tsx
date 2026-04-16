@@ -4,16 +4,23 @@ import { useAppConfig } from "../hooks/auth";
 import { getAccessToken, refreshAccessToken } from "../lib/auth";
 import { Spinner } from "./ui/spinner";
 
+let refreshAttempted = false;
 let refreshPromise: Promise<void> | null = null;
 
 function ensureRefreshed(): Promise<void> {
-  if (getAccessToken()) return Promise.resolve();
+  if (getAccessToken() || refreshAttempted) return Promise.resolve();
   if (!refreshPromise) {
     refreshPromise = refreshAccessToken().then(() => {
+      refreshAttempted = true;
       refreshPromise = null;
     });
   }
   return refreshPromise;
+}
+
+export function resetRefreshState(): void {
+  refreshAttempted = false;
+  refreshPromise = null;
 }
 
 function RefreshGate({ children }: { children: ReactNode }) {
