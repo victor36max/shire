@@ -59,11 +59,24 @@ Harnesses (`src/runtime/harness/`) are adapters for different AI backends (Claud
 
 ### Data Layer (`src/db/schema.ts`, `src/services/`)
 
-Five tables: `projects`, `agents`, `messages`, `scheduled_tasks`, `alert_channels`. Services are pure functions that take a Drizzle DB instance — backend tests use in-memory SQLite with `useTestDb()`.
+Six tables: `projects`, `agents`, `messages`, `scheduled_tasks`, `alert_channels`, `refresh_tokens`. Services are pure functions that take a Drizzle DB instance — backend tests use in-memory SQLite with `useTestDb()`.
 
 ### API Layer (`src/routes/`)
 
 Hono routes under `/api`. Real-time updates via WebSocket with topic-based pub/sub through an EventEmitter event bus (`src/events.ts`).
+
+### Authentication (`src/routes/auth.ts`, `src/middleware/auth.ts`, `src/lib/auth-config.ts`)
+
+Optional username/password authentication, enabled by setting `SHIRE_USERNAME` and `SHIRE_PASSWORD` environment variables. When disabled, all routes are open.
+
+- **JWT-based**: access tokens (15-minute TTL) via `Authorization: Bearer` header, refresh tokens (30-day TTL) via httpOnly cookie
+- **Auth middleware** (`src/middleware/auth.ts`) — validates JWT on all protected API routes when auth is enabled
+- **Auth routes** (`src/routes/auth.ts`) — `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/auth/me`
+- **Config route** (`src/server.ts`) — `GET /api/config` returns `{ authEnabled }`, publicly accessible
+- **WebSocket auth** — JWT token passed via `?token=` query string, validated before upgrade (only when auth is enabled)
+- **Rate limiting** — 5 login attempts per 60 seconds per IP
+- **JWT secret** — auto-generated 32-byte secret stored at `~/.shire/.jwt-secret` (mode 0o600)
+- **Frontend** — Zustand auth store (`src/frontend/stores/auth.ts`), login page (`src/frontend/pages/Login.tsx`), `RequireAuth` route guard, proactive token refresh
 
 ### Frontend (`src/frontend/`)
 
@@ -82,6 +95,7 @@ Platform-specific packages with standalone binaries (same pattern as esbuild/tur
 ```
 ~/.shire/
 ├── shire.db
+├── .jwt-secret            # Auto-generated JWT signing key (when auth enabled)
 └── projects/{projectId}/
     ├── agents/{agentId}/
     │   ├── inbox/           # Incoming inter-agent messages
@@ -102,6 +116,7 @@ Platform-specific packages with standalone binaries (same pattern as esbuild/tur
 - **Formatting**: Prettier with double quotes, semicolons, trailing commas, 100 char width
 - **Agent/project names**: must be valid slugs (2-63 chars, lowercase, letters/numbers/hyphens)
 - **Single tsconfig** at project root — covers both backend and frontend
+- **Test colocation** — tests live next to source files as `.test.ts`/`.test.tsx`
 
 ## Database Migrations
 

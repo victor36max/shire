@@ -27,6 +27,7 @@ Most AI agent tools follow the same pattern — you give an instruction, an agen
 - **Agent skills** — Upload custom tools and instructions that extend what your agents can do. Skills persist per-agent across sessions.
 - **Multi-project architecture** — Organize agents into projects, each with its own shared drive, settings, and environment.
 - **Real-time dashboard** — Monitor, chat with, and manage agents from a live web UI with streaming updates.
+- **Optional authentication** — Protect your instance with username/password login. JWT-based with automatic token refresh, rate limiting, and secure cookie handling. Disabled by default for local use.
 
 ## Tech Stack
 
@@ -164,8 +165,22 @@ By default, Shire uses **SQLite** for storage. Agents run as local processes on 
 | `SHIRE_DATA_DIR`     | `~/.shire`          | Database and data storage root            |
 | `SHIRE_PROJECTS_DIR` | `~/.shire/projects` | Project workspace root                    |
 | `ALLOWED_ORIGINS`    | —                   | Comma-separated CORS origins (production) |
+| `SHIRE_USERNAME`     | —                   | Enables auth; sets the login username     |
+| `SHIRE_PASSWORD`     | —                   | Required when `SHIRE_USERNAME` is set     |
 
 </details>
+
+### Authentication
+
+By default, Shire runs without authentication — ideal for local development. To protect a shared or remote instance, set both `SHIRE_USERNAME` and `SHIRE_PASSWORD`:
+
+```bash
+export SHIRE_USERNAME=admin
+export SHIRE_PASSWORD=your-secure-password
+shire
+```
+
+When enabled, the dashboard shows a login page and all API/WebSocket connections require a valid JWT token. A signing key is auto-generated at `~/.shire/.jwt-secret` on first launch.
 
 ## Development
 
