@@ -9,10 +9,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { useConnectionToast } from "./lib/useConnectionToast";
+import { useConnectionToast } from "./hooks/use-connection-toast";
+import { useWsConnect } from "./hooks/ws";
 import { Spinner } from "./components/ui/spinner";
 import ProjectLayout from "./components/ProjectLayout";
+import { RequireAuth } from "./components/RequireAuth";
 
+const Login = lazy(() => import("./pages/Login"));
 const ProjectDashboard = lazy(() => import("./pages/ProjectDashboard"));
 const AgentChatView = lazy(() => import("./components/AgentChatView"));
 const AgentSettings = lazy(() => import("./pages/AgentSettings"));
@@ -36,8 +39,9 @@ const queryClient = new QueryClient({
   },
 });
 
-function ConnectionToastManager() {
+function ConnectionManager() {
   useConnectionToast();
+  useWsConnect();
   return null;
 }
 
@@ -47,7 +51,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <Toaster position="bottom-right" richColors />
-          <ConnectionToastManager />
+          <ConnectionManager />
           <BrowserRouter>
             <Suspense
               fallback={
@@ -57,8 +61,23 @@ function App() {
               }
             >
               <Routes>
-                <Route path="/" element={<ProjectDashboard />} />
-                <Route path="/projects/:projectName" element={<ProjectLayout />}>
+                <Route path="/login" element={<Login />} />
+                <Route
+                  path="/"
+                  element={
+                    <RequireAuth>
+                      <ProjectDashboard />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/projects/:projectName"
+                  element={
+                    <RequireAuth>
+                      <ProjectLayout />
+                    </RequireAuth>
+                  }
+                >
                   <Route index element={<AgentChatView />} />
                   <Route path="agents/:agentName" element={<AgentChatView />} />
                   <Route path="agents/:agentName/settings" element={<AgentSettings />} />

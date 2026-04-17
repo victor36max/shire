@@ -28,15 +28,35 @@ import {
 } from "./ui/dropdown-menu";
 import AppLayout from "./AppLayout";
 import { useNavigate } from "react-router-dom";
-import { MoreHorizontal } from "lucide-react";
+import { LogOut, MoreHorizontal } from "lucide-react";
 import { PageLoader } from "./ui/spinner";
 import { ErrorState } from "./ui/error-state";
 import type { Project } from "./types";
 import { useProjects, useCreateProject, useDeleteProject } from "../hooks";
-import { useSubscription } from "../lib/ws";
+import { useAppConfig, useLogout } from "../hooks/auth";
+import { useSubscription } from "../hooks/ws";
 import { useQueryClient } from "@tanstack/react-query";
 
 const PROJECT_NAME_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
+
+function LogoutButton() {
+  const { data: config } = useAppConfig();
+  const logout = useLogout();
+  const navigate = useNavigate();
+
+  if (!config?.authEnabled) return null;
+
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      onClick={() => logout.mutate(undefined, { onSuccess: () => navigate("/login") })}
+      disabled={logout.isPending}
+    >
+      <LogOut className="h-4 w-4" />
+    </Button>
+  );
+}
 
 export default function ProjectDashboard() {
   const navigate = useNavigate();
@@ -92,7 +112,10 @@ export default function ProjectDashboard() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Projects</h1>
-          <Button onClick={() => setCreateOpen(true)}>+ New Project</Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setCreateOpen(true)}>+ New Project</Button>
+            <LogoutButton />
+          </div>
         </div>
 
         {projects.length === 0 ? (

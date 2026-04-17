@@ -14,6 +14,9 @@ import { catalogRoutes } from "./routes/catalog";
 import { attachmentRoutes } from "./routes/attachments";
 import { alertChannelRoutes } from "./routes/alert-channels";
 import { versionRoutes } from "./routes/version";
+import { authRoutes } from "./routes/auth";
+import { authMiddleware } from "./middleware/auth";
+import { isAuthEnabled } from "./lib/auth-config";
 
 export interface AppContext {
   projectManager: ProjectManager;
@@ -26,17 +29,21 @@ export function createApp(ctx: AppContext) {
     : ["http://localhost:5173", "http://localhost:8080", "http://localhost:3000"];
 
   const app = new Hono<AppEnv>()
-    .use("*", cors({ origin: allowedOrigins }))
+    .use("*", cors({ origin: allowedOrigins, credentials: true }))
     .use("*", async (c, next) => {
       await next();
       c.header("X-Content-Type-Options", "nosniff");
       c.header("X-Frame-Options", "DENY");
     })
+    .use("*", authMiddleware())
     .use("*", async (c, next) => {
       c.set("projectManager", ctx.projectManager);
       c.set("scheduler", ctx.scheduler);
       await next();
     })
+    .get("/api/config", (c) => c.json({ authEnabled: isAuthEnabled() }))
+    .get("/api/health", (c) => c.json({ status: "ok" }))
+    .route("/api", authRoutes)
     .route("/api", projectRoutes)
     .route("/api", agentRoutes)
     .route("/api", messageRoutes)
@@ -46,8 +53,7 @@ export function createApp(ctx: AppContext) {
     .route("/api", catalogRoutes)
     .route("/api", attachmentRoutes)
     .route("/api", alertChannelRoutes)
-    .route("/api", versionRoutes)
-    .get("/api/health", (c) => c.json({ status: "ok" }));
+    .route("/api", versionRoutes);
 
   return app;
 }

@@ -11,7 +11,7 @@ import {
   useUpdateAgentCache,
 } from "../../hooks";
 import { useNavigate } from "react-router-dom";
-import { useFileMention } from "../../hooks/useFileMention";
+import { useFileMention } from "../../hooks/use-file-mention";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
 import { useIsDesktop } from "../../hooks/use-is-desktop";
 import { useProjectLayout } from "../../providers/ProjectLayoutProvider";

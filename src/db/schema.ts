@@ -98,6 +98,12 @@ export const alertChannels = sqliteTable("alert_channels", {
   updatedAt: text("updated_at").notNull().default(ISO_NOW),
 });
 
+export const refreshTokens = sqliteTable("refresh_tokens", {
+  token: text("token").primaryKey(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().default(ISO_NOW),
+});
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
@@ -108,3 +114,5 @@ export type ScheduledTask = typeof scheduledTasks.$inferSelect;
 export type NewScheduledTask = typeof scheduledTasks.$inferInsert;
 export type AlertChannel = typeof alertChannels.$inferSelect;
 export type NewAlertChannel = typeof alertChannels.$inferInsert;
+export type RefreshToken = typeof refreshTokens.$inferSelect;
+export type NewRefreshToken = typeof refreshTokens.$inferInsert;

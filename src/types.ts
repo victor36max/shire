@@ -5,5 +5,6 @@ export type AppEnv = {
   Variables: {
     projectManager: ProjectManager;
     scheduler: Scheduler;
+    username: string | null;
   };
 };
