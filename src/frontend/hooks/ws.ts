@@ -45,13 +45,9 @@ export function useWsConnect(): void {
   useEffect(() => {
     const wsClient = getClient();
     if (authEnabled === undefined) return;
+    if (authEnabled && !hasToken) return;
 
-    if (!authEnabled || hasToken) {
-      wsClient.connect();
-    }
-
-    return () => {
-      wsClient.disconnect();
-    };
+    wsClient.connect();
+    return () => wsClient.disconnect();
   }, [authEnabled, hasToken]);
 }

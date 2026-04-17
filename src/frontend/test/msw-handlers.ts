@@ -5,6 +5,10 @@ import { http, HttpResponse } from "msw";
  * Component tests import these as baseline and override per-test with server.use().
  */
 export const defaultHandlers = [
+  // --- Auth / Config ---
+  http.get("*/api/config", () => HttpResponse.json({ authEnabled: false })),
+  http.post("*/api/auth/refresh", () => HttpResponse.json({}, { status: 401 })),
+
   // --- Projects ---
   http.get("*/api/projects", () => HttpResponse.json([{ id: "p1", name: "test-project" }])),
   http.post("*/api/projects", () => HttpResponse.json({ id: "p-new" }, { status: 201 })),

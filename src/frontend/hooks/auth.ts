@@ -15,10 +15,7 @@ export function useLogin() {
   const { setAccessToken } = useAuthStore();
   return useMutation({
     mutationFn: async (credentials: { username: string; password: string }) =>
-      unwrap(await api.auth.login.$post({ json: credentials })) as unknown as {
-        accessToken: string;
-        username: string;
-      },
+      unwrap(await api.auth.login.$post({ json: credentials })),
     onSuccess: (data) => {
       setAccessToken(data.accessToken);
     },

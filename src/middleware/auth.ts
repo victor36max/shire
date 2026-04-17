@@ -15,8 +15,14 @@ const PUBLIC_PATHS = new Set([
 
 export function authMiddleware(): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
-    if (!isAuthEnabled()) return next();
-    if (PUBLIC_PATHS.has(c.req.path)) return next();
+    if (!isAuthEnabled()) {
+      c.set("username", null);
+      return next();
+    }
+    if (PUBLIC_PATHS.has(c.req.path)) {
+      c.set("username", null);
+      return next();
+    }
 
     const header = c.req.header("Authorization");
     if (!header?.startsWith(BEARER_PREFIX)) {
