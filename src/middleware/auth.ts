@@ -16,12 +16,13 @@ export function authMiddleware(): MiddlewareHandler<AppEnv> {
     if (!isAuthEnabled()) return next();
     if (PUBLIC_PATHS.has(c.req.path)) return next();
 
+    const PREFIX = "Bearer ";
     const header = c.req.header("Authorization");
-    if (!header?.startsWith("Bearer ")) {
+    if (!header?.startsWith(PREFIX)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
 
-    const token = header.slice(7);
+    const token = header.slice(PREFIX.length);
     try {
       const secret = new TextEncoder().encode(getJwtSecret());
       const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
