@@ -133,8 +133,10 @@ export const authRoutes = new Hono<AppEnv>()
 
     const newToken = crypto.randomUUID();
     const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL * 1000).toISOString();
-    db.delete(refreshTokens).where(eq(refreshTokens.token, oldToken)).run();
-    db.insert(refreshTokens).values({ token: newToken, expiresAt: newExpiresAt }).run();
+    db.update(refreshTokens)
+      .set({ token: newToken, expiresAt: newExpiresAt })
+      .where(eq(refreshTokens.token, oldToken))
+      .run();
 
     const accessToken = await createAccessToken(credentials.username);
     setRefreshCookie(c, newToken);
