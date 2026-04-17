@@ -1,7 +1,8 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getNodeByKey } from "lexical";
 import { useState } from "react";
-import { ChevronDown, ImageOff, Trash, Type } from "lucide-react";
+import { ChevronDown, ImageOff, Loader2, Trash, Type } from "lucide-react";
+import { useAuthenticatedUrl } from "../../../hooks/use-authenticated-url";
 import { $isImageNode } from "./ImageNode";
 import { cn } from "../../../components/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
@@ -28,6 +29,10 @@ export const ImageComponent = ({ src, altText, width, height, nodeKey }: ImageCo
   const [isAltDialogOpen, setIsAltDialogOpen] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+
+  const needsAuth = src.startsWith("/api/");
+  const authUrl = useAuthenticatedUrl(needsAuth ? src : null);
+  const effectiveSrc = needsAuth ? authUrl.blobUrl : src;
 
   const updateAltText = (nextAltText: string) => {
     editor.update(() => {
@@ -97,17 +102,27 @@ export const ImageComponent = ({ src, altText, width, height, nodeKey }: ImageCo
             Retry
           </Button>
         </div>
-      ) : (
+      ) : needsAuth && authUrl.isLoading ? (
+        <div
+          className="flex items-center justify-center"
+          style={{
+            height: height ? `${height}px` : "100px",
+            width: width ? `${width}px` : "100%",
+          }}
+        >
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : effectiveSrc ? (
         <img
           key={retryKey}
-          src={src}
+          src={effectiveSrc}
           alt={altText || ""}
           width={width ?? undefined}
           height={height ?? undefined}
           className="max-w-full h-auto"
           onError={() => setHasError(true)}
         />
-      )}
+      ) : null}
       {altText && !hasError && <p className="text-sm text-muted-foreground italic">{altText}</p>}
       <Dialog open={isAltDialogOpen} onOpenChange={setIsAltDialogOpen}>
         <DialogContent>

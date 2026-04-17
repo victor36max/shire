@@ -91,6 +91,16 @@ export const defaultHandlers = [
     HttpResponse.json({ ok: true, newPath: "/renamed.md" }),
   ),
   http.delete("*/api/projects/:id/shared-drive", () => HttpResponse.json({ ok: true })),
+  http.get(
+    "*/api/projects/:id/shared-drive/download",
+    () =>
+      new HttpResponse(new Uint8Array([137, 80, 78, 71]), {
+        headers: {
+          "Content-Type": "image/png",
+          "Content-Disposition": 'inline; filename="file.png"',
+        },
+      }),
+  ),
   http.get("*/api/projects/:id/shared-drive/preview", () =>
     HttpResponse.json({ content: "", contentType: "text/plain" }),
   ),

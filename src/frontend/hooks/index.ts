@@ -11,3 +11,4 @@ export * from "./alert-channels";
 export * from "./version";
 export * from "./use-is-desktop";
 export * from "./use-synced-param";
+export * from "./use-authenticated-url";
