@@ -8,7 +8,8 @@ import CodeEditor from "./editor/CodeEditor";
 import CsvEditor from "./editor/CsvEditor";
 import { useFileContent } from "../hooks/shared-drive";
 import { getFileIcon, getPreviewType } from "../lib/file-utils";
-import { useSubscription, type SharedDriveWsEvent } from "../lib/ws";
+import { useSubscription } from "../hooks/ws";
+import type { SharedDriveWsEvent } from "../lib/ws";
 
 interface FilePreviewPanelProps {
   projectId: string;

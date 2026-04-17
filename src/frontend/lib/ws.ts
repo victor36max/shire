@@ -1,4 +1,3 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
 import { getAccessToken, isTokenExpired, useAuthStore } from "../stores/auth";
 
 /** Shape of the serialized message attached to agent-level WebSocket events. */
@@ -246,81 +245,4 @@ export function getClient(): WsClient {
     client = new WsClient();
   }
   return client;
-}
-
-/**
- * Subscribe to a WebSocket topic. Automatically subscribes on mount
- * and unsubscribes on unmount or when the topic changes.
- */
-export function useSubscription<E extends WsEvent = WsEvent>(
-  topic: string | null,
-  handler: EventHandler<E>,
-): void {
-  const handlerRef = useRef(handler);
-  useEffect(() => {
-    handlerRef.current = handler;
-  });
-
-  useEffect(() => {
-    if (!topic) return;
-
-    const wsClient = getClient();
-    const unsub = wsClient.subscribe<E>(topic, (event) => {
-      handlerRef.current(event);
-    });
-
-    return unsub;
-  }, [topic]);
-}
-
-/**
- * Subscribe to multiple WebSocket topics at once.
- */
-export function useSubscriptions<E extends WsEvent = WsEvent>(
-  topics: Array<string | null>,
-  handler: EventHandler<E>,
-): void {
-  const handlerRef = useRef(handler);
-  useEffect(() => {
-    handlerRef.current = handler;
-  });
-
-  const topicsKey = JSON.stringify(topics);
-
-  useEffect(() => {
-    const wsClient = getClient();
-    const unsubs: Array<() => void> = [];
-    const currentTopics = JSON.parse(topicsKey) as Array<string | null>;
-
-    for (const topic of currentTopics) {
-      if (!topic) continue;
-      unsubs.push(
-        wsClient.subscribe<E>(topic, (event) => {
-          handlerRef.current(event);
-        }),
-      );
-    }
-
-    return () => {
-      for (const unsub of unsubs) unsub();
-    };
-  }, [topicsKey]);
-}
-
-/**
- * Get the raw WebSocket client for sending messages (e.g., terminal input).
- */
-export function useWsClient(): WsClient {
-  return getClient();
-}
-
-/**
- * Returns the current WebSocket connection state, reactively updated.
- */
-export function useConnectionState(): ConnectionState {
-  const wsClient = getClient();
-  return useSyncExternalStore(
-    (cb) => wsClient.onStateChange(cb),
-    () => wsClient.connectionState,
-  );
 }

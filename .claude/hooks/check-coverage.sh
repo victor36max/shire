@@ -16,6 +16,7 @@ SKIP_FILES=(
   "src/runtime/harness/index.ts"       # globally mocked by other tests
   "src/runtime/harness/pi-harness.ts"  # SDK-internal callbacks
   "src/frontend/lib/ws.ts"               # globally mocked in all frontend tests
+  "src/frontend/hooks/ws.ts"             # globally mocked in all frontend component tests
   "src/frontend/components/AgentChatView.tsx"   # ws subscription callbacks unreachable
   "src/frontend/components/ProjectLayout.tsx"   # ws subscription callbacks unreachable
   "src/frontend/components/Markdown.tsx"         # rehype plugin callbacks

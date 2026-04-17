@@ -14,9 +14,10 @@ import {
   useUpdateAgentCache,
   findDefaultAgent,
 } from "../hooks";
-import { useSubscription, type AgentWsEvent } from "../lib/ws";
+import { useSubscription } from "../hooks/ws";
+import type { AgentWsEvent } from "../lib/ws";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
-import { insertMessageIntoCache } from "../lib/insertMessageIntoCache";
+import { insertMessageIntoCache } from "../lib/insert-message-into-cache";
 
 export default function AgentChatView() {
   const { agentName } = useParams();

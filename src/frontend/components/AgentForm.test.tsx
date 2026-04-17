@@ -1,98 +1,294 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, mock } from "bun:test";
-import AgentForm from "./AgentForm";
-import type { Agent } from "./types";
+import AgentForm from "../components/AgentForm";
+import type { Agent } from "../components/types";
 
-const noop = mock(() => {});
+const onSave = mock(() => {});
 
 function renderForm(agent: Agent | null = null) {
   return render(
-    <AgentForm open={true} title="New Agent" agent={agent} onSave={noop} onClose={noop} />,
+    <AgentForm
+      open={true}
+      title="New Agent"
+      agent={agent}
+      onSave={onSave}
+      onClose={mock(() => {})}
+    />,
   );
 }
 
-describe("AgentForm key-based reset", () => {
-  it("initializes state from agent prop without useEffect", () => {
+describe("AgentForm", () => {
+  it("renders skills section with empty state", () => {
+    renderForm();
+    expect(
+      screen.getByText("No skills defined. Add skills to give the agent specialized knowledge."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Add Skill")).toBeInTheDocument();
+  });
+
+  it("adds a skill when clicking Add Skill", async () => {
+    renderForm();
+    await userEvent.click(screen.getByText("Add Skill"));
+    expect(screen.getByPlaceholderText("e.g. web-scraping")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("When to use this skill...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Markdown instructions...")).toBeInTheDocument();
+  });
+
+  it("removes a skill when clicking Remove", async () => {
+    renderForm();
+    await userEvent.click(screen.getByText("Add Skill"));
+    expect(screen.getByPlaceholderText("e.g. web-scraping")).toBeInTheDocument();
+
+    const removeButtons = screen.getAllByText("Remove");
+    await userEvent.click(removeButtons[0]);
+    expect(screen.queryByPlaceholderText("e.g. web-scraping")).not.toBeInTheDocument();
+  });
+
+  it("includes skills in structured payload", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    // Fill required name field
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.paste("test-agent");
+
+    // Add and fill a skill
+    await user.click(screen.getByText("Add Skill"));
+
+    const skillName = screen.getByPlaceholderText("e.g. web-scraping");
+    await user.clear(skillName);
+    await user.paste("my-skill");
+
+    const skillDesc = screen.getByPlaceholderText("When to use this skill...");
+    await user.clear(skillDesc);
+    await user.paste("Use for testing");
+
+    const skillContent = screen.getByPlaceholderText("Markdown instructions...");
+    await user.clear(skillContent);
+    await user.paste("# Test Skill");
+
+    await user.click(screen.getByText("Save Agent"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      "create-agent",
+      expect.objectContaining({ name: "test-agent" }),
+    );
+
+    const payload = (onSave.mock.calls[onSave.mock.calls.length - 1] as unknown[])[1] as Record<
+      string,
+      unknown
+    >;
+    const payloadSkills = payload.skills as Array<Record<string, string>>;
+    expect(payloadSkills).toBeDefined();
+    expect(payloadSkills).toHaveLength(1);
+    expect(payloadSkills[0].name).toBe("my-skill");
+    expect(payloadSkills[0].description).toBe("Use for testing");
+    expect(payloadSkills[0].content).toBe("# Test Skill");
+  });
+
+  it("loads skills from existing agent", () => {
+    const agent: Agent = {
+      id: "a-test",
+      name: "test",
+      busy: false,
+      unreadCount: 0,
+      harness: "claude_code",
+      skills: [
+        { name: "existing-skill", description: "An existing skill", content: "Some instructions" },
+      ],
+    };
+
+    renderForm(agent);
+    expect(screen.getByDisplayValue("existing-skill")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("An existing skill")).toBeInTheDocument();
+  });
+
+  it("adds a reference to a skill", async () => {
+    renderForm();
+    await userEvent.click(screen.getByText("Add Skill"));
+    await userEvent.click(screen.getByText("Add Reference"));
+    expect(screen.getByPlaceholderText("e.g. api-patterns.md")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Reference content...")).toBeInTheDocument();
+  });
+
+  it("shows validation error for invalid agent name", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.paste("Invalid Name!");
+
+    expect(
+      screen.getByText(
+        "Use lowercase letters, numbers, and hyphens only. Must start and end with a letter or number.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("auto-lowercases the name input", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "MyAgent");
+
+    expect(nameInput).toHaveValue("myagent");
+  });
+
+  it("does not submit when name is invalid", async () => {
+    const localOnSave = mock(() => {});
+    render(
+      <AgentForm
+        open={true}
+        title="New Agent"
+        agent={null}
+        onSave={localOnSave}
+        onClose={mock(() => {})}
+      />,
+    );
+
+    const user = userEvent.setup();
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.paste("-invalid");
+    await user.click(screen.getByText("Save Agent"));
+
+    expect(localOnSave).not.toHaveBeenCalled();
+  });
+
+  it("accepts valid slug names", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.paste("my-valid-agent");
+
+    expect(
+      screen.queryByText(
+        "Use lowercase letters, numbers, and hyphens only. Must start and end with a letter or number.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders emoji picker button with default robot emoji", () => {
+    renderForm();
+    expect(screen.getByText("\u{1F916}")).toBeInTheDocument();
+    expect(screen.getByText("Pick an emoji")).toBeInTheDocument();
+  });
+
+  it("renders emoji from agent prop in picker button", () => {
     const agent: Agent = {
       id: "a1",
-      name: "my-agent",
-      description: "A test agent",
+      name: "emoji-agent",
+      emoji: "\u{1F680}",
+      busy: false,
+      unreadCount: 0,
+      harness: "claude_code",
+    };
+    renderForm(agent);
+    expect(screen.getByText("\u{1F680}")).toBeInTheDocument();
+    expect(screen.getByText("Click to change")).toBeInTheDocument();
+  });
 
+  it("includes emoji in payload when agent has emoji from catalog", async () => {
+    const localOnSave = mock(() => {});
+    const catalogAgent: Agent = {
+      id: "",
+      name: "rocket-agent",
+      emoji: "\u{1F680}",
+      busy: false,
+      unreadCount: 0,
+      harness: "claude_code",
+    };
+
+    render(
+      <AgentForm
+        open={true}
+        title="New Agent from Catalog"
+        agent={catalogAgent}
+        onSave={localOnSave}
+        onClose={mock(() => {})}
+      />,
+    );
+
+    await userEvent.click(screen.getByText("Save Agent"));
+
+    const payload = (localOnSave.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    expect(payload.emoji).toBe("\u{1F680}");
+  });
+
+  it("submits create-agent with structured fields when agent has empty id (catalog prefill)", async () => {
+    const localOnSave = mock(() => {});
+    const catalogAgent: Agent = {
+      id: "",
+      name: "frontend-developer",
+      description: "React specialist",
       busy: false,
       unreadCount: 0,
       harness: "claude_code",
       model: "claude-sonnet-4-6",
-      systemPrompt: "Be helpful.",
+      systemPrompt: "You are a frontend developer.",
     };
 
-    renderForm(agent);
-    expect(screen.getByLabelText("Name")).toHaveValue("my-agent");
-    expect(screen.getByLabelText("Description")).toHaveValue("A test agent");
-    expect(screen.getByLabelText("Model")).toHaveValue("claude-sonnet-4-6");
-    expect(screen.getByLabelText("System Prompt")).toHaveValue("Be helpful.");
+    render(
+      <AgentForm
+        open={true}
+        title="New Agent from Catalog"
+        agent={catalogAgent}
+        onSave={localOnSave}
+        onClose={mock(() => {})}
+      />,
+    );
+
+    await userEvent.click(screen.getByText("Save Agent"));
+
+    expect(localOnSave).toHaveBeenCalledWith(
+      "create-agent",
+      expect.objectContaining({
+        name: "frontend-developer",
+        harness: "claude_code",
+        model: "claude-sonnet-4-6",
+      }),
+    );
+    // Should NOT have id in payload
+    const payload = (localOnSave.mock.calls[0] as unknown[])[1];
+    expect(payload).not.toHaveProperty("id");
   });
 
-  it("initializes with empty values when agent is null", () => {
-    renderForm(null);
-    expect(screen.getByLabelText("Name")).toHaveValue("");
-    expect(screen.getByLabelText("Description")).toHaveValue("");
-    expect(screen.getByLabelText("Model")).toHaveValue("");
-    expect(screen.getByLabelText("System Prompt")).toHaveValue("");
-  });
-
-  it("resets form state when remounted with new key (different agent)", async () => {
-    const agent1: Agent = {
-      id: "a1",
-      name: "agent-one",
-
+  it("submits update-agent event with structured fields for existing agent", async () => {
+    const agent: Agent = {
+      id: "a-existing",
+      name: "existing-agent",
       busy: false,
       unreadCount: 0,
       harness: "claude_code",
-    };
-    const agent2: Agent = {
-      id: "a2",
-      name: "agent-two",
-
-      busy: false,
-      unreadCount: 0,
-      harness: "pi",
+      model: "claude-sonnet-4-6",
     };
 
-    const { unmount } = render(
-      <AgentForm
-        key={agent1.id}
-        open={true}
-        title="Edit Agent"
-        agent={agent1}
-        onSave={noop}
-        onClose={noop}
-      />,
-    );
-
-    expect(screen.getByLabelText("Name")).toHaveValue("agent-one");
-
-    // Simulate user editing the name
-    const user = userEvent.setup();
-    const nameInput = screen.getByLabelText("Name");
-    await user.clear(nameInput);
-    await user.paste("modified-name");
-    expect(nameInput).toHaveValue("modified-name");
-
-    // Unmount and remount with different key (simulates parent changing key)
-    unmount();
     render(
       <AgentForm
-        key={agent2.id}
         open={true}
         title="Edit Agent"
-        agent={agent2}
-        onSave={noop}
-        onClose={noop}
+        agent={agent}
+        onSave={onSave}
+        onClose={mock(() => {})}
       />,
     );
 
-    // Should show agent2's name, not the modified value
-    expect(screen.getByLabelText("Name")).toHaveValue("agent-two");
+    await userEvent.click(screen.getByText("Save Agent"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      "update-agent",
+      expect.objectContaining({
+        id: "a-existing",
+        name: "existing-agent",
+        harness: "claude_code",
+      }),
+    );
   });
 });

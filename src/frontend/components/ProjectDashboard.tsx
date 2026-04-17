@@ -34,7 +34,7 @@ import { ErrorState } from "./ui/error-state";
 import type { Project } from "./types";
 import { useProjects, useCreateProject, useDeleteProject } from "../hooks";
 import { useAppConfig, useLogout } from "../hooks/auth";
-import { useSubscription } from "../lib/ws";
+import { useSubscription } from "../hooks/ws";
 import { useQueryClient } from "@tanstack/react-query";
 
 const PROJECT_NAME_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;

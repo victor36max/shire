@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import ActivityLog from "./ActivityLog";
 import AlertChannelTab from "./AlertChannelTab";
 import { useProjectId, useActivity } from "../hooks";
-import { useSubscription } from "../lib/ws";
+import { useSubscription } from "../hooks/ws";
 import { useQueryClient } from "@tanstack/react-query";
 import type { InterAgentMessage } from "./types";
 

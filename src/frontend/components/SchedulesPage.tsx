@@ -49,7 +49,7 @@ import {
   useRunScheduleNow,
 } from "../hooks";
 import { parseUtcTimestamp, timeAgo } from "../lib/time";
-import { useSubscription } from "../lib/ws";
+import { useSubscription } from "../hooks/ws";
 
 interface ScheduleFormState extends CronFormFields {
   label: string;

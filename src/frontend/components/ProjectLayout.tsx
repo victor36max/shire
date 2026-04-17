@@ -20,7 +20,8 @@ import {
   useIsDesktop,
   useSyncedParam,
 } from "../hooks";
-import { useSubscription, type AgentListWsEvent, type SharedDriveWsEvent } from "../lib/ws";
+import { useSubscription } from "../hooks/ws";
+import type { AgentListWsEvent, SharedDriveWsEvent } from "../lib/ws";
 import {
   ProjectLayoutContext,
   ProjectLayoutProvider,

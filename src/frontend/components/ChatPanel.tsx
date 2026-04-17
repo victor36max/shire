@@ -13,7 +13,7 @@ import { Message, MessageContent, MessageActions } from "./ai-elements/message";
 import { type AgentOverview } from "./types";
 import { useProjectId, useMessages, useSendMessage, useUpdateAgentCache } from "../hooks";
 import { messageTimeLabel, dateSeparatorLabel, isSameDay } from "../lib/time";
-import { useTickingClock } from "../lib/useTickingClock";
+import { useTickingClock } from "../hooks/use-ticking-clock";
 import { Reasoning, ReasoningTrigger } from "./ai-elements/reasoning";
 import { ToolCallMessage } from "./chat/ToolCallMessage";
 import { InterAgentMessage } from "./chat/InterAgentMessage";

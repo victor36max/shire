@@ -9,9 +9,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { useConnectionToast } from "./lib/useConnectionToast";
-import { useWsConnect } from "./hooks/useWsConnect";
-import { useAppConfig } from "./hooks/auth";
+import { useConnectionToast } from "./hooks/use-connection-toast";
+import { useWsConnect } from "./hooks/ws";
 import { Spinner } from "./components/ui/spinner";
 import ProjectLayout from "./components/ProjectLayout";
 import { RequireAuth } from "./components/RequireAuth";
@@ -41,9 +40,8 @@ const queryClient = new QueryClient({
 });
 
 function ConnectionManager() {
-  const { data: config } = useAppConfig();
   useConnectionToast();
-  useWsConnect(config?.authEnabled);
+  useWsConnect();
   return null;
 }
 
