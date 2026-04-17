@@ -71,6 +71,20 @@ describe("useWsConnect", () => {
     await waitFor(() => expect(mockConnect).toHaveBeenCalledTimes(1));
   });
 
+  it("does not disconnect when connecting after login", async () => {
+    server.use(http.get("*/api/config", () => HttpResponse.json({ authEnabled: true })));
+    renderHookWithProviders(() => useWsConnect());
+    await waitFor(() => {});
+
+    mockConnect.mockClear();
+    mockDisconnect.mockClear();
+
+    const token = await makeFakeJwt();
+    act(() => useAuthStore.setState({ accessToken: token }));
+    await waitFor(() => expect(mockConnect).toHaveBeenCalledTimes(1));
+    expect(mockDisconnect).not.toHaveBeenCalled();
+  });
+
   it("does not reconnect when token changes to a different truthy value", async () => {
     useAuthStore.setState({ accessToken: await makeFakeJwt() });
     server.use(http.get("*/api/config", () => HttpResponse.json({ authEnabled: true })));
