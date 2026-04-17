@@ -10,7 +10,7 @@ import { Toaster, toast } from "sonner";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useConnectionToast } from "./lib/useConnectionToast";
-import { useWsConnect } from "./lib/ws";
+import { useWsConnect } from "./hooks/useWsConnect";
 import { useAppConfig } from "./hooks/auth";
 import { Spinner } from "./components/ui/spinner";
 import ProjectLayout from "./components/ProjectLayout";

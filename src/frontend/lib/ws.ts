@@ -241,28 +241,11 @@ class WsClient {
 // Singleton WebSocket client
 let client: WsClient | null = null;
 
-function getClient(): WsClient {
+export function getClient(): WsClient {
   if (!client) {
     client = new WsClient();
   }
   return client;
-}
-
-export function useWsConnect(authEnabled: boolean | undefined): void {
-  const accessToken = useAuthStore((s) => s.accessToken);
-
-  useEffect(() => {
-    const wsClient = getClient();
-
-    if (authEnabled === undefined) return;
-
-    if (!authEnabled || accessToken) {
-      wsClient.disconnect();
-      wsClient.connect();
-    } else {
-      wsClient.disconnect();
-    }
-  }, [authEnabled, accessToken]);
 }
 
 /**
