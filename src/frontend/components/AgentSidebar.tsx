@@ -9,6 +9,7 @@ import ProjectSwitcher from "./ProjectSwitcher";
 import AgentListPanel from "./sidebar/AgentListPanel";
 import SharedDrivePanel from "./sidebar/SharedDrivePanel";
 import { useProjects, useVersionCheck } from "../hooks";
+import UserMenu from "./UserMenu";
 
 function VersionFooter() {
   const { data } = useVersionCheck();
@@ -136,6 +137,7 @@ export default function AgentSidebar({ onNewAgent, onBrowseCatalog }: AgentSideb
           <Settings className="h-4 w-4" />
           Settings
         </Button>
+        <UserMenu variant="sidebar" />
       </div>
 
       <VersionFooter />

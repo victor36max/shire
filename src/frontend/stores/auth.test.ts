@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { SignJWT } from "jose";
-import { useAuthStore, getAccessToken, isTokenExpired } from "../stores/auth";
+import { useAuthStore, getAccessToken, isTokenExpired, useUsername } from "../stores/auth";
 import { api } from "../lib/api";
 import { http, HttpResponse } from "msw";
 import { waitFor, act } from "@testing-library/react";
@@ -215,6 +215,28 @@ describe("api client auth integration", () => {
     await api.config.$get();
     expect(refreshCalled).toBe(false);
     expect(getAccessToken()).toBe(validToken);
+  });
+});
+
+describe("useUsername", () => {
+  beforeEach(resetStore);
+
+  it("returns null when no token is set", () => {
+    const { result } = renderHookWithProviders(() => useUsername());
+    expect(result.current).toBeNull();
+  });
+
+  it("returns username from JWT sub claim", async () => {
+    const token = await makeFakeJwt();
+    setState({ accessToken: token });
+    const { result } = renderHookWithProviders(() => useUsername());
+    expect(result.current).toBe("admin");
+  });
+
+  it("returns null for malformed token", () => {
+    setState({ accessToken: "not-a-jwt" });
+    const { result } = renderHookWithProviders(() => useUsername());
+    expect(result.current).toBeNull();
   });
 });
 
