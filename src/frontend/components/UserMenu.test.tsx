@@ -102,4 +102,19 @@ describe("UserMenu", () => {
     });
     expect(screen.getByText("sidebaruser")).toBeInTheDocument();
   });
+
+  it("hides username in popover for sidebar variant", async () => {
+    enableAuth();
+    const token = await makeFakeJwt("sidebaruser");
+    useAuthStore.setState({ accessToken: token });
+
+    renderWithProviders(<UserMenu variant="sidebar" />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "User menu" })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "User menu" }));
+    // Username appears only once (in the trigger), not duplicated in the popover
+    expect(screen.getAllByText("sidebaruser")).toHaveLength(1);
+  });
 });
