@@ -22,8 +22,6 @@ const client = hc<AppType>("/", {
         const headers = new Headers(init?.headers);
         headers.set("Authorization", `Bearer ${newToken}`);
         res = await fetch(input, { ...init, headers, credentials: "include" });
-      } else {
-        useAuthStore.getState().setAccessToken(null);
       }
     }
     return res;
