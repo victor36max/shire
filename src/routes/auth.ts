@@ -15,6 +15,8 @@ import {
   REFRESH_TOKEN_TTL,
 } from "../lib/auth-config";
 
+const REFRESH_COOKIE = "shire_refresh";
+
 const loginSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
@@ -62,7 +64,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 function setRefreshCookie(c: Parameters<typeof setCookie>[0], token: string, dev: boolean): void {
-  setCookie(c, "shire_refresh", token, {
+  setCookie(c, REFRESH_COOKIE, token, {
     httpOnly: true,
     sameSite: "Strict",
     path: "/api/auth",
@@ -103,7 +105,7 @@ export const authRoutes = new Hono<AppEnv>()
     return c.json({ accessToken, username });
   })
   .post("/auth/refresh", async (c) => {
-    const token = getCookie(c, "shire_refresh");
+    const token = getCookie(c, REFRESH_COOKIE);
     if (!token) {
       return c.json({ error: "No refresh token" }, 401);
     }
@@ -118,7 +120,7 @@ export const authRoutes = new Hono<AppEnv>()
       .get();
 
     if (!row) {
-      deleteCookie(c, "shire_refresh", { path: "/api/auth" });
+      deleteCookie(c, REFRESH_COOKIE, { path: "/api/auth" });
       return c.json({ error: "Invalid or expired refresh token" }, 401);
     }
 
@@ -138,12 +140,12 @@ export const authRoutes = new Hono<AppEnv>()
     return c.json({ accessToken, username });
   })
   .post("/auth/logout", async (c) => {
-    const token = getCookie(c, "shire_refresh");
+    const token = getCookie(c, REFRESH_COOKIE);
     if (token) {
       const db = getDb();
       db.delete(refreshTokens).where(eq(refreshTokens.token, token)).run();
     }
-    deleteCookie(c, "shire_refresh", { path: "/api/auth" });
+    deleteCookie(c, REFRESH_COOKIE, { path: "/api/auth" });
     return c.body(null, 204);
   })
   .get("/auth/me", (c) => {
