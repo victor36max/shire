@@ -48,6 +48,17 @@ export function getAccessToken(): string | null {
   return useAuthStore.getState().accessToken;
 }
 
+export function useUsername(): string | null {
+  const token = useAuthStore((s) => s.accessToken);
+  if (!token) return null;
+  try {
+    const { sub } = decodeJwt(token);
+    return (sub as string) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function isTokenExpired(token: string): boolean {
   try {
     const { exp } = decodeJwt(token);
