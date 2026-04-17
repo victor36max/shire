@@ -26,14 +26,16 @@ const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
-  const entry = loginAttempts.get(ip);
-  if (!entry || now >= entry.resetAt) {
-    loginAttempts.delete(ip);
+  for (const [key, entry] of loginAttempts) {
+    if (now >= entry.resetAt) loginAttempts.delete(key);
+  }
+  const existing = loginAttempts.get(ip);
+  if (!existing) {
     loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
     return true;
   }
-  entry.count++;
-  return entry.count <= RATE_LIMIT_MAX;
+  existing.count++;
+  return existing.count <= RATE_LIMIT_MAX;
 }
 
 function getClientIp(c: { req: { header: (name: string) => string | undefined } }): string {

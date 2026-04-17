@@ -120,6 +120,23 @@ describe("auth routes", () => {
       expect(res.status).toBe(429);
     });
 
+    test("cleans up expired entries on next check", async () => {
+      _loginAttempts.set("10.0.0.1", { count: 5, resetAt: Date.now() - 1000 });
+      _loginAttempts.set("10.0.0.2", { count: 3, resetAt: Date.now() - 1000 });
+      expect(_loginAttempts.size).toBe(2);
+
+      const app = createTestApp();
+      await app.request("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Forwarded-For": "10.0.0.3" },
+        body: JSON.stringify({ username: "admin", password: "secret" }),
+      });
+
+      expect(_loginAttempts.has("10.0.0.1")).toBe(false);
+      expect(_loginAttempts.has("10.0.0.2")).toBe(false);
+      expect(_loginAttempts.has("10.0.0.3")).toBe(true);
+    });
+
     test("rate limit is per-IP", async () => {
       const app = createTestApp();
       for (let i = 0; i < 5; i++) {
