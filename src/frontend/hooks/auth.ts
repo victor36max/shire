@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useAuthStore } from "../lib/auth";
+import { useAuthStore } from "../stores/auth";
 import { api } from "../lib/api";
 import { unwrap } from "./util";
 

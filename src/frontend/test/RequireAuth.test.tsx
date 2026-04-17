@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { server } from "./msw-server";
 import { RequireAuth } from "../components/RequireAuth";
-import { useAuthStore } from "../lib/auth";
+import { useAuthStore } from "../stores/auth";
 
 function renderWithAuth(initialRoute = "/") {
   const queryClient = new QueryClient({

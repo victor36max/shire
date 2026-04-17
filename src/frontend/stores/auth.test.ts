@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { SignJWT } from "jose";
-import { useAuthStore, getAccessToken, isTokenExpired } from "../lib/auth";
+import { useAuthStore, getAccessToken, isTokenExpired } from "./auth";
 import { api } from "../lib/api";
 import { http, HttpResponse } from "msw";
 import { waitFor, act } from "@testing-library/react";
-import { server } from "./msw-server";
-import { renderHookWithProviders } from "./test-utils";
+import { server } from "../test/msw-server";
+import { renderHookWithProviders } from "../test/test-utils";
 import { useAppConfig, useLogin, useLogout } from "../hooks/auth";
 
 const { setState } = useAuthStore;

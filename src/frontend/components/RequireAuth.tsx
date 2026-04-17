@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppConfig } from "../hooks/auth";
-import { useAuthStore } from "../lib/auth";
+import { useAuthStore } from "../stores/auth";
 import { Spinner } from "./ui/spinner";
 
 export function RequireAuth({ children }: { children: ReactNode }) {

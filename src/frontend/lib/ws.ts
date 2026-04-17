@@ -1,5 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { getAccessToken, isTokenExpired, useAuthStore } from "./auth";
+import { getAccessToken, isTokenExpired, useAuthStore } from "../stores/auth";
 
 /** Shape of the serialized message attached to agent-level WebSocket events. */
 export interface WsSerializedMessage {
