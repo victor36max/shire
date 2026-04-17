@@ -10,6 +10,8 @@ import { Toaster, toast } from "sonner";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useConnectionToast } from "./lib/useConnectionToast";
+import { useWsConnect } from "./lib/ws";
+import { useAppConfig } from "./hooks/auth";
 import { Spinner } from "./components/ui/spinner";
 import ProjectLayout from "./components/ProjectLayout";
 import { RequireAuth } from "./components/RequireAuth";
@@ -38,8 +40,10 @@ const queryClient = new QueryClient({
   },
 });
 
-function ConnectionToastManager() {
+function ConnectionManager() {
+  const { data: config } = useAppConfig();
   useConnectionToast();
+  useWsConnect(config?.authEnabled);
   return null;
 }
 
@@ -49,7 +53,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <Toaster position="bottom-right" richColors />
-          <ConnectionToastManager />
+          <ConnectionManager />
           <BrowserRouter>
             <Suspense
               fallback={

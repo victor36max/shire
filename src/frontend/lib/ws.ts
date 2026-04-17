@@ -244,18 +244,25 @@ let client: WsClient | null = null;
 function getClient(): WsClient {
   if (!client) {
     client = new WsClient();
-    client.connect();
-    useAuthStore.subscribe((state, prev) => {
-      if (!client) return;
-      if (!prev.accessToken && state.accessToken) {
-        client.disconnect();
-        client.connect();
-      } else if (prev.accessToken && !state.accessToken) {
-        client.disconnect();
-      }
-    });
   }
   return client;
+}
+
+export function useWsConnect(authEnabled: boolean | undefined): void {
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  useEffect(() => {
+    const wsClient = getClient();
+
+    if (authEnabled === undefined) return;
+
+    if (!authEnabled || accessToken) {
+      wsClient.disconnect();
+      wsClient.connect();
+    } else {
+      wsClient.disconnect();
+    }
+  }, [authEnabled, accessToken]);
 }
 
 /**
