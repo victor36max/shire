@@ -2,7 +2,7 @@ import { hc } from "hono/client";
 import type { AppType } from "../../server";
 import { useAuthStore, getAccessToken, isTokenExpired } from "../stores/auth";
 
-async function getValidToken(): Promise<string | null> {
+export async function getValidToken(): Promise<string | null> {
   const token = getAccessToken();
   if (!token) return null;
   if (!isTokenExpired(token)) return token;

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getValidToken } from "../lib/api";
 
 export interface UploadResult {
   id: string;
@@ -7,14 +8,19 @@ export interface UploadResult {
   size: number;
 }
 
-function uploadWithProgress<T>(
+async function uploadWithProgress<T>(
   url: string,
   formData: FormData,
   onProgress?: (percent: number) => void,
 ): Promise<T> {
+  const token = await getValidToken();
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
+
+    if (token) {
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    }
 
     if (onProgress) {
       xhr.upload.addEventListener("progress", (e) => {

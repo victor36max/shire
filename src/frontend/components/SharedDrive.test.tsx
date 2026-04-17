@@ -334,10 +334,7 @@ describe("SharedDriveContentArea", () => {
     await waitFor(() => {
       const img = screen.getByRole("img", { name: "photo.png" });
       expect(img).toBeInTheDocument();
-      expect(img).toHaveAttribute(
-        "src",
-        "/api/projects/test-project/shared-drive/download?path=photo.png",
-      );
+      expect(img.getAttribute("src")).toMatch(/^blob:/);
     });
   });
 
@@ -378,11 +375,11 @@ describe("SharedDriveContentArea", () => {
     });
   });
 
-  it("shows download link for selected file", async () => {
+  it("shows download button for selected file", async () => {
     renderContentArea("/projects/test-project/shared?file=photo.png");
     await waitFor(() => {
-      const link = screen.getByRole("link", { name: "Download" });
-      expect(link).toBeInTheDocument();
+      const button = screen.getByRole("button", { name: "Download" });
+      expect(button).toBeInTheDocument();
     });
   });
 

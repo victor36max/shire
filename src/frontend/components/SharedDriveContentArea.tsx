@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useDropzone } from "react-dropzone";
-import { Menu, Upload, Download, Trash2, Pencil, FolderOpen } from "lucide-react";
+import { Menu, Upload, Download, Trash2, Pencil, FolderOpen, AlertCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { SharedDriveEditor } from "./editor";
 import CodeEditor from "./editor/CodeEditor";
@@ -18,6 +18,8 @@ import {
 } from "../hooks";
 import { getFileIcon, getPreviewType, formatSize, MAX_UPLOAD_SIZE } from "../lib/file-utils";
 import { useProjectLayout } from "../providers/ProjectLayoutProvider";
+import { useAuthenticatedUrl } from "../hooks/use-authenticated-url";
+import { authenticatedDownload } from "../lib/authenticated-download";
 
 export default function SharedDriveContentArea() {
   const { projectId, projectName } = useProjectId();
@@ -44,6 +46,16 @@ export default function SharedDriveContentArea() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const fileProgressRef = React.useRef<Map<string, number>>(new Map());
+
+  const downloadUrl = filePath
+    ? `/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(filePath)}`
+    : null;
+  const previewUrl = filePath
+    ? `/api/projects/${projectName}/shared-drive/preview?path=${encodeURIComponent(filePath)}`
+    : null;
+
+  const imageAuth = useAuthenticatedUrl(type === "image" ? downloadUrl : null);
+  const pdfAuth = useAuthenticatedUrl(type === "pdf" ? previewUrl : null);
 
   const handleDelete = () => {
     if (!filePath) return;
@@ -158,9 +170,6 @@ export default function SharedDriveContentArea() {
     );
   }
 
-  const previewUrl = `/api/projects/${projectName}/shared-drive/preview?path=${encodeURIComponent(filePath)}`;
-  const downloadUrl = `/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(filePath)}`;
-
   return (
     <div className="flex flex-col h-full relative" {...getRootProps()}>
       <input {...getInputProps()} />
@@ -195,14 +204,16 @@ export default function SharedDriveContentArea() {
           >
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-            <a
-              href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(filePath)}`}
-              download
-              aria-label="Download"
-            >
-              <Download className="h-4 w-4" />
-            </a>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="Download"
+            onClick={() => {
+              if (downloadUrl) authenticatedDownload(downloadUrl, fileName);
+            }}
+          >
+            <Download className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
@@ -265,17 +276,34 @@ export default function SharedDriveContentArea() {
 
         {!loading && !error && type === "image" && (
           <div className="flex items-center justify-center p-4">
-            <img
-              src={downloadUrl}
-              alt={fileName}
-              loading="lazy"
-              className="max-w-full max-h-[70vh] object-contain"
-            />
+            {imageAuth.isLoading && <Spinner size="sm" className="text-muted-foreground" />}
+            {imageAuth.error && (
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <AlertCircle className="h-8 w-8" />
+                <p className="text-sm">{imageAuth.error}</p>
+              </div>
+            )}
+            {imageAuth.blobUrl && (
+              <img
+                src={imageAuth.blobUrl}
+                alt={fileName}
+                className="max-w-full max-h-[70vh] object-contain"
+              />
+            )}
           </div>
         )}
 
         {!loading && !error && type === "pdf" && (
-          <iframe src={previewUrl} className="w-full h-full border-0" title={fileName} />
+          <>
+            {pdfAuth.isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Spinner size="sm" className="text-muted-foreground" />
+              </div>
+            )}
+            {pdfAuth.blobUrl && (
+              <iframe src={pdfAuth.blobUrl} className="w-full h-full border-0" title={fileName} />
+            )}
+          </>
         )}
 
         {!loading &&
