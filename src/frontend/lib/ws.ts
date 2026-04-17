@@ -245,6 +245,15 @@ function getClient(): WsClient {
   if (!client) {
     client = new WsClient();
     client.connect();
+    useAuthStore.subscribe((state, prev) => {
+      if (!client) return;
+      if (!prev.accessToken && state.accessToken) {
+        client.disconnect();
+        client.connect();
+      } else if (prev.accessToken && !state.accessToken) {
+        client.disconnect();
+      }
+    });
   }
   return client;
 }
