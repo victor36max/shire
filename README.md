@@ -1,10 +1,22 @@
-# Shire
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo-light.svg">
+    <img alt="Shire" src="assets/logo-light.svg" width="120">
+  </picture>
 
-**Agents that work with you, not for you.**
+  <h1>Shire</h1>
+  <p><strong>Agents that work with you, not for you.</strong></p>
 
-[agents-shire.sh](https://www.agents-shire.sh/)
-
-Shire gives you a team of AI agents you actually work alongside — they persist, communicate, and pick up where they left off. Agents are stored in the database and configured through the dashboard. Open source.
+  <p>
+    <a href="https://www.npmjs.com/package/agents-shire"><img src="https://img.shields.io/npm/v/agents-shire?color=green" alt="npm version"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+    <a href="https://github.com/victor36max/shire/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/victor36max/shire/ci.yml?label=CI" alt="CI"></a>
+    <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript&logoColor=white" alt="TypeScript"></a>
+    <a href="https://bun.sh"><img src="https://img.shields.io/badge/Runtime-Bun-black?logo=bun&logoColor=white" alt="Bun"></a>
+    <a href="https://www.agents-shire.sh"><img src="https://img.shields.io/badge/Website-agents--shire.sh-C5EAB4" alt="Website"></a>
+  </p>
+</div>
 
 ![Shire Dashboard](dashboard-screenshot.png)
 
