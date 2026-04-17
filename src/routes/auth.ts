@@ -16,6 +16,7 @@ import {
 } from "../lib/auth-config";
 
 const REFRESH_COOKIE = "shire_refresh";
+const DEV = process.env.NODE_ENV !== "production";
 
 const loginSchema = z.object({
   username: z.string().min(1),
@@ -63,13 +64,13 @@ function timingSafeEqual(a: string, b: string): boolean {
   return cryptoTimingSafeEqual(hashA, hashB);
 }
 
-function setRefreshCookie(c: Parameters<typeof setCookie>[0], token: string, dev: boolean): void {
+function setRefreshCookie(c: Parameters<typeof setCookie>[0], token: string): void {
   setCookie(c, REFRESH_COOKIE, token, {
     httpOnly: true,
     sameSite: "Strict",
     path: "/api/auth",
     maxAge: REFRESH_TOKEN_TTL,
-    secure: !dev,
+    secure: !DEV,
   });
 }
 
@@ -98,15 +99,13 @@ export const authRoutes = new Hono<AppEnv>()
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL * 1000).toISOString();
 
     db.insert(refreshTokens).values({ token: refreshToken, expiresAt }).run();
-
-    const dev = process.env.NODE_ENV !== "production";
-    setRefreshCookie(c, refreshToken, dev);
+    setRefreshCookie(c, refreshToken);
 
     return c.json({ accessToken, username });
   })
   .post("/auth/refresh", async (c) => {
-    const token = getCookie(c, REFRESH_COOKIE);
-    if (!token) {
+    const oldToken = getCookie(c, REFRESH_COOKIE);
+    if (!oldToken) {
       return c.json({ error: "No refresh token" }, 401);
     }
 
@@ -115,7 +114,10 @@ export const authRoutes = new Hono<AppEnv>()
       .select()
       .from(refreshTokens)
       .where(
-        and(eq(refreshTokens.token, token), gt(refreshTokens.expiresAt, new Date().toISOString())),
+        and(
+          eq(refreshTokens.token, oldToken),
+          gt(refreshTokens.expiresAt, new Date().toISOString()),
+        ),
       )
       .get();
 
@@ -124,20 +126,20 @@ export const authRoutes = new Hono<AppEnv>()
       return c.json({ error: "Invalid or expired refresh token" }, 401);
     }
 
-    const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL * 1000).toISOString();
-    db.update(refreshTokens)
-      .set({ expiresAt: newExpiresAt })
-      .where(eq(refreshTokens.token, token))
-      .run();
-
     const credentials = getCredentials();
-    const username = credentials?.username ?? "user";
-    const accessToken = await createAccessToken(username);
+    if (!credentials) {
+      return c.json({ error: "Auth configuration unavailable" }, 503);
+    }
 
-    const dev = process.env.NODE_ENV !== "production";
-    setRefreshCookie(c, token, dev);
+    const newToken = crypto.randomUUID();
+    const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL * 1000).toISOString();
+    db.delete(refreshTokens).where(eq(refreshTokens.token, oldToken)).run();
+    db.insert(refreshTokens).values({ token: newToken, expiresAt: newExpiresAt }).run();
 
-    return c.json({ accessToken, username });
+    const accessToken = await createAccessToken(credentials.username);
+    setRefreshCookie(c, newToken);
+
+    return c.json({ accessToken, username: credentials.username });
   })
   .post("/auth/logout", async (c) => {
     const token = getCookie(c, REFRESH_COOKIE);

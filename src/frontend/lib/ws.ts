@@ -160,10 +160,10 @@ class WsClient {
       for (const topic of this.handlers.keys()) {
         this.send({ type: "subscribe", topic });
       }
-      for (const topic of this.pendingSubscriptions) {
+      for (const topic of [...this.pendingSubscriptions]) {
         this.send({ type: "subscribe", topic });
-        this.pendingSubscriptions.delete(topic);
       }
+      this.pendingSubscriptions.clear();
     };
 
     this.ws.onmessage = (e) => {
@@ -190,7 +190,8 @@ class WsClient {
       this.reconnectTimer = setTimeout(async () => {
         const token = getAccessToken();
         if (token && isTokenExpired(token)) {
-          await useAuthStore.getState().refreshAccessToken();
+          const newToken = await useAuthStore.getState().refreshAccessToken();
+          if (!newToken) return;
         }
         this.connect();
       }, this.retryMs);
