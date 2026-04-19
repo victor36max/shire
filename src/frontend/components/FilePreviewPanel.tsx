@@ -7,6 +7,7 @@ import { SharedDriveEditor } from "./editor";
 import CodeEditor from "./editor/CodeEditor";
 import CsvEditor from "./editor/CsvEditor";
 import { useFileContent } from "../hooks/shared-drive";
+import { useAuthenticatedUrl } from "../hooks/use-authenticated-url";
 import { getFileIcon, getPreviewType } from "../lib/file-utils";
 import { useSubscription } from "../hooks/ws";
 import type { SharedDriveWsEvent } from "../lib/ws";
@@ -51,6 +52,10 @@ export default function FilePreviewPanel({
   const error = queryError ? queryError.message || "Failed to load file" : null;
 
   const downloadUrl = `/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(filePath)}`;
+  const previewUrl = `/api/projects/${projectName}/shared-drive/preview?path=${encodeURIComponent(filePath)}`;
+
+  const imageAuth = useAuthenticatedUrl(type === "image" ? downloadUrl : null);
+  const pdfAuth = useAuthenticatedUrl(type === "pdf" ? previewUrl : null);
 
   const handleDirtyChange = useCallback((dirty: boolean) => {
     hasUnsavedChanges.current = dirty;
@@ -163,21 +168,28 @@ export default function FilePreviewPanel({
 
         {!loading && !error && type === "image" && (
           <div className="flex items-center justify-center p-4">
-            <img
-              src={downloadUrl}
-              alt={fileName}
-              loading="lazy"
-              className="max-w-full max-h-[70vh] object-contain"
-            />
+            {imageAuth.isLoading && <Spinner size="sm" className="text-muted-foreground" />}
+            {imageAuth.blobUrl && (
+              <img
+                src={imageAuth.blobUrl}
+                alt={fileName}
+                className="max-w-full max-h-[70vh] object-contain"
+              />
+            )}
           </div>
         )}
 
         {!loading && !error && type === "pdf" && (
-          <iframe
-            src={`/api/projects/${projectName}/shared-drive/preview?path=${encodeURIComponent(filePath)}`}
-            className="w-full h-full border-0"
-            title={fileName}
-          />
+          <>
+            {pdfAuth.isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Spinner size="sm" className="text-muted-foreground" />
+              </div>
+            )}
+            {pdfAuth.blobUrl && (
+              <iframe src={pdfAuth.blobUrl} className="w-full h-full border-0" title={fileName} />
+            )}
+          </>
         )}
 
         {!loading &&

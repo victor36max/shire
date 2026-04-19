@@ -31,6 +31,7 @@ import {
   useSyncedParam,
 } from "../../hooks";
 import { formatSize, getFileIcon, MAX_UPLOAD_SIZE } from "../../lib/file-utils";
+import { authenticatedDownload } from "../../lib/authenticated-download";
 import type { SharedDriveFile } from "../../hooks/shared-drive";
 
 function Breadcrumbs({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
@@ -331,14 +332,16 @@ export default function SharedDrivePanel() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {file.type === "file" && (
-                    <DropdownMenuItem asChild>
-                      <a
-                        href={`/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(file.path)}`}
-                        download
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </a>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        authenticatedDownload(
+                          `/api/projects/${projectName}/shared-drive/download?path=${encodeURIComponent(file.path)}`,
+                          file.name,
+                        )
+                      }
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={() => setRenameTarget(file)}>

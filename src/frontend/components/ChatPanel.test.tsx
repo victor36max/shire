@@ -517,7 +517,7 @@ describe("ChatPanel", () => {
     });
   });
 
-  it("renders file attachment as download link", async () => {
+  it("renders file attachment as download button", async () => {
     const msgWithAtt: Message = {
       id: 30,
       role: "agent",
@@ -532,11 +532,8 @@ describe("ChatPanel", () => {
     await waitFor(() => {
       expect(screen.getByText("report.pdf")).toBeInTheDocument();
     });
-    const link = screen.getByText("report.pdf").closest("a");
-    expect(link).toHaveAttribute(
-      "href",
-      "/api/projects/test-project/agents/a1/attachments/abc123/report.pdf",
-    );
+    const button = screen.getByText("report.pdf").closest("button");
+    expect(button).toBeInTheDocument();
   });
 
   it("renders image attachment as preview", async () => {
@@ -553,10 +550,7 @@ describe("ChatPanel", () => {
     renderChat(activeAgent);
     await waitFor(() => {
       const img = screen.getByAltText("screenshot.png");
-      expect(img).toHaveAttribute(
-        "src",
-        "/api/projects/test-project/agents/a1/attachments/img001/screenshot.png",
-      );
+      expect(img.getAttribute("src")).toMatch(/^blob:/);
     });
   });
 
@@ -579,10 +573,7 @@ describe("ChatPanel", () => {
     renderChat(activeAgent);
     await waitFor(() => {
       const img = screen.getByAltText("Screenshot 2026-04-10 at 10.30.00.png");
-      expect(img).toHaveAttribute(
-        "src",
-        "/api/projects/test-project/agents/a1/attachments/img002/Screenshot%202026-04-10%20at%2010.30.00.png",
-      );
+      expect(img.getAttribute("src")).toMatch(/^blob:/);
     });
   });
 
