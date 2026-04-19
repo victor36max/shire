@@ -51,6 +51,16 @@ export const defaultHandlers = [
       { status: 201 },
     ),
   ),
+  http.get(
+    "*/api/projects/:id/agents/:aid/attachments/:attId/*",
+    () =>
+      new HttpResponse(new Uint8Array([137, 80, 78, 71]), {
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Content-Disposition": 'inline; filename="file"',
+        },
+      }),
+  ),
 
   // --- Activity ---
   http.get("*/api/projects/:id/activity", () =>
