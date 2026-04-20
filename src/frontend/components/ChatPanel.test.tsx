@@ -738,10 +738,10 @@ describe("ChatPanel", () => {
       renderChat(activeAgent);
 
       await waitFor(() => {
-        expect(document.querySelector('input[type="file"]')).toBeTruthy();
+        expect(document.querySelector('[data-testid="chat-file-input"]')).toBeTruthy();
       });
 
-      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const input = document.querySelector('[data-testid="chat-file-input"]') as HTMLInputElement;
       expect(input.multiple).toBe(true);
 
       const files = [createFile("a.txt", 100), createFile("b.txt", 200)];
@@ -757,10 +757,10 @@ describe("ChatPanel", () => {
       renderChat(activeAgent);
 
       await waitFor(() => {
-        expect(document.querySelector('input[type="file"]')).toBeTruthy();
+        expect(document.querySelector('[data-testid="chat-file-input"]')).toBeTruthy();
       });
 
-      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const input = document.querySelector('[data-testid="chat-file-input"]') as HTMLInputElement;
 
       const bigFile = createFile("huge.bin", 129 * 1024 * 1024);
       const dt = createDataTransfer([bigFile]);
@@ -790,10 +790,10 @@ describe("ChatPanel", () => {
       renderChat(activeAgent);
 
       await waitFor(() => {
-        expect(document.querySelector('input[type="file"]')).toBeTruthy();
+        expect(document.querySelector('[data-testid="chat-file-input"]')).toBeTruthy();
       });
 
-      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const input = document.querySelector('[data-testid="chat-file-input"]') as HTMLInputElement;
       const files = [createFile("x.txt", 10), createFile("y.txt", 20), createFile("z.txt", 30)];
       const dt = createDataTransfer(files);
       Object.defineProperty(input, "files", { value: dt.files, configurable: true });
@@ -815,10 +815,10 @@ describe("ChatPanel", () => {
       renderChat(activeAgent);
 
       await waitFor(() => {
-        expect(document.querySelector('input[type="file"]')).toBeTruthy();
+        expect(document.querySelector('[data-testid="chat-file-input"]')).toBeTruthy();
       });
 
-      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const input = document.querySelector('[data-testid="chat-file-input"]') as HTMLInputElement;
 
       const dt = createDataTransfer([createFile("keep.txt", 10)]);
       Object.defineProperty(input, "files", { value: dt.files, configurable: true });
@@ -839,7 +839,7 @@ describe("ChatPanel", () => {
     it("renders hidden file input with multiple attribute", async () => {
       renderChat(activeAgent);
       await waitFor(() => {
-        const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+        const input = document.querySelector('[data-testid="chat-file-input"]') as HTMLInputElement;
         expect(input).toBeTruthy();
         expect(input.multiple).toBe(true);
       });
@@ -849,10 +849,10 @@ describe("ChatPanel", () => {
       renderChat(activeAgent);
 
       await waitFor(() => {
-        expect(document.querySelector('input[type="file"]')).toBeTruthy();
+        expect(document.querySelector('[data-testid="chat-file-input"]')).toBeTruthy();
       });
 
-      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const input = document.querySelector('[data-testid="chat-file-input"]') as HTMLInputElement;
 
       const files = [createFile("via-input.txt", 100)];
       const dt = createDataTransfer(files);
@@ -860,6 +860,48 @@ describe("ChatPanel", () => {
       fireEvent.change(input);
 
       await screen.findByText("via-input.txt");
+    });
+  });
+
+  describe("drag-and-drop file attachment", () => {
+    it("shows drop overlay on dragenter over chat panel", async () => {
+      renderChat(activeAgent);
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-dropzone")).toBeInTheDocument();
+      });
+
+      const dropzone = screen.getByTestId("chat-dropzone");
+      fireEvent.dragEnter(dropzone, {
+        dataTransfer: {
+          files: [],
+          items: [{ kind: "file", type: "text/plain" }],
+          types: ["Files"],
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Drop to attach files")).toBeInTheDocument();
+      });
+    });
+
+    it("attaches dropped files to pending list", async () => {
+      renderChat(activeAgent);
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-dropzone")).toBeInTheDocument();
+      });
+
+      const dropzone = screen.getByTestId("chat-dropzone");
+      const file = new File(["dropped content"], "dropped-file.txt", { type: "text/plain" });
+      const dtData = {
+        files: [file],
+        items: [{ kind: "file", type: "text/plain", getAsFile: () => file }],
+        types: ["Files"],
+      };
+      fireEvent.dragEnter(dropzone, { dataTransfer: dtData });
+      fireEvent.dragOver(dropzone, { dataTransfer: dtData });
+      fireEvent.drop(dropzone, { dataTransfer: dtData });
+
+      await screen.findByText("dropped-file.txt");
     });
   });
 

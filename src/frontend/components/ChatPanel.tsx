@@ -1,4 +1,6 @@
 import * as React from "react";
+import { useDropzone } from "react-dropzone";
+import { Upload } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 import { Button } from "./ui/button";
 import Markdown from "./Markdown";
@@ -19,7 +21,7 @@ import { ToolCallMessage } from "./chat/ToolCallMessage";
 import { InterAgentMessage } from "./chat/InterAgentMessage";
 import { SystemMessage } from "./chat/SystemMessage";
 import { AttachmentDisplay } from "./chat/AttachmentDisplay";
-import { ChatInput } from "./chat/ChatInput";
+import { ChatInput, type ChatInputHandle } from "./chat/ChatInput";
 import type { MessageRole } from "./ai-elements/types";
 
 // Re-export types for backward compatibility with tests
@@ -119,8 +121,26 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
 
   const hasMessages = messages.length > 0 || streamingText.length > 0;
 
+  const chatInputRef = React.useRef<ChatInputHandle>(null);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: (accepted) => chatInputRef.current?.addFiles(accepted),
+    multiple: true,
+    noClick: true,
+    noKeyboard: true,
+    useFsAccessApi: false,
+  });
+
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full relative" data-testid="chat-dropzone" {...getRootProps()}>
+      <input {...getInputProps()} />
+      {isDragActive && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg">
+          <div className="flex flex-col items-center gap-2 text-primary">
+            <Upload className="h-8 w-8" />
+            <span className="text-sm font-medium">Drop to attach files</span>
+          </div>
+        </div>
+      )}
       <Conversation instance={stickyInstance}>
         <ConversationContent>
           {loadingMore && (
@@ -219,7 +239,7 @@ export default function ChatPanel({ agent, streamingText: externalStreamingText 
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <ChatInput agent={agent} onMessageSent={stickyInstance.scrollToBottom} />
+      <ChatInput ref={chatInputRef} agent={agent} onMessageSent={stickyInstance.scrollToBottom} />
     </div>
   );
 }

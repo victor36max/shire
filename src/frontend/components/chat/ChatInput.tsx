@@ -19,12 +19,19 @@ import { type PendingFile, MAX_FILE_SIZE, formatFileSize } from "./types";
 import { getFileIcon } from "../../lib/file-utils";
 import { FileMentionDropdown } from "./FileMentionDropdown";
 
+export interface ChatInputHandle {
+  addFiles: (files: File[]) => void;
+}
+
 interface ChatInputProps {
   agent: AgentOverview;
   onMessageSent?: () => void;
 }
 
-export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
+export const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput(
+  { agent, onMessageSent },
+  ref,
+) {
   const { projectId } = useProjectId();
   const updateAgentCache = useUpdateAgentCache(projectId);
   const markBusy = () => updateAgentCache(agent.id, { busy: true });
@@ -175,6 +182,19 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      addFiles: (files: File[]) => {
+        if (files.length === 0) return;
+        const dt = new DataTransfer();
+        for (const f of files) dt.items.add(f);
+        handleFileSelect(dt.files);
+      },
+    }),
+    [handleFileSelect],
+  );
+
   const anyPending = pendingFiles.some((f) => f.uploadId === null && !f.error);
 
   const handleSend = () => {
@@ -248,6 +268,7 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
         type="file"
         multiple
         className="sr-only"
+        data-testid="chat-file-input"
         onChange={(e) => handleFileSelect(e.target.files)}
       />
       {uploadError && (
@@ -357,4 +378,4 @@ export function ChatInput({ agent, onMessageSent }: ChatInputProps) {
       </div>
     </div>
   );
-}
+});
