@@ -211,7 +211,12 @@ export default function SharedDrivePanel() {
     [currentPath, uploadFile],
   );
 
-  const { getInputProps, open: openFilePicker } = useDropzone({
+  const {
+    getRootProps,
+    getInputProps,
+    isDragActive,
+    open: openFilePicker,
+  } = useDropzone({
     onDrop: (accepted) => uploadFiles(accepted),
     multiple: true,
     noClick: true,
@@ -226,7 +231,6 @@ export default function SharedDrivePanel() {
 
   return (
     <>
-      <input {...getInputProps()} />
       <div className="px-3 py-2 border-b border-border flex items-center gap-2">
         <Breadcrumbs path={currentPath} onNavigate={navigate} />
         <div className="ml-auto flex items-center gap-1 shrink-0">
@@ -272,7 +276,16 @@ export default function SharedDrivePanel() {
       )}
       {uploadError && <p className="px-3 pt-1 text-xs text-destructive">{uploadError}</p>}
 
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto py-1 relative" {...getRootProps()}>
+        <input {...getInputProps()} />
+        {isDragActive && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-md">
+            <div className="flex flex-col items-center gap-1 text-primary">
+              <Upload className="h-5 w-5" />
+              <span className="text-xs font-medium">Drop files here</span>
+            </div>
+          </div>
+        )}
         {filesLoading && (
           <div className="flex items-center justify-center py-6">
             <Spinner size="sm" className="text-muted-foreground" />
