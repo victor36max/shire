@@ -126,6 +126,7 @@ export default function ProjectLayout() {
   const [editingAgent, setEditingAgent] = React.useState<Agent | null>(null);
   const [currentAgent, setCurrentAgent] = React.useState<Agent | null>(null);
   const [catalogOpen, setCatalogOpen] = React.useState(false);
+  const [formKey, setFormKey] = React.useState(0);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
   // Close mobile sidebar when agent changes
@@ -154,6 +155,7 @@ export default function ProjectLayout() {
       });
       setEditingAgent(null);
       setFormTitle("New Agent from Catalog");
+      setFormKey((k) => k + 1);
       setFormOpen(true);
     } catch {
       setCatalogOpen(true);
@@ -205,6 +207,7 @@ export default function ProjectLayout() {
     setCurrentAgent(null);
     setEditingAgent(null);
     setFormTitle("New Agent");
+    setFormKey((k) => k + 1);
     setFormOpen(true);
   };
 
@@ -324,7 +327,7 @@ export default function ProjectLayout() {
         )}
 
         <AgentForm
-          key={currentAgent?.id ?? "new"}
+          key={currentAgent?.id || formKey}
           open={formOpen}
           title={formTitle}
           agent={currentAgent}
