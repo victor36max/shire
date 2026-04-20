@@ -217,6 +217,7 @@ export class AgentManager {
         content: savedAttachments.length > 0 ? { text, attachments: savedAttachments } : { text },
       });
       this.lastUserMessageAt = msg.createdAt;
+      this.broadcastNewMessage(msg);
     }
 
     // Send directly to harness (no inbox file needed for direct messages)
@@ -258,6 +259,14 @@ export class AgentManager {
     if (this.busy) {
       await this.harness.interrupt();
       this.busy = false;
+      this.broadcastAgent({
+        type: "agent_busy",
+        payload: { agentId: this.agentId, active: false },
+      });
+      this.broadcastAgents({
+        type: "agent_busy",
+        payload: { agentId: this.agentId, active: false },
+      });
     }
     await this.harness.clearSession();
     agentsService.setSessionId(this.agentId, null);
@@ -283,6 +292,14 @@ export class AgentManager {
       if (this.busy) {
         await this.harness.interrupt();
         this.busy = false;
+        this.broadcastAgent({
+          type: "agent_busy",
+          payload: { agentId: this.agentId, active: false },
+        });
+        this.broadcastAgents({
+          type: "agent_busy",
+          payload: { agentId: this.agentId, active: false },
+        });
       }
       await this.harness.clearSession();
       agentsService.setSessionId(this.agentId, null);
