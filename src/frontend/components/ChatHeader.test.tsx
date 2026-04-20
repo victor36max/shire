@@ -86,7 +86,7 @@ describe("ChatHeader", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
-  it("renders Delete option in dropdown and shows confirmation dialog", async () => {
+  it("shows Clear History confirmation dialog when clicked", async () => {
     const user = userEvent.setup();
     renderChatHeader();
 
@@ -95,17 +95,17 @@ describe("ChatHeader", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Agent options" }));
-    await user.click(screen.getByText("Delete"));
+    await user.click(screen.getByText("Clear History"));
 
-    expect(screen.getByText("Delete Agent")).toBeInTheDocument();
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByText(/permanently delete all messages/)).toBeInTheDocument();
   });
 
-  it("executes delete when confirmed", async () => {
-    let deletedId: string | undefined;
+  it("executes clear history when confirmed", async () => {
+    let clearHistoryCalled = false;
     server.use(
-      http.delete("*/api/projects/:id/agents/:aid", ({ params }) => {
-        deletedId = params.aid as string;
+      http.post("*/api/projects/:id/agents/:aid/clear-history", () => {
+        clearHistoryCalled = true;
         return HttpResponse.json({ ok: true });
       }),
     );
@@ -118,14 +118,14 @@ describe("ChatHeader", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Agent options" }));
-    await user.click(screen.getByText("Delete"));
+    await user.click(screen.getByText("Clear History"));
 
     const alertDialog = screen.getByRole("alertdialog");
     const confirmButton = alertDialog.querySelector("button:last-of-type");
     expect(confirmButton).toBeTruthy();
     await user.click(confirmButton!);
 
-    await waitFor(() => expect(deletedId).toBe("a1"));
+    await waitFor(() => expect(clearHistoryCalled).toBe(true));
   });
 
   it("renders mobile menu toggle when onMenuToggle is provided", () => {

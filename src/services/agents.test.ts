@@ -382,6 +382,42 @@ describe("agents service", () => {
     });
   });
 
+  describe("deleteMessages", () => {
+    it("deletes all messages for the given agent", () => {
+      agents.createMessage({ projectId, agentId, role: "user", content: { text: "hi" } });
+      agents.createMessage({ projectId, agentId, role: "agent", content: { text: "hello" } });
+
+      agents.deleteMessages(projectId, agentId);
+
+      const { messages: remaining } = agents.listMessages(projectId, agentId);
+      expect(remaining.length).toBe(0);
+    });
+
+    it("does not affect other agents' messages", () => {
+      agents.createMessage({ projectId, agentId, role: "user", content: { text: "hi" } });
+      agents.createMessage({
+        projectId,
+        agentId: agent2Id,
+        role: "user",
+        content: { text: "keep me" },
+      });
+
+      agents.deleteMessages(projectId, agentId);
+
+      const { messages: agent1Msgs } = agents.listMessages(projectId, agentId);
+      expect(agent1Msgs.length).toBe(0);
+
+      const { messages: agent2Msgs } = agents.listMessages(projectId, agent2Id);
+      expect(agent2Msgs.length).toBe(1);
+    });
+
+    it("is a no-op when no messages exist", () => {
+      agents.deleteMessages(projectId, agentId);
+      const { messages } = agents.listMessages(projectId, agentId);
+      expect(messages.length).toBe(0);
+    });
+  });
+
   describe("deleteAgent", () => {
     it("deletes agent and cascades messages", () => {
       const delAgent = agents.createAgent(projectId, { name: "delete-test" });
