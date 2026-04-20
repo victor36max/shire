@@ -255,8 +255,14 @@ export class AgentManager {
 
   async clearSession(): Promise<boolean> {
     if (!this.running || !this.harness) return false;
+    if (this.busy) {
+      await this.harness.interrupt();
+      this.busy = false;
+    }
     await this.harness.clearSession();
     agentsService.setSessionId(this.agentId, null);
+    this.toolUseIds.clear();
+    this.streamingText = null;
     const msg = agentsService.createMessage({
       projectId: this.projectId,
       agentId: this.agentId,
@@ -269,6 +275,27 @@ export class AgentManager {
       message: serializeMessage(msg),
     });
     return true;
+  }
+
+  async clearHistory(): Promise<void> {
+    // Interrupt and clear session if harness is running
+    if (this.running && this.harness) {
+      if (this.busy) {
+        await this.harness.interrupt();
+        this.busy = false;
+      }
+      await this.harness.clearSession();
+      agentsService.setSessionId(this.agentId, null);
+    }
+    agentsService.deleteMessages(this.projectId, this.agentId);
+    this.lastReadMessageId = null;
+    this.lastUserMessageAt = null;
+    this.toolUseIds.clear();
+    this.streamingText = null;
+    this.broadcastAgent({
+      type: "system_message",
+      payload: { text: "History cleared" },
+    });
   }
 
   markRead(messageId: number): void {

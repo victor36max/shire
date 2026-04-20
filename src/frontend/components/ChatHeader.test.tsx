@@ -128,6 +128,48 @@ describe("ChatHeader", () => {
     await waitFor(() => expect(deletedId).toBe("a1"));
   });
 
+  it("shows Clear History confirmation dialog when clicked", async () => {
+    const user = userEvent.setup();
+    renderChatHeader();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Agent options" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Agent options" }));
+    await user.click(screen.getByText("Clear History"));
+
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByText(/permanently delete all messages/)).toBeInTheDocument();
+  });
+
+  it("executes clear history when confirmed", async () => {
+    let clearHistoryCalled = false;
+    server.use(
+      http.post("*/api/projects/:id/agents/:aid/clear-history", () => {
+        clearHistoryCalled = true;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderChatHeader();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Agent options" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Agent options" }));
+    await user.click(screen.getByText("Clear History"));
+
+    const alertDialog = screen.getByRole("alertdialog");
+    const confirmButton = alertDialog.querySelector("button:last-of-type");
+    expect(confirmButton).toBeTruthy();
+    await user.click(confirmButton!);
+
+    await waitFor(() => expect(clearHistoryCalled).toBe(true));
+  });
+
   it("renders mobile menu toggle when onMenuToggle is provided", () => {
     renderChatHeader({ onMenuToggle: mock(() => {}) });
     expect(screen.getByRole("button", { name: "Open menu" })).toBeInTheDocument();

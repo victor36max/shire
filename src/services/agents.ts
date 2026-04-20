@@ -142,6 +142,13 @@ export function getMessage(id: number) {
   return getDb().select().from(messages).where(eq(messages.id, id)).get();
 }
 
+export function deleteMessages(projectId: string, agentId: string) {
+  getDb()
+    .delete(messages)
+    .where(and(eq(messages.projectId, projectId), eq(messages.agentId, agentId)))
+    .run();
+}
+
 export function updateMessage(id: number, attrs: { content?: Record<string, unknown> }) {
   return getDb().update(messages).set(attrs).where(eq(messages.id, id)).returning().get();
 }

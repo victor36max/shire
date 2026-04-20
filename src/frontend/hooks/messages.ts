@@ -98,3 +98,19 @@ export function useClearSession(projectId: string) {
       ),
   });
 }
+
+export function useClearHistory(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (agentId: string) =>
+      unwrap(
+        await api.projects[":id"].agents[":aid"]["clear-history"].$post({
+          param: { id: projectId, aid: agentId },
+        }),
+      ),
+    onSuccess: (_data, agentId) => {
+      qc.invalidateQueries({ queryKey: ["messages", projectId, agentId] });
+      qc.invalidateQueries({ queryKey: ["agents", projectId] });
+    },
+  });
+}
