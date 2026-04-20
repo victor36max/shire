@@ -208,4 +208,15 @@ export const agentRoutes = new Hono<AppEnv>()
     const ok = await agent.clearSession();
     if (!ok) return c.json({ error: "Agent not active" }, 422);
     return c.json({ ok: true });
+  })
+  .post("/projects/:id/agents/:aid/clear-history", async (c) => {
+    const pm = c.get("projectManager");
+    const coordinator = pm.getCoordinator(c.req.param("id"));
+    if (!coordinator) return c.json({ error: "Project not found" }, 404);
+
+    const agent = coordinator.getAgent(c.req.param("aid"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+
+    await agent.clearHistory();
+    return c.json({ ok: true });
   });

@@ -178,6 +178,44 @@ describe("POST /api/projects/:id/agents/:aid/message attachmentIds validation", 
   });
 });
 
+describe("POST /api/projects/:id/agents/:aid/clear-history", () => {
+  it("clears all messages for the agent", async () => {
+    agentsService.createMessage({
+      projectId,
+      agentId,
+      role: "user",
+      content: { text: "hello" },
+    });
+    agentsService.createMessage({
+      projectId,
+      agentId,
+      role: "agent",
+      content: { text: "hi there" },
+    });
+
+    const res = await request("POST", `/api/projects/${projectId}/agents/${agentId}/clear-history`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.ok).toBe(true);
+
+    const { messages } = agentsService.listMessages(projectId, agentId);
+    expect(messages.length).toBe(0);
+  });
+
+  it("returns 404 for unknown agent", async () => {
+    const res = await request(
+      "POST",
+      `/api/projects/${projectId}/agents/nonexistent/clear-history`,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 for unknown project", async () => {
+    const res = await request("POST", `/api/projects/nonexistent/agents/${agentId}/clear-history`);
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("GET /api/projects/:id/agents", () => {
   it("lists agents for a project", async () => {
     const res = await request("GET", `/api/projects/${projectId}/agents`);

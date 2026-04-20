@@ -1,12 +1,11 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Menu, EllipsisVertical, Eraser, Settings, Trash2 } from "lucide-react";
+import { Menu, EllipsisVertical, Eraser, History, Settings } from "lucide-react";
 import { Button, buttonVariants } from "./ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import {
@@ -20,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { type AgentOverview } from "./types";
-import { useProjectId, useClearSession, useDeleteAgent } from "../hooks";
+import { useProjectId, useClearSession, useClearHistory } from "../hooks";
 
 interface ChatHeaderProps {
   agent: AgentOverview;
@@ -32,15 +31,12 @@ export default function ChatHeader({ agent, onMenuToggle }: ChatHeaderProps) {
   const { projectName } = useParams<{ projectName: string }>();
   const { projectId } = useProjectId();
   const clearSession = useClearSession(projectId ?? "");
-  const deleteAgentMut = useDeleteAgent(projectId ?? "");
-  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const clearHistory = useClearHistory(projectId ?? "");
+  const [clearHistoryOpen, setClearHistoryOpen] = React.useState(false);
 
-  const handleDelete = () => {
-    deleteAgentMut.mutate(agent.id, {
-      onSuccess: () => {
-        setDeleteOpen(false);
-        navigate(`/projects/${projectName}`);
-      },
+  const handleClearHistory = () => {
+    clearHistory.mutate(agent.id, {
+      onSuccess: () => setClearHistoryOpen(false),
     });
   };
 
@@ -78,36 +74,35 @@ export default function ChatHeader({ agent, onMenuToggle }: ChatHeaderProps) {
                 <Eraser className="h-4 w-4 mr-2" />
                 Clear Session
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onClick={() => setDeleteOpen(true)}
+                onClick={() => setClearHistoryOpen(true)}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
+                <History className="h-4 w-4 mr-2" />
+                Clear History
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <AlertDialog open={clearHistoryOpen} onOpenChange={setClearHistoryOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Agent</AlertDialogTitle>
+            <AlertDialogTitle>Clear History</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{agent.name}&rdquo;? This action cannot be
-              undone.
+              This will permanently delete all messages for &ldquo;{agent.name}&rdquo;. This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className={buttonVariants({ variant: "destructive" })}
-              onClick={handleDelete}
-              disabled={deleteAgentMut.isPending}
+              onClick={handleClearHistory}
+              disabled={clearHistory.isPending}
             >
-              {deleteAgentMut.isPending ? "Deleting..." : "Delete"}
+              {clearHistory.isPending ? "Clearing..." : "Clear History"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
