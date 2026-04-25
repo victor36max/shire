@@ -558,4 +558,93 @@ describe("shared-drive routes", () => {
     const res = await request("GET", "/api/projects/sd-test/shared-drive");
     expect(res.status).toBe(200);
   });
+
+  it("GET /api/projects/:id/shared-drive/download-folder returns ZIP for valid directory", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    const folderPath = join(sharedRoot, "my-folder");
+    mkdirSync(folderPath, { recursive: true });
+    writeFileSync(join(folderPath, "a.txt"), "file a");
+    writeFileSync(join(folderPath, "b.txt"), "file b");
+
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/shared-drive/download-folder?path=/my-folder`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/zip");
+    expect(res.headers.get("Content-Disposition")).toContain("my-folder.zip");
+    // Verify we got a non-empty response
+    const data = await res.arrayBuffer();
+    expect(data.byteLength).toBeGreaterThan(0);
+  });
+
+  it("GET /api/projects/:id/shared-drive/download-folder returns 404 for non-existent path", async () => {
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/shared-drive/download-folder?path=/missing-folder`,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /api/projects/:id/shared-drive/download-folder returns 400 for traversal", async () => {
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/shared-drive/download-folder?path=../../etc`,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/projects/:id/shared-drive/download-folder returns 400 for file path", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    mkdirSync(sharedRoot, { recursive: true });
+    writeFileSync(join(sharedRoot, "not-a-dir.txt"), "hello");
+
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/shared-drive/download-folder?path=/not-a-dir.txt`,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/projects/:id/shared-drive/download-folder returns 404 for unknown project", async () => {
+    const res = await request(
+      "GET",
+      "/api/projects/nonexistent/shared-drive/download-folder?path=/dir",
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /api/projects/:id/shared-drive/download-folder returns Content-Length header", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    const folderPath = join(sharedRoot, "sized-folder");
+    mkdirSync(folderPath, { recursive: true });
+    writeFileSync(join(folderPath, "file.txt"), "content");
+
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/shared-drive/download-folder?path=/sized-folder`,
+    );
+    expect(res.status).toBe(200);
+    const contentLength = res.headers.get("Content-Length");
+    expect(contentLength).toBeTruthy();
+    const data = await res.arrayBuffer();
+    expect(data.byteLength.toString()).toBe(contentLength!);
+  });
+
+  it("GET /api/projects/:id/shared-drive/download-folder handles nested directories", async () => {
+    const sharedRoot = workspace.sharedDir(projectId);
+    const folderPath = join(sharedRoot, "parent");
+    mkdirSync(join(folderPath, "child"), { recursive: true });
+    writeFileSync(join(folderPath, "top.txt"), "top");
+    writeFileSync(join(folderPath, "child", "nested.txt"), "nested");
+
+    const res = await request(
+      "GET",
+      `/api/projects/${projectId}/shared-drive/download-folder?path=/parent`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/zip");
+    const data = await res.arrayBuffer();
+    expect(data.byteLength).toBeGreaterThan(0);
+  });
 });
