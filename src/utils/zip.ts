@@ -1,4 +1,4 @@
-import { zipSync, type Zippable } from "fflate";
+import { zip, type Zippable } from "fflate";
 import { readdir, readFile, stat } from "fs/promises";
 import { join, relative } from "path";
 
@@ -63,7 +63,12 @@ export async function createZipBuffer(rootDir: string, options?: ZipOptions): Pr
     zipData[file.rel] = new Uint8Array(data);
   }
 
-  return zipSync(zipData);
+  return new Promise<Uint8Array>((resolve, reject) => {
+    zip(zipData, (err, data) => {
+      if (err) reject(err);
+      else resolve(data);
+    });
+  });
 }
 
 export class ZipLimitError extends Error {

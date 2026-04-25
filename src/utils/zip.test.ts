@@ -83,13 +83,13 @@ describe("createZipBuffer", () => {
     writeFileSync(join(testDir, "c.txt"), "c");
 
     const opts: ZipOptions = { maxFileCount: 2 };
-    expect(createZipBuffer(testDir, opts)).rejects.toThrow(ZipLimitError);
+    await expect(createZipBuffer(testDir, opts)).rejects.toThrow(ZipLimitError);
   });
 
   it("throws ZipLimitError when total size exceeds limit", async () => {
     writeFileSync(join(testDir, "big.txt"), "x".repeat(100));
 
     const opts: ZipOptions = { maxTotalSize: 50 };
-    expect(createZipBuffer(testDir, opts)).rejects.toThrow(ZipLimitError);
+    await expect(createZipBuffer(testDir, opts)).rejects.toThrow(ZipLimitError);
   });
 });

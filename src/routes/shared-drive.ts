@@ -188,7 +188,8 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
 
       try {
         const zipData = await createZipBuffer(fullPath);
-        const folderName = basename(fullPath);
+        const folderName =
+          fullPath === sharedRoot ? `${c.req.param("id")}-shared-drive` : basename(fullPath);
         const zipBuffer = Buffer.from(zipData);
         return new Response(zipBuffer, {
           headers: {
