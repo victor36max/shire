@@ -357,6 +357,19 @@ export default function SharedDrivePanel() {
                       Download
                     </DropdownMenuItem>
                   )}
+                  {file.type === "directory" && (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        authenticatedDownload(
+                          `/api/projects/${projectName}/shared-drive/download-folder?path=${encodeURIComponent(file.path)}`,
+                          `${file.name}.zip`,
+                        )
+                      }
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download as ZIP
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => setRenameTarget(file)}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Rename

@@ -7,6 +7,7 @@ import * as workspace from "../services/workspace";
 import * as projectsService from "../services/projects";
 import type { AppEnv } from "../types";
 import { mimeFromPath } from "../utils/mime";
+import { createZipBuffer, ZipLimitError } from "../utils/zip";
 
 function resolveProjectId(nameOrId: string): string | null {
   const byId = projectsService.getProject(nameOrId);
@@ -163,6 +164,47 @@ export const sharedDriveRoutes = new Hono<AppEnv>()
       return c.json({ error: "File not found" }, 404);
     }
   })
+  .get(
+    "/projects/:id/shared-drive/download-folder",
+    zValidator("query", requiredPathQuery),
+    async (c) => {
+      const projectId = resolveProjectId(c.req.param("id"));
+      if (!projectId) return c.json({ error: "Project not found" }, 404);
+
+      const sharedRoot = workspace.sharedDir(projectId);
+      const { path } = c.req.valid("query");
+
+      const fullPath = safePath(sharedRoot, path);
+      if (!fullPath) return c.json({ error: "Invalid path" }, 400);
+
+      try {
+        const s = await stat(fullPath);
+        if (!s.isDirectory()) {
+          return c.json({ error: "Path is not a directory" }, 400);
+        }
+      } catch {
+        return c.json({ error: "Directory not found" }, 404);
+      }
+
+      try {
+        const zipData = await createZipBuffer(fullPath);
+        const folderName = basename(fullPath);
+        const zipBuffer = Buffer.from(zipData);
+        return new Response(zipBuffer, {
+          headers: {
+            "Content-Disposition": `attachment; filename="${folderName.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}.zip"`,
+            "Content-Type": "application/zip",
+            "Content-Length": zipData.byteLength.toString(),
+          },
+        });
+      } catch (err) {
+        if (err instanceof ZipLimitError) {
+          return c.json({ error: err.message }, 413);
+        }
+        throw err;
+      }
+    },
+  )
   .post(
     "/projects/:id/shared-drive/directory",
     zValidator("json", z.object({ name: z.string(), path: z.string().optional() })),
