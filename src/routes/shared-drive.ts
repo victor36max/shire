@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { readdir, stat, readFile, mkdir, unlink, rm, writeFile, access, rename } from "fs/promises";
-import { join, resolve, basename, dirname } from "path";
+import { join, basename, dirname } from "path";
 import * as workspace from "../services/workspace";
 import * as projectsService from "../services/projects";
+import { safePath } from "../services/shared-drive-paths";
 import type { AppEnv } from "../types";
 import { mimeFromPath } from "../utils/mime";
 
@@ -13,15 +14,6 @@ function resolveProjectId(nameOrId: string): string | null {
   if (byId) return byId.id;
   const byName = projectsService.getProjectByName(nameOrId);
   return byName?.id ?? null;
-}
-
-export function safePath(sharedRoot: string, userPath: string): string | null {
-  // Normalize: treat "/" or empty as the shared root itself
-  const normalized = userPath === "/" || userPath === "" ? "." : userPath.replace(/^\/+/, "");
-  const resolved = resolve(sharedRoot, normalized);
-  // Guard against prefix collisions (e.g. /shared vs /shared-evil)
-  if (resolved !== sharedRoot && !resolved.startsWith(sharedRoot + "/")) return null;
-  return resolved;
 }
 
 const pathQuery = z.object({ path: z.string().optional() });

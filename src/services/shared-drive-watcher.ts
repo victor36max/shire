@@ -1,76 +1,140 @@
-import { watch, type FSWatcher } from "fs";
-import { mkdir } from "fs/promises";
-import { relative } from "path";
+import { watch, statSync, type FSWatcher } from "fs";
 import { bus, type SharedDriveBusEvent } from "../events";
+import { safePath } from "./shared-drive-paths";
 import * as workspace from "./workspace";
 
-const watchers = new Map<string, FSWatcher>();
-
-/** Tracks projects where stop was called while mkdir was still in-flight. */
-const stoppedProjects = new Set<string>();
-
-/** Debounce timers keyed by `${projectId}:${relativePath}`. */
-const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
+const TOPIC_PREFIX = "shared-drive:";
 const DEBOUNCE_MS = 300;
 
-export function startSharedDriveWatcher(projectId: string): void {
-  if (watchers.has(projectId)) return;
-  stoppedProjects.delete(projectId);
-
-  const sharedRoot = workspace.sharedDir(projectId);
-
-  // Ensure the directory exists before watching
-  mkdir(sharedRoot, { recursive: true })
-    .then(() => {
-      // Guard against stop being called before mkdir resolves
-      if (watchers.has(projectId) || stoppedProjects.has(projectId)) {
-        stoppedProjects.delete(projectId);
-        return;
-      }
-
-      const watcher = watch(sharedRoot, { recursive: true }, (_event, filename) => {
-        if (!filename) return;
-
-        // Normalize to forward-slash relative path with leading /
-        const rel = "/" + relative(sharedRoot, `${sharedRoot}/${filename}`).replace(/\\/g, "/");
-        const key = `${projectId}:${rel}`;
-
-        const existing = debounceTimers.get(key);
-        if (existing) clearTimeout(existing);
-
-        debounceTimers.set(
-          key,
-          setTimeout(() => {
-            debounceTimers.delete(key);
-            bus.emit<SharedDriveBusEvent>(`project:${projectId}:shared-drive`, {
-              type: "file_changed",
-              payload: { path: rel },
-            });
-          }, DEBOUNCE_MS),
-        );
-      });
-
-      watchers.set(projectId, watcher);
-    })
-    .catch((err) => {
-      console.error(`Failed to start shared drive watcher for project ${projectId}:`, err);
-    });
+interface Entry {
+  watcher: FSWatcher | null;
+  refCount: number;
+  debounceTimer: ReturnType<typeof setTimeout> | null;
+  pendingPath: string | null;
 }
 
-export function stopSharedDriveWatcher(projectId: string): void {
-  stoppedProjects.add(projectId);
-  const watcher = watchers.get(projectId);
-  if (watcher) {
-    watcher.close();
-    watchers.delete(projectId);
+const entries = new Map<string, Entry>();
+
+interface ParsedTopic {
+  projectId: string;
+  sharedRelPath: string;
+}
+
+function parseTopic(topic: string): ParsedTopic | null {
+  if (!topic.startsWith(TOPIC_PREFIX)) return null;
+  const rest = topic.slice(TOPIC_PREFIX.length);
+  const colonIdx = rest.indexOf(":");
+  if (colonIdx <= 0) return null;
+  const projectId = rest.slice(0, colonIdx);
+  const sharedRelPath = rest.slice(colonIdx + 1);
+  if (!sharedRelPath) return null;
+  return { projectId, sharedRelPath };
+}
+
+function buildEmitPath(
+  sharedRelPath: string,
+  filename: string | null,
+  isDirWatch: boolean,
+): string | null {
+  if (!isDirWatch) return normalizeRelPath(sharedRelPath);
+  if (!filename) return null;
+  const base = sharedRelPath.endsWith("/") ? sharedRelPath : sharedRelPath + "/";
+  return normalizeRelPath(base + filename.replace(/\\/g, "/"));
+}
+
+function normalizeRelPath(p: string): string {
+  let out = p.replace(/\/+/g, "/");
+  if (!out.startsWith("/")) out = "/" + out;
+  return out;
+}
+
+function scheduleEmit(topic: string, path: string): void {
+  const entry = entries.get(topic);
+  if (!entry) return;
+  entry.pendingPath = path;
+  if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+  entry.debounceTimer = setTimeout(() => {
+    entry.debounceTimer = null;
+    const finalPath = entry.pendingPath;
+    entry.pendingPath = null;
+    if (finalPath == null) return;
+    bus.emit<SharedDriveBusEvent>(topic, {
+      type: "file_changed",
+      payload: { path: finalPath },
+    });
+  }, DEBOUNCE_MS);
+}
+
+/**
+ * Start watching the path encoded in a `shared-drive:{projectId}:{path}` topic
+ * (or bump the refcount if it's already being watched). Safe to call repeatedly
+ * and safe for malformed topics, missing paths, or paths outside the project's
+ * shared root — those become no-ops that can still be released.
+ */
+export function acquireSharedDriveWatch(topic: string): void {
+  const parsed = parseTopic(topic);
+  if (!parsed) return;
+
+  const existing = entries.get(topic);
+  if (existing) {
+    existing.refCount += 1;
+    return;
   }
 
-  // Clean up any pending debounce timers for this project
-  for (const [key, timer] of debounceTimers) {
-    if (key.startsWith(`${projectId}:`)) {
-      clearTimeout(timer);
-      debounceTimers.delete(key);
+  const entry: Entry = {
+    watcher: null,
+    refCount: 1,
+    debounceTimer: null,
+    pendingPath: null,
+  };
+  entries.set(topic, entry);
+
+  const sharedRoot = workspace.sharedDir(parsed.projectId);
+  const absPath = safePath(sharedRoot, parsed.sharedRelPath);
+  if (!absPath) return;
+
+  let isDir: boolean;
+  try {
+    isDir = statSync(absPath).isDirectory();
+  } catch {
+    return;
+  }
+
+  try {
+    const handler = (_event: string, filename: string | Buffer | null): void => {
+      const name = typeof filename === "string" ? filename : (filename?.toString("utf-8") ?? null);
+      const path = buildEmitPath(parsed.sharedRelPath, name, isDir);
+      if (path) scheduleEmit(topic, path);
+    };
+    const watcher = isDir ? watch(absPath, { recursive: false }, handler) : watch(absPath, handler);
+    watcher.on("error", () => {
+      // fs.watch can error when the watched path is removed; swallow so the
+      // process stays up. The next acquire will re-stat and re-watch.
+    });
+    entry.watcher = watcher;
+  } catch {
+    // Failed to set up the watcher (e.g. path was deleted between stat and
+    // watch). Leave the entry intact so refcount/release still balance.
+  }
+}
+
+/**
+ * Release one reference to a `shared-drive:{projectId}:{path}` topic. When the
+ * last reference is released the underlying `FSWatcher` (if any) is closed.
+ * Safe to call with topics that were never acquired.
+ */
+export function releaseSharedDriveWatch(topic: string): void {
+  const entry = entries.get(topic);
+  if (!entry) return;
+  entry.refCount -= 1;
+  if (entry.refCount > 0) return;
+  if (entry.watcher) {
+    try {
+      entry.watcher.close();
+    } catch {
+      // Already closed.
     }
   }
+  if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+  entries.delete(topic);
 }

@@ -21,7 +21,7 @@ import {
   useSyncedParam,
 } from "../hooks";
 import { useSubscription } from "../hooks/ws";
-import type { AgentListWsEvent, SharedDriveWsEvent } from "../lib/ws";
+import type { AgentListWsEvent } from "../lib/ws";
 import {
   ProjectLayoutContext,
   ProjectLayoutProvider,
@@ -184,20 +184,6 @@ export default function ProjectLayout() {
         break;
     }
   });
-
-  // Subscribe to shared drive file changes to keep caches fresh
-  useSubscription<SharedDriveWsEvent>(
-    projectId ? `project:${projectId}:shared-drive` : null,
-    React.useCallback(
-      (event) => {
-        if (event.type === "file_changed") {
-          queryClient.invalidateQueries({ queryKey: ["shared-drive", projectId] });
-          queryClient.invalidateQueries({ queryKey: ["file-content", projectId] });
-        }
-      },
-      [queryClient, projectId],
-    ),
-  );
 
   const handleBrowseCatalog = () => {
     setCatalogOpen(true);
