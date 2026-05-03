@@ -17,6 +17,9 @@ import { versionRoutes } from "./routes/version";
 import { authRoutes } from "./routes/auth";
 import { authMiddleware } from "./middleware/auth";
 import { isAuthEnabled } from "./lib/auth-config";
+import { acquireSharedDriveWatch, releaseSharedDriveWatch } from "./services/shared-drive-watcher";
+
+const SHARED_DRIVE_TOPIC_PREFIX = "shared-drive:";
 
 export interface AppContext {
   projectManager: ProjectManager;
@@ -97,13 +100,19 @@ export function handleWsMessage(ws: WsLike, data: string): void {
   switch (cmd.type) {
     case "subscribe": {
       if (!cmd.topic || subs.has(cmd.topic)) return;
-      const unsub = bus.on(cmd.topic, (event: BusEvent) => {
+      const busUnsub = bus.on(cmd.topic, (event: BusEvent) => {
         try {
           ws.send(JSON.stringify({ topic: cmd.topic, ...event }));
         } catch {
           // ws closed
         }
       });
+      const isSharedDrive = cmd.topic.startsWith(SHARED_DRIVE_TOPIC_PREFIX);
+      if (isSharedDrive) acquireSharedDriveWatch(cmd.topic);
+      const unsub = (): void => {
+        busUnsub();
+        if (isSharedDrive) releaseSharedDriveWatch(cmd.topic);
+      };
       subs.set(cmd.topic, unsub);
       break;
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
-import { safePath } from "./shared-drive";
+import { safePath } from "../services/shared-drive-paths";
 import { createTestDb } from "../test/setup";
 import { createApp } from "../server";
 import { ProjectManager } from "../runtime/project-manager";

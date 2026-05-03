@@ -72,25 +72,20 @@ export default function FilePreviewPanel({
 
   // Subscribe to file changes — debounce to wait for streaming edits to settle
   useSubscription<SharedDriveWsEvent>(
-    `project:${projectId}:shared-drive`,
-    useCallback(
-      (event) => {
-        if (event.type === "file_changed" && event.payload.path === filePath) {
-          if (hasUnsavedChanges.current) {
-            setExternalChangeDetected(true);
-            return;
-          }
-          // Debounce: reset timer on each event, refresh only after writes settle
-          if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-          refreshTimerRef.current = setTimeout(() => {
-            refreshTimerRef.current = null;
-            setRefreshVersion((v) => v + 1);
-            toast("File updated", { duration: 2000 });
-          }, 500);
-        }
-      },
-      [filePath],
-    ),
+    projectId && filePath ? `shared-drive:${projectId}:${filePath}` : null,
+    useCallback((event) => {
+      if (event.type !== "file_changed") return;
+      if (hasUnsavedChanges.current) {
+        setExternalChangeDetected(true);
+        return;
+      }
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        setRefreshVersion((v) => v + 1);
+        toast("File updated", { duration: 2000 });
+      }, 500);
+    }, []),
   );
 
   return (

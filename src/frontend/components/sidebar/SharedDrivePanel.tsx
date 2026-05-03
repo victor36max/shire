@@ -1,5 +1,8 @@
 import * as React from "react";
 import { useDropzone } from "react-dropzone";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSubscription } from "../../hooks/ws";
+import type { SharedDriveWsEvent } from "../../lib/ws";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
@@ -88,6 +91,19 @@ export default function SharedDrivePanel() {
     isError: filesError,
   } = useSharedDrive(projectId, currentPath);
   const files = data?.files ?? [];
+
+  const queryClient = useQueryClient();
+  useSubscription<SharedDriveWsEvent>(
+    projectId ? `shared-drive:${projectId}:${currentPath}` : null,
+    React.useCallback(
+      (event) => {
+        if (event.type === "file_changed") {
+          queryClient.invalidateQueries({ queryKey: ["shared-drive", projectId, currentPath] });
+        }
+      },
+      [queryClient, projectId, currentPath],
+    ),
+  );
 
   const createDirectory = useCreateDirectory(projectId ?? "");
   const createFile = useCreateFile(projectId ?? "");
