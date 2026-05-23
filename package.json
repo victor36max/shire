@@ -73,6 +73,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.39.0",
+    "fflate": "^0.8.2",
     "frimousse": "^0.3.0",
     "hono": "^4.7.0",
     "jose": "^6.2.2",
